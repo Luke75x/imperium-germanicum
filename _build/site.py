@@ -70,6 +70,10 @@ def u(path):
     return (Ctx.prefix + path) or "./"
 
 
+# Cache-Buster: site.css wird 30 Tage gecacht, daher Inhalts-Hash an die URL haengen
+CSS_VERSION = __import__("hashlib").md5(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "css", "site.css"), "rb").read()).hexdigest()[:8]
+
+
 def asset(path):
     return Ctx.prefix + "assets/" + path
 
@@ -341,7 +345,7 @@ def render(path, title, description, body, current=None, robots="index,follow", 
 <link rel="apple-touch-icon" href="{asset("apple-touch-icon.png")}">
 <link rel="preload" href="{asset("fonts/eb-garamond.woff2")}" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="{asset("fonts/source-sans-3.woff2")}" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="{asset("css/site.css")}">
+<link rel="stylesheet" href="{asset("css/site.css")}?v={CSS_VERSION}">
 <script src="{asset("js/site.js")}" defer></script>
 {ld}
 </head>
@@ -837,7 +841,7 @@ def render_article_body(part_num, art):
                     i += 1
                 groups.append((label, vals))
             if all(len(v) == 3 for _, v in groups):
-                rows = "".join(f"<tr><th scope=\"row\">{l}</th>{''.join(f'<td>{esc(x)}</td>' for x in v)}</tr>" for l, v in groups)
+                rows = "".join(f"<tr><th scope=\"row\">{l}</th>{''.join(f'<td data-label=\"{k}\">{esc(x)}</td>' for k, x in zip(('Langform', 'Kurzform', 'Briefkürzel'), v))}</tr>" for l, v in groups)
                 out.append('<div class="table-scroll"><table class="styles-table"><thead><tr><th></th><th>Langform</th>'
                            f'<th>Kurzform</th><th>Briefkürzel</th></tr></thead><tbody>{rows}</tbody></table></div>')
             else:
@@ -900,7 +904,7 @@ def title_card(t, idx):
     head = "<tr><th>Anrede</th><th>Männlich (M)</th>" + ("<th>Weiblich (W)</th>" if has_w else "") + "</tr>"
     rows = []
     for label, m, w in t["anrede"]:
-        cells = f"<td>{esc(m or '–')}</td>" + (f"<td>{esc(w or '–')}</td>" if has_w else "")
+        cells = f'<td data-label="Männlich (M)">{esc(m or "–")}</td>' + (f'<td data-label="Weiblich (W)">{esc(w or "–")}</td>' if has_w else "")
         rows.append(f'<tr><th scope="row">{label}</th>{cells}</tr>')
     zus = f' <span style="font-style:italic;font-weight:400">{esc(t["zusatz"])}</span>' if t.get("zusatz") else ""
     search = " ".join([t["name"], t.get("zusatz", "")] + [x or "" for r in t["anrede"] for x in r]).lower()

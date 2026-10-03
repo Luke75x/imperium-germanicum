@@ -489,6 +489,16 @@ a.zoom:hover .zoom-hint, a.zoom:focus-visible .zoom-hint { opacity: 1; }
 .styles-table thead th { font-weight: 600; font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .styles-table tbody th { font-weight: 600; color: var(--ink); white-space: nowrap; }
 .table-scroll { overflow-x: auto; }
+/* Schmale Bildschirme: Tabellenzeilen als gestapelte Bloecke statt abgeschnittener Spalten */
+@media (max-width: 600px) {
+  .styles-table thead { display: none; }
+  .styles-table tr { display: block; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+  .styles-table tbody th, .styles-table td { display: block; border: 0; padding: 3px 12px; }
+  .styles-table tbody th { white-space: normal; padding-bottom: 6px; }
+  .styles-table td[data-label] { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 10px; }
+  .styles-table td[data-label]::before { content: attr(data-label); font: 600 .75rem/1.9 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .title-card .styles-table tbody th, .title-card .styles-table td { padding-left: 24px; padding-right: 24px; }
+}
 .doc ol.alpha { list-style: lower-alpha; padding-left: 1.4em; margin: .2em 0 .8em; }
 .doc ol.alpha li { margin-bottom: .35em; padding-left: .3em; }
 .doc dl.titles { margin: 6px 0 10px; }
