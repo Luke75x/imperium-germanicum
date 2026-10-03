@@ -1,0 +1,52 @@
+# Imperium Germanicum – Apache-Konfiguration
+
+Options -Indexes
+DirectoryIndex index.html
+ErrorDocument 404 /404.html
+AddDefaultCharset UTF-8
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Interne Ordner und Konfiguration sperren
+  RewriteRule ^_build(/|$) - [F,L]
+  RewriteRule ^api/config\.php$ - [F,L]
+
+  # HTTPS erzwingen
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+  # Alte Adressen der Jimdo-Seite dauerhaft weiterleiten (Lesezeichen & Suchmaschinen)
+  RewriteRule ^der-souver(%C3%A4|ä|a)n/?$ /der-souveraen/ [R=301,L,NE]
+  RewriteRule ^about/?$ /impressum/ [R=301,L]
+  RewriteRule ^j/privacy/?$ /datenschutz/ [R=301,L]
+  RewriteRule ^j/legal-guarantee/?$ /gewaehrleistung/ [R=301,L]
+  RewriteRule ^j/withdrawal/?$ /widerruf/ [R=301,L]
+  RewriteRule ^login/?$ / [R=301,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+  Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
+  Header always set Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'"
+
+  <FilesMatch "\.(css|js|woff2|webp|png|jpg|jpeg|ico|svg)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript text/javascript application/json image/svg+xml application/xml text/plain
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType font/woff2 .woff2
+  AddType image/webp .webp
+</IfModule>

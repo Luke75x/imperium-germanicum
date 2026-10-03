@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /api/
+Disallow: /_build/
+
+Sitemap: https://imperiumgermanicum.de/sitemap.xml
