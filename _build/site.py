@@ -200,8 +200,8 @@ def header(current):
     </div>
     <div class="topbar-tools">
       <span class="lang-switch" role="group" aria-label="Sprache">
-        <a href="@@LANG_DE@@" lang="de" hreflang="de" data-lang="de" aria-label="Deutsch">DE</a>
-        <a href="@@LANG_EN@@" lang="en" hreflang="en" data-lang="en" aria-label="English">EN</a>
+        <a href="@@LANG_DE@@" lang="de" hreflang="de" data-lang="de" aria-label="Deutsch" title="Deutsch"><svg class="flag" viewBox="0 0 5 3" aria-hidden="true" focusable="false"><path fill="#000" d="M0 0h5v1H0z"/><path fill="#d00" d="M0 1h5v1H0z"/><path fill="#ffce00" d="M0 2h5v1H0z"/></svg></a>
+        <a href="@@LANG_EN@@" lang="en" hreflang="en" data-lang="en" aria-label="English" title="English"><svg class="flag" viewBox="0 0 60 30" aria-hidden="true" focusable="false"><path fill="#012169" d="M0 0h60v30H0z"/><path stroke="#fff" stroke-width="6" d="M0 0l60 30M60 0L0 30"/><path stroke="#c8102e" stroke-width="2.5" d="M0 0l60 30M60 0L0 30"/><path stroke="#fff" stroke-width="10" d="M30 0v30M0 15h60"/><path stroke="#c8102e" stroke-width="6" d="M30 0v30M0 15h60"/></svg></a>
       </span>
       <button class="theme-toggle" type="button" aria-label="Zwischen hellem und dunklem Design wechseln">{icon("sun")}{icon("moon")}</button>
     </div>
