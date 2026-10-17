@@ -8,6 +8,40 @@
 
   /* ---------- Kopfbereich & mobiles Menü ---------- */
 
+  var lang = doc.getAttribute("lang") === "en" ? "en" : "de";
+  var TX = {
+    de: { menu: "Menü", close: "Schließen", image: "Bildansicht", prev: "Vorheriges Bild", next: "Nächstes Bild", orig: "Original öffnen",
+          missing: "Bitte fülle dieses Feld aus.", mismatch: "Bitte gib eine gültige E-Mail-Adresse ein.",
+          sent: "Vielen Dank! Deine Nachricht wurde gesendet.",
+          failed: "Die Nachricht konnte nicht gesendet werden. Bitte schreibe uns direkt per E-Mail.",
+          conn: "Die Verbindung ist fehlgeschlagen. Bitte versuche es erneut oder schreibe uns direkt per E-Mail.",
+          errq: "Die Nachricht konnte nicht gesendet werden. Bitte prüfe deine Eingaben oder schreibe uns direkt per E-Mail.",
+          toLight: "Zum hellen Design wechseln", toDark: "Zum dunklen Design wechseln" },
+    en: { menu: "Menu", close: "Close", image: "Image view", prev: "Previous image", next: "Next image", orig: "Open original",
+          missing: "Please fill in this field.", mismatch: "Please enter a valid email address.",
+          sent: "Thank you! Your message has been sent.",
+          failed: "The message could not be sent. Please write to us directly by email.",
+          conn: "The connection failed. Please try again or write to us directly by email.",
+          errq: "The message could not be sent. Please check your entries or write to us directly by email.",
+          toLight: "Switch to light design", toDark: "Switch to dark design" }
+  }[lang];
+
+  /* ---------- Farbschema ---------- */
+
+  var themeBtn = $(".theme-toggle");
+  if (themeBtn) {
+    var applyThemeLabel = function () {
+      themeBtn.setAttribute("aria-label", doc.getAttribute("data-theme") === "dark" ? TX.toLight : TX.toDark);
+    };
+    applyThemeLabel();
+    themeBtn.addEventListener("click", function () {
+      var next = doc.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      doc.setAttribute("data-theme", next);
+      try { localStorage.setItem("ig-theme", next); } catch (e) {}
+      applyThemeLabel();
+    });
+  }
+
   var header = $(".site-header");
   var menuBtn = $(".menu-button");
   var onScroll = function () {
@@ -20,7 +54,7 @@
     menuBtn.addEventListener("click", function () {
       var open = document.body.classList.toggle("menu-open");
       menuBtn.setAttribute("aria-expanded", String(open));
-      menuBtn.querySelector(".menu-label").textContent = open ? "Schließen" : "Menü";
+      menuBtn.querySelector(".menu-label").textContent = open ? TX.close : TX.menu;
     });
   }
 
@@ -74,14 +108,14 @@
     box.hidden = true;
     box.setAttribute("role", "dialog");
     box.setAttribute("aria-modal", "true");
-    box.setAttribute("aria-label", "Bildansicht");
+    box.setAttribute("aria-label", TX.image);
     box.innerHTML =
       '<div class="lb-bar"><span class="lb-count" aria-live="polite"></span>' +
-      '<div class="lb-tools"><a class="lb-orig" href="#" target="_blank" rel="noopener">Original öffnen</a>' +
-      '<button class="lb-btn lb-close" type="button" aria-label="Schließen"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div></div>' +
-      '<div class="lb-stage"><button class="lb-btn lb-prev" type="button" aria-label="Vorheriges Bild"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg></button>' +
+      '<div class="lb-tools"><a class="lb-orig" href="#" target="_blank" rel="noopener">' + TX.orig + '</a>' +
+      '<button class="lb-btn lb-close" type="button" aria-label="' + TX.close + '"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div></div>' +
+      '<div class="lb-stage"><button class="lb-btn lb-prev" type="button" aria-label="' + TX.prev + '"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg></button>' +
       '<img alt="">' +
-      '<button class="lb-btn lb-next" type="button" aria-label="Nächstes Bild"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l5 5-5 5"/></svg></button></div>' +
+      '<button class="lb-btn lb-next" type="button" aria-label="' + TX.next + '"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l5 5-5 5"/></svg></button></div>' +
       '<div class="lb-caption"></div>';
     document.body.appendChild(box);
 
@@ -231,8 +265,8 @@
   $$("[data-ts]").forEach(function (i) { i.value = String(Math.floor(Date.now() / 1000)); });
 
   var messages = {
-    valueMissing: "Bitte fülle dieses Feld aus.",
-    typeMismatch: "Bitte gib eine gültige E-Mail-Adresse ein."
+    valueMissing: TX.missing,
+    typeMismatch: TX.mismatch
   };
 
   var validate = function (form) {
@@ -286,14 +320,14 @@
         .then(function (res) {
           if (res.ok) {
             form.reset();
-            setStatus("ok", res.message || "Vielen Dank! Deine Nachricht wurde gesendet.");
+            setStatus("ok", res.message || TX.sent);
             $$("[data-ts]", form).forEach(function (i) { i.value = String(Math.floor(Date.now() / 1000)); });
           } else {
-            setStatus("err", res.message || "Die Nachricht konnte nicht gesendet werden. Bitte schreibe uns direkt per E-Mail.");
+            setStatus("err", res.message || TX.failed);
           }
         })
         .catch(function () {
-          setStatus("err", "Die Verbindung ist fehlgeschlagen. Bitte versuche es erneut oder schreibe uns direkt per E-Mail.");
+          setStatus("err", TX.conn);
         })
         .then(function () { btn.disabled = false; });
     });
@@ -305,7 +339,7 @@
     if (st) {
       st.hidden = false;
       st.className = "form-status err";
-      st.textContent = "Die Nachricht konnte nicht gesendet werden. Bitte prüfe deine Eingaben oder schreibe uns direkt per E-Mail.";
+      st.textContent = TX.errq;
     }
   }
 })();

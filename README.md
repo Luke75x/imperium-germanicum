@@ -10,6 +10,8 @@ Statische, schnelle Website (HTML/CSS/JS) mit PHP-Formularverarbeitung. Keine Co
 
 ## Inhalte ändern
 Alle Texte stehen in `_build/site.py` (Seiten), `_build/etikette.py` (Etiketten-Guide) und `_build/charta.json` (Charta).
+Die englische Variante (`/en/`) entsteht beim Bauen automatisch aus `_build/en.json` (deutscher Text → englische Übersetzung). Neue oder geänderte deutsche Texte stehen danach in `_build/en_missing.json` und werden dort mit Übersetzung in `en.json` ergänzt; bis dahin bleibt der deutsche Text stehen. Benötigt `python3-bs4` (bzw. `pip install beautifulsoup4`).
+
 Danach im Projektordner ausführen:
 
 ```

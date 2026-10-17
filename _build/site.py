@@ -47,6 +47,8 @@ ICONS = {
     "mail": '<rect x="1.5" y="3" width="13" height="10" rx="1"/><path d="M2 4l6 5 6-5"/>',
     "insta": '<rect x="2" y="2" width="12" height="12" rx="3.5"/><circle cx="8" cy="8" r="2.8"/><circle cx="11.6" cy="4.4" r=".6" fill="currentColor"/>',
     "yt": '<rect x="1.5" y="3.5" width="13" height="9" rx="2.5"/><path d="M6.8 6v4l3.4-2z" fill="currentColor"/>',
+    "sun": '<circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M3.4 12.6l1.3-1.3M11.3 4.7l1.3-1.3"/>',
+    "moon": '<path d="M13.5 9.6A5.8 5.8 0 016.4 2.5a5.8 5.8 0 107.1 7.1z"/>',
     "download": '<path d="M8 2v8M4.5 6.5L8 10l3.5-3.5M2 13h12"/>',
 }
 
@@ -72,6 +74,9 @@ def u(path):
 
 # Cache-Buster: site.css wird 30 Tage gecacht, daher Inhalts-Hash an die URL haengen
 CSS_VERSION = __import__("hashlib").md5(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "css", "site.css"), "rb").read()).hexdigest()[:8]
+
+
+JS_VERSION = __import__("hashlib").md5(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "js", "site.js"), "rb").read()).hexdigest()[:8]
 
 
 def asset(path):
@@ -188,11 +193,17 @@ def header(current):
 <div class="progress" aria-hidden="true"></div>
 <div class="topbar">
   <div class="wrap">
-    <span class="topbar-note">Das interaktive Rollenspiel – für Monarchie-, Adels-, Militär- und Geschichtsliebhaber</span>
     <div class="topbar-links">
-      <a href="{INSTAGRAM}" rel="noopener" target="_blank">{icon("insta")}Instagram</a>
-      <a href="{YOUTUBE}" rel="noopener" target="_blank">{icon("yt")}YouTube</a>
-      <a href="mailto:{EMAIL}">{icon("mail")}E-Mail</a>
+      <a href="{INSTAGRAM}" rel="noopener" target="_blank">{icon("insta")}<span class="lbl">Instagram</span></a>
+      <a href="{YOUTUBE}" rel="noopener" target="_blank">{icon("yt")}<span class="lbl">YouTube</span></a>
+      <a href="mailto:{EMAIL}">{icon("mail")}<span class="lbl">E-Mail</span></a>
+    </div>
+    <div class="topbar-tools">
+      <span class="lang-switch" role="group" aria-label="Sprache">
+        <a href="@@LANG_DE@@" lang="de" hreflang="de" data-lang="de" aria-label="Deutsch">DE</a>
+        <a href="@@LANG_EN@@" lang="en" hreflang="en" data-lang="en" aria-label="English">EN</a>
+      </span>
+      <button class="theme-toggle" type="button" aria-label="Zwischen hellem und dunklem Design wechseln">{icon("sun")}{icon("moon")}</button>
     </div>
   </div>
 </div>
@@ -321,6 +332,8 @@ def render(path, title, description, body, current=None, robots="index,follow", 
     current = path if current is None else current
     full_title = "Imperium Germanicum – Das interaktive Rollenspiel" if path == "" else f"{title} – Imperium Germanicum"
     canonical = f"{SITE_URL}/{path}"
+    alt_de, alt_en = f"{SITE_URL}/{path}", f"{SITE_URL}/en/{path}"
+    translatable = current != "404"
     ld = f'<script type="application/ld+json">{json.dumps(jsonld, ensure_ascii=False)}</script>' if jsonld else ""
     doc = f"""<!doctype html>
 <html lang="de">
@@ -331,7 +344,9 @@ def render(path, title, description, body, current=None, robots="index,follow", 
 <meta name="description" content="{esc(description)}">
 <meta name="robots" content="{robots}">
 <link rel="canonical" href="{canonical}">
+{f'<link rel="alternate" hreflang="de" href="{alt_de}"><link rel="alternate" hreflang="en" href="{alt_en}"><link rel="alternate" hreflang="x-default" href="{alt_de}">' if translatable else ""}
 <meta name="theme-color" content="#12183c">
+<script>(function(){{try{{var t=localStorage.getItem("ig-theme");if(t!=="dark"&&t!=="light")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)}}catch(e){{}}}})();</script>
 <meta property="og:type" content="website">
 <meta property="og:locale" content="de_DE">
 <meta property="og:site_name" content="Imperium Germanicum">
@@ -346,7 +361,7 @@ def render(path, title, description, body, current=None, robots="index,follow", 
 <link rel="preload" href="{asset("fonts/eb-garamond.woff2")}" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="{asset("fonts/source-sans-3.woff2")}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="{asset("css/site.css")}?v={CSS_VERSION}">
-<script src="{asset("js/site.js")}" defer></script>
+<script src="{asset("js/site.js")}?v={JS_VERSION}" defer></script>
 {ld}
 </head>
 <body>
@@ -360,10 +375,20 @@ def render(path, title, description, body, current=None, robots="index,follow", 
 </html>
 """
     doc = re.sub(r"\n\s*\n", "\n", doc)
+    p = "../" * depth
+    de_doc = doc.replace("@@LANG_DE@@", p + path or "./").replace("@@LANG_EN@@", (p + "en/" + path) if path else p + "en/")
+    de_doc = de_doc.replace('data-lang="de"', 'data-lang="de" aria-current="true"')
     out_dir = os.path.join(ROOT, path)
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8", newline="\n") as fh:
-        fh.write(doc)
+        fh.write(de_doc)
+    if translatable:
+        import i18n
+        en_doc = i18n.to_english(doc, path, depth, SITE_URL)
+        en_dir = os.path.join(ROOT, "en", path)
+        os.makedirs(en_dir, exist_ok=True)
+        with open(os.path.join(en_dir, "index.html"), "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(en_doc)
     if in_sitemap:
         PAGES.append(path)
 
@@ -662,13 +687,12 @@ def page_senat():
   {person("i58014e5ae3821616", "Westerwälder Union", "Alexander IX. König der Westerwälder Union",
           "Amtierender Kaiser des Imperium Germanicum",
           ("https://www.instagram.com/westwood.union?igsh=MTd2MHZ2YW8ybXh3cQ==", "Westerwälder Union"))}
-  {person("i84112a7b91aca791", "Erzherzogtum Kurpfalz", "Karl V. Erzherzog von der Pfalz",
-          "Amtierende Hand des Kaisers",
-          ("https://www.instagram.com/kurfurstvonderpfalz?igsh=MWljYWx3eHd3amdhMA==", "Erzherzogtum Kurpfalz"))}
   {person("if31e3be67eeb014f", "Königreich Hannover", "Ernst August VI. König von Hannover und Braunschweig-Lüneburg",
-          "Amtierender Vorsitzender des Reichstags",
+          "Amtierende Hand des Kaisers (vorübergehend) und Vorsitzender des Reichstags",
           ("https://www.instagram.com/zelastprussian?igsh=MWE5M3VwdXFvN3hxOA==", "Königreich Hannover"))}
 </div>
+<div class="prose" style="margin-top:32px">{paras(
+  "Das Kurfürstentum der Pfalz besteht seit dem 15.10.2026 als Erzherzogtum Kurpfalz fort. Das Amt des Erzherzogs ist vakant, die Regentschaft führt ein Regierungsrat aus den Herren Feldmarschällen und dem Herrn Großadmiral.")}</div>
 <section class="seat">
   <span class="eyebrow">Sitz der Institution</span>
   <div class="split wide-right">
@@ -726,33 +750,30 @@ def page_hand():
   {emblem("ib7c33ba7d6bef700", "", "Emblem der Hand des Kaisers", sizes="260px")}
   <div>
     <span class="eyebrow">Reichsombudsmann</span>
-    <h2 style="margin-top:0">Karl V.</h2>
-    <p class="titleblock">Seine kaiserliche und königliche Hoheit Kurfürst Karl V. von Gottes Gnaden Hand des Kaisers, Reichsombudsmann des Imperium Germanicum, Pfalzgraf bei Rhein, Herzog in Ober- und Niederbaiern, Erzschatzmeister des Senats, Fürst zu Mörs, Marquis zu Bergen und Zoom, Graf zu Veldenz, Sponheim, der Mark und Ravensberg, Herr zu Ravenstein.</p>
+    <h2 style="margin-top:0">Ernst August VI.</h2>
+    <p class="titleblock">Seine Majestät Ernst August VI., König und Kurfürst von Hannover und Braunschweig-Lüneburg, vorübergehend Hand des Kaisers und Reichsombudsmann des Imperium Germanicum.</p>
     <div class="prose">
     {paras(
-      "Karl V. ist seit dem 13.10.2018 der Kurfürst von der Pfalz und wurde am 22.05.2026 von seiner Majestät dem Kaiser zu dessen Hand ernannt und ist somit der zweithöchste Amtsträger des Reiches, zuvor war er als Reichsombudsmann temporäres Staatsoberhaupt des Imperium Germanicum.",
-      "Er ist einer der 9 Kurfürsten und gehört der Fraktion Kurpfalz an.",
-      "Seine kaiserliche und königliche Hoheit ist eine wahre Frohnatur und stets auf der Suche nach dem Kontakt zum Volk, er beherrscht ausschließlich die deutsche Sprache und übt sich derweil in Englisch und Französisch.",
+      "Seit dem 15.10.2026 ist der König von Hannover vorübergehend die Hand des Kaisers und somit der zweithöchste Amtsträger des Reiches. Sein Vorgänger Karl V. verlor mit Dekret vom 15.10.2026 alle Titel und Ämter.",
+      "Er ist einer der 9 Kurfürsten und zugleich Vorsitzender des Reichstags.",
     )}
     </div>
   </div>
 </div>
 <div class="figure-row" style="margin-top:48px">
-  {figure("ie52e566a1afc77a5", "Standarte seiner kaiserlichen und königlichen Hoheit der Hand des Kaisers", group="hand")}
-  {figure("if8e3805d30e84d07", "Seine kaiserliche und königliche Hoheit Karl V.", group="hand")}
+  {figure("ie52e566a1afc77a5", "Standarte der Hand des Kaisers", group="hand")}
+  {figure("if31e3be67eeb014f", "Seine Majestät Ernst August VI.", group="hand")}
 </div>
 <section class="seat">
   <span class="eyebrow">Arbeitssitz &amp; Residenz</span>
   <div class="prose">{paras(
-    "Der Arbeitssitz der Senatsverwaltung der Regierung seiner Majestät, welcher die Hand des Kaisers vorsteht befindet sich im Berliner Schloss in der Reichshauptstadt.",
-    "Die private Residenz seiner kaiserlichen und königlichen Hoheit befindet sich jedoch in seiner Funktion als Kurfürst von der Pfalz im Schloss Mannheim.")}</div>
+    "Der Arbeitssitz der Senatsverwaltung der Regierung seiner Majestät, welcher die Hand des Kaisers vorsteht befindet sich im Berliner Schloss in der Reichshauptstadt.")}</div>
   <div class="figure-row" style="margin-top:28px">
-    {figure("ie5894868af0372d8", "Schloss Mannheim", group="hand-sitz")}
     {figure("i020a6de4455d21a6", "Berliner Schloss", group="hand-sitz")}
   </div>
 </section>"""
     institution_page("informationen/hand-des-kaisers/", "Hand des Kaisers", "Die Hand des Kaisers", "Reichsombudsmann",
-                     "Karl V., Kurfürst von der Pfalz, ist als Hand des Kaisers und Reichsombudsmann der zweithöchste Amtsträger des Imperium Germanicum.",
+                     "Ernst August VI., König von Hannover, ist vorübergehend Hand des Kaisers und Reichsombudsmann und damit der zweithöchste Amtsträger des Imperium Germanicum.",
                      article)
 
 
@@ -1140,6 +1161,7 @@ def contact_card():
 def form_common(kind):
     return (f'<input type="hidden" name="formular" value="{kind}">'
             '<input type="hidden" name="ts" value="" data-ts>'
+            '<input type="hidden" name="lang" value="de">'
             '<div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>')
 
 
@@ -1238,7 +1260,7 @@ def page_datenschutz():
   <p>Zum Schutz unserer Formulare vor automatisierten Programmen („Bots“) setzen wir ausschließlich serverseitige Prüfungen ein (ein für Menschen unsichtbares Prüffeld, eine Mindest-Ausfüllzeit und eine Begrenzung der Anfragen pro Stunde). Dafür wird die IP-Adresse kurzzeitig in anonymisierter (gehashter) Form auf unserem Server gespeichert und nach spätestens einer Stunde gelöscht. Es werden keine Daten an Dritte wie Google übermittelt. Rechtsgrundlage ist unser berechtigtes Interesse gemäß Art. 6 Abs. 1 S. 1 lit. f DSGVO.</p>
 
   <h2 id="cookies">4. Cookie-Richtlinie</h2>
-  <p>Diese Website setzt keine Cookies und verwendet keine Analyse- oder Tracking-Dienste. Eine Einwilligung ist daher nicht erforderlich.</p>
+  <p>Diese Website setzt keine Cookies und verwendet keine Analyse- oder Tracking-Dienste. Eine Einwilligung ist daher nicht erforderlich. Lediglich deine Wahl des Farbschemas (hell/dunkel) wird in deinem eigenen Browser gespeichert (lokaler Speicher), sie wird nicht an uns übertragen.</p>
 
   <h2>5. Schriftarten</h2>
   <p>Die verwendeten Schriftarten (EB Garamond, Source Sans 3) werden lokal von unserem Server geladen. Es findet keine Verbindung zu Servern Dritter statt.</p>
@@ -1319,7 +1341,7 @@ def page_404():
 
 
 def write_meta_files():
-    urls = "".join(f"<url><loc>{SITE_URL}/{p}</loc></url>\n" for p in PAGES)
+    urls = "".join(f"<url><loc>{SITE_URL}/{p}</loc></url>\n<url><loc>{SITE_URL}/en/{p}</loc></url>\n" for p in PAGES)
     with open(os.path.join(ROOT, "sitemap.xml"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write('<?xml version="1.0" encoding="UTF-8"?>\n'
                  f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{urls}</urlset>\n')
@@ -1357,7 +1379,8 @@ def main():
                 "Dein Widerruf ist bei uns eingegangen. Eine Eingangsbestätigung wurde an deine E-Mail-Adresse gesendet.",
                 ("", "Zur Hauptseite"))
     write_meta_files()
-    print(f"{len(PAGES)} Seiten erzeugt.")
+    import i18n
+    print(f"{len(PAGES)} Seiten erzeugt (de + en); {i18n.report()} fehlende englische Texte.")
 
 
 if __name__ == "__main__":
