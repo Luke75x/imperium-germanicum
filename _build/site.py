@@ -150,10 +150,10 @@ INSTITUTIONEN = [
      "Erfahre mehr über das KRS als gemeinsamen übergeordneten Nachrichten- und Sicherheitsdienst der Teilstaaten des Reiches",
      "idf73bcf2259c33f2"),
     ("informationen/die-reichsbehoerden/", "Die Reichsbehörden", "Die Reichsbehörden",
-     "Erfahre mehr über die Reichsbehörden des Imperium Germanicum", "i0e38a7a54df94ef6"),
+     "Erfahre mehr über die Reichsbehörden des Imperium Germanicum", "i416b7a1e6d04b155"),
 ]
 
-# Einträge, die im Untermenü und in der Übersicht zwei Spalten einnehmen (Querformat-Bild statt Siegel)
+# Einträge, die im Untermenü und in der Übersicht zwei Spalten einnehmen
 INSTITUTIONEN_BREIT = {"informationen/die-reichsbehoerden/"}
 
 NAV = [
@@ -177,7 +177,7 @@ def nav_html(current):
                 c = ' aria-current="page"' if current == p else ""
                 wide = ' class="is-wide"' if p in INSTITUTIONEN_BREIT else ""
                 sub.append(
-                    f'<li{wide}><a href="{u(p)}"{c}>{img(emb, "", "128px" if wide else "44px")}'
+                    f'<li{wide}><a href="{u(p)}"{c}>{img(emb, "", "44px")}'
                     f'<span><strong>{esc(short)}</strong><small>{esc(desc)}</small></span></a></li>')
             items.append(
                 f'<li class="has-sub{" is-section" if section else ""}">'
@@ -402,10 +402,9 @@ def render(path, title, description, body, current=None, robots="index,follow", 
 
 def card(path, title, desc, emb, cta, index="", wide=False):
     idx = f'<span class="card-index">{index}</span>' if index else ""
-    sizes = "(min-width: 1000px) 560px, 90vw" if wide else "(min-width: 1000px) 190px, 40vw"
     return f"""
 <article class="card{" is-wide" if wide else ""} reveal">
-  <div class="card-media">{img(emb, "", sizes)}</div>
+  <div class="card-media">{img(emb, "", "(min-width: 1000px) 190px, 40vw")}</div>
   <div class="card-body">
     {idx}
     <h3><a href="{u(path)}">{esc(title)}</a></h3>

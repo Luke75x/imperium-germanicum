@@ -306,10 +306,8 @@ button.link-arrow { background: none; border: 0; border-bottom: 1px solid var(--
 .subnav li a img { width: 44px; height: 44px; border-radius: 50%; }
 .subnav li strong { display: block; font: 600 .9375rem/1.25 var(--sans); color: var(--ink); }
 .subnav li small { display: block; font-size: .8125rem; line-height: 1.35; color: var(--muted); margin-top: 3px; }
-/* Breiter Eintrag: nimmt beide Spalten ein, Querformat-Bild statt rundem Siegel */
+/* Breiter Eintrag: nimmt beide Spalten ein */
 .subnav li.is-wide { grid-column: 1 / -1; }
-.subnav li.is-wide a { grid-template-columns: 128px 1fr; }
-.subnav li.is-wide a img { width: 128px; height: 72px; object-fit: cover; border-radius: var(--radius); }
 
 .menu-button {
   display: none; align-items: center; gap: 10px;
@@ -485,7 +483,6 @@ a.zoom:hover .zoom-hint, a.zoom:focus-visible .zoom-hint { opacity: 1; }
 .card-body p { font-size: .975rem; color: var(--muted); margin-bottom: 18px; }
 .card-body .link-arrow { margin-top: auto; align-self: flex-start; }
 .card.is-wide { grid-column: span 2; }
-.card.is-wide .card-media img { max-width: none; border-radius: var(--radius); }
 @media (max-width: 520px) { .card.is-wide { grid-column: auto; } }
 .card-index { font: 600 .75rem/1 var(--sans); letter-spacing: .14em; color: var(--gold-700); margin-bottom: 10px; }
 
