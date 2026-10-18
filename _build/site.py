@@ -149,7 +149,12 @@ INSTITUTIONEN = [
     ("informationen/reichssicherheitsamt/", "Reichssicherheitsamt", "Kaiserliches Reichssicherheitsamt",
      "Erfahre mehr über das KRS als gemeinsamen übergeordneten Nachrichten- und Sicherheitsdienst der Teilstaaten des Reiches",
      "idf73bcf2259c33f2"),
+    ("informationen/die-reichsbehoerden/", "Die Reichsbehörden", "Die Reichsbehörden",
+     "Erfahre mehr über die Reichsbehörden des Imperium Germanicum", "i0e38a7a54df94ef6"),
 ]
+
+# Einträge, die im Untermenü und in der Übersicht zwei Spalten einnehmen (Querformat-Bild statt Siegel)
+INSTITUTIONEN_BREIT = {"informationen/die-reichsbehoerden/"}
 
 NAV = [
     ("", "Hauptseite"),
@@ -170,8 +175,9 @@ def nav_html(current):
             sub = []
             for p, short, _t, desc, emb in INSTITUTIONEN:
                 c = ' aria-current="page"' if current == p else ""
+                wide = ' class="is-wide"' if p in INSTITUTIONEN_BREIT else ""
                 sub.append(
-                    f'<li><a href="{u(p)}"{c}>{img(emb, "", "44px")}'
+                    f'<li{wide}><a href="{u(p)}"{c}>{img(emb, "", "128px" if wide else "44px")}'
                     f'<span><strong>{esc(short)}</strong><small>{esc(desc)}</small></span></a></li>')
             items.append(
                 f'<li class="has-sub{" is-section" if section else ""}">'
@@ -394,11 +400,12 @@ def render(path, title, description, body, current=None, robots="index,follow", 
         PAGES.append(path)
 
 
-def card(path, title, desc, emb, cta, index=""):
+def card(path, title, desc, emb, cta, index="", wide=False):
     idx = f'<span class="card-index">{index}</span>' if index else ""
+    sizes = "(min-width: 1000px) 560px, 90vw" if wide else "(min-width: 1000px) 190px, 40vw"
     return f"""
-<article class="card reveal">
-  <div class="card-media">{img(emb, "", "(min-width: 1000px) 190px, 40vw")}</div>
+<article class="card{" is-wide" if wide else ""} reveal">
+  <div class="card-media">{img(emb, "", sizes)}</div>
   <div class="card-body">
     {idx}
     <h3><a href="{u(path)}">{esc(title)}</a></h3>
@@ -576,7 +583,7 @@ def page_home():
 
 def page_informationen():
     Ctx.prefix = "../"
-    cards = "".join(card(p, t, d, e, "Mehr erfahren", f"{i:02d}") for i, (p, _s, t, d, e) in enumerate(INSTITUTIONEN, 1))
+    cards = "".join(card(p, t, d, e, "Mehr erfahren", f"{i:02d}", p in INSTITUTIONEN_BREIT) for i, (p, _s, t, d, e) in enumerate(INSTITUTIONEN, 1))
     body = page_head([("informationen/", "Staatsaufbau")], "Staatsaufbau", "Die Verfassung und Institutionen",
                      "Das Imperium Germanicum verfügt über eine eigene Verfassung, die sogenannte „Imperiale Charta“, über einen Etiketten-Guide und viele staatliche Institutionen.") + f"""
 <section class="section">
@@ -806,6 +813,17 @@ def page_krs():
     institution_page("informationen/reichssicherheitsamt/", "Reichssicherheitsamt", "Kaiserliches Reichssicherheitsamt",
                      "Nachrichtendienst des Imperium Germanicum",
                      "Das Kaiserliche Reichssicherheitsamt (KRS) ist der reichsweite und übergeordnete Nachrichtendienst des Imperium Germanicum.",
+                     article)
+
+
+def page_reichsbehoerden():
+    def article():
+        return f"""
+{figure("i0e38a7a54df94ef6", "Die Reichsbehörden", sizes="(min-width: 1000px) 820px, 100vw")}
+<p class="callout">Nähere Informationen zu den Reichsbehörden folgen in Kürze.</p>"""
+    institution_page("informationen/die-reichsbehoerden/", "Die Reichsbehörden", "Die Reichsbehörden",
+                     "Die Behörden des Reiches",
+                     "Erfahre mehr über die Reichsbehörden des Imperium Germanicum.",
                      article)
 
 
@@ -1381,6 +1399,7 @@ def main():
     page_reichsgerichtshof()
     page_stabschefs()
     page_krs()
+    page_reichsbehoerden()
     page_souveraen()
     page_galerie()
     page_erlasse()
