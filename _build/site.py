@@ -1347,6 +1347,9 @@ def page_404():
 
 
 def write_meta_files():
+    # Browser fragen /favicon.ico oft direkt im Stammverzeichnis ab (auch ohne <link rel="icon">)
+    import shutil
+    shutil.copyfile(os.path.join(ROOT, "assets", "favicon.ico"), os.path.join(ROOT, "favicon.ico"))
     urls = "".join(f"<url><loc>{SITE_URL}/{p}</loc></url>\n<url><loc>{SITE_URL}/en/{p}</loc></url>\n" for p in PAGES)
     with open(os.path.join(ROOT, "sitemap.xml"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write('<?xml version="1.0" encoding="UTF-8"?>\n'
