@@ -165,3 +165,21 @@
 .wiki-imgopts { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 18px; padding-top: 18px; border-top: 1px solid var(--rule); }
 .wiki-imgopts-wide { grid-column: 1 / -1; }
 @media (max-width: 560px) { .wiki-imgopts { grid-template-columns: 1fr; } }
+
+/* ---------- Gerade im Wiki (im Fußbereich, Stil von .site-footer) ---------- */
+
+.wiki-online { border-top: 1px solid rgba(255,255,255,.12); }
+.wiki-online .wrap { padding-block: 28px; }
+.wiki-online h2 { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.wiki-online h2 small { font: 400 .8125rem/1 var(--sans); letter-spacing: 0; text-transform: none; color: rgba(255,255,255,.55); }
+.wiki-online ul { display: flex; flex-wrap: wrap; gap: 10px 28px; }
+.wiki-online li span { color: rgba(255,255,255,.55); font-size: .8125rem; }
+.wiki-online p { margin: 0; }
+.wiki-online .wiki-online-note { margin-top: 12px; font-size: .8125rem; color: rgba(255,255,255,.45); }
+
+/* ---------- Benutzerprofil ---------- */
+
+.wiki-roles .title-card { margin-top: 18px; }
+.wiki-roles .title-card .remark h4:not(:first-child) { margin-top: 16px; }
+.wiki-roles .title-card .remark .form-note { margin-top: 14px; font-size: .875rem; }
+.wiki-roles > .form-note { margin-top: 18px; font-size: .875rem; }
