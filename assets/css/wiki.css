@@ -109,3 +109,11 @@
 .wiki-admin { margin-top: 36px; padding: 12px 16px; border: 1px solid var(--rule); font-family: var(--sans); }
 .wiki-admin summary { cursor: pointer; font-weight: 600; }
 .wiki-admin form { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+
+/* Tabellen im Artikeltext */
+.wiki-article .table-scroll { max-width: 100%; margin: 1.4em 0; }
+.wiki-grid { border-collapse: collapse; font: .9375rem/1.45 var(--sans); min-width: 100%; }
+.wiki-grid th, .wiki-grid td { border: 1px solid var(--rule); padding: 7px 10px; text-align: left; vertical-align: top; }
+.wiki-grid th { background: var(--paper); font-weight: 600; }
+.wiki-grid caption { text-align: left; font-weight: 600; padding-bottom: 8px; }
+.wiki-article:has(.wiki-grid) { max-width: none; }
