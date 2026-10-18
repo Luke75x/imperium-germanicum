@@ -56,6 +56,12 @@
   --rule: #ddd5c3;
   --rule-strong: #bfb294;
 
+  /* Zustandsfarben (vorher hartcodiert in den Formularen) */
+  --danger: #a3261b;
+  --danger-bg: #f8ecea;
+  --success: #2f6b3a;
+  --success-bg: #eef4ec;
+
   --serif: "EB Garamond", "Garamond", "Times New Roman", serif;
   --sans: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
 
@@ -88,6 +94,10 @@
   --muted: #9a9eb4;
   --rule: #2a3262;
   --rule-strong: #3e487d;
+  --danger: #f2b9b2;
+  --danger-bg: #301613;
+  --success: #b7e2c0;
+  --success-bg: #14291a;
   --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px -12px rgba(0, 0, 0, .6);
 }
 :root[data-theme="dark"] .btn-line { color: var(--ink); }
@@ -96,7 +106,7 @@
 :root[data-theme="dark"] .btn-navy:hover { background: #4a57b8; }
 :root[data-theme="dark"] .nav-main .nav-cta a { background: var(--navy-700); }
 :root[data-theme="dark"] .nav-main .nav-cta a:hover { background: #4a57b8; }
-:root[data-theme="dark"] .tabs button[aria-pressed="true"] { background: var(--navy-700); border-color: var(--navy-700); }
+:root[data-theme="dark"] .tabs button[aria-pressed="true"], :root[data-theme="dark"] .tabs a[aria-current] { background: var(--navy-700); border-color: var(--navy-700); }
 :root[data-theme="dark"] .form-status.ok { background: #14291a; border-color: #4a9a5a; color: #b7e2c0; }
 :root[data-theme="dark"] .form-status.err { background: #301613; border-color: #d4574b; color: #f2b9b2; }
 :root[data-theme="dark"] .field input:focus, :root[data-theme="dark"] .field textarea:focus { box-shadow: 0 0 0 3px rgba(201,164,58,.4); }
@@ -189,6 +199,8 @@ strong, b { color: var(--ink); font-weight: 600; }
 .btn-navy:hover { background: var(--navy-700); color: #fff; }
 .btn-line { border-color: currentColor; color: var(--navy-900); background: transparent; }
 .btn-line:hover { background: var(--navy-900); border-color: var(--navy-900); color: #fff; }
+/* Kleine Variante (Werte wie .doc-tools .btn), z. B. für Werkzeugleisten */
+.btn-small { padding: 11px 16px; font-size: .875rem; }
 .on-dark .btn-line { color: #fff; border-color: rgba(255,255,255,.45); }
 .on-dark .btn-line:hover { background: #fff; color: var(--navy-900); border-color: #fff; }
 
@@ -198,6 +210,7 @@ strong, b { color: var(--ink); font-weight: 600; }
   border-bottom: 1px solid var(--gold-500); padding-bottom: 3px;
 }
 .link-arrow svg { width: 14px; height: 14px; transition: transform .2s; }
+button.link-arrow { background: none; border: 0; border-bottom: 1px solid var(--gold-500); padding: 0 0 3px; cursor: pointer; }
 .link-arrow:hover svg { transform: translateX(3px); }
 
 /* ---------- Kopfbereich ---------- */
@@ -547,13 +560,15 @@ a.zoom:hover .zoom-hint, a.zoom:focus-visible .zoom-hint { opacity: 1; }
 .styles-table th, .styles-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
 .styles-table thead th { font-weight: 600; font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .styles-table tbody th { font-weight: 600; color: var(--ink); white-space: nowrap; }
+.styles-table.is-grid th, .styles-table.is-grid td { border: 1px solid var(--rule); }
+.styles-table.is-grid tbody th { white-space: normal; }
 .table-scroll { overflow-x: auto; }
 /* Schmale Bildschirme: Tabellenzeilen als gestapelte Bloecke statt abgeschnittener Spalten */
 @media (max-width: 600px) {
-  .styles-table thead { display: none; }
-  .styles-table tr { display: block; padding: 12px 0; border-bottom: 1px solid var(--rule); }
-  .styles-table tbody th, .styles-table td { display: block; border: 0; padding: 3px 12px; }
-  .styles-table tbody th { white-space: normal; padding-bottom: 6px; }
+  .styles-table:not(.is-grid) thead { display: none; }
+  .styles-table:not(.is-grid) tr { display: block; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+  .styles-table:not(.is-grid) tbody th, .styles-table:not(.is-grid) td { display: block; border: 0; padding: 3px 12px; }
+  .styles-table:not(.is-grid) tbody th { white-space: normal; padding-bottom: 6px; }
   .styles-table td[data-label] { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 10px; }
   .styles-table td[data-label]::before { content: attr(data-label); font: 600 .75rem/1.9 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
   .title-card .styles-table tbody th, .title-card .styles-table td { padding-left: 24px; padding-right: 24px; }
@@ -583,12 +598,13 @@ a.zoom:hover .zoom-hint, a.zoom:focus-visible .zoom-hint { opacity: 1; }
   display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between;
 }
 .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
-.tabs button {
+.tabs button, .tabs a {
   font: 600 .875rem/1 var(--sans); padding: 11px 16px; border-radius: 999px;
   border: 1px solid var(--rule-strong); background: transparent; color: var(--ink-2); cursor: pointer;
+  text-decoration: none; display: inline-block;
 }
-.tabs button:hover { border-color: var(--navy-800); color: var(--navy-800); }
-.tabs button[aria-pressed="true"] { background: var(--navy-900); border-color: var(--navy-900); color: #fff; }
+.tabs button:hover, .tabs a:hover { border-color: var(--navy-800); color: var(--navy-800); }
+.tabs button[aria-pressed="true"], .tabs a[aria-current] { background: var(--navy-900); border-color: var(--navy-900); color: #fff; }
 .search { position: relative; flex: 0 1 300px; }
 .search input {
   width: 100%; font: 400 1rem/1 var(--sans); padding: 12px 14px 12px 40px;
@@ -647,6 +663,7 @@ a.zoom:hover .zoom-hint, a.zoom:focus-visible .zoom-hint { opacity: 1; }
   transition: transform .25s, box-shadow .25s;
 }
 .doc-card .sheet img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.doc-card .sheet.contain img { object-fit: contain; object-position: center; }
 .doc-card:hover .sheet { transform: translateY(-3px); box-shadow: var(--shadow); }
 .doc-card .meta { padding: 14px 2px 0; display: flex; justify-content: space-between; gap: 10px; font-size: .875rem; color: var(--muted); }
 .doc-card .meta strong { font: 600 .75rem/1.6 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--gold-700); }
@@ -676,22 +693,38 @@ a.zoom:hover .zoom-hint, a.zoom:focus-visible .zoom-hint { opacity: 1; }
 .field label { display: block; font: 600 .9375rem/1.3 var(--sans); color: var(--ink); margin-bottom: 8px; }
 .field label .req { color: var(--gold-700); }
 .field .hint { display: block; font-size: .875rem; color: var(--muted); margin-top: 6px; }
-.field input, .field textarea {
+.field input, .field textarea, .field select {
   width: 100%; font: 400 1rem/1.5 var(--sans); color: var(--ink);
   padding: 13px 14px; background: var(--white); border: 1px solid var(--rule-strong); border-radius: var(--radius);
   transition: border-color .15s, box-shadow .15s;
 }
 .field textarea { min-height: 180px; resize: vertical; }
-.field input:focus, .field textarea:focus { outline: none; border-color: var(--navy-800); box-shadow: 0 0 0 3px rgba(201,164,58,.35); }
-.field.invalid input, .field.invalid textarea { border-color: #a3261b; }
-.field .error { color: #a3261b; font-size: .875rem; margin-top: 6px; display: block; }
+.field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--navy-800); box-shadow: 0 0 0 3px rgba(201,164,58,.35); }
+.field.invalid input, .field.invalid textarea { border-color: var(--danger); }
+.field .error { color: var(--danger); font-size: .875rem; margin-top: 6px; display: block; }
+/* Checkbox mit Beschriftung */
+.field-check { display: flex; gap: 10px; align-items: flex-start; font: 400 .9375rem/1.45 var(--sans); color: var(--ink-2); cursor: pointer; }
+.field-check input { margin: 3px 0 0; width: 16px; height: 16px; flex: none; accent-color: var(--navy-800); }
 .hp { position: absolute !important; left: -9999px !important; width: 1px; height: 1px; overflow: hidden; }
 .form-note { font-size: .9375rem; color: var(--muted); }
 .form-note strong { color: var(--ink); }
 .form-status { padding: 16px 18px; border-left: 3px solid; font-size: .975rem; }
-.form-status.ok { background: #eef4ec; border-color: #2f6b3a; color: #1f4a27; }
-.form-status.err { background: #f8ecea; border-color: #a3261b; color: #6f1a12; }
+.form-status.ok { background: var(--success-bg); border-color: var(--success); color: #1f4a27; }
+.form-status.err { background: var(--danger-bg); border-color: var(--danger); color: #6f1a12; }
 .form .btn[disabled] { opacity: .6; cursor: progress; }
+
+/* Dialog (Modal): gleiche Bauart wie das Panel der .subnav */
+.dialog {
+  width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto;
+  padding: clamp(20px, 3vw, 28px); color: var(--ink-2);
+  background: var(--paper); border: 1px solid var(--rule); border-top: 3px solid var(--gold-500);
+  box-shadow: 0 24px 48px -20px rgba(10, 15, 39, .35);
+}
+.dialog.wide { width: min(780px, calc(100vw - 32px)); }
+.dialog::backdrop { background: rgba(8, 11, 30, .6); }
+.dialog h2 { font-size: 1.625rem; margin-bottom: 18px; }
+.dialog .form { gap: 18px; }
+.dialog-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 
 .contact-card { background: var(--navy-900); color: rgba(255,255,255,.82); padding: clamp(26px, 4vw, 40px); }
 .contact-card h2 { color: #fff; font-size: 1.75rem; }
@@ -762,7 +795,7 @@ a.zoom:hover .zoom-hint, a.zoom:focus-visible .zoom-hint { opacity: 1; }
 /* ---------- Druck ---------- */
 
 @media print {
-  .topbar, .site-header, .site-footer, .crowns, .aside-nav, .toc, .doc-tools, .guide-controls, .breadcrumb, .progress, .lightbox { display: none !important; }
+  .topbar, .site-header, .site-footer, .crowns, .aside-nav, .toc, .doc-tools, .guide-controls, .breadcrumb, .progress, .lightbox, .dialog { display: none !important; }
   body { background: #fff; color: #000; font-size: 11pt; }
   .page-head { border: 0; padding: 0 0 12pt; background: #fff; }
   .with-aside, .with-aside.left { display: block; }
