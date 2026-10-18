@@ -157,6 +157,7 @@ NAV = [
     ("der-souveraen/", "Der Souverän"),
     ("die-bildergalerie/", "Die Bildergalerie"),
     ("neue-erlasse-und-gesetze/", "Neue Erlasse und Gesetze"),
+    ("wiki/", "Wiki"),
 ]
 
 
@@ -1212,6 +1213,7 @@ def page_sitemap():
         ("der-souveraen/", "Der Souverän", ""),
         ("die-bildergalerie/", "Die Bildergalerie", ""),
         ("neue-erlasse-und-gesetze/", "Neue Erlasse und Gesetze", ""),
+        ("wiki/", "Wiki", ""),
         ("kontakt/", "Kontakt", ""),
         ("impressum/", "Impressum", ""),
         ("datenschutz/", "Datenschutz", ""),
@@ -1260,7 +1262,11 @@ def page_datenschutz():
   <p>Zum Schutz unserer Formulare vor automatisierten Programmen („Bots“) setzen wir ausschließlich serverseitige Prüfungen ein (ein für Menschen unsichtbares Prüffeld, eine Mindest-Ausfüllzeit und eine Begrenzung der Anfragen pro Stunde). Dafür wird die IP-Adresse kurzzeitig in anonymisierter (gehashter) Form auf unserem Server gespeichert und nach spätestens einer Stunde gelöscht. Es werden keine Daten an Dritte wie Google übermittelt. Rechtsgrundlage ist unser berechtigtes Interesse gemäß Art. 6 Abs. 1 S. 1 lit. f DSGVO.</p>
 
   <h2 id="cookies">4. Cookie-Richtlinie</h2>
-  <p>Diese Website setzt keine Cookies und verwendet keine Analyse- oder Tracking-Dienste. Eine Einwilligung ist daher nicht erforderlich. Lediglich deine Wahl des Farbschemas (hell/dunkel) wird in deinem eigenen Browser gespeichert (lokaler Speicher), sie wird nicht an uns übertragen.</p>
+  <p>Diese Website verwendet keine Analyse- oder Tracking-Dienste. Cookies setzen wir nur, wenn du dich im Wiki über Discord anmeldest: Dann wird ein technisch notwendiges Sitzungs-Cookie gespeichert, das dich als angemeldet erkennt (und für wenige Minuten ein Cookie zur Absicherung des Anmeldevorgangs). Ohne Anmeldung werden keine Cookies gesetzt. Deine Wahl des Farbschemas (hell/dunkel) wird in deinem eigenen Browser gespeichert (lokaler Speicher), sie wird nicht an uns übertragen.</p>
+
+  <h2 id="wiki">Wiki und Anmeldung über Discord</h2>
+  <p>Das Wiki kann jeder lesen. Zum Bearbeiten ist eine Anmeldung über Discord nötig. Erst wenn du auf „Mit Discord anmelden“ klickst, wirst du zu Discord weitergeleitet; es gelten dann dessen Datenschutzbestimmungen. Wir erhalten von Discord deine Nutzer-ID, deinen Anzeigenamen und dein Profilbild und prüfen anhand unseres Discord-Servers, ob du Mitglied bist und welche Rollen du dort hast (davon hängt ab, was du bearbeiten darfst). Dein Passwort erhalten wir nie.</p>
+  <p>Gespeichert werden diese Angaben sowie deine Bearbeitungen (Text, Zeitpunkt, Zusammenfassung). Bearbeitungen sind – wie bei jedem Wiki – öffentlich einsehbar und mit deinem Anzeigenamen verknüpft, damit Änderungen nachvollziehbar bleiben. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Nutzung des Wikis) bzw. lit. f (Nachvollziehbarkeit, Schutz vor Missbrauch). Auf Wunsch löschen wir deine Kontodaten; deine Beiträge bleiben dann unter einem neutralen Namen erhalten. Schreibe dazu an <a href="mailto:{EMAIL}">{EMAIL}</a>.</p>
 
   <h2>5. Schriftarten</h2>
   <p>Die verwendeten Schriftarten (EB Garamond, Source Sans 3) werden lokal von unserem Server geladen. Es findet keine Verbindung zu Servern Dritter statt.</p>
@@ -1349,6 +1355,17 @@ def write_meta_files():
         fh.write(f"User-agent: *\nDisallow: /api/\nDisallow: /_build/\n\nSitemap: {SITE_URL}/sitemap.xml\n")
 
 
+def write_wiki_shell():
+    """Seitenrahmen (Kopf, Fuß, Navigation) für das dynamische Wiki. Der Wiki-Dienst setzt den Inhalt ein."""
+    import shutil
+    render("wiki-shell/", "@@TITLE@@", "Wiki des Imperium Germanicum", "<!--WIKI-->", current="wiki/",
+           robots="noindex", in_sitemap=False, show_crowns=False)
+    for src, name in ((os.path.join(ROOT, "wiki-shell"), "wiki_shell_de.html"),
+                      (os.path.join(ROOT, "en", "wiki-shell"), "wiki_shell_en.html")):
+        shutil.move(os.path.join(src, "index.html"), os.path.join(HERE, name))
+        os.rmdir(src)
+
+
 def main():
     page_404()          # zuerst, da es index.html kurzzeitig belegt
     page_home()
@@ -1378,6 +1395,7 @@ def main():
                 "Widerruf eingegangen",
                 "Dein Widerruf ist bei uns eingegangen. Eine Eingangsbestätigung wurde an deine E-Mail-Adresse gesendet.",
                 ("", "Zur Hauptseite"))
+    write_wiki_shell()
     write_meta_files()
     import i18n
     print(f"{len(PAGES)} Seiten erzeugt (de + en); {i18n.report()} fehlende englische Texte.")
