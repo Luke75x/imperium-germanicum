@@ -818,8 +818,12 @@ def page_krs():
 def page_reichsbehoerden():
     def article():
         return f"""
-{figure("i0e38a7a54df94ef6", "Die Reichsbehörden", sizes="(min-width: 1000px) 820px, 100vw")}
-<p class="callout">Nähere Informationen zu den Reichsbehörden folgen in Kürze.</p>"""
+<div class="intro-grid">
+  {emblem("i416b7a1e6d04b155", "Siegel der Reichsbehörden", sizes="260px")}
+  <div class="prose">
+    {paras("Nähere Informationen zu den Reichsbehörden folgen in Kürze.")}
+  </div>
+</div>"""
     institution_page("informationen/die-reichsbehoerden/", "Die Reichsbehörden", "Die Reichsbehörden",
                      "Die Behörden des Reiches",
                      "Erfahre mehr über die Reichsbehörden des Imperium Germanicum.",
