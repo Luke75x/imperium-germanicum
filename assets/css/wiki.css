@@ -7,6 +7,27 @@
 
 /* ---------- Gerüst ---------- */
 
+/* Wiki-Seiten sind breiter als die übrigen Seiten (Kopf, Inhalt und Fuß gemeinsam, damit alles bündig bleibt) */
+.wiki-page { --wrap: 1560px; }
+
+/* Konto in der Kopfleiste (Stil der vorhandenen .topbar-Links) */
+.topbar .wiki-user { display: inline-flex; align-items: center; gap: 12px; }
+.topbar .wiki-user form { margin: 0; display: inline-flex; }
+.topbar .wiki-user .lbl { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar .wiki-user button {
+  background: none; border: 0; padding: 0; cursor: pointer; font: inherit; color: rgba(255,255,255,.82);
+  text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .2em;
+}
+.topbar .wiki-user button:hover { color: var(--gold-300); }
+@media (max-width: 520px) { .topbar .wiki-user .lbl { max-width: 9ch; } .topbar .wiki-user { gap: 8px; } }
+
+/* Breite Inhalte (z. B. Rangtabellen) laufen unter der Seitenleiste über die ganze Breite */
+.wiki-full { grid-column: 1 / -1; min-width: 0; margin-top: clamp(40px, 5vw, 64px); }
+@media (max-width: 1000px) {
+  .wiki-cols > .wiki-full { order: 2; }
+  .wiki-cols > .wiki-aside { order: 3; }
+}
+
 .wiki.section { padding-top: clamp(28px, 4vw, 44px); }
 .wiki-controls { position: static; margin-bottom: clamp(28px, 4vw, 44px); padding-top: 0; }
 .wiki-meta { margin: 14px 0 0; font-size: .9375rem; color: var(--muted); }
@@ -57,6 +78,8 @@
 .wiki-body pre { background: var(--paper); border: 1px solid var(--rule); padding: 14px 16px; overflow-x: auto; white-space: pre-wrap; font: inherit; font-size: .9375rem; }
 .wiki-body .table-scroll { margin: 0 0 1.4em; }
 .wiki-body .styles-table { font-size: .9375rem; }
+.wiki-body .styles-table.is-grid { font-size: .875rem; }
+.wiki-body .styles-table.is-grid th, .wiki-body .styles-table.is-grid td { padding: 8px 10px; hyphens: auto; -webkit-hyphens: auto; }
 
 /* Infobox (title-card) in eigener Spalte neben dem Text – nichts überlappt */
 .wiki-boxes { display: grid; gap: 20px; margin-bottom: 28px; max-width: 420px; }
