@@ -836,7 +836,7 @@ def page_reichsbehoerden():
   {emblem("i416b7a1e6d04b155", "Siegel der Reichsbehörden", sizes="260px")}
   <div class="prose">
     {paras(
-      "Die Reichsbehörden sind alle Instanzen, die im gesamten Reichsgebiet tätig sind. Ihre Zuständigkeit endet nicht an den Grenzen der Gliederstaaten, sondern erstreckt sich über das ganze Imperium Germanicum.",
+      "Die Reichsbehörden sind alle Instanzen, die im gesamten Reichsgebiet tätig sind. Ihr Wirken erstreckt sich über das ganze Imperium Germanicum.",
       "Sie dienen dem Reich und seinen Untertanen gleichermaßen: Sie schützen Grenzen und Handel, wahren Sicherheit und Ordnung und leisten Hilfe, wo Not und Gefahr drohen.",
       "An ihrer Spitze steht der Kanzler, der als Privatsekretär des Souveräns die Reichsbehörden leitet.",
     )}
@@ -848,6 +848,13 @@ def page_reichsbehoerden():
     "Der Souverän ernennt mit Beginn seiner Amtszeit einen Privatsekretär und Kanzler für die Reichsbehörden.",
     "Der Kanzler stellt als Privatsekretär das Bindeglied zwischen den Reichsbehörden und dem Souverän dar und ist für die Verwaltung des kaiserlichen Kronbesitzes und der Schatzkammer seiner Majestät verantwortlich.",
     f'Zur Anrede und zum Rang des Kanzlers siehe den <a href="{u("informationen/etiketten-guide/")}">Etiketten-Guide</a>.',
+  )}
+</div>
+<h2>Reichsbehörden und Teilstaaten</h2>
+<div class="prose">
+  {paras(
+    "Innerhalb der Teilstaaten nimmt die Autorität der Reichsbehörden ab, denn diese werden von ihren Landesherren verwaltet: von Königen, Fürsten und den übrigen Oberhäuptern der Gliederstaaten.",
+    "Dort wirken die Reichsbehörden vor allem, wo Belange des gesamten Reiches berührt sind, und achten die Hoheit des jeweiligen Landesherrn über sein Gebiet.",
   )}
 </div>
 <h2>Die Behörden im Überblick</h2>
