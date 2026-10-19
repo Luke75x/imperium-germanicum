@@ -654,8 +654,8 @@ def page_reichstag():
     {paras(
       "Der Reichstag des Imperium Germanicum ist die legislative Versammlung aller Oberhäupter der Teilstaaten oder ihrer Abgesandten.",
       "Der Reichstag stimmt über potenzielle Gesetze und Regelungen ab und sendet seine Beschlüsse weiter an den Senat, der dann ebenfalls erneut über den Antrag abstimmt.",
-      "Den Vorsitz im Reichstag führt der Sprecher, welcher die Sitzungen einberuft, leitet und beendet, außerdem bestimmt er den Termin der nächsten Sitzung.",
-      "Das Amt des Sprechers rotiert unter den Abgeordneten alle 3 Monate.",
+      "Den Vorsitz im Reichstag führt der Präsident, welcher die Sitzungen einberuft, leitet und beendet, außerdem bestimmt er den Termin der nächsten Sitzung.",
+      "Das Amt des Präsidenten rotiert unter den Abgeordneten alle 3 Monate.",
     )}
   </div>
 </div>

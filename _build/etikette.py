@@ -98,13 +98,25 @@ GRUPPEN = [
                 ],
             },
             {
-                "name": "Sprecher des Reichstages/Sprecherin des Reichstages",
+                "name": "Präsident des Reichstages/Präsidentin des Reichstages",
                 "anrede": [
-                    ("Anrede direkt", "Herr Sprecher", "Frau Sprecherin"),
-                    ("Anrede Briefkopf", "Sehr geehrter Herr Sprecher", "Sehr geehrte Frau Sprecherin"),
+                    ("Anrede direkt", "Herr Präsident", "Frau Präsidentin"),
+                    ("Anrede Briefkopf", "Sehr geehrter Herr Präsident", "Sehr geehrte Frau Präsidentin"),
                 ],
                 "bemerkung": [
-                    "Der Sprecher oder die Sprecherin des Reichstages leiten dessen Sitzungen und haben den Vorsitz, ihre Würde gilt nur in Ausübung ihres Amtes im Plenum, ansonsten sind die privaten Titel zu nutzen.",
+                    "Der Präsident oder die Präsidentin des Reichstages leiten dessen Sitzungen und haben den Vorsitz, ihre Würde gilt nur in Ausübung ihres Amtes im Plenum, ansonsten sind die privaten Titel zu nutzen.",
+                ],
+            },
+            {
+                "name": "Kanzler/Kanzlerin; Privatsekretär des Souveräns",
+                "anrede": [
+                    ("Anrede direkt", "Herr Kanzler", "Frau Kanzlerin"),
+                    ("Anrede Briefkopf", "Sehr geehrter Herr Kanzler", "Sehr geehrte Frau Kanzlerin"),
+                ],
+                "bemerkung": [
+                    "Der Kanzler oder die Kanzlerin steht als oberster Vorsteher allen Reichsbehörden vor und trägt Sorge dafür, dass die Verwaltung des Reiches in Ordnung, Treue und Pflichterfüllung ihren Dienst versieht.",
+                    "Als Privatsekretär des Souveräns ist der Kanzler das Bindeglied zwischen der Krone und den Reichsbehörden: Er überbringt den Willen des Souveräns an die Ämter, wacht über dessen getreue Ausführung und trägt die Anliegen der Behörden ehrerbietig vor den Thron.",
+                    "Ihm obliegt die Vorbereitung der kaiserlichen Erlasse und Dekrete sowie die Wahrung der vertraulichen Korrespondenz des Souveräns, weshalb das Amt in besonderem Maße Verschwiegenheit, Umsicht und unbedingte Loyalität verlangt.",
                 ],
             },
             {
@@ -263,7 +275,8 @@ RANGLISTE = [
     "Gouverneur",
     "Großherzog",
     "Herzog",
-    "Sprecher des Reichstages",
+    "Präsident des Reichstages",
+    "Kanzler",
     "Landgraf",
     "Pfalzgraf",
     "Markgraf",
