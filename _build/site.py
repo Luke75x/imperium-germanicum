@@ -816,17 +816,46 @@ def page_krs():
 
 
 def page_reichsbehoerden():
+    behoerden = [
+        (f'<a href="{u("informationen/reichssicherheitsamt/")}">Kaiserliches Reichssicherheitsamt (KRS)</a>',
+         "Reichsweiter und übergeordneter Nachrichtendienst, verantwortlich für den Erhalt der inneren und äußeren Sicherheit."),
+        ("Kaiserliches Zollamt",
+         "Wacht über den Waren- und Güterverkehr an den Grenzen des Reiches, erhebt Zölle und Abgaben und überwacht Ein- und Ausfuhr."),
+        ("Polizei",
+         "Wahrt im gesamten Reichsgebiet die öffentliche Sicherheit und Ordnung, verfolgt Straftaten und schützt Leib, Leben und Eigentum der Untertanen."),
+        ("Feuerwehr",
+         "Leistet Brandschutz und technische Hilfe und steht bei Bränden, Unglücken und Notlagen allerorts zur Rettung bereit."),
+        ("Katastrophenschutz",
+         "Bereitet das Reich auf große Schadenslagen vor, lenkt im Ernstfall die Hilfe und schützt die Bevölkerung vor Naturgewalten und Unglücken."),
+    ]
+    rows = "".join(f'<tr><th scope="row">{n}</th><td>{t}</td></tr>' for n, t in behoerden)
+
     def article():
         return f"""
 <div class="intro-grid">
   {emblem("i416b7a1e6d04b155", "Siegel der Reichsbehörden", sizes="260px")}
   <div class="prose">
-    {paras("Nähere Informationen zu den Reichsbehörden folgen in Kürze.")}
+    {paras(
+      "Die Reichsbehörden sind alle Instanzen, die im gesamten Reichsgebiet tätig sind. Ihre Zuständigkeit endet nicht an den Grenzen der Gliederstaaten, sondern erstreckt sich über das ganze Imperium Germanicum.",
+      "Sie dienen dem Reich und seinen Untertanen gleichermaßen: Sie schützen Grenzen und Handel, wahren Sicherheit und Ordnung und leisten Hilfe, wo Not und Gefahr drohen.",
+      "An ihrer Spitze steht der Kanzler, der als Privatsekretär des Souveräns die Reichsbehörden leitet.",
+    )}
   </div>
-</div>"""
+</div>
+<h2>Der Kanzler</h2>
+<div class="prose">
+  {paras(
+    "Der Souverän ernennt mit Beginn seiner Amtszeit einen Privatsekretär und Kanzler für die Reichsbehörden.",
+    "Der Kanzler stellt als Privatsekretär das Bindeglied zwischen den Reichsbehörden und dem Souverän dar und ist für die Verwaltung des kaiserlichen Kronbesitzes und der Schatzkammer seiner Majestät verantwortlich.",
+    f'Zur Anrede und zum Rang des Kanzlers siehe den <a href="{u("informationen/etiketten-guide/")}">Etiketten-Guide</a>.',
+  )}
+</div>
+<h2>Die Behörden im Überblick</h2>
+<div class="table-scroll"><table class="styles-table"><thead><tr><th>Behörde</th><th>Aufgabe</th></tr></thead><tbody>{rows}</tbody></table></div>
+<p class="callout">Hinzu treten alle weiteren Ämter und Dienste, deren Zuständigkeit sich über das gesamte Reichsgebiet erstreckt.</p>"""
     institution_page("informationen/die-reichsbehoerden/", "Die Reichsbehörden", "Die Reichsbehörden",
                      "Die Behörden des Reiches",
-                     "Erfahre mehr über die Reichsbehörden des Imperium Germanicum.",
+                     "Die Reichsbehörden sind alle Instanzen, die im gesamten Reichsgebiet tätig sind, geleitet vom Kanzler als Privatsekretär des Souveräns.",
                      article)
 
 

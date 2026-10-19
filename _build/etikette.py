@@ -116,7 +116,7 @@ GRUPPEN = [
                 "bemerkung": [
                     "Der Kanzler oder die Kanzlerin steht als oberster Vorsteher allen Reichsbehörden vor und trägt Sorge dafür, dass die Verwaltung des Reiches in Ordnung, Treue und Pflichterfüllung ihren Dienst versieht.",
                     "Als Privatsekretär des Souveräns ist der Kanzler das Bindeglied zwischen der Krone und den Reichsbehörden: Er überbringt den Willen des Souveräns an die Ämter, wacht über dessen getreue Ausführung und trägt die Anliegen der Behörden ehrerbietig vor den Thron.",
-                    "Ihm obliegt die Vorbereitung der kaiserlichen Erlasse und Dekrete sowie die Wahrung der vertraulichen Korrespondenz des Souveräns, weshalb das Amt in besonderem Maße Verschwiegenheit, Umsicht und unbedingte Loyalität verlangt.",
+                    "Er wird vom Souverän mit Beginn seiner Amtszeit ernannt und verwaltet den kaiserlichen Kronbesitz sowie die Schatzkammer seiner Majestät, weshalb das Amt in besonderem Maße Verschwiegenheit, Umsicht und unbedingte Loyalität verlangt.",
                 ],
             },
             {
