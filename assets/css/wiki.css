@@ -183,3 +183,6 @@
 .wiki-roles .title-card .remark h4:not(:first-child) { margin-top: 16px; }
 .wiki-roles .title-card .remark .form-note { margin-top: 14px; font-size: .875rem; }
 .wiki-roles > .form-note { margin-top: 18px; font-size: .875rem; }
+
+/* Reichstag: zusätzliche Links eines Antrags (lange Adressen umbrechen) */
+.rt-links a { overflow-wrap: anywhere; }
