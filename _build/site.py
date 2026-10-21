@@ -528,7 +528,7 @@ def page_home():
 <section class="section paper" aria-labelledby="gebiet-titel">
   <div class="wrap split wide-right">
     <div class="reveal">
-      {figure("i77eeb0ab8a9e395a", "Hoheitsgebiet des Imperium Germanicum mit seinen Teilstaaten", "Karte des Hoheitsgebiets des Imperium Germanicum in Mittel- und Südeuropa mit farbig markierten Teilstaaten", group="start")}
+      {figure("i74e21fe796eaa5e0", "Hoheitsgebiet des Imperium Germanicum mit seinen Teilstaaten", "Karte des Hoheitsgebiets des Imperium Germanicum in Mittel- und Südeuropa mit farbig markierten Teilstaaten", group="start")}
     </div>
     <div class="prose reveal">
       <span class="eyebrow">Mittel- und Südeuropa</span>
