@@ -199,9 +199,20 @@
 .rt-motion.is-genehmigt .rank { color: var(--success); }
 .rt-motion.is-abgewiesen .rank { color: var(--danger); }
 .rt-motion.is-vertagt .rank { color: var(--muted); }
-.rt-voters { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 20px; }
-.rt-voters .field { margin-bottom: 14px; }
-@media (max-width: 640px) { .rt-voters { grid-template-columns: 1fr; } }
+/* Namentliche Abstimmung: je Gruppe (Dafür, Dagegen, Enthaltung) eine Aufklappliste mit Kontrollkästchen im Stil von .field select */
+.rt-voters .field { margin-bottom: 16px; }
+.rt-pick-label { display: block; font: 600 .9375rem/1.3 var(--sans); color: var(--ink); margin-bottom: 8px; }
+.rt-pick { position: relative; }
+.rt-voters .rt-pick summary { list-style: none; cursor: pointer; font: 400 1rem/1.5 var(--sans); color: var(--ink); padding: 13px 40px 13px 14px; background: var(--white);
+  border: 1px solid var(--rule-strong); border-radius: var(--radius); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+.rt-pick summary::-webkit-details-marker { display: none; }
+.rt-pick summary::after { content: ""; position: absolute; right: 16px; top: 50%; width: 7px; height: 7px; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; transform: translateY(-70%) rotate(45deg); }
+.rt-pick[open] summary { border-color: var(--navy-800); box-shadow: 0 0 0 3px rgba(201,164,58,.35); }
+.rt-pick[open] summary::after { transform: translateY(-30%) rotate(-135deg); }
+.rt-pick-list { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); max-height: 300px; overflow-y: auto; padding: 8px 0;
+  background: var(--white); border: 1px solid var(--rule-strong); border-radius: var(--radius); box-shadow: 0 10px 28px rgba(22,26,46,.14); }
+.rt-pick-list .field-check { display: flex; font: 400 .9375rem/1.45 var(--sans); color: var(--ink-2); padding: 8px 14px; margin: 0; }
+.rt-pick-list .field-check:hover { background: var(--ivory); }
 .rt-decide { margin-top: 14px; border-top: 1px solid var(--rule); padding-top: 12px; }
 .rt-decide summary { cursor: pointer; font: 600 .875rem/1.4 var(--sans); color: var(--ink); }
 .rt-decide .form { margin-top: 14px; }
