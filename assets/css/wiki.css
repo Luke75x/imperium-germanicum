@@ -186,3 +186,21 @@
 
 /* Reichstag: zusätzliche Links eines Antrags (lange Adressen umbrechen) */
 .rt-links a { overflow-wrap: anywhere; }
+
+/* Reichstag: Beschlüsse. Strich oben links an der Karte: grün genehmigt, rot abgewiesen, grau vertagt */
+.rt-motion { position: relative; }
+.rt-motion::before { content: ""; position: absolute; top: -1px; left: -1px; width: 64px; height: 4px; background: transparent; }
+.rt-motion.is-genehmigt::before, .rt-result.is-genehmigt::before { background: var(--success); }
+.rt-motion.is-abgewiesen::before, .rt-result.is-abgewiesen::before { background: var(--danger); }
+.rt-motion.is-vertagt::before, .rt-result.is-vertagt::before { background: var(--muted); }
+.rt-result { display: inline-flex; align-items: center; gap: 8px; font: 600 .75rem/1.4 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.rt-result::before { content: ""; width: 18px; height: 3px; background: var(--rule); flex: none; }
+.rt-legend { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.rt-motion.is-genehmigt .rank { color: var(--success); }
+.rt-motion.is-abgewiesen .rank { color: var(--danger); }
+.rt-motion.is-vertagt .rank { color: var(--muted); }
+.rt-votes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 520px) { .rt-votes { grid-template-columns: 1fr; } }
+.rt-decide { margin-top: 14px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.rt-decide summary { cursor: pointer; font: 600 .875rem/1.4 var(--sans); color: var(--ink); }
+.rt-decide .form { margin-top: 14px; }
