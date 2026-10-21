@@ -199,8 +199,9 @@
 .rt-motion.is-genehmigt .rank { color: var(--success); }
 .rt-motion.is-abgewiesen .rank { color: var(--danger); }
 .rt-motion.is-vertagt .rank { color: var(--muted); }
-.rt-votes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-@media (max-width: 520px) { .rt-votes { grid-template-columns: 1fr; } }
+.rt-voters { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 20px; }
+.rt-voters .field { margin-bottom: 14px; }
+@media (max-width: 640px) { .rt-voters { grid-template-columns: 1fr; } }
 .rt-decide { margin-top: 14px; border-top: 1px solid var(--rule); padding-top: 12px; }
 .rt-decide summary { cursor: pointer; font: 600 .875rem/1.4 var(--sans); color: var(--ink); }
 .rt-decide .form { margin-top: 14px; }
