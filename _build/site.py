@@ -853,21 +853,12 @@ def page_reichsbehoerden():
                "Ihm untersteht die Reichsfeuerwehr, die Brandschutz und technische Hilfe leistet und bei Bränden, Unglücken und Notlagen allerorts zur Rettung bereitsteht."]),
     ])
     aemter = "".join([
-        karte("Reichsprotokollamt", "Protokoll", "Staatssekretär des Reichsprotokollamts", None,
-              ["Hütet Zeremoniell, Etikette und Rangordnung des Reiches und bereitet Staatsakte, Empfänge und Staatsbesuche vor.",
-               "Führt die Verleihung der Orden und Ehrenzeichen des Reiches durch und betreut die Staatsgäste der Krone."]),
         karte("Reichsamt für Einwanderung und Staatsangehörigkeit", "Einwanderung", "Staatssekretär des Reichsamts für Einwanderung", None,
               ["Erteilt Einwanderern das Visum, prüft ihre Gesuche und vollzieht die Einbürgerung in den Stand der Staatsbürger.",
                "Führt das Register der Staatsbürger und beurkundet Ausbürgerung und Abreise."]),
         karte("Reichsamt für digitale Infrastruktur", "Infrastruktur", "Staatssekretär für digitale Infrastruktur", None,
               ["Errichtet und unterhält die digitalen Einrichtungen des Reiches: die Netzpräsenz, das Wiki, die Versammlungsräume des Reiches auf Discord und die Automaten der Krone.",
                "Wacht über den Schutz der Daten aller Untertanen, damit das Reich ohne Verfolgung und ohne fremde Dienste auskommt."]),
-        karte("Reichspresseamt", "Presse", "Staatssekretär des Reichspresseamts", None,
-              ["Verkündet die amtlichen Bekanntmachungen, Dekrete und Nachrichten des Reiches.",
-               "Ist Ansprechpartner der Medien und lässt sie zur Berichterstattung über Staatsakte und Sitzungen zu."]),
-        karte("Reichsarchiv", "Archiv", "Direktor des Reichsarchivs", None,
-              ["Verwahrt die Urkunden, Dekrete und Beschlüsse des Reiches sowie die Ausfertigungen der Imperialen Charta.",
-               "Schreibt die Chronik des Reiches fort und bewahrt sein Gedächtnis für kommende Generationen."]),
     ])
     aussen = karte("Kaiserliches Generalkonsulat", "Konsulate", "Generalkonsul, dem die Konsuln unterstehen", None,
                    ["Vertritt das Reich und seine Untertanen in der Fremde und pflegt die Verbindungen zu befreundeten Staaten und Gemeinschaften.",
@@ -875,7 +866,7 @@ def page_reichsbehoerden():
 
     saeulen = [
         ("Die Kanzlei", "Der Kanzler", "Bindeglied zwischen dem Souverän und der Verwaltung; Kronbesitz und Schatzkammer seiner Majestät."),
-        ("Die Reichsbehörden", "Generaldirektoren, Staatssekretäre und Direktoren", "Reichsweite Aufgaben in Sicherheit, Ordnung und Verwaltung sowie der auswärtige Dienst."),
+        ("Die Reichsbehörden", "Generaldirektoren, Staatssekretäre und der Generalkonsul", "Reichsweite Aufgaben in Sicherheit, Ordnung und Verwaltung sowie der auswärtige Dienst."),
         ("Die Reichsvertretung", "Vizekönige, Generalgouverneure, Gouverneure, Magistrate und Bürgermeister", "Vertretung des Souveräns in Teilstaaten und Städten ohne eigenen Regenten."),
     ]
     saeulen_rows = "".join(f'<tr><th scope="row">{n}</th><td data-label="Leitung">{l}</td><td data-label="Aufgabe">{t}</td></tr>' for n, l, t in saeulen)
@@ -894,12 +885,72 @@ def page_reichsbehoerden():
         ("Staatssekretär", "Leitet ein Reichsamt und ist dem Kanzler unmittelbar verantwortlich."),
         ("Ministerialdirektor", "Leitet eine Abteilung eines Reichsamts und vertritt den Staatssekretär."),
         ("Ministerialrat", "Leitet ein Referat innerhalb einer Abteilung."),
-        ("Direktor", "Leitet eine nachgeordnete Dienststelle wie das Reichsarchiv."),
+        ("Direktor", "Leitet eine nachgeordnete Dienststelle eines Reichsamts."),
         ("Inspektor", "Prüft und beaufsichtigt die Dienststellen und den ordnungsgemäßen Geschäftsgang."),
         ("Amtsrat", "Bearbeitet als erfahrener Beamter ein Sachgebiet selbstständig."),
         ("Amtsmann", "Erster Rang der Reichsverwaltung; bearbeitet die laufenden Geschäfte."),
     ]
     raenge_rows = "".join(f'<tr><th scope="row">{n}</th><td>{t}</td></tr>' for n, t in raenge)
+
+    # Rangübersicht: Ebene → Dienstgrade je Behörde (KRS, Polizei, Zoll, KKS, Reichsämter); "mZ:" = mit Zulage
+    spalten = ["KRS", "Polizei", "Zoll", "KKS", "Reichsämter"]
+    leitung = ["Generaldirektor des KRS", "Generaldirektor der Polizei", "Generaldirektor des Zolls", "Generaldirektor des KKS", "Staatssekretär"]
+    laufbahnen = [
+        ("Höherer Dienst", [
+            ("OF-10", [["Generalfeldmarschall"], [], [], [], []]),
+            ("OF-9", [["Generaloberst"], ["Leitender Polizeidirektor"], ["Leitender Regierungsdirektor"], ["Leitender Schutzdirektor"], ["Ministerialdirektor"]]),
+            ("OF-8", [["General der Waffengattung"], ["Polizeidirektor"], ["Regierungsdirektor"], ["Schutzdirektor"], ["Ministerialrat"]]),
+            ("OF-7", [["Generalleutnant"], ["Polizeioberrat"], ["Oberregierungsrat"], ["Oberschutzrat"], ["Direktor"]]),
+            ("OF-6", [["Generalmajor"], ["Polizeirat"], ["Regierungsrat"], ["Schutzrat"], []]),
+        ]),
+        ("Gehobener Dienst", [
+            ("OF-5", [["Brigadeoberst", "Oberst"], ["mZ:Erster Polizeihauptkommissar"], ["mZ:Zolloberamtsrat"], [], []]),
+            ("OF-4", [["Oberstleutnant"], ["Erster Polizeihauptkommissar"], ["Zolloberamtsrat"], ["Schutzoberamtsrat"], ["Inspektor"]]),
+            ("OF-3", [["Major"], ["mZ:Polizeihauptkommissar"], ["Zollamtsrat"], ["Schutzamtsrat"], ["Amtsrat"]]),
+            ("OF-2", [["Hauptmann"], ["Polizeihauptkommissar"], ["Zollamtmann"], ["Schutzamtmann"], ["Amtsmann"]]),
+            ("OF-1", [["Oberleutnant", "Leutnant"], ["Polizeioberkommissar", "Polizeikommissar"], ["Zolloberinspektor", "Zollinspektor"], ["Schutzoberinspektor", "Schutzinspektor"], []]),
+        ]),
+        ("Mittlerer Dienst", [
+            ("OR-9", [["Stabsfeldwebel"], [], ["mZ:Zollamtsinspektor"], [], []]),
+            ("OR-8", [["Oberfeldwebel"], ["mZ:Polizeihauptmeister"], ["Zollamtsinspektor"], ["mZ:Hauptschutzmeister"], []]),
+            ("OR-7", [["Feldwebel"], ["Polizeihauptmeister"], ["Zollhauptsekretär"], ["Hauptschutzmeister Gf."], []]),
+            ("OR-6", [["Unterfeldwebel"], ["Polizeiobermeister"], ["Zollobersekretär"], ["Oberschutzmeister Gf."], []]),
+            ("OR-5", [["Unteroffizier"], ["Polizeimeister"], ["Zollsekretär"], ["Schutzmeister Gf."], []]),
+        ]),
+        ("Einfacher Dienst", [
+            ("OR-4", [["Oberstabsgefreiter", "Stabsgefreiter"], ["mZ:Erster Polizeihauptwachtmeister"], ["mZ:Erster Zollhauptwachtmeister"], ["Hauptschutzmeister"], []]),
+            ("OR-3", [["Obergefreiter"], ["Erster Polizeihauptwachtmeister"], ["Erster Zollhauptwachtmeister"], ["Oberschutzmeister"], []]),
+            ("OR-2", [["Gefreiter"], ["Polizeihauptwachtmeister"], ["Zollhauptwachtmeister"], ["Schutzmeister"], []]),
+            ("OR-1", [["Obersoldat", "Soldat"], ["Polizeioberwachtmeister", "Polizeiwachtmeister"], ["Zolloberwachtmeister", "Zollwachtmeister"], ["Oberschutzmann", "Schutzmann"], []]),
+        ]),
+    ]
+
+    def zelle(namen):
+        if not namen:
+            return '<td class="is-empty">–</td>'
+        teile = [f'<span class="mz">{n[3:]} <abbr title="mit Zulage">m. Z.</abbr></span>' if n.startswith("mZ:") else f"<span>{n}</span>"
+                 for n in namen]
+        return f'<td>{"".join(teile)}</td>'
+
+    n = len(spalten) + 1
+    koerper = [
+        f'<tr class="is-crown"><td colspan="{n}"><span class="eyebrow">Souverän</span><strong>Seine Majestät der Kaiser</strong></td></tr>',
+        f'<tr class="is-crown is-second"><td colspan="{n}"><span class="eyebrow">Privatsekretär des Souveräns</span><strong>Der Kanzler</strong></td></tr>',
+        '<tr class="is-lead"><th scope="row">Leitung</th>' + "".join(f"<td><span>{x}</span></td>" for x in leitung) + "</tr>",
+    ]
+    for gruppe, ebenen in laufbahnen:
+        koerper.append(f'<tr class="is-band"><th colspan="{n}" scope="colgroup">{gruppe}</th></tr>')
+        for code, zellen in ebenen:
+            koerper.append(f'<tr><th scope="row">{code}</th>{"".join(zelle(z) for z in zellen)}</tr>')
+    kopf = "<tr><th>Ebene</th>" + "".join(f"<th>{x}</th>" for x in spalten) + "</tr>"
+    rang_matrix = f"""
+<details class="disclosure">
+  <summary><span class="disclosure-title">Rangübersicht der Reichsbehörden</span><span class="disclosure-hint"><span class="when-closed">Aufklappen</span><span class="when-open">Zuklappen</span></span></summary>
+  <div class="disclosure-body">
+    <div class="table-scroll"><table class="rank-matrix"><thead>{kopf}</thead><tbody>{"".join(koerper)}</tbody></table></div>
+    <p class="rank-note">Gleiche Ebene bedeutet gleichen Rang. Das Kaiserliche Reichssicherheitsamt führt die Dienstgrade der Streitkräfte. <abbr title="mit Zulage">m. Z.</abbr> = mit Zulage.</p>
+  </div>
+</details>"""
 
     def article():
         return f"""
@@ -934,6 +985,7 @@ def page_reichsbehoerden():
 {aemter}
 <span class="eyebrow" style="display:block;margin:32px 0 14px">Auswärtiger Dienst</span>
 {aussen}
+{rang_matrix}
 <h2 id="reichsvertretung">Die Reichsvertretung</h2>
 <div class="prose">
   {paras(
