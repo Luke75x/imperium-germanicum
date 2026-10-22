@@ -890,7 +890,7 @@ def page_kanzler():
     def article():
         return f"""
 <div class="intro-grid">
-  {emblem("i5fda55a8d0999cf4", "Siegel des Kanzlers", sizes="260px")}
+  {emblem("icf5ad018407fe134", "Siegel des Kanzlers", sizes="260px")}
   <div class="prose">
     {paras(
       "Der Kanzler oder die Kanzlerin ist Privatsekretär des Souveräns und steht als oberster Vorsteher der gesamten Verwaltung des Reiches vor: den Reichsbehörden, den Konsulaten und den Reichsvertretern.",
