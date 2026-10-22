@@ -834,24 +834,25 @@ def page_reichsbehoerden():
   <div class="remark"><h4>Aufgaben</h4>{paras(*aufgaben)}</div>
 </article>"""
 
-    sicherheit = "".join([
-        karte(f'<a href="{u("informationen/reichssicherheitsamt/")}">Kaiserliches Reichssicherheitsamt</a>', "KRS",
-              "Generaldirektor des KRS, gegenwärtig Generalfeldmarschall Ritter von Bielicki", None,
-              ["Reichsweiter und übergeordneter Nachrichtendienst, verantwortlich für den Erhalt der inneren und äußeren Sicherheit.",
-               "Beschafft und wertet Informationen aus und warnt Krone, Senat und Behörden vor Gefahren, ehe sie entstehen."]),
-        karte("Kaiserliche Polizeibehörde", "Polizei", "Generaldirektor der Polizei",
-              "Vom Polizeiwachtmeister bis zum Leitenden Polizeidirektor",
-              ["Wahrt im gesamten Reichsgebiet die öffentliche Sicherheit und Ordnung, verfolgt Straftaten und schützt Leib, Leben und Eigentum der Untertanen.",
-               "Vollstreckt die Urteile des Reichsgerichtshofs und leistet den übrigen Reichsbehörden Amtshilfe."]),
-        karte("Kaiserliche Zollverwaltung", "Zoll", "Generaldirektor des Zolls",
-              "Vom Zollwachtmeister bis zum Leitenden Regierungsdirektor",
-              ["Wacht über den Waren- und Güterverkehr an den Grenzen des Reiches, erhebt Zölle und Abgaben und überwacht Ein- und Ausfuhr.",
-               "Sichert die Außengrenzen des Reiches und unterstützt das Reichsamt für Einwanderung bei der Kontrolle der Einreise."]),
-        karte("Kaiserlicher Katastrophenschutz", "KKS", "Generaldirektor des KKS",
-              "Vom Schutzmann bis zum Leitenden Schutzdirektor",
-              ["Bereitet das Reich auf große Schadenslagen vor, lenkt im Ernstfall die Hilfe und schützt die Bevölkerung vor Naturgewalten und Unglücken.",
-               "Ihm untersteht die Reichsfeuerwehr, die Brandschutz und technische Hilfe leistet und bei Bränden, Unglücken und Notlagen allerorts zur Rettung bereitsteht."]),
-    ])
+    def sicherheit():
+        return "".join([
+            karte(f'<a href="{u("informationen/reichssicherheitsamt/")}">Kaiserliches Reichssicherheitsamt</a>', "KRS",
+                  "Generaldirektor des KRS, gegenwärtig Generalfeldmarschall Ritter von Bielicki", None,
+                  ["Reichsweiter und übergeordneter Nachrichtendienst, verantwortlich für den Erhalt der inneren und äußeren Sicherheit.",
+                   "Beschafft und wertet Informationen aus und warnt Krone, Senat und Behörden vor Gefahren, ehe sie entstehen."]),
+            karte("Kaiserliche Polizeibehörde", "Polizei", "Generaldirektor der Polizei",
+                  "Vom Polizeiwachtmeister bis zum Leitenden Polizeidirektor",
+                  ["Wahrt im gesamten Reichsgebiet die öffentliche Sicherheit und Ordnung, verfolgt Straftaten und schützt Leib, Leben und Eigentum der Untertanen.",
+                   "Vollstreckt die Urteile des Reichsgerichtshofs und leistet den übrigen Reichsbehörden Amtshilfe."]),
+            karte("Kaiserliche Zollverwaltung", "Zoll", "Generaldirektor des Zolls",
+                  "Vom Zollwachtmeister bis zum Leitenden Regierungsdirektor",
+                  ["Wacht über den Waren- und Güterverkehr an den Grenzen des Reiches, erhebt Zölle und Abgaben und überwacht Ein- und Ausfuhr.",
+                   "Sichert die Außengrenzen des Reiches und unterstützt das Reichsamt für Einwanderung bei der Kontrolle der Einreise."]),
+            karte("Kaiserlicher Katastrophenschutz", "KKS", "Generaldirektor des KKS",
+                  "Vom Schutzmann bis zum Leitenden Schutzdirektor",
+                  ["Bereitet das Reich auf große Schadenslagen vor, lenkt im Ernstfall die Hilfe und schützt die Bevölkerung vor Naturgewalten und Unglücken.",
+                   "Ihm untersteht die Reichsfeuerwehr, die Brandschutz und technische Hilfe leistet und bei Bränden, Unglücken und Notlagen allerorts zur Rettung bereitsteht."]),
+        ])
     aemter = "".join([
         karte("Reichsamt für Einwanderung und Staatsangehörigkeit", "Einwanderung", "Staatssekretär des Reichsamts für Einwanderung", None,
               ["Erteilt Einwanderern das Visum, prüft ihre Gesuche und vollzieht die Einbürgerung in den Stand der Staatsbürger.",
@@ -980,7 +981,7 @@ def page_reichsbehoerden():
   "Die Behörden für Sicherheit und Ordnung tragen Uniform und eigene Dienstgrade; ihre Generaldirektoren gehören dem Führungsstab an. Die Reichsämter werden von Staatssekretären geleitet, die dem Kanzler unmittelbar verantwortlich sind.",
 )}</div>
 <span class="eyebrow" style="display:block;margin:32px 0 14px">Sicherheit und Ordnung</span>
-{sicherheit}
+{sicherheit()}
 <span class="eyebrow" style="display:block;margin:32px 0 14px">Die Reichsämter</span>
 {aemter}
 <span class="eyebrow" style="display:block;margin:32px 0 14px">Auswärtiger Dienst</span>
@@ -1013,17 +1014,19 @@ def page_reichsbehoerden():
 
 
 def page_kanzler():
-    bereiche = [
-        (f'<a href="{u("informationen/die-reichsbehoerden/")}">Reichsbehörden</a>',
-         "Der Kanzler steht allen Reichsbehörden als oberster Vorsteher vor, von den Behörden für Sicherheit und Ordnung bis zu den Reichsämtern, und trägt Sorge dafür, dass sie in Ordnung, Treue und Pflichterfüllung ihren Dienst versehen."),
-        ("Konsulate",
-         "Die Konsulate vertreten das Reich und seine Untertanen in der Fremde. Der Kanzler verwaltet sie im Namen des Souveräns, der die Konsule des Reiches ernennt und entlässt."),
-        (f'<a href="{u("informationen/die-reichsbehoerden/")}#reichsvertretung">Reichsvertretung</a>',
-         "Vizekönige, Generalgouverneure, Gouverneure, Magistrate und Bürgermeister vertreten den Souverän in den Teilstaaten ohne eigenen Regenten. Der Kanzler leitet ihre Arbeit an und hält die Verbindung zwischen ihnen und dem Souverän."),
-        ("Kronbesitz und Schatzkammer",
-         "Der Kanzler verwaltet den kaiserlichen Kronbesitz sowie die Schatzkammer seiner Majestät."),
-    ]
-    rows = "".join(f'<tr><th scope="row">{n}</th><td>{t}</td></tr>' for n, t in bereiche)
+    # Links erst beim Aufbau erzeugen (u() braucht das Pfadpräfix dieser Seite)
+    def zeilen():
+        bereiche = [
+            (f'<a href="{u("informationen/die-reichsbehoerden/")}">Reichsbehörden</a>',
+             "Der Kanzler steht allen Reichsbehörden als oberster Vorsteher vor, von den Behörden für Sicherheit und Ordnung bis zu den Reichsämtern, und trägt Sorge dafür, dass sie in Ordnung, Treue und Pflichterfüllung ihren Dienst versehen."),
+            ("Konsulate",
+             "Die Konsulate vertreten das Reich und seine Untertanen in der Fremde. Der Kanzler verwaltet sie im Namen des Souveräns, der die Konsule des Reiches ernennt und entlässt."),
+            (f'<a href="{u("informationen/die-reichsbehoerden/")}#reichsvertretung">Reichsvertretung</a>',
+             "Vizekönige, Generalgouverneure, Gouverneure, Magistrate und Bürgermeister vertreten den Souverän in den Teilstaaten ohne eigenen Regenten. Der Kanzler leitet ihre Arbeit an und hält die Verbindung zwischen ihnen und dem Souverän."),
+            ("Kronbesitz und Schatzkammer",
+             "Der Kanzler verwaltet den kaiserlichen Kronbesitz sowie die Schatzkammer seiner Majestät."),
+        ]
+        return "".join(f'<tr><th scope="row">{n}</th><td>{t}</td></tr>' for n, t in bereiche)
 
     def article():
         return f"""
@@ -1038,7 +1041,7 @@ def page_kanzler():
   </div>
 </div>
 <h2>Der Geschäftsbereich des Kanzlers</h2>
-<div class="table-scroll"><table class="styles-table"><thead><tr><th>Bereich</th><th>Aufgabe</th></tr></thead><tbody>{rows}</tbody></table></div>
+<div class="table-scroll"><table class="styles-table"><thead><tr><th>Bereich</th><th>Aufgabe</th></tr></thead><tbody>{zeilen()}</tbody></table></div>
 <p class="callout">Innerhalb der Teilstaaten achtet der Kanzler die Hoheit der Landesherren und wirkt dort vor allem, wo Belange des gesamten Reiches berührt sind.</p>
 <h2>Stellung und Anrede</h2>
 <div class="prose">
