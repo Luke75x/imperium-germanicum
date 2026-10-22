@@ -824,19 +824,82 @@ def page_krs():
 
 
 def page_reichsbehoerden():
-    behoerden = [
-        (f'<a href="{u("informationen/reichssicherheitsamt/")}">Kaiserliches Reichssicherheitsamt (KRS)</a>',
-         "Reichsweiter und übergeordneter Nachrichtendienst, verantwortlich für den Erhalt der inneren und äußeren Sicherheit."),
-        ("Kaiserliches Zollamt",
-         "Wacht über den Waren- und Güterverkehr an den Grenzen des Reiches, erhebt Zölle und Abgaben und überwacht Ein- und Ausfuhr."),
-        ("Polizei",
-         "Wahrt im gesamten Reichsgebiet die öffentliche Sicherheit und Ordnung, verfolgt Straftaten und schützt Leib, Leben und Eigentum der Untertanen."),
-        ("Feuerwehr",
-         "Leistet Brandschutz und technische Hilfe und steht bei Bränden, Unglücken und Notlagen allerorts zur Rettung bereit."),
-        ("Katastrophenschutz",
-         "Bereitet das Reich auf große Schadenslagen vor, lenkt im Ernstfall die Hilfe und schützt die Bevölkerung vor Naturgewalten und Unglücken."),
+    def karte(name, kurz, leitung, laufbahn, aufgaben):
+        zeilen = [("Leitung", leitung)] + ([("Laufbahn", laufbahn)] if laufbahn else [])
+        rows = "".join(f'<tr><th scope="row">{k}</th><td>{v}</td></tr>' for k, v in zeilen)
+        return f"""
+<article class="title-card">
+  <header><h3>{name}</h3><span class="rank">{kurz}</span></header>
+  <div class="table-scroll"><table class="styles-table"><tbody>{rows}</tbody></table></div>
+  <div class="remark"><h4>Aufgaben</h4>{paras(*aufgaben)}</div>
+</article>"""
+
+    sicherheit = "".join([
+        karte(f'<a href="{u("informationen/reichssicherheitsamt/")}">Kaiserliches Reichssicherheitsamt</a>', "KRS",
+              "Generaldirektor des KRS, gegenwärtig Generalfeldmarschall Ritter von Bielicki", None,
+              ["Reichsweiter und übergeordneter Nachrichtendienst, verantwortlich für den Erhalt der inneren und äußeren Sicherheit.",
+               "Beschafft und wertet Informationen aus und warnt Krone, Senat und Behörden vor Gefahren, ehe sie entstehen."]),
+        karte("Kaiserliche Polizeibehörde", "Polizei", "Generaldirektor der Polizei",
+              "Vom Polizeiwachtmeister bis zum Leitenden Polizeidirektor",
+              ["Wahrt im gesamten Reichsgebiet die öffentliche Sicherheit und Ordnung, verfolgt Straftaten und schützt Leib, Leben und Eigentum der Untertanen.",
+               "Vollstreckt die Urteile des Reichsgerichtshofs und leistet den übrigen Reichsbehörden Amtshilfe."]),
+        karte("Kaiserliche Zollverwaltung", "Zoll", "Generaldirektor des Zolls",
+              "Vom Zollwachtmeister bis zum Leitenden Regierungsdirektor",
+              ["Wacht über den Waren- und Güterverkehr an den Grenzen des Reiches, erhebt Zölle und Abgaben und überwacht Ein- und Ausfuhr.",
+               "Sichert die Außengrenzen des Reiches und unterstützt das Reichsamt für Einwanderung bei der Kontrolle der Einreise."]),
+        karte("Kaiserlicher Katastrophenschutz", "KKS", "Generaldirektor des KKS",
+              "Vom Schutzmann bis zum Leitenden Schutzdirektor",
+              ["Bereitet das Reich auf große Schadenslagen vor, lenkt im Ernstfall die Hilfe und schützt die Bevölkerung vor Naturgewalten und Unglücken.",
+               "Ihm untersteht die Reichsfeuerwehr, die Brandschutz und technische Hilfe leistet und bei Bränden, Unglücken und Notlagen allerorts zur Rettung bereitsteht."]),
+    ])
+    aemter = "".join([
+        karte("Reichsprotokollamt", "Protokoll", "Staatssekretär des Reichsprotokollamts", None,
+              ["Hütet Zeremoniell, Etikette und Rangordnung des Reiches und bereitet Staatsakte, Empfänge und Staatsbesuche vor.",
+               "Führt die Verleihung der Orden und Ehrenzeichen des Reiches durch und betreut die Staatsgäste der Krone."]),
+        karte("Reichsamt für Einwanderung und Staatsangehörigkeit", "Einwanderung", "Staatssekretär des Reichsamts für Einwanderung", None,
+              ["Erteilt Einwanderern das Visum, prüft ihre Gesuche und vollzieht die Einbürgerung in den Stand der Staatsbürger.",
+               "Führt das Register der Staatsbürger und beurkundet Ausbürgerung und Abreise."]),
+        karte("Reichsamt für digitale Infrastruktur", "Infrastruktur", "Staatssekretär für digitale Infrastruktur", None,
+              ["Errichtet und unterhält die digitalen Einrichtungen des Reiches: die Netzpräsenz, das Wiki, die Versammlungsräume des Reiches auf Discord und die Automaten der Krone.",
+               "Wacht über den Schutz der Daten aller Untertanen, damit das Reich ohne Verfolgung und ohne fremde Dienste auskommt."]),
+        karte("Reichspresseamt", "Presse", "Staatssekretär des Reichspresseamts", None,
+              ["Verkündet die amtlichen Bekanntmachungen, Dekrete und Nachrichten des Reiches.",
+               "Ist Ansprechpartner der Medien und lässt sie zur Berichterstattung über Staatsakte und Sitzungen zu."]),
+        karte("Reichsarchiv", "Archiv", "Direktor des Reichsarchivs", None,
+              ["Verwahrt die Urkunden, Dekrete und Beschlüsse des Reiches sowie die Ausfertigungen der Imperialen Charta.",
+               "Schreibt die Chronik des Reiches fort und bewahrt sein Gedächtnis für kommende Generationen."]),
+    ])
+    aussen = karte("Kaiserliches Generalkonsulat", "Konsulate", "Generalkonsul, dem die Konsuln unterstehen", None,
+                   ["Vertritt das Reich und seine Untertanen in der Fremde und pflegt die Verbindungen zu befreundeten Staaten und Gemeinschaften.",
+                    "Der Souverän ernennt und entlässt die Konsuln; der Kanzler verwaltet die Konsulate in seinem Namen."])
+
+    saeulen = [
+        ("Die Kanzlei", "Der Kanzler", "Bindeglied zwischen dem Souverän und der Verwaltung; Kronbesitz und Schatzkammer seiner Majestät."),
+        ("Die Reichsbehörden", "Generaldirektoren, Staatssekretäre und Direktoren", "Reichsweite Aufgaben in Sicherheit, Ordnung und Verwaltung sowie der auswärtige Dienst."),
+        ("Die Reichsvertretung", "Vizekönige, Generalgouverneure, Gouverneure, Magistrate und Bürgermeister", "Vertretung des Souveräns in Teilstaaten und Städten ohne eigenen Regenten."),
     ]
-    rows = "".join(f'<tr><th scope="row">{n}</th><td>{t}</td></tr>' for n, t in behoerden)
+    saeulen_rows = "".join(f'<tr><th scope="row">{n}</th><td data-label="Leitung">{l}</td><td data-label="Aufgabe">{t}</td></tr>' for n, l, t in saeulen)
+
+    vertretung = [
+        ("Vizekönig", "Vertritt den Souverän in einem Königreich oder Kurfürstentum, dessen Thron unbesetzt ist. Er ist der ranghöchste Reichsvertreter.", "Eure Exzellenz"),
+        ("Generalgouverneur", "Verwaltet einen großen Teilstaat ohne Regenten oder mehrere zusammengefasste Gebiete; ihm können Gouverneure nachgeordnet sein.", "Eure Exzellenz"),
+        ("Gouverneur", "Verwaltet ein einzelnes Gebiet ohne Regenten, etwa ein Herzogtum, eine Grafschaft oder eine Provinz eines Generalgouvernements.", "Eure Exzellenz"),
+        ("Magistrat", "Führt im Namen des Souveräns die Regierung einer Reichsstadt, die keinem Landesherrn untersteht.", "–"),
+        ("Bürgermeister", "Steht einer Stadt oder Gemeinde in einem reichsvertretenen Gebiet vor und untersteht dem zuständigen Magistrat oder Gouverneur.", "–"),
+    ]
+    vertretung_rows = "".join(f'<tr><th scope="row">{n}</th><td data-label="Zuständigkeit">{t}</td><td data-label="Anrede">{a}</td></tr>' for n, t, a in vertretung)
+
+    raenge = [
+        ("Generaldirektor", "Leitet eine Behörde für Sicherheit und Ordnung und gehört dem Führungsstab an."),
+        ("Staatssekretär", "Leitet ein Reichsamt und ist dem Kanzler unmittelbar verantwortlich."),
+        ("Ministerialdirektor", "Leitet eine Abteilung eines Reichsamts und vertritt den Staatssekretär."),
+        ("Ministerialrat", "Leitet ein Referat innerhalb einer Abteilung."),
+        ("Direktor", "Leitet eine nachgeordnete Dienststelle wie das Reichsarchiv."),
+        ("Inspektor", "Prüft und beaufsichtigt die Dienststellen und den ordnungsgemäßen Geschäftsgang."),
+        ("Amtsrat", "Bearbeitet als erfahrener Beamter ein Sachgebiet selbstständig."),
+        ("Amtsmann", "Erster Rang der Reichsverwaltung; bearbeitet die laufenden Geschäfte."),
+    ]
+    raenge_rows = "".join(f'<tr><th scope="row">{n}</th><td>{t}</td></tr>' for n, t in raenge)
 
     def article():
         return f"""
@@ -846,10 +909,12 @@ def page_reichsbehoerden():
     {paras(
       "Die Reichsbehörden sind alle Instanzen, die im gesamten Reichsgebiet tätig sind. Ihr Wirken erstreckt sich über das ganze Imperium Germanicum.",
       "Sie dienen dem Reich und seinen Untertanen gleichermaßen: Sie schützen Grenzen und Handel, wahren Sicherheit und Ordnung und leisten Hilfe, wo Not und Gefahr drohen.",
-      "An ihrer Spitze steht der Kanzler, der als Privatsekretär des Souveräns die Reichsbehörden leitet.",
+      "Gemeinsam mit der Kanzlei und der Reichsvertretung bilden sie die Reichsverwaltung, an deren Spitze der Kanzler als Privatsekretär des Souveräns steht.",
     )}
   </div>
 </div>
+<h2>Aufbau der Reichsverwaltung</h2>
+<div class="table-scroll"><table class="styles-table"><thead><tr><th>Säule</th><th>Leitung</th><th>Aufgabe</th></tr></thead><tbody>{saeulen_rows}</tbody></table></div>
 <h2>Der Kanzler</h2>
 <div class="prose">
   {paras(
@@ -858,30 +923,51 @@ def page_reichsbehoerden():
   )}
   <p><a class="link-arrow" href="{u("informationen/die-reichsbehoerden/der-kanzler/")}">Mehr über den Kanzler {icon("arrow")}</a></p>
 </div>
+<h2>Die Reichsbehörden</h2>
+<div class="prose">{paras(
+  "Die Reichsbehörden gliedern sich in die Behörden für Sicherheit und Ordnung, die zivilen Reichsämter und den auswärtigen Dienst.",
+  "Die Behörden für Sicherheit und Ordnung tragen Uniform und eigene Dienstgrade; ihre Generaldirektoren gehören dem Führungsstab an. Die Reichsämter werden von Staatssekretären geleitet, die dem Kanzler unmittelbar verantwortlich sind.",
+)}</div>
+<span class="eyebrow" style="display:block;margin:32px 0 14px">Sicherheit und Ordnung</span>
+{sicherheit}
+<span class="eyebrow" style="display:block;margin:32px 0 14px">Die Reichsämter</span>
+{aemter}
+<span class="eyebrow" style="display:block;margin:32px 0 14px">Auswärtiger Dienst</span>
+{aussen}
+<h2 id="reichsvertretung">Die Reichsvertretung</h2>
+<div class="prose">
+  {paras(
+    "Die Reichsvertretung vertritt den Souverän in den Teilstaaten, die keinen eigenen Regenten haben. Ihre Amtsträger verwalten diese Gebiete wie Regenten, ohne selbst Regenten zu sein: Sie handeln allein im Namen und Auftrag der Krone.",
+    "Die vizeköniglichen Vertreter sind Beamte, welche vom Souverän direkt mit der Verwaltung eines Gebietes betraut sind.",
+    "Innerhalb ihres Territoriums vertreten sie den Souverän direkt und übernehmen in dessen Namen seine Aufgaben.",
+    "Erhält ein Teilstaat wieder einen Regenten, so endet dort das Amt des Reichsvertreters und die Hoheit geht auf den Landesherrn über.",
+  )}
+</div>
+<div class="table-scroll"><table class="styles-table"><thead><tr><th>Amt</th><th>Zuständigkeit</th><th>Anrede</th></tr></thead><tbody>{vertretung_rows}</tbody></table></div>
+<p class="callout">Vizekönige, Generalgouverneure und Gouverneure stehen in der <a href="{u("informationen/etiketten-guide/")}">Rangordnung des Reiches</a> unmittelbar nach dem Obersten Reichsrichter und genießen in Abwesenheit des Souveräns die Würde der Krone.</p>
+<h2>Die Ränge der Reichsverwaltung</h2>
+<div class="table-scroll"><table class="styles-table"><thead><tr><th>Rang</th><th>Verwendung</th></tr></thead><tbody>{raenge_rows}</tbody></table></div>
 <h2>Reichsbehörden und Teilstaaten</h2>
 <div class="prose">
   {paras(
     "Innerhalb der Teilstaaten nimmt die Autorität der Reichsbehörden ab, denn diese werden von ihren Landesherren verwaltet: von Königen, Fürsten und den übrigen Oberhäuptern der Gliederstaaten.",
     "Dort wirken die Reichsbehörden vor allem, wo Belange des gesamten Reiches berührt sind, und achten die Hoheit des jeweiligen Landesherrn über sein Gebiet.",
   )}
-</div>
-<h2>Die Behörden im Überblick</h2>
-<div class="table-scroll"><table class="styles-table"><thead><tr><th>Behörde</th><th>Aufgabe</th></tr></thead><tbody>{rows}</tbody></table></div>
-<p class="callout">Hinzu treten alle weiteren Ämter und Dienste, deren Zuständigkeit sich über das gesamte Reichsgebiet erstreckt.</p>"""
+</div>"""
     institution_page("informationen/die-reichsbehoerden/", "Die Reichsbehörden", "Die Reichsbehörden",
-                     "Die Behörden des Reiches",
-                     "Die Reichsbehörden sind alle Instanzen, die im gesamten Reichsgebiet tätig sind, geleitet vom Kanzler als Privatsekretär des Souveräns.",
+                     "Die Reichsverwaltung",
+                     "Die Reichsverwaltung des Imperium Germanicum: der Kanzler, die Reichsbehörden und die Reichsvertretung in den Teilstaaten ohne eigenen Regenten.",
                      article)
 
 
 def page_kanzler():
     bereiche = [
         (f'<a href="{u("informationen/die-reichsbehoerden/")}">Reichsbehörden</a>',
-         "Der Kanzler steht allen Reichsbehörden als oberster Vorsteher vor, vom Kaiserlichen Reichssicherheitsamt über das Kaiserliche Zollamt bis zu Polizei, Feuerwehr und Katastrophenschutz, und trägt Sorge dafür, dass sie in Ordnung, Treue und Pflichterfüllung ihren Dienst versehen."),
+         "Der Kanzler steht allen Reichsbehörden als oberster Vorsteher vor, von den Behörden für Sicherheit und Ordnung bis zu den Reichsämtern, und trägt Sorge dafür, dass sie in Ordnung, Treue und Pflichterfüllung ihren Dienst versehen."),
         ("Konsulate",
          "Die Konsulate vertreten das Reich und seine Untertanen in der Fremde. Der Kanzler verwaltet sie im Namen des Souveräns, der die Konsule des Reiches ernennt und entlässt."),
-        ("Reichsvertreter",
-         "Die Reichsvertreter nehmen im Auftrag der Krone die Belange des Reiches wahr. Der Kanzler leitet ihre Arbeit an und hält die Verbindung zwischen ihnen und dem Souverän."),
+        (f'<a href="{u("informationen/die-reichsbehoerden/")}#reichsvertretung">Reichsvertretung</a>',
+         "Vizekönige, Generalgouverneure, Gouverneure, Magistrate und Bürgermeister vertreten den Souverän in den Teilstaaten ohne eigenen Regenten. Der Kanzler leitet ihre Arbeit an und hält die Verbindung zwischen ihnen und dem Souverän."),
         ("Kronbesitz und Schatzkammer",
          "Der Kanzler verwaltet den kaiserlichen Kronbesitz sowie die Schatzkammer seiner Majestät."),
     ]
@@ -917,6 +1003,16 @@ def page_kanzler():
     <div class="prose">{paras(
       "Die Standarte des Kanzlers zeigt den schwarzen Doppeladler mit roter Bewehrung auf goldenem Grund, eingefasst von einem schwarzen Rand.",
       "Sie weht dort, wo der Kanzler in Ausübung seines Amtes im Namen des Souveräns zugegen ist.",
+    )}</div>
+  </div>
+</section>
+<section class="seat">
+  <span class="eyebrow">Amtslogo</span>
+  <div class="split wide-right">
+    {figure("i42648ed6ea92d607", "Amtslogo des Kanzlers")}
+    <div class="prose">{paras(
+      "Im Schriftverkehr und in amtlichen Bekanntmachungen führt der Kanzler sein Amtslogo: den Doppeladler der Reichsflagge, daneben einen Balken in den Farben des Reiches, Schwarz und Gold, und die Bezeichnung des Amtes.",
+      "Es kennzeichnet alle Schreiben, die im Namen des Kanzlers an die Reichsbehörden, die Konsulate und die Reichsvertreter ergehen.",
     )}</div>
   </div>
 </section>"""
