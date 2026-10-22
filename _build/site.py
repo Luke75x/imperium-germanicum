@@ -149,14 +149,12 @@ INSTITUTIONEN = [
     ("informationen/reichssicherheitsamt/", "Reichssicherheitsamt", "Kaiserliches Reichssicherheitsamt",
      "Erfahre mehr über das KRS als gemeinsamen übergeordneten Nachrichten- und Sicherheitsdienst der Teilstaaten des Reiches",
      "idf73bcf2259c33f2"),
-    ("informationen/der-kanzler/", "Der Kanzler", "Der Kanzler",
-     "Erfahre mehr über den Privatsekretär des Souveräns und Vorsteher aller Reichsbehörden", "i5fda55a8d0999cf4"),
     ("informationen/die-reichsbehoerden/", "Die Reichsbehörden", "Die Reichsbehörden",
      "Erfahre mehr über die Reichsbehörden des Imperium Germanicum", "i416b7a1e6d04b155"),
 ]
 
 # Einträge, die im Untermenü und in der Übersicht zwei Spalten einnehmen
-INSTITUTIONEN_BREIT = {"informationen/der-kanzler/", "informationen/die-reichsbehoerden/"}
+INSTITUTIONEN_BREIT = {"informationen/die-reichsbehoerden/"}
 
 NAV = [
     ("", "Hauptseite"),
@@ -600,13 +598,15 @@ def page_informationen():
            body)
 
 
-def institution_page(path, short, title, eyebrow, description, article):
-    Ctx.prefix = "../../"
-    body = page_head([("informationen/", "Staatsaufbau"), (path, short)], title, eyebrow) + f"""
+def institution_page(path, short, title, eyebrow, description, article, parent=None):
+    # parent = (pfad, kurzname): Unterseite einer Institution, nur von dort aus verlinkt
+    Ctx.prefix = "../" * path.count("/")
+    crumbs = [("informationen/", "Staatsaufbau")] + ([parent] if parent else []) + [(path, short)]
+    body = page_head(crumbs, title, eyebrow) + f"""
 <div class="section">
   <div class="wrap with-aside">
     <article class="article">{article()}</article>
-    {aside_staatsaufbau(path)}
+    {aside_staatsaufbau(parent[0] if parent else path)}
   </div>
 </div>"""
     render(path, title, description, body)
@@ -856,7 +856,7 @@ def page_reichsbehoerden():
     "Der Souverän ernennt mit Beginn seiner Amtszeit einen Privatsekretär und Kanzler für die Reichsbehörden.",
     "Der Kanzler stellt als Privatsekretär das Bindeglied zwischen den Reichsbehörden und dem Souverän dar und ist für die Verwaltung des kaiserlichen Kronbesitzes und der Schatzkammer seiner Majestät verantwortlich.",
   )}
-  <p><a class="link-arrow" href="{u("informationen/der-kanzler/")}">Mehr über den Kanzler {icon("arrow")}</a></p>
+  <p><a class="link-arrow" href="{u("informationen/die-reichsbehoerden/der-kanzler/")}">Mehr über den Kanzler {icon("arrow")}</a></p>
 </div>
 <h2>Reichsbehörden und Teilstaaten</h2>
 <div class="prose">
@@ -920,10 +920,10 @@ def page_kanzler():
     )}</div>
   </div>
 </section>"""
-    institution_page("informationen/der-kanzler/", "Der Kanzler", "Der Kanzler",
+    institution_page("informationen/die-reichsbehoerden/der-kanzler/", "Der Kanzler", "Der Kanzler",
                      "Privatsekretär des Souveräns",
                      "Der Kanzler ist Privatsekretär des Souveräns und Vorsteher der Reichsbehörden, Konsulate und Reichsvertreter des Imperium Germanicum.",
-                     article)
+                     article, parent=("informationen/die-reichsbehoerden/", "Die Reichsbehörden"))
 
 
 ROMAN = re.compile(r"^(?:B )?([IVX]+)\.\s+(.+)$")
