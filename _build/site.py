@@ -149,12 +149,14 @@ INSTITUTIONEN = [
     ("informationen/reichssicherheitsamt/", "Reichssicherheitsamt", "Kaiserliches Reichssicherheitsamt",
      "Erfahre mehr über das KRS als gemeinsamen übergeordneten Nachrichten- und Sicherheitsdienst der Teilstaaten des Reiches",
      "idf73bcf2259c33f2"),
+    ("informationen/der-kanzler/", "Der Kanzler", "Der Kanzler",
+     "Erfahre mehr über den Privatsekretär des Souveräns und Vorsteher aller Reichsbehörden", "i5fda55a8d0999cf4"),
     ("informationen/die-reichsbehoerden/", "Die Reichsbehörden", "Die Reichsbehörden",
      "Erfahre mehr über die Reichsbehörden des Imperium Germanicum", "i416b7a1e6d04b155"),
 ]
 
 # Einträge, die im Untermenü und in der Übersicht zwei Spalten einnehmen
-INSTITUTIONEN_BREIT = {"informationen/die-reichsbehoerden/"}
+INSTITUTIONEN_BREIT = {"informationen/der-kanzler/", "informationen/die-reichsbehoerden/"}
 
 NAV = [
     ("", "Hauptseite"),
@@ -853,8 +855,8 @@ def page_reichsbehoerden():
   {paras(
     "Der Souverän ernennt mit Beginn seiner Amtszeit einen Privatsekretär und Kanzler für die Reichsbehörden.",
     "Der Kanzler stellt als Privatsekretär das Bindeglied zwischen den Reichsbehörden und dem Souverän dar und ist für die Verwaltung des kaiserlichen Kronbesitzes und der Schatzkammer seiner Majestät verantwortlich.",
-    f'Zur Anrede und zum Rang des Kanzlers siehe den <a href="{u("informationen/etiketten-guide/")}">Etiketten-Guide</a>.',
   )}
+  <p><a class="link-arrow" href="{u("informationen/der-kanzler/")}">Mehr über den Kanzler {icon("arrow")}</a></p>
 </div>
 <h2>Reichsbehörden und Teilstaaten</h2>
 <div class="prose">
@@ -869,6 +871,58 @@ def page_reichsbehoerden():
     institution_page("informationen/die-reichsbehoerden/", "Die Reichsbehörden", "Die Reichsbehörden",
                      "Die Behörden des Reiches",
                      "Die Reichsbehörden sind alle Instanzen, die im gesamten Reichsgebiet tätig sind, geleitet vom Kanzler als Privatsekretär des Souveräns.",
+                     article)
+
+
+def page_kanzler():
+    bereiche = [
+        (f'<a href="{u("informationen/die-reichsbehoerden/")}">Reichsbehörden</a>',
+         "Der Kanzler steht allen Reichsbehörden als oberster Vorsteher vor, vom Kaiserlichen Reichssicherheitsamt über das Kaiserliche Zollamt bis zu Polizei, Feuerwehr und Katastrophenschutz, und trägt Sorge dafür, dass sie in Ordnung, Treue und Pflichterfüllung ihren Dienst versehen."),
+        ("Konsulate",
+         "Die Konsulate vertreten das Reich und seine Untertanen in der Fremde. Der Kanzler verwaltet sie im Namen des Souveräns, der die Konsule des Reiches ernennt und entlässt."),
+        ("Reichsvertreter",
+         "Die Reichsvertreter nehmen im Auftrag der Krone die Belange des Reiches wahr. Der Kanzler leitet ihre Arbeit an und hält die Verbindung zwischen ihnen und dem Souverän."),
+        ("Kronbesitz und Schatzkammer",
+         "Der Kanzler verwaltet den kaiserlichen Kronbesitz sowie die Schatzkammer seiner Majestät."),
+    ]
+    rows = "".join(f'<tr><th scope="row">{n}</th><td>{t}</td></tr>' for n, t in bereiche)
+
+    def article():
+        return f"""
+<div class="intro-grid">
+  {emblem("i5fda55a8d0999cf4", "Siegel des Kanzlers", sizes="260px")}
+  <div class="prose">
+    {paras(
+      "Der Kanzler oder die Kanzlerin ist Privatsekretär des Souveräns und steht als oberster Vorsteher der gesamten Verwaltung des Reiches vor: den Reichsbehörden, den Konsulaten und den Reichsvertretern.",
+      "Der Souverän ernennt mit Beginn seiner Amtszeit einen Privatsekretär und Kanzler für die Reichsbehörden.",
+      "Als Privatsekretär des Souveräns ist der Kanzler das Bindeglied zwischen der Krone und den Reichsbehörden: Er überbringt den Willen des Souveräns an die Ämter, wacht über dessen getreue Ausführung und trägt die Anliegen der Behörden ehrerbietig vor den Thron.",
+    )}
+  </div>
+</div>
+<h2>Der Geschäftsbereich des Kanzlers</h2>
+<div class="table-scroll"><table class="styles-table"><thead><tr><th>Bereich</th><th>Aufgabe</th></tr></thead><tbody>{rows}</tbody></table></div>
+<p class="callout">Innerhalb der Teilstaaten achtet der Kanzler die Hoheit der Landesherren und wirkt dort vor allem, wo Belange des gesamten Reiches berührt sind.</p>
+<h2>Stellung und Anrede</h2>
+<div class="prose">
+  {paras(
+    f'In der <a href="{u("informationen/etiketten-guide/")}">Rangordnung des Reiches</a> steht der Kanzler unmittelbar nach dem Präsidenten des Reichstages.',
+    "Die Anrede lautet „Herr Kanzler“ beziehungsweise „Frau Kanzlerin“, im Briefkopf „Sehr geehrter Herr Kanzler“ beziehungsweise „Sehr geehrte Frau Kanzlerin“.",
+    "Weil der Kanzler den kaiserlichen Kronbesitz und die Schatzkammer seiner Majestät verwaltet, verlangt das Amt in besonderem Maße Verschwiegenheit, Umsicht und unbedingte Loyalität.",
+  )}
+</div>
+<section class="seat">
+  <span class="eyebrow">Standarte</span>
+  <div class="split wide-right">
+    {figure("i5a9f8040f8005417", "Standarte des Kanzlers")}
+    <div class="prose">{paras(
+      "Die Standarte des Kanzlers zeigt den schwarzen Doppeladler mit roter Bewehrung auf goldenem Grund, eingefasst von einem schwarzen Rand.",
+      "Sie weht dort, wo der Kanzler in Ausübung seines Amtes im Namen des Souveräns zugegen ist.",
+    )}</div>
+  </div>
+</section>"""
+    institution_page("informationen/der-kanzler/", "Der Kanzler", "Der Kanzler",
+                     "Privatsekretär des Souveräns",
+                     "Der Kanzler ist Privatsekretär des Souveräns und Vorsteher der Reichsbehörden, Konsulate und Reichsvertreter des Imperium Germanicum.",
                      article)
 
 
@@ -1447,6 +1501,7 @@ def main():
     page_stabschefs()
     page_krs()
     page_reichsbehoerden()
+    page_kanzler()
     page_souveraen()
     page_galerie()
     page_erlasse()
