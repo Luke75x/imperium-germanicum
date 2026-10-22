@@ -65,7 +65,7 @@
   --serif: "EB Garamond", "Garamond", "Times New Roman", serif;
   --sans: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
 
-  --wrap: 1560px;
+  --wrap: 1400px;
   --gutter: clamp(16px, 4vw, 40px);
   --radius: 2px;
   --header-h: 84px;
