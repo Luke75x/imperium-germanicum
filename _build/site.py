@@ -953,6 +953,63 @@ def page_reichsbehoerden():
   </div>
 </details>"""
 
+    def organigramm():
+        # Baum aus verschachtelten Listen; Verbindungslinien zeichnet .org in site.css
+        def knoten(titel, rolle="", detail="", cls="", href=None):
+            t = f'<a href="{href}">{titel}</a>' if href else titel
+            r = f'<span class="org-role">{rolle}</span>' if rolle else ""
+            d = f'<span class="org-detail">{detail}</span>' if detail else ""
+            return f'<div class="org-node{" " + cls if cls else ""}">{r}<strong>{t}</strong>{d}</div>'
+
+        def stapel(eintraege):
+            return '<ol class="org-stack">' + "".join(f"<li>{knoten(*e)}</li>" for e in eintraege) + "</ol>"
+
+        sicherheit = stapel([
+            ("Kaiserliches Reichssicherheitsamt", "", "Generaldirektor des KRS", "", u("informationen/reichssicherheitsamt/")),
+            ("Kaiserliche Polizeibehörde", "", "Generaldirektor der Polizei"),
+            ("Kaiserliche Zollverwaltung", "", "Generaldirektor des Zolls"),
+            ("Kaiserlicher Katastrophenschutz", "", "Generaldirektor des KKS, mit der Reichsfeuerwehr"),
+        ])
+        aemter = stapel([
+            ("Reichsamt für Einwanderung und Staatsangehörigkeit", "", "Staatssekretär"),
+            ("Reichsamt für digitale Infrastruktur", "", "Staatssekretär für digitale Infrastruktur"),
+        ])
+        aussen = stapel([
+            ("Kaiserliches Generalkonsulat", "", "Generalkonsul"),
+            ("Konsulate", "", "Konsuln"),
+        ])
+        vertretung = stapel([
+            ("Vizekönig", "", "Königreich oder Kurfürstentum ohne Regenten"),
+            ("Generalgouverneur", "", "Großer Teilstaat oder mehrere Gebiete"),
+            ("Gouverneur", "", "Einzelnes Gebiet ohne Regenten"),
+            ("Magistrat", "", "Reichsstadt ohne Landesherrn"),
+            ("Bürgermeister", "", "Stadt oder Gemeinde"),
+        ])
+        return f"""
+<details class="disclosure">
+  <summary><span class="disclosure-title">Organigramm der Reichsverwaltung</span><span class="disclosure-hint"><span class="when-closed">Aufklappen</span><span class="when-open">Zuklappen</span></span></summary>
+  <div class="disclosure-body">
+    <div class="org"><ul>
+      <li>{knoten("Seine Majestät der Kaiser", "Souverän", "", "is-crown")}
+        <ul><li>{knoten("Der Kanzler", "Privatsekretär des Souveräns", "Kronbesitz und Schatzkammer seiner Majestät", "is-chancellor", u("informationen/die-reichsbehoerden/der-kanzler/"))}
+          <ul>
+            <li class="is-wide">{knoten("Die Reichsbehörden", "Säule", "", "is-pillar")}
+              <ul>
+                <li>{knoten("Sicherheit und Ordnung", "", "", "is-group")}{sicherheit}</li>
+                <li>{knoten("Die Reichsämter", "", "", "is-group")}{aemter}</li>
+                <li>{knoten("Auswärtiger Dienst", "", "", "is-group")}{aussen}</li>
+              </ul>
+            </li>
+            <li>{knoten("Die Reichsvertretung", "Säule", "", "is-pillar", "#reichsvertretung")}
+              <ul><li>{knoten("Teilstaaten ohne Regenten", "", "", "is-group")}{vertretung}</li></ul>
+            </li>
+          </ul>
+        </li></ul>
+      </li>
+    </ul></div>
+  </div>
+</details>"""
+
     def article():
         return f"""
 <div class="intro-grid">
@@ -967,6 +1024,7 @@ def page_reichsbehoerden():
 </div>
 <h2>Aufbau der Reichsverwaltung</h2>
 <div class="table-scroll"><table class="styles-table"><thead><tr><th>Säule</th><th>Leitung</th><th>Aufgabe</th></tr></thead><tbody>{saeulen_rows}</tbody></table></div>
+{organigramm()}
 <h2>Der Kanzler</h2>
 <div class="prose">
   {paras(
