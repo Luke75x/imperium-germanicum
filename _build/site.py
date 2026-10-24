@@ -1390,15 +1390,32 @@ ERLASSE = [
 ]
 
 
+# Neue Einträge aus dem Reichsgesetzblatt (Discord-Forum), vom Bot nach Bestätigung des Kaisers aufgenommen (gesetzblatt.py)
+GESETZBLATT_FILE = os.path.join(HERE, "gesetzblatt.json")
+GESETZBLATT = json.load(open(GESETZBLATT_FILE, encoding="utf-8")) if os.path.exists(GESETZBLATT_FILE) else []
+
+
+def gesetzblatt_card(n, e):
+    href = asset(e["dateien"][0]) if e["dateien"] else e["links"][0] if e["links"] else ""
+    cap = f"{e['art']} – {e['titel']}"
+    sheet = (f'<span class="sheet">{img(e["vorschau"], cap, "(min-width: 1000px) 25vw, (min-width: 520px) 50vw, 100vw")}</span>'
+             if e["vorschau"] else f'<span class="sheet contain">{img(LOGO, "")}</span>')
+    inner = (f'{sheet}<span class="meta"><strong>{esc(e["art"])}</strong><span>Nr. {n:02d}</span></span>'
+             f'<span style="display:block;font:500 1.125rem/1.3 var(--serif);margin-top:6px">{esc(e["titel"])}</span>')
+    tag = f'a href="{esc(href)}" target="_blank" rel="noopener"' if href else "div"
+    return f'<{tag} class="doc-card reveal" title="{esc(e["text"])}" data-issuer="{esc(e["art"])}">{inner}</{tag.split()[0]}>'
+
+
 def page_erlasse():
     Ctx.prefix = "../"
     issuers = []
-    for _, iss, _ in ERLASSE:
+    for iss in [e["art"] for e in reversed(GESETZBLATT)] + [iss for _, iss, _ in ERLASSE]:
         if iss not in issuers:
             issuers.append(iss)
     btns = '<button type="button" data-doc-filter="alle" aria-pressed="true">Alle</button>' + "".join(
         f'<button type="button" data-doc-filter="{esc(i)}" aria-pressed="false">{esc(i)}</button>' for i in issuers)
-    cards = []
+    # neueste zuerst; die Nummern zählen nach den älteren Erlassen weiter
+    cards = [gesetzblatt_card(len(ERLASSE) + n, e) for n, e in reversed(list(enumerate(GESETZBLATT, 1)))]
     for n, (iid, iss, title) in enumerate(ERLASSE, 1):
         cap = f"{iss} – {title}"
         inner = (f'<span class="sheet">{img(iid, cap, "(min-width: 1000px) 25vw, (min-width: 520px) 50vw, 100vw")}</span>'
