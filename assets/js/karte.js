@@ -2,7 +2,8 @@
    Konfiguration aus #karte-cfg (vom Wiki-Dienst, Modul karte.py), Geodaten aus /karte/geo.json (NUTS-3-Gebiete als SVG-Pfade).
    Anzeige: Zoomen (Mausrad, Knöpfe, Tasten, zwei Finger), Verschieben, Gebiet unter dem Zeiger, Suche, Legende hebt Teilstaaten hervor.
    Klick auf ein Gebiet (Anzeige): Fenster mit Teilstaat, Regent (Landesherr + Fraktionsrolle bzw. Kanzler), Bevölkerung, Fläche;
-   angemeldete Regenten beantragen dort eine Namensänderung ihres Teilstaats (entscheidet der Kanzler per Discord-DM des Bots).
+   angemeldete Regenten beantragen dort einen neuen Namen für einen Bezirk ihres Teilstaats (entscheidet der Kanzler per Discord-DM
+   des Bots). Gebietsnamen im Rollenspiel stehen in stand.namen; der heutige amtliche Name bleibt sichtbar.
    Editor (nur Server-Admins): Gebiete per Klick/Ziehen zuweisen, Pipette, ganze Länder, Teilstaaten anlegen/ändern/löschen,
    Rückgängig/Wiederholen, Speichern mit Bemerkung und Konflikterkennung. Farben der Karte kommen aus den Tokens in site.css. */
 (function () {
@@ -25,6 +26,7 @@
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function fmt(n) { return n.toLocaleString(document.documentElement.lang === "en" ? "en-GB" : "de-DE"); }
   function state(id) { for (var i = 0; i < stand.staaten.length; i++) if (stand.staaten[i].id === id) return stand.staaten[i]; return null; }
+  function gname(id) { return (stand.namen && stand.namen[id]) || geo.gebiete[id].n; }
   function sorted() { return stand.staaten.slice().sort(function (a, b) { return a.name.localeCompare(b.name, "de"); }); }
 
   // ---------- Muster ----------
@@ -266,7 +268,8 @@
     hilite.innerHTML = id ? '<path d="' + geo.gebiete[id].d + '"/>' : "";
     if (!id) { info.innerHTML = ""; info.classList.remove("is-sichtbar"); return; }
     var g = geo.gebiete[id], s = state(stand.gebiete[id]);
-    info.innerHTML = '<strong>' + esc(g.n) + "</strong> · " + esc(geo.laender[g.c] || g.c) + "<br>" +
+    info.innerHTML = '<strong>' + esc(gname(id)) + "</strong>" + (gname(id) !== g.n ? " (" + esc(T.today) + ": " + esc(g.n) + ")" : "") +
+      " · " + esc(geo.laender[g.c] || g.c) + "<br>" +
       (s ? swatch(s, 12) + " " + esc(s.name) : esc(T.noState)) + " · " + fmt(g.a) + " km²";
     info.classList.add("is-sichtbar");
   }
@@ -277,9 +280,11 @@
     if (!list) return;
     var opts = [];
     Object.keys(geo.gebiete).forEach(function (k) {
-      var g = geo.gebiete[k], label = g.n + " (" + (geo.laender[g.c] || g.c) + ")";
-      searchIndex[label] = k;
-      opts.push(label);
+      var g = geo.gebiete[k], land = " (" + (geo.laender[g.c] || g.c) + ")";
+      [g.n].concat(stand.namen && stand.namen[k] ? [stand.namen[k]] : []).forEach(function (n) {
+        searchIndex[n + land] = k;
+        opts.push(n + land);
+      });
     });
     opts.sort(function (a, b) { return a.localeCompare(b, "de"); });
     list.innerHTML = opts.map(function (o) { return '<option value="' + esc(o) + '">'; }).join("");
@@ -290,7 +295,8 @@
     if (!id) {
       var low = q.toLowerCase();
       id = Object.keys(geo.gebiete).find(function (k) { return geo.gebiete[k].n.toLowerCase() === low; }) ||
-           Object.keys(geo.gebiete).find(function (k) { return geo.gebiete[k].n.toLowerCase().indexOf(low) === 0; });
+           Object.keys(geo.gebiete).find(function (k) { return gname(k).toLowerCase() === low; }) ||
+           Object.keys(geo.gebiete).find(function (k) { return geo.gebiete[k].n.toLowerCase().indexOf(low) === 0 || gname(k).toLowerCase().indexOf(low) === 0; });
     }
     if (!id || !q) { info.textContent = T.notFound; info.classList.add("is-sichtbar"); return; }
     fit([id], 900);
@@ -360,10 +366,11 @@
   }
   function showInfo(id) {
     var g = geo.gebiete[id], s = state(stand.gebiete[id]), p = pop(id), years = {};
-    var html = '<span class="eyebrow">' + esc(geo.laender[g.c] || g.c) + " · " + esc(id) + '</span><h2 id="karte-gebiet-titel">' + esc(g.n) + "</h2>";
+    var html = '<span class="eyebrow">' + esc(geo.laender[g.c] || g.c) + " · " + esc(id) + '</span><h2 id="karte-gebiet-titel">' + esc(gname(id)) + "</h2>";
     if (s) html += '<p class="karte-gebiet-staat">' + swatch(s, 20) + " " + esc(s.name) + "</p>";
     else html += '<p class="karte-gebiet-staat">' + swatch(null, 20) + " " + esc(T.notReich) + "</p>";
     var rows = [];
+    if (gname(id) !== g.n) rows.push(row(T.todayName, esc(g.n)));
     if (s) rows.push(row(T.regent, regentHtml(s, infoData.regenten[s.id])));
     rows.push(row(T.population, p ? fmt(p[0]) + " " + esc(T.inhabitants) : esc(T.noData)));
     rows.push(row(T.area, fmt(g.a) + " km²"));
@@ -382,7 +389,7 @@
         row(T.population, fmt(b) + " " + esc(T.inhabitants)) + row(T.area, fmt(a) + " km²") + row(T.regionCount, fmt(n)) +
         row(T.sharePop, pct(b, rb)) + row(T.shareArea, pct(a, ra)) + "</tbody></table>";
     }
-    if (s) html += renameHtml(s, infoData.regenten[s.id]);
+    if (s) html += renameHtml(id, s, infoData.regenten[s.id]);
     var yl = Object.keys(years).sort();
     if (yl.length) html += '<p class="karte-quelle">' + esc(T.source.replace("{j}", yl[yl.length - 1])) + "</p>";
     infoDlg.querySelector("[data-gebiet-inhalt]").innerHTML = html;
@@ -394,14 +401,14 @@
 
   // Namensänderung: nur für den Regenten des Teilstaats (Prüfung auch auf dem Server)
   function day(ts) { return new Date(ts * 1000).toLocaleDateString(document.documentElement.lang === "en" ? "en-GB" : "de-DE"); }
-  function renameHtml(s, r) {
+  function renameHtml(id, s, r) {
     var ich = infoData.ich;
     if (!ich) {
       if (infoData.angemeldet || !r || r.art !== "landesherr" || cfg.version) return "";
       return '<p class="karte-quelle">' + esc(T.loginHint) + ' <a href="' + esc(cfg.anmelden) + '">' + esc(T.login) + "</a></p>";
     }
     if (ich.regent_von.indexOf(s.id) < 0) return "";
-    var a = ich.antraege[s.id], status = "", offen = a && a.status === "offen";
+    var a = ich.antraege[id], status = "", offen = a && a.status === "offen";
     if (a) {
       var key = { offen: "pending", angenommen: "accepted", abgelehnt: "rejected" }[a.status];
       status = '<div class="form-status ' + (a.status === "abgelehnt" ? "err" : "ok") + '" role="status">' + esc(T[key].replace("{d}", day(a.zeit)).replace("{n}", a.neu)) +
@@ -410,7 +417,7 @@
     var form = offen ? "" :
       '<p>' + esc(T.renameIntro) + '</p><button type="button" class="btn btn-line btn-small" data-antrag-oeffnen>' + esc(T.renameBtn) + "</button>" +
       '<form class="form karte-antrag" data-antrag hidden>' +
-      '<div class="field"><label for="ka-neu">' + esc(T.newName) + '</label><input id="ka-neu" maxlength="80" required value="' + esc(s.name) + '"></div>' +
+      '<div class="field"><label for="ka-neu">' + esc(T.newName) + '</label><input id="ka-neu" maxlength="80" required value="' + esc(gname(id)) + '"></div>' +
       '<div class="field"><label for="ka-grund">' + esc(T.reason) + '</label><textarea id="ka-grund" rows="4" maxlength="1000" required></textarea></div>' +
       '<div data-antrag-meldung></div><button class="btn btn-navy btn-small" type="submit">' + esc(T.send) + "</button></form>";
     return '<h3 class="karte-gebiet-h">' + esc(T.renameH) + "</h3>" + status + form;
@@ -424,11 +431,11 @@
       var btn = form.querySelector("button[type=submit]"), box = form.querySelector("[data-antrag-meldung]");
       btn.disabled = true;
       fetch(cfg.antrag, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ csrf: cfg.csrf, staat: s.id, neu: form.querySelector("#ka-neu").value, begruendung: form.querySelector("#ka-grund").value }) })
+        body: JSON.stringify({ csrf: cfg.csrf, gebiet: id, neu: form.querySelector("#ka-neu").value, begruendung: form.querySelector("#ka-grund").value }) })
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (!j.ok) { box.innerHTML = '<div class="form-status err" role="status">' + esc(j.fehler || T.saveError) + "</div>"; btn.disabled = false; return; }
-          infoData.ich.antraege[s.id] = j.antrag;
+          infoData.ich.antraege[id] = j.antrag;
           showInfo(id);
         })
         .catch(function () { box.innerHTML = '<div class="form-status err" role="status">' + esc(T.saveError) + "</div>"; btn.disabled = false; });
