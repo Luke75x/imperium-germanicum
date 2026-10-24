@@ -311,3 +311,6 @@
 .karte-gebiet .dialog-actions { margin-top: 22px; justify-content: flex-end; }
 .karte-feldhinweis { margin: 6px 0 0; font: .8125rem/1.4 var(--sans); color: var(--muted); }
 .karte-gebiet [data-gebiet-inhalt]:focus { outline: none; }
+.karte-antrag { margin-top: 14px; }
+.karte-gebiet .form-status { margin: 0 0 14px; }
+.karte-antrag[hidden] { display: none; }
