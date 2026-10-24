@@ -228,7 +228,7 @@
 .karte-leiste .field-check { margin: 0; }
 .karte-buehne { position: relative; }
 .karte-flaeche {
-  position: relative; height: clamp(420px, 74vh, 900px); overflow: hidden; background: var(--karte-meer);
+  position: relative; height: clamp(420px, 74vh, 900px); overflow: hidden; overflow: clip; background: var(--karte-meer);
   border: 1px solid var(--rule); touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
 }
 .karte-flaeche:focus-visible { outline: 2px solid var(--gold-500); outline-offset: 2px; }
@@ -297,3 +297,17 @@
 
 /* Versionen */
 .karte-versionen form { display: inline; margin-left: 8px; }
+
+/* Angaben zum Gebiet (Fenster nach Klick auf die Karte) */
+.karte-gebiet { width: min(620px, calc(100vw - 32px)); }
+.karte-gebiet .eyebrow { display: block; margin-bottom: 6px; }
+.karte-gebiet h2 { margin-bottom: 10px; }
+.karte-gebiet-staat { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; font: 600 1rem/1.4 var(--sans); color: var(--ink); }
+.karte-gebiet-h { margin: 24px 0 10px; font-size: 1.25rem; }
+.karte-gebiet-tabelle { margin: 0; }
+.karte-gebiet-tabelle th { width: 44%; text-align: left; font-weight: 600; }
+.karte-gebiet .karte-titel, .karte-gebiet .karte-hinweis { color: var(--muted); font-size: .875rem; }
+.karte-gebiet .karte-hinweis { display: block; margin-top: 4px; }
+.karte-gebiet .dialog-actions { margin-top: 22px; justify-content: flex-end; }
+.karte-feldhinweis { margin: 6px 0 0; font: .8125rem/1.4 var(--sans); color: var(--muted); }
+.karte-gebiet [data-gebiet-inhalt]:focus { outline: none; }

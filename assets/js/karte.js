@@ -1,6 +1,7 @@
 /* Reichskarte (/karte/): Anzeige und Editor.
    Konfiguration aus #karte-cfg (vom Wiki-Dienst, Modul karte.py), Geodaten aus /karte/geo.json (NUTS-3-Gebiete als SVG-Pfade).
    Anzeige: Zoomen (Mausrad, Knöpfe, Tasten, zwei Finger), Verschieben, Gebiet unter dem Zeiger, Suche, Legende hebt Teilstaaten hervor.
+   Klick auf ein Gebiet (Anzeige): Fenster mit Teilstaat, Regent (Landesherr + Fraktionsrolle bzw. Kanzler), Bevölkerung, Fläche.
    Editor (nur Server-Admins): Gebiete per Klick/Ziehen zuweisen, Pipette, ganze Länder, Teilstaaten anlegen/ändern/löschen,
    Rückgängig/Wiederholen, Speichern mit Bemerkung und Konflikterkennung. Farben der Karte kommen aus den Tokens in site.css. */
 (function () {
@@ -92,7 +93,7 @@
     if (cb) { cb.checked = EDIT; cb.addEventListener("change", function () { root.classList.toggle("mit-grenzen", cb.checked); }); }
     fit(Object.keys(stand.gebiete));
     bindView();
-    if (EDIT) initEditor(); else bindLegend();
+    if (EDIT) initEditor(); else { bindLegend(); bindInfo(); }
     window.addEventListener("resize", function () { setView(view.x + view.w / 2, view.y + view.h / 2, view.w); });
   }
 
@@ -226,7 +227,7 @@
     function up(e) {
       delete pointers[e.pointerId];
       if (Object.keys(pointers).length < 2) pinch = null;
-      if (drag && !drag.moved && !EDIT) hover(regionAt(e));  // Antippen zeigt das Gebiet an
+      if (drag && !drag.moved && !EDIT && e.button !== 1) { var hit = regionAt(e); hover(hit); if (hit) openInfo(hit); }  // Klick/Antippen: Angaben zum Gebiet
       if (drag) { drag = null; surface.classList.remove("is-ziehen"); }
       if (moving && !Object.keys(pointers).length) { moving = false; redraw(); }
       endStroke();
@@ -314,6 +315,78 @@
         if (pinned) fit(Object.keys(stand.gebiete).filter(function (k) { return stand.gebiete[k] === sid; }));
       });
     });
+  }
+
+  // ---------- Angaben zum Gebiet (Fenster) ----------
+  var infoDlg, infoData = null, infoReq = null;
+  function loadInfo() {
+    if (!infoReq) {
+      infoReq = fetch(cfg.info + (cfg.version ? "?version=" + cfg.version : ""), { credentials: "same-origin" })
+        .then(function (r) { if (!r.ok) throw r; return r.json(); })
+        .then(function (j) { infoData = j; return j; })
+        .catch(function (e) { infoReq = null; throw e; });
+    }
+    return infoReq;
+  }
+  function bindInfo() {
+    infoDlg = document.querySelector("[data-gebiet]");
+    if (!infoDlg) return;
+    infoDlg.querySelector("[data-gebiet-zu]").addEventListener("click", function () { infoDlg.close(); });
+    // Ältere Browser ohne overflow: clip: die Fläche darf nie intern scrollen (sonst stimmen die Klickpositionen nicht)
+    surface.addEventListener("scroll", function () { surface.scrollTop = 0; surface.scrollLeft = 0; });
+    infoDlg.addEventListener("click", function (e) { if (e.target === infoDlg) infoDlg.close(); });  // Klick neben das Fenster
+    loadInfo().catch(function () {});
+  }
+  function pop(id) { return infoData && infoData.bev[id] ? infoData.bev[id] : null; }
+  function row(k, v) { return "<tr><th scope=\"row\">" + esc(k) + "</th><td>" + v + "</td></tr>"; }
+  function pct(a, b) { return b ? (a / b * 100).toLocaleString(document.documentElement.lang === "en" ? "en-GB" : "de-DE", { maximumFractionDigits: 1 }) + " %" : "–"; }
+  function regentHtml(s, r) {
+    if (!r) return esc(T.noFaction);
+    var names = r.personen.map(function (p) {
+      var n = p.url ? '<a href="' + esc(p.url) + '">' + esc(p.name) + "</a>" : esc(p.name);
+      return "<strong>" + n + "</strong>" + (p.titel.length ? " <span class=\"karte-titel\">" + esc(p.titel.join(" · ")) + "</span>" : "");
+    }).join("<br>");
+    if (r.art === "kanzler") return (names || esc(T.noKanzler)) + (names ? '<span class="karte-hinweis">' + esc(T.kanzlerNote) + "</span>" : "");
+    if (r.art === "landesherr") return names || esc(T.vacant.replace("{f}", r.fraktion || s.name));
+    return esc(T.noFaction);
+  }
+  function openInfo(id) {
+    if (!infoDlg) return;
+    loadInfo().then(function () { showInfo(id); }).catch(function () {
+      infoDlg.querySelector("[data-gebiet-inhalt]").innerHTML = '<div class="form-status err" role="status">' + esc(T.infoError) + "</div>";
+      if (!infoDlg.open) infoDlg.showModal();
+    });
+  }
+  function showInfo(id) {
+    var g = geo.gebiete[id], s = state(stand.gebiete[id]), p = pop(id), years = {};
+    var html = '<span class="eyebrow">' + esc(geo.laender[g.c] || g.c) + " · " + esc(id) + '</span><h2 id="karte-gebiet-titel">' + esc(g.n) + "</h2>";
+    if (s) html += '<p class="karte-gebiet-staat">' + swatch(s, 20) + " " + esc(s.name) + "</p>";
+    else html += '<p class="karte-gebiet-staat">' + swatch(null, 20) + " " + esc(T.notReich) + "</p>";
+    var rows = [];
+    if (s) rows.push(row(T.regent, regentHtml(s, infoData.regenten[s.id])));
+    rows.push(row(T.population, p ? fmt(p[0]) + " " + esc(T.inhabitants) : esc(T.noData)));
+    rows.push(row(T.area, fmt(g.a) + " km²"));
+    if (p && g.a) rows.push(row(T.density, fmt(Math.round(p[0] / g.a)) + " " + esc(T.perKm2)));
+    if (p) years[p[1]] = 1;
+    html += '<table class="styles-table is-grid karte-gebiet-tabelle"><tbody>' + rows.join("") + "</tbody></table>";
+    if (s) {
+      var ids = Object.keys(stand.gebiete), n = 0, a = 0, b = 0, ra = 0, rb = 0;
+      ids.forEach(function (k) {
+        var gg = geo.gebiete[k], pp = pop(k);
+        ra += gg.a; if (pp) { rb += pp[0]; years[pp[1]] = 1; }
+        if (stand.gebiete[k] === s.id) { n++; a += gg.a; if (pp) b += pp[0]; }
+      });
+      html += '<h3 class="karte-gebiet-h">' + esc(T.state) + ": " + esc(s.name) + "</h3>" +
+        '<table class="styles-table is-grid karte-gebiet-tabelle"><tbody>' +
+        row(T.population, fmt(b) + " " + esc(T.inhabitants)) + row(T.area, fmt(a) + " km²") + row(T.regionCount, fmt(n)) +
+        row(T.sharePop, pct(b, rb)) + row(T.shareArea, pct(a, ra)) + "</tbody></table>";
+    }
+    var yl = Object.keys(years).sort();
+    if (yl.length) html += '<p class="karte-quelle">' + esc(T.source.replace("{j}", yl[yl.length - 1])) + "</p>";
+    infoDlg.querySelector("[data-gebiet-inhalt]").innerHTML = html;
+    var r = s && infoData.regenten[s.id];
+    infoDlg.querySelector("[data-gebiet-wiki]").innerHTML = r && r.wiki ? '<a class="btn btn-navy" href="' + esc(r.wiki) + '">' + esc(T.wikiLink) + "</a>" : "";
+    if (!infoDlg.open) infoDlg.showModal();
   }
 
   // ---------- Editor ----------
@@ -491,8 +564,8 @@
   var dlg, editing = null;
   function bindDialog() {
     dlg = document.querySelector("[data-dialog]");
-    var f = { name: dlg.querySelector("#ks-name"), farbe: dlg.querySelector("#ks-farbe"), muster: dlg.querySelector("#ks-muster"), farbe2: dlg.querySelector("#ks-farbe2") };
-    function current() { return { id: editing ? editing.id : "neu", name: f.name.value.trim(), farbe: f.farbe.value.toLowerCase(), muster: f.muster.value, farbe2: f.farbe2.value.toLowerCase() }; }
+    var f = { name: dlg.querySelector("#ks-name"), farbe: dlg.querySelector("#ks-farbe"), muster: dlg.querySelector("#ks-muster"), farbe2: dlg.querySelector("#ks-farbe2"), fraktion: dlg.querySelector("#ks-fraktion") };
+    function current() { return { id: editing ? editing.id : "neu", name: f.name.value.trim(), farbe: f.farbe.value.toLowerCase(), muster: f.muster.value, farbe2: f.farbe2.value.toLowerCase(), fraktion: f.fraktion.value }; }
     function preview() {
       var s = current();
       dlg.querySelector("[data-farbe2]").hidden = s.muster === "voll";
@@ -507,7 +580,7 @@
       step.vorher = clone(stand.staaten);
       if (editing) {
         var t = state(editing.id);
-        t.name = s.name; t.farbe = s.farbe; t.muster = s.muster; t.farbe2 = s.farbe2;
+        t.name = s.name; t.farbe = s.farbe; t.muster = s.muster; t.farbe2 = s.farbe2; t.fraktion = s.fraktion;
       } else {
         var max = stand.staaten.reduce(function (m, x) { return Math.max(m, parseInt(x.id.slice(1), 10) || 0); }, 0);
         s.id = "s" + (max + 1);
@@ -550,6 +623,8 @@
     f.farbe.value = s ? s.farbe : "#c9a43a";
     f.muster.value = s ? s.muster : "voll";
     f.farbe2.value = s ? s.farbe2 : "#ffffff";
+    f.fraktion.value = s ? s.fraktion || "" : "";
+    if (f.fraktion.value !== (s ? s.fraktion || "" : "")) f.fraktion.value = "";  // Rolle existiert nicht mehr
     dlg.querySelector("[data-dialog-fehler]").hidden = true;
     dlg.querySelector('[data-aktion="loeschen"]').hidden = !s;
     dlg.preview();
