@@ -51,7 +51,7 @@
   }
   function scalePatterns() {
     // Muster behalten auf dem Bildschirm ihre Größe, egal wie weit gezoomt ist
-    var k = view.w / Math.max(1, surface.clientWidth);
+    var k = (base || view).w / Math.max(1, surface.clientWidth);
     defs.querySelectorAll("pattern").forEach(function (p) {
       p.setAttribute("patternTransform", "scale(" + k + ")" + (p.classList.contains("is-schraeg") ? " rotate(45)" : ""));
     });
@@ -104,13 +104,31 @@
     view = { x: cx - w / 2, y: cy - h / 2, w: w, h: h };
     schedule();
   }
+  // Flüssige Bewegung: Während Ziehen/Zoomen wird das zuletzt gezeichnete Bild nur per CSS-Transform verschoben und skaliert
+  // (GPU, ohne die 1500 Gebiete neu zu zeichnen). Erst wenn die Bewegung ruht, wird der Ausschnitt neu gezeichnet.
+  // Das SVG ist doppelt so groß wie die sichtbare Fläche, damit beim Verschieben Rand vorhanden ist.
+  var base = null, settle = 0, moving = false;
   function schedule() {
+    clearTimeout(settle);
+    settle = setTimeout(function () { if (!moving) redraw(); }, 160);
     if (raf) return;
     raf = requestAnimationFrame(function () {
       raf = 0;
-      svg.setAttribute("viewBox", view.x + " " + view.y + " " + view.w + " " + view.h);
-      scalePatterns();
+      if (!base) { redraw(); return; }
+      var cw = surface.clientWidth, ch = surface.clientHeight;
+      var s1 = cw / view.w, k = base.w / view.w;
+      var tx = (base.x + base.w / 2 - view.x - view.w / 2) * s1, ty = (base.y + base.h / 2 - view.y - view.h / 2) * s1;
+      if (Math.abs(tx) > cw * 0.42 || Math.abs(ty) > ch * 0.42 || k < 0.55 || k > 4) { redraw(); return; }
+      svg.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + k + ")";
     });
+  }
+  function redraw() {
+    clearTimeout(settle);
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    base = { x: view.x, y: view.y, w: view.w, h: view.h };
+    svg.setAttribute("viewBox", (view.x - view.w / 2) + " " + (view.y - view.h / 2) + " " + view.w * 2 + " " + view.h * 2);
+    svg.style.transform = "";
+    scalePatterns();
   }
   function bboxOf(ids) {
     var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -173,10 +191,12 @@
         var a = pointers[ids[0]], b = pointers[ids[1]];
         pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) };
         drag = null;
+        moving = true;
         return;
       }
       if (panMode(e)) {
         drag = { x: e.clientX, y: e.clientY, moved: false };
+        moving = true;
         surface.setPointerCapture(e.pointerId);
         surface.classList.add("is-ziehen");
       } else if (e.button === 0) {
@@ -201,13 +221,14 @@
         return;
       }
       if (stroke) { if (e.buttons === 0) endStroke(); else continueStroke(e); return; }
-      if (e.pointerType !== "touch") hover(regionAt(e));
+      if (e.pointerType !== "touch") hoverLater(e);
     });
     function up(e) {
       delete pointers[e.pointerId];
       if (Object.keys(pointers).length < 2) pinch = null;
       if (drag && !drag.moved && !EDIT) hover(regionAt(e));  // Antippen zeigt das Gebiet an
       if (drag) { drag = null; surface.classList.remove("is-ziehen"); }
+      if (moving && !Object.keys(pointers).length) { moving = false; redraw(); }
       endStroke();
     }
     surface.addEventListener("pointerup", up);
@@ -231,6 +252,12 @@
     }
   }
 
+  var hoverPos = null, hoverRaf = 0;
+  function hoverLater(e) {
+    // Trefferprüfung auf den komplexen Umrissen höchstens einmal je Bild
+    hoverPos = { clientX: e.clientX, clientY: e.clientY };
+    if (!hoverRaf) hoverRaf = requestAnimationFrame(function () { hoverRaf = 0; hover(regionAt(hoverPos)); });
+  }
   function hover(id) {
     if (id === hoverId) return;
     hoverId = id;
