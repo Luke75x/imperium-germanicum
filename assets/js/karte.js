@@ -5,7 +5,9 @@
    angemeldete Regenten beantragen dort einen neuen Namen für einen Bezirk ihres Teilstaats (entscheidet der Kanzler per Discord-DM
    des Bots). Gebietsnamen im Rollenspiel stehen in stand.namen; der heutige amtliche Name bleibt sichtbar.
    Editor (nur Server-Admins): Gebiete per Klick/Ziehen zuweisen, Pipette, ganze Länder, Teilstaaten anlegen/ändern/löschen,
-   Rückgängig/Wiederholen, Speichern mit Bemerkung und Konflikterkennung. Farben der Karte kommen aus den Tokens in site.css. */
+   Rückgängig/Wiederholen, Speichern mit Bemerkung und Konflikterkennung. Auf dem Handy (bis 900 px): Vollbild-Karte mit Leiste unten
+   (Teilstaat, Zuweisen/Verschieben, Rückgängig, Speichern), die Seitenleiste öffnet sich als Blatt; Antippen weist zu,
+   zwei Finger verschieben und zoomen. Farben der Karte kommen aus den Tokens in site.css. */
 (function () {
   "use strict";
   var root = document.querySelector("[data-karte]");
@@ -166,6 +168,8 @@
 
   // ---------- Bedienung ----------
   var pointers = {}, drag = null, pinch = null, spaceDown = false, stroke = null, hoverId = null;
+  // Finger im Malmodus: erst Antippen oder Ziehen abwarten, damit ein zweiter Finger (Zoomen/Verschieben) nichts einfärbt
+  var pendingTouch = null;
 
   function regionAt(e) {
     var el = document.elementFromPoint(e.clientX, e.clientY);
@@ -191,9 +195,10 @@
       pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
       var ids = Object.keys(pointers);
       if (ids.length === 2) {
+        pendingTouch = null;
         endStroke();
         var a = pointers[ids[0]], b = pointers[ids[1]];
-        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) };
+        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
         drag = null;
         moving = true;
         return;
@@ -203,6 +208,8 @@
         moving = true;
         surface.setPointerCapture(e.pointerId);
         surface.classList.add("is-ziehen");
+      } else if (e.pointerType === "touch") {
+        pendingTouch = { clientX: e.clientX, clientY: e.clientY, shiftKey: false };
       } else if (e.button === 0) {
         e.preventDefault();
         startStroke(e);
@@ -212,9 +219,12 @@
       if (pointers[e.pointerId]) pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
       var ids = Object.keys(pointers);
       if (pinch && ids.length === 2) {
+        // zwei Finger: verschieben (Mittelpunkt) und zoomen (Abstand)
         var a = pointers[ids[0]], b = pointers[ids[1]], d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (pinch.d > 0) zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, d / pinch.d);
-        pinch.d = d;
+        var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, kk = view.w / surface.clientWidth;
+        setView(view.x + view.w / 2 - (mx - pinch.mx) * kk, view.y + view.h / 2 - (my - pinch.my) * kk, view.w);
+        if (pinch.d > 0) zoomAt(mx, my, d / pinch.d);
+        pinch.d = d; pinch.mx = mx; pinch.my = my;
         return;
       }
       if (drag) {
@@ -224,10 +234,17 @@
         drag.x = e.clientX; drag.y = e.clientY;
         return;
       }
+      if (pendingTouch && Math.hypot(e.clientX - pendingTouch.clientX, e.clientY - pendingTouch.clientY) > 10) {
+        var start = pendingTouch;
+        pendingTouch = null;
+        startStroke(start);
+      }
       if (stroke) { if (e.buttons === 0) endStroke(); else continueStroke(e); return; }
       if (e.pointerType !== "touch") hoverLater(e);
     });
     function up(e) {
+      if (pendingTouch && e.type === "pointerup") { startStroke(pendingTouch); hover(regionAt(pendingTouch)); }  // Antippen weist zu
+      pendingTouch = null;
       delete pointers[e.pointerId];
       if (Object.keys(pointers).length < 2) pinch = null;
       if (drag && !drag.moved && !EDIT && e.button !== 1) { var hit = regionAt(e); hover(hit); if (hit) openInfo(hit); }  // Klick/Antippen: Angaben zum Gebiet
@@ -313,8 +330,8 @@
     var pinned = null;
     document.querySelectorAll(".karte-legende-item[data-staat]").forEach(function (b) {
       var sid = b.getAttribute("data-staat");
-      b.addEventListener("mouseenter", function () { if (!pinned) focusState(sid); });
-      b.addEventListener("mouseleave", function () { if (!pinned) focusState(null); });
+      b.addEventListener("pointerenter", function (e) { if (!pinned && e.pointerType === "mouse") focusState(sid); });
+      b.addEventListener("pointerleave", function (e) { if (!pinned && e.pointerType === "mouse") focusState(null); });
       b.addEventListener("click", function () {
         pinned = pinned === sid ? null : sid;
         document.querySelectorAll(".karte-legende-item[data-staat]").forEach(function (x) { x.setAttribute("aria-pressed", String(x.getAttribute("data-staat") === pinned)); });
@@ -403,6 +420,15 @@
   function day(ts) { return new Date(ts * 1000).toLocaleDateString(document.documentElement.lang === "en" ? "en-GB" : "de-DE"); }
   function renameHtml(id, s, r) {
     var ich = infoData.ich;
+    if (ich && ich.kanzler && !cfg.version) {
+      // Kanzler: Namen unmittelbar festlegen (statt Antrag)
+      return '<h3 class="karte-gebiet-h">' + esc(T.renameH) + "</h3><p>" + esc(T.kanzlerIntro) + "</p>" +
+        '<form class="form karte-antrag" data-kname><div class="field"><label for="kn-name">' + esc(T.nameField) + '</label>' +
+        '<input id="kn-name" maxlength="80" value="' + esc(gname(id)) + '"></div><div data-kname-meldung></div>' +
+        '<div class="dialog-actions"><button class="btn btn-navy btn-small" type="submit">' + esc(T.setName) + "</button>" +
+        (gname(id) !== geo.gebiete[id].n ? '<button class="btn btn-line btn-small" type="button" data-kreset>' + esc(T.resetName) + "</button>" : "") +
+        "</div></form>";
+    }
     if (!ich) {
       if (infoData.angemeldet || !r || r.art !== "landesherr" || cfg.version) return "";
       return '<p class="karte-quelle">' + esc(T.loginHint) + ' <a href="' + esc(cfg.anmelden) + '">' + esc(T.login) + "</a></p>";
@@ -422,7 +448,30 @@
       '<div data-antrag-meldung></div><button class="btn btn-navy btn-small" type="submit">' + esc(T.send) + "</button></form>";
     return '<h3 class="karte-gebiet-h">' + esc(T.renameH) + "</h3>" + status + form;
   }
+  function bindKanzler(id) {
+    var form = infoDlg.querySelector("[data-kname]");
+    if (!form) return;
+    function send(name) {
+      var box = form.querySelector("[data-kname-meldung]");
+      fetch(cfg.gebietsname, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csrf: cfg.csrf, gebiet: id, name: name }) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j.ok) throw j;
+          stand.namen = j.namen;
+          fillSearch();
+          hoverId = null;
+          showInfo(id);
+          infoDlg.querySelector("[data-kname-meldung]").innerHTML = '<div class="form-status ok" role="status">' + esc(T.nameSaved) + "</div>";
+        })
+        .catch(function () { box.innerHTML = '<div class="form-status err" role="status">' + esc(T.saveError) + "</div>"; });
+    }
+    form.addEventListener("submit", function (e) { e.preventDefault(); send(form.querySelector("#kn-name").value); });
+    var reset = form.querySelector("[data-kreset]");
+    if (reset) reset.addEventListener("click", function () { send(""); });
+  }
   function bindRename(id, s) {
+    bindKanzler(id);
     var open = infoDlg.querySelector("[data-antrag-oeffnen]"), form = infoDlg.querySelector("[data-antrag]");
     if (!open || !form) return;
     open.addEventListener("click", function () { open.hidden = true; form.hidden = false; form.querySelector("#ka-neu").select(); });
@@ -485,6 +534,54 @@
     document.addEventListener("keyup", function (e) { if (e.key === " ") { spaceDown = false; surface.classList.toggle("is-verschieben", tool === "verschieben"); } });
     bindDialog();
     updateStatus();
+    setupMobile();
+  }
+
+  // ---------- Handy: Vollbild-Editor, Leiste unten, Seitenleiste als Blatt ----------
+  var mobile = window.matchMedia("(max-width: 900px)"), bar = null;
+  function setupMobile() {
+    bar = document.createElement("div");
+    bar.className = "karte-mobilleiste";
+    bar.innerHTML = '<button type="button" class="karte-chip" data-m="staaten" aria-label="' + esc(T.chooseState) + '"></button>' +
+      '<button type="button" class="btn btn-line btn-small" data-m="werkzeug"></button>' +
+      '<button type="button" class="btn btn-line btn-small" data-m="undo" aria-label="' + esc(T.undo) + '">↶</button>' +
+      '<button type="button" class="btn btn-navy btn-small" data-m="speichern">' + esc(T.save) + "</button>";
+    root.appendChild(bar);
+    var head = document.createElement("div");
+    head.className = "karte-blatt-kopf";
+    head.innerHTML = '<strong>' + esc(T.more) + '</strong><button type="button" class="btn btn-navy btn-small" data-m="zu">' + esc(T.sheetClose) + "</button>";
+    side.insertBefore(head, side.firstChild);
+    bar.querySelector('[data-m="staaten"]').addEventListener("click", function () { openSheet(list.previousElementSibling); });
+    bar.querySelector('[data-m="werkzeug"]').addEventListener("click", function () { setTool(tool === "verschieben" ? "malen" : "verschieben"); });
+    bar.querySelector('[data-m="undo"]').addEventListener("click", doUndo);
+    bar.querySelector('[data-m="speichern"]').addEventListener("click", function () { openSheet(noteInput.closest(".aside-box")); });
+    head.querySelector('[data-m="zu"]').addEventListener("click", closeSheet);
+    function apply() {
+      var on = mobile.matches;
+      root.classList.toggle("is-mobil", on);
+      side.classList.toggle("karte-blatt", on);
+      document.documentElement.classList.toggle("karte-vollbild", on);
+      if (!on) closeSheet();
+      requestAnimationFrame(function () { fit(Object.keys(stand.gebiete)); });
+    }
+    mobile.addEventListener("change", apply);
+    apply();
+    updateBar();
+  }
+  function openSheet(target) {
+    side.classList.add("is-offen");
+    if (target) target.scrollIntoView({ block: "start" });
+  }
+  function closeSheet() { side.classList.remove("is-offen"); }
+  function updateBar() {
+    if (!bar) return;
+    var s = state(active), d = dirty().n;
+    bar.querySelector('[data-m="staaten"]').innerHTML = swatch(s, 22) + "<span>" + esc(s ? s.name : T.unassigned) + "</span>";
+    var w = bar.querySelector('[data-m="werkzeug"]');
+    w.textContent = tool === "verschieben" ? T.toolPan : tool === "pipette" ? T.toolPick : T.toolPaint;
+    w.setAttribute("aria-pressed", String(tool !== "verschieben"));
+    bar.querySelector('[data-m="undo"]').disabled = !undo.length;
+    bar.querySelector('[data-m="speichern"]').textContent = T.save + (d ? " (" + d + ")" : "");
   }
 
   function setTool(t) {
@@ -492,6 +589,7 @@
     side.querySelectorAll("[data-werkzeug]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-werkzeug") === t)); });
     surface.classList.toggle("is-verschieben", t === "verschieben");
     surface.classList.toggle("is-pipette", t === "pipette");
+    updateBar();
   }
 
   function counts() {
@@ -510,16 +608,23 @@
         (real ? '<button type="button" class="link-arrow karte-staat-edit" data-bearbeiten="' + s.id + '" aria-label="' + esc(T.edit + ": " + s.name) + '">' + esc(T.edit) + "</button>" : "") + "</li>";
     }).join("");
     list.querySelectorAll("[data-waehlen]").forEach(function (b) {
-      b.addEventListener("click", function () { active = b.getAttribute("data-waehlen") || null; if (tool !== "malen") setTool("malen"); renderStates(); });
+      b.addEventListener("click", function () {
+        active = b.getAttribute("data-waehlen") || null;
+        if (tool !== "malen") setTool("malen");
+        renderStates();
+        if (root.classList.contains("is-mobil")) { focusState(null); closeSheet(); }  // Handy: nach der Wahl zurück zur Karte
+      });
       var sid = b.getAttribute("data-waehlen");
       if (sid) {
-        b.addEventListener("mouseenter", function () { focusState(sid); });
-        b.addEventListener("mouseleave", function () { focusState(null); });
+        // nur mit der Maus: Touch-Geräte lösen kein „Verlassen“ aus, die Karte bliebe abgedunkelt
+        b.addEventListener("pointerenter", function (e) { if (e.pointerType === "mouse") focusState(sid); });
+        b.addEventListener("pointerleave", function (e) { if (e.pointerType === "mouse") focusState(null); });
       }
     });
     list.querySelectorAll("[data-bearbeiten]").forEach(function (b) {
       b.addEventListener("click", function () { openDialog(state(b.getAttribute("data-bearbeiten"))); });
     });
+    updateBar();
   }
 
   // Ein Bearbeitungsschritt: geänderte Gebiete (alt/neu) und ggf. die Teilstaaten vorher/nachher
@@ -590,6 +695,7 @@
     saveBtn.disabled = !d;
     side.querySelector('[data-aktion="undo"]').disabled = !undo.length;
     side.querySelector('[data-aktion="redo"]').disabled = !redo.length;
+    updateBar();
   }
   function say(text, kind) { msg.innerHTML = text ? '<div class="form-status ' + kind + '" role="status">' + esc(text) + "</div>" : ""; }
 
