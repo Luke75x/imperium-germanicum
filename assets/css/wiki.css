@@ -216,3 +216,83 @@
 .rt-decide { margin-top: 14px; border-top: 1px solid var(--rule); padding-top: 12px; }
 .rt-decide summary { cursor: pointer; font: 600 .875rem/1.4 var(--sans); color: var(--ink); }
 .rt-decide .form { margin-top: 14px; }
+
+/* ---------- Reichskarte (/karte/, karte.js) ----------
+   Meer, Land und Grenzlinien aus den vorhandenen Tokens; die Farben der Teilstaaten sind Kartendaten. */
+.karte-cols { --karte-meer: var(--navy-100); --karte-land: var(--rule); --karte-linie: var(--paper); }
+:root[data-theme="dark"] .karte-cols { --karte-land: var(--rule-strong); --karte-linie: var(--ivory); }
+.karte-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 14px; }
+.karte-zoom { display: flex; gap: 6px; }
+.karte-zoom .btn { min-width: 40px; justify-content: center; }
+.karte-suche { flex: 1 1 240px; max-width: 380px; margin: 0; }
+.karte-leiste .field-check { margin: 0; }
+.karte-buehne { position: relative; }
+.karte-flaeche {
+  position: relative; height: clamp(420px, 74vh, 900px); overflow: hidden; background: var(--karte-meer);
+  border: 1px solid var(--rule); touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
+}
+.karte-flaeche:focus-visible { outline: 2px solid var(--gold-500); outline-offset: 2px; }
+.karte-flaeche.is-ziehen { cursor: grabbing; }
+.is-editor .karte-flaeche { cursor: crosshair; }
+.is-editor .karte-flaeche.is-pipette { cursor: copy; }
+.is-editor .karte-flaeche.is-verschieben { cursor: grab; }
+.is-editor .karte-flaeche.is-ziehen { cursor: grabbing; }
+.karte-flaeche noscript img { width: 100%; height: 100%; object-fit: contain; }
+.karte-laden { margin: 0; padding: 24px; font: .9375rem/1.4 var(--sans); color: var(--muted); }
+.karte-svg { display: block; width: 100%; height: 100%; }
+.karte-hg path { fill: var(--karte-land); stroke: var(--karte-land); stroke-width: .5px; vector-effect: non-scaling-stroke; }
+.karte-gebiete path { fill: var(--karte-land); fill-rule: evenodd; stroke: var(--karte-land); stroke-width: .5px; vector-effect: non-scaling-stroke; transition: opacity .15s; }
+.karte-cols .mit-grenzen .karte-gebiete path { stroke: var(--karte-linie) !important; stroke-width: .6px; }
+.karte.is-fokus .karte-gebiete path:not(.is-fokus) { opacity: .22; }
+.karte-markierung { pointer-events: none; }
+.karte-markierung path { fill: none; fill-rule: evenodd; stroke: var(--gold-500); stroke-width: 2.5px; vector-effect: non-scaling-stroke; }
+.karte-info {
+  position: absolute; left: 12px; bottom: 12px; max-width: min(440px, calc(100% - 24px)); padding: 10px 14px;
+  background: var(--paper); border: 1px solid var(--rule); box-shadow: var(--shadow);
+  font: .875rem/1.45 var(--sans); color: var(--ink-2); pointer-events: none; opacity: 0; transition: opacity .15s;
+}
+.karte-info.is-sichtbar { opacity: 1; }
+.karte-info strong { color: var(--ink); }
+.karte-info .karte-swatch { vertical-align: -1px; }
+.karte-quelle { margin: 10px 0 0; font: .8125rem/1.45 var(--sans); color: var(--muted); }
+
+/* Legende und Teilstaaten-Liste (Seitenleiste) */
+.aside-nav ul.karte-legende { border-left: 0; margin: 0 0 8px; }
+.karte-legende li { display: flex; align-items: center; gap: 6px; }
+.karte-legende-item {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px 8px; margin: 0 -8px;
+  background: none; border: 0; border-radius: var(--radius); font: .9375rem/1.3 var(--sans); color: var(--ink-2); text-align: left; cursor: pointer;
+}
+.karte-legende-item:hover { background: var(--ivory); color: var(--ink); }
+.karte-legende-item[aria-pressed="true"] { background: var(--ivory); color: var(--ink); font-weight: 600; box-shadow: inset 2px 0 0 var(--gold-500); }
+.karte-legende-name { flex: 1; min-width: 0; }
+.karte-legende-zahl { flex: none; font-size: .8125rem; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.karte-swatch { flex: none; outline: 1px solid var(--rule); outline-offset: -1px; }
+.karte-swatch.is-leer rect { fill: var(--karte-land); }
+.karte-aktionen { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.karte-aktionen .btn svg { width: 14px; height: 14px; }
+.karte-aside .aside-nav { position: static; }
+.karte-aside .aside-box > p:last-child { margin-bottom: 0; }
+.karte-aside .aside-box .link-arrow + p { margin-top: 14px; }
+
+/* Editor */
+.karte-editor .wiki-aside-h { margin-top: 28px; }
+.karte-verlauf { display: flex; gap: 8px; margin-top: 12px; }
+.karte-staaten { max-height: 52vh; overflow: auto; padding-left: 8px !important; }
+.karte-staat-edit { flex: none; font-size: .8125rem; }
+.karte-editor .field { margin-bottom: 12px; }
+.karte-editor .aside-box { margin-top: 0; }
+.karte-stand { font: .875rem/1.4 var(--sans); color: var(--muted); }
+.karte-farben { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) 64px; gap: 0 16px; align-items: start; margin-bottom: 8px; }
+.karte-farben .field label { min-height: 1.5em; }
+.karte-farben input[type="color"] { width: 100%; height: 44px; padding: 3px; cursor: pointer; }
+.karte-vorschau-feld { padding-bottom: 18px; }
+.karte-vorschau-feld .karte-swatch { display: block; }
+.karte-dialog .karte-loeschen { margin-left: auto; color: var(--danger); border-color: var(--danger); }
+@media (max-width: 640px) {
+  .karte-farben { grid-template-columns: 1fr 1fr; }
+  .karte-flaeche { height: 64vh; }
+}
+
+/* Versionen */
+.karte-versionen form { display: inline; margin-left: 8px; }
