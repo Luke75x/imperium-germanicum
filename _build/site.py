@@ -130,6 +130,16 @@ def reichskarte():
             f'<span class="sr-only"> – Karte vergrößern</span></a><figcaption>{esc(caption)}</figcaption></figure>')
 
 
+def organigramm():
+    """Startseite: stets aktuelles Organigramm (gerendert vom Wiki-Dienst, Modul staatsaufbau.py, mit den heutigen Amtsträgern),
+    führt zum interaktiven Organigramm. Ersetzt das frühere Schaubild i7e284b3dc2b8cebd."""
+    caption = "Staatsaufbau des Imperium Germanicum"
+    alt = "Organigramm des Imperium Germanicum: Souverän, Senat mit Kurfürsten und Hand des Kaisers, Reichstag, Reichsgerichtshof, Streitkräfte, Kanzler und Staatsbürger mit ihren Beziehungen"
+    return (f'<figure class="figure"><a class="zoom frame" href="{u("informationen/organigramm/")}"><img src="{u("informationen/organigramm/organigramm.png")}" '
+            f'width="3162" height="2427" alt="{esc(alt)}" loading="lazy" decoding="async"><span class="zoom-hint">{icon("zoom")}</span>'
+            f'<span class="sr-only"> – Organigramm öffnen</span></a><figcaption>{esc(caption)}</figcaption></figure>')
+
+
 def emblem(iid, caption="", alt=None, sizes="(min-width: 900px) 360px, 70vw"):
     return figure(iid, caption, alt, cls="emblem", sizes=sizes, frame=False, zoom=False)
 
@@ -529,7 +539,7 @@ def page_home():
       <a class="link-arrow" href="{u("informationen/")}">Zum Staatsaufbau {icon("arrow")}</a>
     </div>
     <div class="reveal">
-      {figure("i7e284b3dc2b8cebd", "Staatsaufbau des Imperium Germanicum", "Schaubild zum Staatsaufbau des Imperium Germanicum: Souverän, Senat, Reichstag, Reichsgerichtshof und Staatsbürger", group="start")}
+      {organigramm()}
       <a class="link-arrow" href="{u("informationen/organigramm/")}">Zum interaktiven Organigramm {icon("arrow")}</a>
     </div>
   </div>
