@@ -423,3 +423,58 @@
   .org-dialog-mehr { margin-left: 0; }
 }
 .org-amt [data-amt-inhalt]:focus { outline: none; }
+
+/* ---------- Allgemeines Organigramm (/informationen/organigramm/, staatsaufbau.js) ----------
+   Kästen und Fenster wie im Organigramm der Reichsverwaltung (.org-*); hier Rahmen, Pfeile und die Farben der Beziehungsarten.
+   Die Farben der Beziehungsarten sind Daten wie die Farben der Teilstaaten auf der Karte (Legende des Schaubilds zum Staatsaufbau). */
+.og-cols {
+  --og-vorschlag: #3b4aa3; --og-wahl: #8645ad; --og-ernennung: #d4890f; --og-ausfertigung: #2e8b57; --og-bildung: #2a96cc;
+  --og-beschluss: #ad9152; --og-veto: #b8322a; --og-kontrolle: var(--ink); --og-gliederung: var(--rule-strong);
+}
+:root[data-theme="dark"] .og-cols {
+  --og-vorschlag: #8f9cf0; --og-wahl: #c79be6; --og-ernennung: #f0b54a; --og-ausfertigung: #74c99a; --og-bildung: #7cc8ee;
+  --og-beschluss: #d8c08a; --og-veto: #f08a80; --og-gliederung: #6b74a8;
+}
+.og-rahmen rect { fill: var(--paper); stroke: var(--rule-strong); stroke-width: 1px; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+.og-rahmen text { font: 600 17px var(--serif); fill: var(--muted); }
+.og-kanten path { fill: none; stroke-width: 2px; vector-effect: non-scaling-stroke; transition: opacity .15s; }
+.og-kanten .og-treffer { stroke: transparent; stroke-width: 12px; cursor: help; }
+.og-kanten g.is-fokus path:not(.og-treffer) { stroke-width: 3px; }
+.og.is-fokus .og-kanten g:not(.is-fokus) { opacity: .12; }
+.og.is-fokus .og-rahmen { opacity: .5; }
+.og-k-vorschlag { stroke: var(--og-vorschlag); } .og-f-vorschlag { fill: var(--og-vorschlag); }
+.og-k-wahl { stroke: var(--og-wahl); } .og-f-wahl { fill: var(--og-wahl); }
+.og-k-ernennung { stroke: var(--og-ernennung); } .og-f-ernennung { fill: var(--og-ernennung); }
+.og-k-ausfertigung { stroke: var(--og-ausfertigung); } .og-f-ausfertigung { fill: var(--og-ausfertigung); }
+.og-k-bildung { stroke: var(--og-bildung); } .og-f-bildung { fill: var(--og-bildung); }
+.og-k-beschluss { stroke: var(--og-beschluss); } .og-f-beschluss { fill: var(--og-beschluss); }
+.og-k-veto { stroke: var(--og-veto); } .og-f-veto { fill: var(--og-veto); }
+.og-k-kontrolle { stroke: var(--og-kontrolle); } .og-f-kontrolle { fill: var(--og-kontrolle); }
+.og-k-gliederung { stroke: var(--og-gliederung); }
+.og-strich { flex: none; overflow: visible; vertical-align: -1px; }
+.og-strich path:not(.og-spitze) { fill: none; stroke-width: 2.5px; }
+.og-strich .og-spitze { stroke: none; }
+/* Darstellungsarten der Organe */
+.og-form-krone .org-box { fill: var(--navy-900); stroke: var(--gold-500); }
+.og-form-krone text { fill: #fff; }
+.og-form-krone .org-t-kurz { fill: var(--gold-300) !important; }
+.og-form-krone .org-t-leer, .og-form-krone .org-t-person { fill: #d9dbe6 !important; }
+.og-form-krone .org-trenner { stroke: rgba(255, 255, 255, .25); }
+:root[data-theme="dark"] .og-form-krone .org-box { fill: var(--navy-950); }
+.og-form-amt .org-akzent { fill: var(--navy-700); }
+.og-form-dokument .org-box, .og-form-volk .org-box { fill: var(--paper); stroke: var(--rule-strong); }
+.og-form-dokument .org-t-titel { font-style: italic; }
+.og-svg .org-knoten { cursor: pointer; }
+.is-editor-og .og-svg .org-knoten { cursor: move; }
+/* Fenster: Beziehungen */
+.og-rel th { width: 44%; white-space: nowrap; }
+.og-rel th .og-strich { margin-right: 6px; }
+/* Editor: Beziehungen eines Organs */
+.og-beziehungen { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+.og-beziehungen li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 4px 4px 10px; background: var(--ivory); border: 1px solid var(--rule); font: .9375rem/1.4 var(--sans); }
+.og-beziehungen li.karte-feldhinweis { background: none; border: 0; padding: 0; }
+.og-beziehungen em { font-style: normal; color: var(--muted); }
+.og-beziehungen .btn { min-height: 0; padding: 2px 8px; }
+.og-neue-kante { display: grid; grid-template-columns: 1fr 1fr 1.4fr auto; gap: 0 12px; align-items: end; }
+.og-neue-kante .btn { margin-bottom: 12px; }
+@media (max-width: 720px) { .og-neue-kante { grid-template-columns: 1fr; } }

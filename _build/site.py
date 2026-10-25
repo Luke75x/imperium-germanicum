@@ -530,6 +530,7 @@ def page_home():
     </div>
     <div class="reveal">
       {figure("i7e284b3dc2b8cebd", "Staatsaufbau des Imperium Germanicum", "Schaubild zum Staatsaufbau des Imperium Germanicum: Souverän, Senat, Reichstag, Reichsgerichtshof und Staatsbürger", group="start")}
+      <a class="link-arrow" href="{u("informationen/organigramm/")}">Zum interaktiven Organigramm {icon("arrow")}</a>
     </div>
   </div>
 </section>
@@ -601,6 +602,12 @@ def page_informationen():
       <p class="lead">Hier erhältst du einen Überblick und Informationen über alle staatlichen Institutionen die im Auftrag seiner Majestät tätig sind.</p>
     </div>
     <div class="card-grid cols-4">{cards}</div>
+    <section class="seat">
+      <span class="eyebrow">Interaktiv</span>
+      <h2>Das Organigramm des Reiches</h2>
+      <div class="prose"><p>Das Organigramm zeigt alle Organe des Reiches mit ihren gegenwärtigen Amtsträgern und wer wen wählt, ernennt, kontrolliert oder überstimmen kann. Es lässt sich zoomen und durchsuchen; ein Klick auf ein Organ nennt Amtsträger, Beschreibung und alle Beziehungen.</p></div>
+      <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u("informationen/organigramm/")}">Zum Organigramm {icon("arrow")}</a></div>
+    </section>
   </div>
 </section>"""
     render("informationen/", "Staatsaufbau",
