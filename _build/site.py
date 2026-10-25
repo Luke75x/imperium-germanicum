@@ -977,6 +977,12 @@ def page_reichsbehoerden():
 </div>
 <h2>Aufbau der Reichsverwaltung</h2>
 <div class="table-scroll"><table class="styles-table"><thead><tr><th>Säule</th><th>Leitung</th><th>Aufgabe</th></tr></thead><tbody>{saeulen_rows}</tbody></table></div>
+<section class="seat">
+  <span class="eyebrow">Interaktiv</span>
+  <h2>Das Organigramm</h2>
+  <div class="prose"><p>Das Organigramm zeigt alle Ämter und Behörden der Reichsverwaltung mit ihren gegenwärtigen Amtsträgern. Es lässt sich zoomen und durchsuchen; ein Klick auf ein Amt nennt Leitung, Amtsträger und Aufgaben.</p></div>
+  <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u("informationen/die-reichsbehoerden/organigramm/")}">Zum Organigramm {icon("arrow")}</a></div>
+</section>
 <h2>Der Kanzler</h2>
 <div class="prose">
   {paras(

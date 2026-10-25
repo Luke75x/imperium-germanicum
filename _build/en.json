@@ -1118,5 +1118,9 @@
 "Senatsvollmacht": "Senate Mandate",
 "Gesetzesänderungen": "Amendments to the Law",
 "Beschlüsse": "Resolutions",
-"Reichsgesetzblatt": "Imperial Law Gazette"
+"Reichsgesetzblatt": "Imperial Law Gazette",
+"Interaktiv": "Interactive",
+"Das Organigramm": "The organisation chart",
+"Das Organigramm zeigt alle Ämter und Behörden der Reichsverwaltung mit ihren gegenwärtigen Amtsträgern. Es lässt sich zoomen und durchsuchen; ein Klick auf ein Amt nennt Leitung, Amtsträger und Aufgaben.": "The organisation chart shows every office and authority of the Imperial Administration together with its current office holders. It can be zoomed and searched; clicking an office shows its head, office holders and duties.",
+"Zum Organigramm [[0]]": "To the organisation chart [[0]]"
 }
