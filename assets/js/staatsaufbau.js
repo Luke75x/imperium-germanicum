@@ -51,9 +51,9 @@
   var SANS = css.getPropertyValue("--sans").trim() || "sans-serif";
   var F = {
     kurz: { font: "600 10.5px " + SANS, lh: 16, sp: 1.5 },
-    titel: { font: "600 18px " + SERIF, lh: 22 },
-    volk: { font: "600 24px " + SERIF, lh: 28 },
-    person: { font: "600 13px " + SANS, lh: 18 },
+    titel: { font: "600 17px " + SERIF, lh: 20 },
+    krone: { font: "600 21px " + SERIF, lh: 24 },
+    person: { font: "400 12.5px " + SANS, lh: 17 },
     leer: { font: "italic 400 12.5px " + SANS, lh: 18 },
     rahmen: { font: "600 17px " + SERIF, lh: 20 }
   };
@@ -73,29 +73,26 @@
     }
     return lines;
   }
+  // Ein Organ: Wappen, Siegel oder Krone (ohne Bild: Initialen im Kreis), darunter Name und Amtsträger, alles mittig
+  var NW = 200;
+  function imgSize(k) { return k.form === "krone" ? 124 : k.form === "volk" ? 88 : 96; }
+  function initials(t) {
+    return t.split(/\s+/).filter(function (w) { return !/^(der|die|das|des|the)$/i.test(w); }).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join("");
+  }
   function measure(k) {
-    var volk = k.form === "volk", bw = volk ? 320 : 230, inner = bw - 2 * PAD - (volk ? 40 : 0), rows = [], y = PAD, sep = null;
-    function add(lines, f, cls, gap, dot) {
-      y += gap || 0;
-      lines.forEach(function (t) { rows.push({ t: t, f: f, cls: cls, y: y + f.lh * 0.78, dot: dot, center: volk }); y += f.lh; });
-    }
-    if (volk) y += 6;
-    var kurz = L(k, "kurz");
-    if (kurz) add(wrap(kurz.toUpperCase(), F.kurz, inner, 2), F.kurz, "org-t-kurz");
-    add(wrap(L(k, "titel"), volk ? F.volk : F.titel, inner, 3), volk ? F.volk : F.titel, "org-t-titel", kurz ? 2 : 0);
-    var m = members(k);
+    var img = imgSize(k), rows = [], y = img + 12, inner = NW - 8;
+    function add(lines, f, cls) { lines.forEach(function (t) { rows.push({ t: t, f: f, cls: cls, y: y + f.lh * 0.78 }); y += f.lh; }); }
+    add(wrap(L(k, "titel"), k.form === "krone" ? F.krone : F.titel, inner, 2), k.form === "krone" ? F.krone : F.titel, "org-t-titel");
     if (staffed(k)) {
       var h = holders(k);
-      y += 10; sep = y - 5;
+      y += 2;
       if (!h.length) add([T.vacant], F.leer, "org-t-leer");
-      else {
-        (h.length > 3 ? h.slice(0, 2) : h).forEach(function (p) { add(wrap(p.name, F.person, inner - 14, 1), F.person, "org-t-person", 0, true); });
-        if (h.length > 3) add([T.more.replace("{n}", h.length - 2)], F.leer, "org-t-leer");
-      }
+      else if (h.length > 2) add([T.nHolders.replace("{n}", h.length)], F.person, "org-t-person");
+      else h.forEach(function (p) { add(wrap(p.name, F.person, inner, 1), F.person, "org-t-person"); });
     }
-    if (m !== null) add([T.members + ": " + fmt(m)], F.leer, "org-t-leer", sep === null ? 6 : 0);
-    if (volk) y += 6;
-    return { w: bw, h: Math.round(y + PAD), rows: rows, sep: sep };
+    var cw = img;
+    rows.forEach(function (r) { cw = Math.max(cw, width(r.t, r.f)); });
+    return { w: NW, h: Math.round(y + 4), img: img, rows: rows, cw: Math.min(NW, cw + 12) };
   }
 
   // ---------- Geometrie ----------
@@ -118,15 +115,21 @@
     Object.keys(pairs).forEach(function (key) {
       var list = pairs[key], n = list.length;
       list.forEach(function (e, i) {
-        var a = boxes[e.von], b = boxes[e.nach];
+        var a = core(boxes[e.von]), b = core(boxes[e.nach]);
         if (!a || !b) return;
         var ax = a.x + a.w / 2, ay = a.y + a.h / 2, bx = b.x + b.w / 2, by = b.y + b.h / 2;
         var dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
         // Versatz immer bezogen auf die sortierte Richtung, damit Hin- und Rückpfeil nicht aufeinanderliegen
-        var s = key.indexOf(e.von) === 0 ? 1 : -1, off = (i - (n - 1) / 2) * 16;
+        // mehrere Pfeile zwischen denselben Organen: leicht gebogen und gefächert, damit jeder einzeln erkennbar bleibt
+        var s = key.indexOf(e.von) === 0 ? 1 : -1, off = (i - (n - 1) / 2) * 12;
         var ox = -dy / len * off * s, oy = dx / len * off * s;
         var p1 = border(a, ax + ox, ay + oy, dx, dy), p2 = border(b, bx + ox, by + oy, -dx, -dy);
-        edges.push({ e: e, d: "M" + r1(p1.x) + " " + r1(p1.y) + "L" + r1(p2.x) + " " + r1(p2.y), x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
+        var g = { e: e, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+        if (n > 1 && off) {
+          g.cx = (p1.x + p2.x) / 2 + ox * 1.6; g.cy = (p1.y + p2.y) / 2 + oy * 1.6;
+          g.d = "M" + r1(p1.x) + " " + r1(p1.y) + "Q" + r1(g.cx) + " " + r1(g.cy) + " " + r1(p2.x) + " " + r1(p2.y);
+        } else g.d = "M" + r1(p1.x) + " " + r1(p1.y) + "L" + r1(p2.x) + " " + r1(p2.y);
+        edges.push(g);
       });
     });
     var all = bboxOf(stand.knoten.map(function (k) { return k.id; })) || { x: 0, y: 0, w: 1, h: 1 };
@@ -136,6 +139,8 @@
     });
     full = all;
   }
+  // sichtbarer Kern eines Organs (Siegel und Name), an dessen Rand die Pfeile enden
+  function core(b) { return b ? { x: b.x + (b.w - b.cw) / 2, y: b.y - 4, w: b.cw, h: b.h + 4 } : null; }
   function r1(v) { return Math.round(v * 10) / 10; }
   function border(b, cx, cy, dx, dy) {
     // Schnittpunkt des Strahls vom (versetzten) Mittelpunkt in Richtung (dx, dy) mit dem Kasten, etwas Abstand
@@ -176,15 +181,13 @@
     });
     out.push('</g><g class="org-kaesten">');
     stand.knoten.forEach(function (k) {
-      var b = boxes[k.id], volk = k.form === "volk";
-      var g = ['<g class="org-knoten og-form-' + k.form + '" data-id="' + k.id + '" transform="translate(' + b.x + " " + b.y + ')">',
-        '<rect class="org-box" width="' + b.w + '" height="' + b.h + '"' + (volk ? ' rx="' + b.h / 2 + '"' : "") + "/>"];
-      if (!volk && k.form !== "dokument") g.push('<rect class="org-akzent" width="' + b.w + '" height="3"/>');
-      b.rows.forEach(function (r) {
-        if (r.dot) g.push('<circle class="org-punkt" cx="' + (PAD + 4) + '" cy="' + (r.y - 4) + '" r="3"/>');
-        g.push('<text class="' + r.cls + '" x="' + (r.center ? b.w / 2 : PAD + (r.dot ? 14 : 0)) + '" y="' + r.y + '"' + (r.center ? ' text-anchor="middle"' : "") + ">" + esc(r.t) + "</text>");
-      });
-      if (b.sep && !volk) g.push('<path class="org-trenner" d="M' + PAD + " " + b.sep + "H" + (b.w - PAD) + '"/>');
+      var b = boxes[k.id], ix = (b.w - b.img) / 2;
+      var g = ['<g class="org-knoten og-knoten og-form-' + k.form + '" data-id="' + k.id + '" transform="translate(' + b.x + " " + b.y + ')">',
+        '<rect class="og-feld" x="-8" y="-8" width="' + (b.w + 16) + '" height="' + (b.h + 12) + '" rx="4"/>'];
+      if (k.bild) g.push('<image href="' + cfg.bilder + k.bild + '.webp" x="' + ix + '" y="0" width="' + b.img + '" height="' + b.img + '" preserveAspectRatio="xMidYMid meet"/>');
+      else g.push('<circle class="og-initial-kreis" cx="' + b.w / 2 + '" cy="' + b.img / 2 + '" r="' + (b.img / 2 - 2) + '"/><text class="og-initial" x="' + b.w / 2 +
+        '" y="' + (b.img / 2 + 10) + '" text-anchor="middle">' + esc(initials(L(k, "titel"))) + "</text>");
+      b.rows.forEach(function (r) { g.push('<text class="' + r.cls + '" x="' + b.w / 2 + '" y="' + r.y + '" text-anchor="middle">' + esc(r.t) + "</text>"); });
       g.push("</g>");
       out.push(g.join(""));
     });
@@ -458,7 +461,8 @@
   function openInfo(id) { if (infoDlg) { fillInfo(id); if (!infoDlg.open) infoDlg.showModal(); } }
   function fillInfo(id) {
     var k = node(id), rows = [];
-    var html = (L(k, "kurz") ? '<span class="eyebrow">' + esc(L(k, "kurz")) + "</span>" : "") + '<h2 id="og-amt-titel">' + esc(L(k, "titel")) + "</h2>";
+    var html = '<div class="og-amt-kopf">' + (k.bild ? '<img src="' + cfg.bilder + k.bild + '.webp" alt="" width="84" height="84">' : "") + "<div>" +
+      (L(k, "kurz") ? '<span class="eyebrow">' + esc(L(k, "kurz")) + "</span>" : "") + '<h2 id="og-amt-titel">' + esc(L(k, "titel")) + "</h2></div></div>";
     if (staffed(k)) {
       var h = holders(k);
       rows.push(row(esc(h.length > 1 ? T.holders : T.holder), h.length ? h.map(function (p) { return personHtml(p, k); }).join("<br>") : esc(T.vacant)));
@@ -498,6 +502,10 @@
   var ART_FARBE = { vorschlag: "#3b4aa3", wahl: "#8645ad", ernennung: "#d4890f", ausfertigung: "#2e8b57", bildung: "#2a96cc",
     beschluss: "#ad9152", veto: "#b8322a", kontrolle: "#161a2e", gliederung: "#bfb294" };
   function download() {
+    preload();
+    Promise.all(Object.keys(images).map(function (k) { return images[k].decode ? images[k].decode().catch(function () {}) : null; })).then(draw);
+  }
+  function draw() {
     var M = 64, HEAD = 120, S = 2, LEG = 250;
     var cw = full.w + 2 * M + LEG, ch = Math.max(full.h, cfg.arten.length * 26 + 60) + HEAD + M + 30;
     var c = document.createElement("canvas");
@@ -515,7 +523,7 @@
     g.font = "600 17px " + SERIF; g.fillStyle = PNG.ink; g.fillText(T.legend, lx, ly + 4);
     cfg.arten.forEach(function (a, i) {
       var y = ly + 30 + i * 26;
-      arrow(g, lx, y, lx + 34, y, a);
+      arrow(g, { x1: lx, y1: y, x2: lx + 34, y2: y }, a);
       g.fillStyle = PNG.ink2; g.font = "400 14px " + SANS; g.fillText(T.arten[a].aktiv, lx + 46, y + 5);
     });
     g.save();
@@ -525,28 +533,22 @@
       g.strokeStyle = PNG.ruleStrong; g.lineWidth = 1; g.setLineDash([5, 4]); g.strokeRect(f.x + 0.5, f.y + 0.5, f.w - 1, f.h - 1); g.setLineDash([]);
       g.fillStyle = PNG.muted; g.font = F.rahmen.font; g.textAlign = "center"; g.fillText(L(f.r, "titel"), f.x + f.w / 2, f.y + f.h - 13); g.textAlign = "left";
     });
-    edges.forEach(function (e) { arrow(g, e.x1, e.y1, e.x2, e.y2, e.e.art); });
+    edges.forEach(function (e) { arrow(g, e, e.e.art); });
     stand.knoten.forEach(function (k) {
-      var b = boxes[k.id], crown = k.form === "krone", volk = k.form === "volk";
-      g.fillStyle = crown ? PNG.navy : k.form === "dokument" || volk ? PNG.ivory : PNG.white;
-      g.strokeStyle = crown ? PNG.gold : PNG.ruleStrong; g.lineWidth = 1;
-      g.beginPath();
-      if (volk && g.roundRect) g.roundRect(b.x, b.y, b.w, b.h, b.h / 2); else g.rect(b.x, b.y, b.w, b.h);
-      g.fill(); g.stroke();
-      if (!volk && k.form !== "dokument") { g.fillStyle = k.form === "amt" ? PNG.navyLine : PNG.gold; g.fillRect(b.x, b.y, b.w, 3); }
-      if (b.sep && !volk) { g.strokeStyle = crown ? "rgba(255,255,255,.25)" : PNG.rule; g.beginPath(); g.moveTo(b.x + PAD, b.y + b.sep); g.lineTo(b.x + b.w - PAD, b.y + b.sep); g.stroke(); }
+      var b = boxes[k.id], im = images[k.bild];
+      if (im && im.complete && im.naturalWidth) {
+        var sc = Math.min(b.img / im.naturalWidth, b.img / im.naturalHeight), w = im.naturalWidth * sc, h = im.naturalHeight * sc;
+        g.drawImage(im, b.x + (b.w - w) / 2, b.y + (b.img - h) / 2, w, h);
+      } else {
+        g.fillStyle = PNG.navy; g.beginPath(); g.arc(b.x + b.w / 2, b.y + b.img / 2, b.img / 2 - 2, 0, Math.PI * 2); g.fill();
+        g.fillStyle = PNG.gold3; g.font = "600 28px " + SERIF; g.textAlign = "center"; g.fillText(initials(L(k, "titel")), b.x + b.w / 2, b.y + b.img / 2 + 10);
+      }
+      g.textAlign = "center";
       b.rows.forEach(function (r) {
-        var col = { "org-t-kurz": crown ? PNG.gold3 : PNG.gold6, "org-t-titel": crown ? "#ffffff" : PNG.ink, "org-t-person": crown ? "#ffffff" : PNG.ink2,
-          "org-t-leer": crown ? "#d9dbe6" : PNG.muted }[r.cls];
-        g.font = r.f.font;
-        if ("letterSpacing" in g) g.letterSpacing = (r.f.sp || 0) + "px";
-        if (r.dot) { g.fillStyle = PNG.gold; g.beginPath(); g.arc(b.x + PAD + 4, b.y + r.y - 4, 3, 0, Math.PI * 2); g.fill(); }
-        g.fillStyle = col;
-        g.textAlign = r.center ? "center" : "left";
-        g.fillText(r.t, r.center ? b.x + b.w / 2 : b.x + PAD + (r.dot ? 14 : 0), b.y + r.y);
-        g.textAlign = "left";
-        if ("letterSpacing" in g) g.letterSpacing = "0px";
+        g.font = r.f.font; g.fillStyle = { "org-t-titel": PNG.ink, "org-t-person": PNG.ink2, "org-t-leer": PNG.muted }[r.cls];
+        g.fillText(r.t, b.x + b.w / 2, b.y + r.y);
       });
+      g.textAlign = "left";
     });
     g.restore();
     g.fillStyle = PNG.muted; g.font = "400 12px " + SANS;
@@ -559,15 +561,26 @@
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
     }, "image/png");
   }
-  function arrow(g, x1, y1, x2, y2, art) {
-    var col = ART_FARBE[art], ang = Math.atan2(y2 - y1, x2 - x1), head = art === "gliederung" ? 0 : 10;
-    g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 2;
-    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2 - Math.cos(ang) * head * 0.8, y2 - Math.sin(ang) * head * 0.8); g.stroke();
+  function arrow(g, e, art) {
+    var col = ART_FARBE[art], head = art === "gliederung" ? 0 : 10;
+    var fx = e.cx != null ? e.cx : e.x1, fy = e.cy != null ? e.cy : e.y1, ang = Math.atan2(e.y2 - fy, e.x2 - fx);
+    var ex = e.x2 - Math.cos(ang) * head * 0.8, ey = e.y2 - Math.sin(ang) * head * 0.8;
+    g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 1.8;
+    g.beginPath(); g.moveTo(e.x1, e.y1);
+    if (e.cx != null) g.quadraticCurveTo(e.cx, e.cy, ex, ey); else g.lineTo(ex, ey);
+    g.stroke();
     if (!head) return;
-    g.beginPath(); g.moveTo(x2, y2);
-    g.lineTo(x2 - head * Math.cos(ang) + head * 0.5 * Math.sin(ang), y2 - head * Math.sin(ang) - head * 0.5 * Math.cos(ang));
-    g.lineTo(x2 - head * Math.cos(ang) - head * 0.5 * Math.sin(ang), y2 - head * Math.sin(ang) + head * 0.5 * Math.cos(ang));
+    g.beginPath(); g.moveTo(e.x2, e.y2);
+    g.lineTo(e.x2 - head * Math.cos(ang) + head * 0.5 * Math.sin(ang), e.y2 - head * Math.sin(ang) - head * 0.5 * Math.cos(ang));
+    g.lineTo(e.x2 - head * Math.cos(ang) - head * 0.5 * Math.sin(ang), e.y2 - head * Math.sin(ang) + head * 0.5 * Math.cos(ang));
     g.closePath(); g.fill();
+  }
+  // Wappen für den Bild-Export vorladen (gleiche Herkunft, die Leinwand bleibt lesbar)
+  var images = {};
+  function preload() {
+    stand.knoten.forEach(function (k) {
+      if (k.bild && !images[k.bild]) { var im = new Image(); im.src = cfg.bilder + k.bild + ".webp"; images[k.bild] = im; }
+    });
   }
   var dl = document.querySelector("[data-bild]");
   if (dl) dl.addEventListener("click", download);
@@ -630,13 +643,16 @@
     isNew = !id;
     if (isNew) {
       var c = { x: view.x + view.w / 2 - 115, y: view.y + view.h / 2 - 40 };
-      editing = { id: nextId(stand.knoten, "k"), titel: "", titel_en: "", kurz: "", kurz_en: "", text: "", text_en: "", form: "organ",
+      editing = { id: nextId(stand.knoten, "k"), titel: "", titel_en: "", kurz: "", kurz_en: "", text: "", text_en: "", form: "organ", bild: "",
         x: Math.round(c.x / 10) * 10, y: Math.round(c.y / 10) * 10, rahmen: "", rollen: [], zusatz: "", nutzer: [], angehoerige: "", link: "" };
     } else editing = clone(node(id));
     tmpKanten = clone(stand.kanten);
     dlg.querySelector("[data-dialog-titel]").textContent = isNew ? T.newBody : T.editBody;
     FIELDS.forEach(function (f) { fld(f).value = editing[f] || ""; });
     fld("form").value = editing.form;
+    if (editing.bild && !fld("bild").querySelector('option[value="' + editing.bild + '"]')) fld("bild").insertAdjacentHTML("beforeend", '<option value="' + editing.bild + '">' + editing.bild + "</option>");
+    fld("bild").value = editing.bild || "";
+    showEmblem();
     fld("zusatz").value = editing.zusatz;
     fld("angehoerige").value = editing.angehoerige;
     fld("nutzer").value = editing.nutzer.join(", ");
@@ -653,11 +669,15 @@
     if (!dlg.open) dlg.showModal();
     fld("titel").focus();
   }
+  function showEmblem() {
+    var v = fld("bild").value;
+    dlg.querySelector("[data-bild-vorschau]").innerHTML = v ? '<img src="' + cfg.bilder + v + '.webp" alt="" width="64" height="64">' : "";
+  }
   function showError(t) { var e = dlg.querySelector("[data-dialog-fehler]"); e.textContent = t; e.hidden = !t; }
   function apply() {
     var k = clone(editing);
     FIELDS.forEach(function (f) { k[f] = fld(f).value.trim(); });
-    k.form = fld("form").value; k.zusatz = fld("zusatz").value; k.angehoerige = fld("angehoerige").value;
+    k.form = fld("form").value; k.bild = fld("bild").value; k.zusatz = fld("zusatz").value; k.angehoerige = fld("angehoerige").value;
     k.rollen = chips.slice();
     var ids = fld("nutzer").value.split(/[\s,;]+/).filter(Boolean);
     if (ids.some(function (x) { return !/^[0-9]{5,22}$/.test(x); })) { showError(T.idsBad); return false; }
@@ -688,6 +708,7 @@
       e.preventDefault();
       if (apply()) dlg.close("ok");
     });
+    fld("bild").addEventListener("change", showEmblem);
     fld("rolle").addEventListener("change", function () {
       var v = fld("rolle").value;
       if (v && chips.indexOf(v) < 0) { chips.push(v); drawChips(); }
@@ -775,6 +796,7 @@
   })).catch(function () {}) : Promise.resolve();
   Promise.all([load(), fonts]).then(function () {
     render();
+    preload();
     var top = stand.knoten.slice().sort(function (a, b) { return a.y - b.y; })[0];
     if (surface.clientWidth < 600 && top) {
       // schmaler Bildschirm: oben am Souverän beginnen, Kästen in lesbarer Größe

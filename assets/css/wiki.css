@@ -439,8 +439,6 @@
 .og-rahmen text { font: 600 17px var(--serif); fill: var(--muted); }
 .og-kanten path { fill: none; stroke-width: 2px; vector-effect: non-scaling-stroke; transition: opacity .15s; }
 .og-kanten .og-treffer { stroke: transparent; stroke-width: 12px; cursor: help; }
-.og-kanten g.is-fokus path:not(.og-treffer) { stroke-width: 3px; }
-.og.is-fokus .og-kanten g:not(.is-fokus) { opacity: .12; }
 .og.is-fokus .og-rahmen { opacity: .5; }
 .og-k-vorschlag { stroke: var(--og-vorschlag); } .og-f-vorschlag { fill: var(--og-vorschlag); }
 .og-k-wahl { stroke: var(--og-wahl); } .og-f-wahl { fill: var(--og-wahl); }
@@ -454,18 +452,32 @@
 .og-strich { flex: none; overflow: visible; vertical-align: -1px; }
 .og-strich path:not(.og-spitze) { fill: none; stroke-width: 2.5px; }
 .og-strich .og-spitze { stroke: none; }
-/* Darstellungsarten der Organe */
-.og-form-krone .org-box { fill: var(--navy-900); stroke: var(--gold-500); }
-.og-form-krone text { fill: #fff; }
-.og-form-krone .org-t-kurz { fill: var(--gold-300) !important; }
-.og-form-krone .org-t-leer, .og-form-krone .org-t-person { fill: #d9dbe6 !important; }
-.og-form-krone .org-trenner { stroke: rgba(255, 255, 255, .25); }
-:root[data-theme="dark"] .og-form-krone .org-box { fill: var(--navy-950); }
-.og-form-amt .org-akzent { fill: var(--navy-700); }
-.og-form-dokument .org-box, .og-form-volk .org-box { fill: var(--paper); stroke: var(--rule-strong); }
-.og-form-dokument .org-t-titel { font-style: italic; }
+/* Organe: Wappen/Siegel/Krone mit Namen darunter; die Fläche dahinter erscheint nur beim Hervorheben */
+.og-feld { fill: transparent; stroke: none; vector-effect: non-scaling-stroke; transition: fill .15s; }
+.og-knoten.is-hover .og-feld { fill: var(--paper); stroke: var(--gold-500); stroke-width: 1.5px; }
+.og-knoten .org-t-titel { font-size: 17px; }
+.og-form-krone .org-t-titel { font-size: 21px; }
+.og-knoten .org-t-person { font: 400 12.5px var(--sans); }
+.og-knoten.og-form-dokument .org-t-titel { font-style: italic; }
+.og-initial-kreis { fill: var(--navy-900); stroke: var(--gold-500); stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+.og-initial { font: 600 28px var(--serif); fill: var(--gold-300) !important; letter-spacing: 1px; }
+:root[data-theme="dark"] .og-initial-kreis { fill: var(--navy-950); }
 .og-svg .org-knoten { cursor: pointer; }
-.is-editor-og .og-svg .org-knoten { cursor: move; }
+/* Ruhig im Ruhezustand: Pfeile zart, beim Hervorheben kräftig */
+.og-kanten g { opacity: .5; transition: opacity .15s; }
+.og-kanten path:not(.og-treffer) { stroke-width: 1.6px; }
+.og.is-fokus .og-kanten g.is-fokus { opacity: 1; }
+.og.is-fokus .og-kanten g.is-fokus path:not(.og-treffer) { stroke-width: 2.6px; }
+.og.is-fokus .og-kanten g:not(.is-fokus) { opacity: .06; }
+.og.is-fokus .og-knoten:not(.is-fokus) { opacity: .3; }
+.og-rahmen rect { fill: var(--paper); }
+/* Fenster: Kopf mit Siegel */
+.og-amt-kopf { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; }
+.og-amt-kopf img { flex: none; width: 84px; height: 84px; object-fit: contain; }
+.og-amt-kopf h2 { margin: 0; }
+.og-amt-kopf .eyebrow { margin-bottom: 4px; }
+.og-bild-vorschau { display: flex; align-items: flex-end; padding-bottom: 14px; min-height: 64px; }
+.og-bild-vorschau img { width: 64px; height: 64px; object-fit: contain; }
 /* Fenster: Beziehungen */
 .og-rel th { width: 44%; white-space: nowrap; }
 .og-rel th .og-strich { margin-right: 6px; }
