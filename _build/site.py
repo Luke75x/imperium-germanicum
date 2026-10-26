@@ -275,7 +275,7 @@ def address_html():
 
 def footer():
     staat = "".join(f'<li><a href="{u(p)}">{esc(s)}</a></li>' for p, s, *_ in INSTITUTIONEN)
-    main = "".join(f'<li><a href="{u(p)}">{l}</a></li>' for p, l in NAV) + f'<li><a href="{u("kontakt/")}">Kontakt</a></li>'
+    main = "".join(f'<li><a href="{u(p)}">{l}</a></li>' for p, l in NAV) + f'<li><a href="{u("kontakt/")}">Kontakt</a></li><li><a href="{u("vorschlaege/")}">Vorschläge</a></li>'
     return f"""
 <footer class="site-footer">
   <div class="wrap footer-main">
@@ -1506,6 +1506,14 @@ def page_kontakt():
     </div>
     {contact_card()}
   </div>
+  <div class="wrap">
+    <section class="seat">
+      <span class="eyebrow">Mitwirkung</span>
+      <h2>Vorschläge</h2>
+      <div class="prose"><p>Du hast eine Idee für den Discord-Server, die Website oder das Rollenspiel? Melde dich mit deinem Discord-Konto an und reiche deinen Vorschlag ein. Über die Entscheidung wirst du per Direktnachricht auf Discord unterrichtet.</p></div>
+      <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u("vorschlaege/")}">Vorschlag einreichen {icon("arrow")}</a></div>
+    </section>
+  </div>
 </section>"""
     render("kontakt/", "Melde dich zum Dienst!",
            "Kontakt zum Imperium Germanicum – melde dich zum Dienst per Formular, E-Mail, Instagram oder YouTube.",
@@ -1533,6 +1541,7 @@ def page_sitemap():
         ("neue-erlasse-und-gesetze/", "Neue Erlasse und Gesetze", ""),
         ("wiki/", "Wiki", ""),
         ("kontakt/", "Kontakt", ""),
+        ("vorschlaege/", "Vorschläge", ""),
         ("impressum/", "Impressum", ""),
         ("datenschutz/", "Datenschutz", ""),
         ("gewaehrleistung/", "Gesetzliche Gewährleistung", ""),
@@ -1580,7 +1589,7 @@ def page_datenschutz():
   <p>Zum Schutz unserer Formulare vor automatisierten Programmen („Bots“) setzen wir ausschließlich serverseitige Prüfungen ein (ein für Menschen unsichtbares Prüffeld, eine Mindest-Ausfüllzeit und eine Begrenzung der Anfragen pro Stunde). Dafür wird die IP-Adresse kurzzeitig in anonymisierter (gehashter) Form auf unserem Server gespeichert und nach spätestens einer Stunde gelöscht. Es werden keine Daten an Dritte wie Google übermittelt. Rechtsgrundlage ist unser berechtigtes Interesse gemäß Art. 6 Abs. 1 S. 1 lit. f DSGVO.</p>
 
   <h2 id="cookies">4. Cookie-Richtlinie</h2>
-  <p>Diese Website verwendet keine Analyse- oder Tracking-Dienste. Cookies setzen wir nur, wenn du dich im Wiki über Discord anmeldest: Dann wird ein technisch notwendiges Sitzungs-Cookie gespeichert, das dich als angemeldet erkennt (und für wenige Minuten ein Cookie zur Absicherung des Anmeldevorgangs; im internen Bereich des Reichstages und bei der Reichskarte nach einer Aktion für höchstens eine Minute ein Hinweis-Cookie, das die Bestätigungsmeldung anzeigt). Ohne Anmeldung werden keine Cookies gesetzt. Deine Wahl des Farbschemas (hell/dunkel) wird in deinem eigenen Browser gespeichert (lokaler Speicher), sie wird nicht an uns übertragen.</p>
+  <p>Diese Website verwendet keine Analyse- oder Tracking-Dienste. Cookies setzen wir nur, wenn du dich im Wiki über Discord anmeldest: Dann wird ein technisch notwendiges Sitzungs-Cookie gespeichert, das dich als angemeldet erkennt (und für wenige Minuten ein Cookie zur Absicherung des Anmeldevorgangs; im internen Bereich des Reichstages, bei der Reichskarte und bei den Vorschlägen nach einer Aktion für höchstens eine Minute ein Hinweis-Cookie, das die Bestätigungsmeldung anzeigt). Ohne Anmeldung werden keine Cookies gesetzt. Deine Wahl des Farbschemas (hell/dunkel) wird in deinem eigenen Browser gespeichert (lokaler Speicher), sie wird nicht an uns übertragen.</p>
 
   <h2 id="wiki">Wiki und Anmeldung über Discord</h2>
   <p>Das Wiki kann jeder lesen. Zum Bearbeiten ist eine Anmeldung über Discord nötig. Erst wenn du auf „Mit Discord anmelden“ klickst, wirst du zu Discord weitergeleitet; es gelten dann dessen Datenschutzbestimmungen. Wir erhalten von Discord deine Nutzer-ID und deinen Anzeigenamen und prüfen anhand unseres Discord-Servers, ob du Mitglied bist und welche Rollen du dort hast (davon hängt ab, was du bearbeiten darfst). Dein Passwort erhalten wir nie.</p>
@@ -1590,6 +1599,8 @@ def page_datenschutz():
 
   <h2 id="reichskarte">Reichskarte</h2>
   <p>Die Reichskarte kann jeder ansehen; dabei werden keine Daten über dich gespeichert. Bearbeiten dürfen nur Personen mit Administratorrechten auf unserem Discord-Server, über dieselbe Anmeldung wie im Wiki. Jede gespeicherte Fassung der Karte wird mit Zeitpunkt, Bemerkung, Nutzer-ID und Anzeigenamen des Bearbeitenden festgehalten und ist in der Versionsliste öffentlich einsehbar, damit Änderungen nachvollziehbar bleiben. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Teilnahme am Rollenspiel) bzw. lit. f (Nachvollziehbarkeit). Die Verwaltungsgrenzen stammen von Eurostat (GISCO, © EuroGeographics) und liegen auf unserem Server; beim Ansehen der Karte wird keine Verbindung zu Dritten aufgebaut.</p>
+  <h2 id="vorschlaege">Vorschläge</h2>
+  <p>Vorschläge können nur angemeldete Mitglieder unseres Discord-Servers einreichen, über dieselbe Anmeldung wie im Wiki. Gespeichert werden Kategorie, Beschreibung, Zeitpunkt, deine Nutzer-ID und dein Anzeigename sowie später die Entscheidung mit einer etwaigen Begründung. Dein Vorschlag wird über unseren Discord-Bot per Direktnachricht dem zuständigen Entscheider vorgelegt; die Entscheidung erhältst du ebenfalls per Direktnachricht auf Discord. Vorschläge sind nicht öffentlich; du siehst deine eigenen auf der Seite „Vorschläge“. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Teilnahme am Rollenspiel und Bearbeitung deines Anliegens).</p>
 
   <h2>5. Schriftarten</h2>
   <p>Die verwendeten Schriftarten (EB Garamond, Source Sans 3) werden lokal von unserem Server geladen. Es findet keine Verbindung zu Servern Dritter statt.</p>
