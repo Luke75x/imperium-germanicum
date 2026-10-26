@@ -122,7 +122,7 @@ def figure(iid, caption="", alt=None, cls="", sizes="(min-width: 900px) 50vw, 10
 
 
 def reichskarte():
-    """Startseite: stets aktuelle Reichskarte (gerendert vom Wiki-Dienst, Modul karte.py), führt zur großen Karte mit Editor."""
+    """Startseite: stets aktuelle Reichskarte (gerendert vom Webdienst, Modul karte.py), führt zur großen Karte mit Editor."""
     caption = "Hoheitsgebiet des Imperium Germanicum mit seinen Teilstaaten"
     alt = "Karte des Hoheitsgebiets des Imperium Germanicum in Mittel- und Südeuropa mit farbig markierten Teilstaaten"
     return (f'<figure class="figure"><a class="zoom frame" href="{u("karte/")}"><img src="{u("karte/karte.png")}" width="3000" height="2250" '
@@ -131,7 +131,7 @@ def reichskarte():
 
 
 def organigramm():
-    """Startseite: stets aktuelles Organigramm (gerendert vom Wiki-Dienst, Modul staatsaufbau.py, mit den heutigen Amtsträgern),
+    """Startseite: stets aktuelles Organigramm (gerendert vom Webdienst, Modul staatsaufbau.py, mit den heutigen Amtsträgern),
     führt zum interaktiven Organigramm. Ersetzt das frühere Schaubild i7e284b3dc2b8cebd."""
     caption = "Staatsaufbau des Imperium Germanicum"
     alt = "Organigramm des Imperium Germanicum: Souverän, Senat mit Kurfürsten und Hand des Kaisers, Reichstag, Reichsgerichtshof, Streitkräfte, Kanzler und Staatsbürger mit ihren Beziehungen"
@@ -181,7 +181,6 @@ NAV = [
     ("der-souveraen/", "Der Souverän"),
     ("die-bildergalerie/", "Die Bildergalerie"),
     ("neue-erlasse-und-gesetze/", "Neue Erlasse und Gesetze"),
-    ("wiki/", "Wiki"),
 ]
 
 
@@ -885,7 +884,7 @@ def page_reichsbehoerden():
               ["Erteilt Einwanderern das Visum, prüft ihre Gesuche und vollzieht die Einbürgerung in den Stand der Staatsbürger.",
                "Führt das Register der Staatsbürger und beurkundet Ausbürgerung und Abreise."]),
         karte("Reichsamt für digitale Infrastruktur", "Infrastruktur", "Staatssekretär für digitale Infrastruktur", None,
-              ["Errichtet und unterhält die digitalen Einrichtungen des Reiches: die Netzpräsenz, das Wiki, die Versammlungsräume des Reiches auf Discord und die Automaten der Krone.",
+              ["Errichtet und unterhält die digitalen Einrichtungen des Reiches: die Netzpräsenz, die Versammlungsräume des Reiches auf Discord und die Automaten der Krone.",
                "Wacht über den Schutz der Daten aller Untertanen, damit das Reich ohne Verfolgung und ohne fremde Dienste auskommt."]),
     ])
     aussen = karte("Kaiserliches Generalkonsulat", "Konsulate", "Generalkonsul, dem die Konsuln unterstehen", None,
@@ -1539,7 +1538,6 @@ def page_sitemap():
         ("der-souveraen/", "Der Souverän", ""),
         ("die-bildergalerie/", "Die Bildergalerie", ""),
         ("neue-erlasse-und-gesetze/", "Neue Erlasse und Gesetze", ""),
-        ("wiki/", "Wiki", ""),
         ("kontakt/", "Kontakt", ""),
         ("vorschlaege/", "Vorschläge", ""),
         ("impressum/", "Impressum", ""),
@@ -1589,18 +1587,18 @@ def page_datenschutz():
   <p>Zum Schutz unserer Formulare vor automatisierten Programmen („Bots“) setzen wir ausschließlich serverseitige Prüfungen ein (ein für Menschen unsichtbares Prüffeld, eine Mindest-Ausfüllzeit und eine Begrenzung der Anfragen pro Stunde). Dafür wird die IP-Adresse kurzzeitig in anonymisierter (gehashter) Form auf unserem Server gespeichert und nach spätestens einer Stunde gelöscht. Es werden keine Daten an Dritte wie Google übermittelt. Rechtsgrundlage ist unser berechtigtes Interesse gemäß Art. 6 Abs. 1 S. 1 lit. f DSGVO.</p>
 
   <h2 id="cookies">4. Cookie-Richtlinie</h2>
-  <p>Diese Website verwendet keine Analyse- oder Tracking-Dienste. Cookies setzen wir nur, wenn du dich im Wiki über Discord anmeldest: Dann wird ein technisch notwendiges Sitzungs-Cookie gespeichert, das dich als angemeldet erkennt (und für wenige Minuten ein Cookie zur Absicherung des Anmeldevorgangs; im internen Bereich des Reichstages, bei der Reichskarte und bei den Vorschlägen nach einer Aktion für höchstens eine Minute ein Hinweis-Cookie, das die Bestätigungsmeldung anzeigt). Ohne Anmeldung werden keine Cookies gesetzt. Deine Wahl des Farbschemas (hell/dunkel) wird in deinem eigenen Browser gespeichert (lokaler Speicher), sie wird nicht an uns übertragen.</p>
+  <p>Diese Website verwendet keine Analyse- oder Tracking-Dienste. Cookies setzen wir nur, wenn du dich über Discord anmeldest: Dann wird ein technisch notwendiges Sitzungs-Cookie gespeichert, das dich als angemeldet erkennt (und für wenige Minuten ein Cookie zur Absicherung des Anmeldevorgangs; im internen Bereich des Reichstages, bei der Reichskarte und bei den Vorschlägen nach einer Aktion für höchstens eine Minute ein Hinweis-Cookie, das die Bestätigungsmeldung anzeigt). Ohne Anmeldung werden keine Cookies gesetzt. Deine Wahl des Farbschemas (hell/dunkel) wird in deinem eigenen Browser gespeichert (lokaler Speicher), sie wird nicht an uns übertragen.</p>
 
-  <h2 id="wiki">Wiki und Anmeldung über Discord</h2>
-  <p>Das Wiki kann jeder lesen. Zum Bearbeiten ist eine Anmeldung über Discord nötig. Erst wenn du auf „Mit Discord anmelden“ klickst, wirst du zu Discord weitergeleitet; es gelten dann dessen Datenschutzbestimmungen. Wir erhalten von Discord deine Nutzer-ID und deinen Anzeigenamen und prüfen anhand unseres Discord-Servers, ob du Mitglied bist und welche Rollen du dort hast (davon hängt ab, was du bearbeiten darfst). Dein Passwort erhalten wir nie.</p>
-  <p>Gespeichert werden diese Angaben sowie deine Bearbeitungen und hochgeladenen Bilder (Text bzw. Datei, Zeitpunkt, Zusammenfassung). Bearbeitungen und Bilder sind – wie bei jedem Wiki – öffentlich einsehbar und mit deinem Anzeigenamen verknüpft, damit Änderungen nachvollziehbar bleiben. Auf deiner öffentlichen Benutzerseite zeigen wir außerdem deine Rollen auf unserem Discord-Server (Ämter, Titel, Ränge, Fraktion, Auszeichnungen), wann du dem Wiki beigetreten bist und wann du zuletzt aktiv warst. Solange du angemeldet und aktiv bist, erscheint dein Anzeigename im Fußbereich des Wikis unter „Gerade im Wiki“; nach fünf Minuten ohne Aktivität verschwindet er dort wieder. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Nutzung des Wikis) bzw. lit. f (Nachvollziehbarkeit, Schutz vor Missbrauch). Auf Wunsch löschen wir deine Kontodaten; deine Beiträge bleiben dann unter einem neutralen Namen erhalten. Schreibe dazu an <a href="mailto:{EMAIL}">{EMAIL}</a>.</p>
+  <h2 id="anmeldung">Anmeldung über Discord</h2>
+  <p>Für den internen Bereich des Reichstages, das Bearbeiten der Reichskarte und der Organigramme sowie für Vorschläge ist eine Anmeldung über Discord nötig. Erst wenn du auf „Mit Discord anmelden“ klickst, wirst du zu Discord weitergeleitet; es gelten dann dessen Datenschutzbestimmungen. Wir erhalten von Discord deine Nutzer-ID und deinen Anzeigenamen und prüfen anhand unseres Discord-Servers, ob du Mitglied bist und welche Rollen du dort hast (davon hängt ab, was du tun darfst). Dein Passwort erhalten wir nie.</p>
+  <p>Gespeichert werden diese Angaben (Nutzer-ID, Anzeigename, Rollen, Mitgliedschaft und Zeitpunkt der Anmeldung), solange du ein Konto bei uns hast. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Teilnahme am Rollenspiel). Auf Wunsch löschen wir deine Kontodaten. Schreibe dazu an <a href="mailto:{EMAIL}">{EMAIL}</a>.</p>
   <h2 id="reichstag-intern">Interne Sitzungen des Reichstages</h2>
   <p>Der interne Bereich des Reichstages nutzt dieselbe Anmeldung über Discord. Zugang erhält nur, wer auf unserem Discord-Server eine Rolle des Reichstages (Präsident, Abgeordneter, Landesherr) oder Administratorrechte hat. Gespeichert werden die terminierten Sitzungen sowie eingebrachte Anträge mit Titel, Text, Zeitpunkt, deiner Nutzer-ID und deinem Anzeigenamen. Anträge und Tagesordnungen sind nur für die Mitglieder des Reichstages sichtbar, nicht öffentlich. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Teilnahme am Rollenspiel).</p>
 
   <h2 id="reichskarte">Reichskarte</h2>
-  <p>Die Reichskarte kann jeder ansehen; dabei werden keine Daten über dich gespeichert. Bearbeiten dürfen nur Personen mit Administratorrechten auf unserem Discord-Server, über dieselbe Anmeldung wie im Wiki. Jede gespeicherte Fassung der Karte wird mit Zeitpunkt, Bemerkung, Nutzer-ID und Anzeigenamen des Bearbeitenden festgehalten und ist in der Versionsliste öffentlich einsehbar, damit Änderungen nachvollziehbar bleiben. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Teilnahme am Rollenspiel) bzw. lit. f (Nachvollziehbarkeit). Die Verwaltungsgrenzen stammen von Eurostat (GISCO, © EuroGeographics) und liegen auf unserem Server; beim Ansehen der Karte wird keine Verbindung zu Dritten aufgebaut.</p>
+  <p>Die Reichskarte kann jeder ansehen; dabei werden keine Daten über dich gespeichert. Bearbeiten dürfen nur Personen mit Administratorrechten auf unserem Discord-Server, über die Anmeldung mit Discord. Jede gespeicherte Fassung der Karte wird mit Zeitpunkt, Bemerkung, Nutzer-ID und Anzeigenamen des Bearbeitenden festgehalten und ist in der Versionsliste öffentlich einsehbar, damit Änderungen nachvollziehbar bleiben. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Teilnahme am Rollenspiel) bzw. lit. f (Nachvollziehbarkeit). Die Verwaltungsgrenzen stammen von Eurostat (GISCO, © EuroGeographics) und liegen auf unserem Server; beim Ansehen der Karte wird keine Verbindung zu Dritten aufgebaut.</p>
   <h2 id="vorschlaege">Vorschläge</h2>
-  <p>Vorschläge können nur angemeldete Mitglieder unseres Discord-Servers einreichen, über dieselbe Anmeldung wie im Wiki. Gespeichert werden Kategorie, Beschreibung, Zeitpunkt, deine Nutzer-ID und dein Anzeigename sowie später die Entscheidung mit einer etwaigen Begründung. Dein Vorschlag wird über unseren Discord-Bot per Direktnachricht dem zuständigen Entscheider vorgelegt; die Entscheidung erhältst du ebenfalls per Direktnachricht auf Discord. Vorschläge sind nicht öffentlich; du siehst deine eigenen auf der Seite „Vorschläge“. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Teilnahme am Rollenspiel und Bearbeitung deines Anliegens).</p>
+  <p>Vorschläge können nur angemeldete Mitglieder unseres Discord-Servers einreichen, über die Anmeldung mit Discord. Gespeichert werden Kategorie, Beschreibung, Zeitpunkt, deine Nutzer-ID und dein Anzeigename sowie später die Entscheidung mit einer etwaigen Begründung. Dein Vorschlag wird über unseren Discord-Bot per Direktnachricht dem zuständigen Entscheider vorgelegt; die Entscheidung erhältst du ebenfalls per Direktnachricht auf Discord. Vorschläge sind nicht öffentlich; du siehst deine eigenen auf der Seite „Vorschläge“. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Teilnahme am Rollenspiel und Bearbeitung deines Anliegens).</p>
 
   <h2>5. Schriftarten</h2>
   <p>Die verwendeten Schriftarten (EB Garamond, Source Sans 3) werden lokal von unserem Server geladen. Es findet keine Verbindung zu Servern Dritter statt.</p>
@@ -1693,9 +1691,9 @@ def write_meta_files():
 
 
 def write_wiki_shell():
-    """Seitenrahmen (Kopf, Fuß, Navigation) für das dynamische Wiki. Der Wiki-Dienst setzt den Inhalt ein."""
+    """Seitenrahmen (Kopf, Fuß, Navigation) für die dynamischen Bereiche. Der Webdienst (imperium-wiki/dienst.py) setzt den Inhalt ein."""
     import shutil
-    render("wiki-shell/", "@@TITLE@@", "Wiki des Imperium Germanicum", "<!--WIKI-->", current="wiki/",
+    render("wiki-shell/", "@@TITLE@@", "Imperium Germanicum", "<!--WIKI-->", current=None,
            robots="noindex", in_sitemap=False, show_crowns=False)
     for src, name in ((os.path.join(ROOT, "wiki-shell"), "wiki_shell_de.html"),
                       (os.path.join(ROOT, "en", "wiki-shell"), "wiki_shell_en.html")):

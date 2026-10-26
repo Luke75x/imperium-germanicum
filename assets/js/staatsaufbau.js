@@ -452,7 +452,7 @@
   }
   function row(k, v) { return '<tr><th scope="row">' + k + "</th><td>" + v + "</td></tr>"; }
   function personHtml(p, k) {
-    var n = p.url ? '<a href="' + esc(p.url) + '">' + esc(p.name) + "</a>" : esc(p.name);
+    var n = esc(p.name);
     var extra = p.titel.slice();
     if (k.nutzer.indexOf(p.id) >= 0) extra.push(T.byDecree);
     return "<strong>" + n + "</strong>" + (extra.length ? ' <span class="karte-titel">' + esc(extra.join(" · ")) + "</span>" : "");

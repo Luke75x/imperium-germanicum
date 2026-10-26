@@ -367,7 +367,7 @@
   function regentHtml(s, r) {
     if (!r) return esc(T.noFaction);
     var names = r.personen.map(function (p) {
-      var n = p.url ? '<a href="' + esc(p.url) + '">' + esc(p.name) + "</a>" : esc(p.name);
+      var n = esc(p.name);
       return "<strong>" + n + "</strong>" + (p.titel.length ? " <span class=\"karte-titel\">" + esc(p.titel.join(" · ")) + "</span>" : "");
     }).join("<br>");
     if (r.art === "kanzler") return (names || esc(T.noKanzler)) + (names ? '<span class="karte-hinweis">' + esc(T.kanzlerNote) + "</span>" : "");
@@ -410,8 +410,6 @@
     var yl = Object.keys(years).sort();
     if (yl.length) html += '<p class="karte-quelle">' + esc(T.source.replace("{j}", yl[yl.length - 1])) + "</p>";
     infoDlg.querySelector("[data-gebiet-inhalt]").innerHTML = html;
-    var r = s && infoData.regenten[s.id];
-    infoDlg.querySelector("[data-gebiet-wiki]").innerHTML = r && r.wiki ? '<a class="btn btn-navy" href="' + esc(r.wiki) + '">' + esc(T.wikiLink) + "</a>" : "";
     bindRename(id, s);
     if (!infoDlg.open) infoDlg.showModal();
   }
