@@ -1,0 +1,68 @@
+{
+  "quelle": "https://discord.com/channels/1522685223014371479/1523117025952661597",
+  "stand": "2026-10-26",
+  "richtlinien": {
+    "titel": "Richtlinien des Servers",
+    "regeln": [
+      {
+        "n": "1",
+        "text": "Der Server ist Eigentum von Bastian Hüsch und Karl Benjamin Wollnik, jeweils zu Anteilen von 50 %."
+      },
+      {
+        "n": "2",
+        "text": "Neue Mitglieder im Rollenspiel haben eine allgemeine Probezeit von 2 Wochen."
+      },
+      {
+        "n": "3",
+        "text": "Beleidigungen, Hassrede, Extremismus und Sexismus werden nicht geduldet."
+      },
+      {
+        "n": "4",
+        "text": "Unerlaubte Werbung für andere Projekte ist nicht gestattet."
+      },
+      {
+        "n": "5",
+        "text": "Spam oder andere Arten von Aufdringlichkeiten werden nicht geduldet."
+      },
+      {
+        "n": "6",
+        "text": "Wir bestehen auf einen höflichen und respektvollen Umgang miteinander."
+      },
+      {
+        "n": "7",
+        "text": "Zuschauer oder Gastrollen sind von befristeten Probezeiten ausgenommen, für sie gilt immer die Regelung der Probezeit."
+      },
+      {
+        "n": "8",
+        "text": "Weitere Regeln können jederzeit hinzugefügt werden."
+      },
+      {
+        "n": "9",
+        "text": "Mitspieler, die gegen diese Regeln verstoßen, müssen mit einer Verwarnung oder mit dem Ausschluss aus der Community rechnen."
+      }
+    ]
+  },
+  "rollenspiel": {
+    "titel": "Zu welchem Zeitpunkt gilt die Rolle?",
+    "herausgeber": "Management des Rollenspiels",
+    "absaetze": [
+      "Jeder Teilnehmer des Rollenspiels übernimmt eine Rolle. Diese Rolle darf den tatsächlichen Namen der Person oder einen erfundenen Namen tragen; zudem darf sie der realen Persönlichkeit entsprechen oder davon abweichen.",
+      "Wichtig ist, dass wir auf diesem Server die Rolle grundsätzlich nie vollständig ablegen. Die Rolle bleibt, wenn auch etwas gelockert, immer erhalten, um die Natur des Rollenspiels zu keiner Zeit abzulehnen.",
+      "Um die Bereiche zu unterscheiden, gibt es Bereiche, in denen die Rolle etwas gelockert ist, und jene, in denen sie vollkommen gilt."
+    ],
+    "felder": [
+      {
+        "name": "Bereiche mit gelockerter Rolle",
+        "text": "#klatsch-und-tratsch · #kurpfalz\n#Café · #Braustube · #Spielothek\n\nHier sind die Rollen etwas gelockert, aber nie ganz abgelegt, es sei denn, ein geplantes Event schreibt die strenge Rolle vor. Für vollständig rollenfreie Kommunikation sind Gespräche privat zu führen."
+      },
+      {
+        "name": "Was „gelockert“ bedeutet",
+        "text": "Zur Begrüßung und zum Abschied wird klassisch die korrekte Anrede genannt. Im Verlauf des Gesprächs darf zum Du gewechselt und offen über private Themen des echten Lebens gesprochen werden. Die Rangstruktur des Rollenspiels und die Würde, die die jeweiligen Positionen mit sich bringen, sind dabei zu beachten."
+      },
+      {
+        "name": "Wichtig",
+        "text": "**Die Rollen werden nie ganz abgelegt.**"
+      }
+    ]
+  }
+}

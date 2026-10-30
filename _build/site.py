@@ -274,7 +274,7 @@ def address_html():
 
 def footer():
     staat = "".join(f'<li><a href="{u(p)}">{esc(s)}</a></li>' for p, s, *_ in INSTITUTIONEN)
-    main = "".join(f'<li><a href="{u(p)}">{l}</a></li>' for p, l in NAV) + f'<li><a href="{u("kontakt/")}">Kontakt</a></li><li><a href="{u("vorschlaege/")}">Vorschläge</a></li>'
+    main = "".join(f'<li><a href="{u(p)}">{l}</a></li>' for p, l in NAV) + f'<li><a href="{u("regelwerk/")}">Regelwerk</a></li><li><a href="{u("kontakt/")}">Kontakt</a></li><li><a href="{u("vorschlaege/")}">Vorschläge</a></li>'
     return f"""
 <footer class="site-footer">
   <div class="wrap footer-main">
@@ -1227,6 +1227,63 @@ def page_charta():
            body)
 
 
+def md_inline(t):
+    """Discord-Markdown (nur **fett**) → HTML, Zeilenumbrüche → <br>."""
+    return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", esc(t)).replace("\n", "<br>")
+
+
+def page_regelwerk():
+    # Texte aus dem Informationskanal auf Discord, geholt mit _build/regelwerk_holen.py
+    Ctx.prefix = "../"
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "regelwerk.json"), encoding="utf-8") as fh:
+        rw = json.load(fh)
+    ri, rs = rw["richtlinien"], rw["rollenspiel"]
+    pars = "".join(
+        f'<div class="article-par" id="regel-{r["n"]}"><div class="par"><a href="#regel-{r["n"]}" title="Link zu dieser Regel">§ {r["n"]}</a></div>'
+        f'<div class="body"><p>{md_inline(r["text"])}</p></div></div>' for r in ri["regeln"])
+    felder = []
+    for f in rs["felder"]:
+        if f["name"] == "Wichtig":
+            felder.append(f'<div class="callout"><p>{md_inline(f["text"])}</p></div>')
+            continue
+        bloecke = f["text"].split("\n\n")
+        inhalt = "".join(f"<p>{md_inline(b)}</p>" for b in bloecke)
+        felder.append(f'<dl class="titles"><dt>{esc(f["name"])}</dt><dd>{inhalt}</dd></dl>')
+    he = f'<p class="byline" style="color:var(--muted)">{esc(rs["herausgeber"])}</p>' if rs.get("herausgeber") else ""
+    toc = (f'<li><a href="#richtlinien"><span>I</span>{esc(ri["titel"])}</a></li>'
+           f'<li><a href="#rollenspiel"><span>II</span>{esc(rs["titel"])}</a></li>')
+    body = page_head([("regelwerk/", "Regelwerk")], "Das Regelwerk", "Server und Rollenspiel",
+                     "Die Richtlinien des Discord-Servers und die Regeln des Rollenspiels. Wer am Imperium Germanicum teilnimmt, "
+                     "erkennt sie an und setzt sie um.") + f"""
+<div class="section">
+  <div class="wrap with-aside left">
+    <aside class="aside-nav toc" aria-label="Inhaltsverzeichnis des Regelwerks">
+      <h2>Inhalt</h2>
+      <ol>{toc}</ol>
+      <div class="doc-tools">
+        <button class="btn btn-line" type="button" data-print>{icon("print")}Drucken</button>
+      </div>
+    </aside>
+    <article class="doc" data-progress>
+      <div class="callout"><p>Maßgeblich ist die Fassung im <a href="{rw["quelle"]}" rel="noopener" target="_blank">Informationskanal</a> unseres Discord-Servers.</p></div>
+      <section class="doc-part" id="richtlinien">
+        <header><span class="num">Abschnitt I</span><h2>{esc(ri["titel"])}</h2></header>
+        {pars}
+      </section>
+      <section class="doc-part" id="rollenspiel">
+        <header><span class="num">Abschnitt II</span><h2>{esc(rs["titel"])}</h2></header>
+        {he}
+        {"".join(f"<p>{md_inline(a)}</p>" for a in rs["absaetze"])}
+        {"".join(felder)}
+      </section>
+    </article>
+  </div>
+</div>"""
+    render("regelwerk/", "Das Regelwerk",
+           "Das Regelwerk des Imperium Germanicum: Richtlinien des Discord-Servers und Regeln zur Rolle im Rollenspiel.",
+           body)
+
+
 def title_card(t, idx):
     has_w = any(r[2] for r in t["anrede"])
     head = "<tr><th>Anrede</th><th>Männlich (M)</th>" + ("<th>Weiblich (W)</th>" if has_w else "") + "</tr>"
@@ -1544,6 +1601,7 @@ def page_sitemap():
         ("der-souveraen/", "Der Souverän", ""),
         ("die-bildergalerie/", "Die Bildergalerie", ""),
         ("neue-erlasse-und-gesetze/", "Neue Erlasse und Gesetze", ""),
+        ("regelwerk/", "Regelwerk", ""),
         ("kontakt/", "Kontakt", ""),
         ("vorschlaege/", "Vorschläge", ""),
         ("impressum/", "Impressum", ""),
@@ -1727,6 +1785,7 @@ def main():
     page_souveraen()
     page_galerie()
     page_erlasse()
+    page_regelwerk()
     page_kontakt()
     thanks_page("kontakt/danke/", [("kontakt/", "Kontakt"), ("kontakt/danke/", "Nachricht gesendet")],
                 "Vielen Dank für deine Nachricht!",
