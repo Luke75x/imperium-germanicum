@@ -346,6 +346,25 @@
     }
   });
 
+  /* ---------- Sprungleiste: aktuellen Abschnitt markieren ---------- */
+
+  $$("[data-onpage]").forEach(function (nav) {
+    var links = $$("a", nav), secs = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
+    var tick = function () {
+      var cur = -1;
+      secs.forEach(function (s, i) { if (s && s.getBoundingClientRect().top < window.innerHeight * .35) cur = i; });
+      links.forEach(function (a, i) {
+        var on = i === cur;
+        if (on !== a.classList.contains("is-active")) {
+          a.classList.toggle("is-active", on);
+          if (on) a.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
+      });
+    };
+    window.addEventListener("scroll", tick, { passive: true });
+    tick();
+  });
+
   /* ---------- Seitenwechsel (sanftes Ausblenden bei internen Links) ---------- */
 
   if (!reduce) {

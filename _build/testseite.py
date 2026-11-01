@@ -679,6 +679,58 @@ def crowns_section():
 # Seiten
 # ---------------------------------------------------------------------------
 
+WEGWEISER = [  # Fragen eines neuen Besuchers → passende Seite
+    ("das-imperium/", "Was ist das Imperium?", "Ein fiktiver Staatenbund in Europa: Idee, Geschichte und Hoheitsgebiet.", "idbbec25dc54e06be"),
+    ("informationen/", "Wer regiert das Reich?", "Souverän, Senat, Reichstag und Reichsgerichtshof im Überblick.", "i0ed2170b7ed819f2"),
+    ("der-souveraen/", "Wer ist der Kaiser?", "Seine Majestät Alexander IX., Souverän und Staatsoberhaupt.", "i15c0c0ea6780ad72"),
+    ("das-imperium/#karte", "Wo liegt das Reich?", "Die Teilstaaten auf der interaktiven Reichskarte.", "i416b7a1e6d04b155"),
+    ("dokumente/", "Welche Regeln gelten?", "Imperiale Charta, Etikette, Regelwerk und aktuelle Erlasse.", "i2e330402e5d67b0a"),
+    ("kontakt/", "Wie mache ich mit?", "Melde dich zum Dienst und werde ein Teil des Imperium Germanicum.", LOGO),
+]
+
+
+def wegweiser_section():
+    items = "".join(f"""
+<li data-reveal style="--d:{i * .04:.2f}s"><a class="tg-guide__item" href="{u(p)}">
+  {seal(emb, "48px", "tg-guide__seal")}
+  <span class="tg-guide__body"><span class="tg-guide__q">{q}</span><span class="tg-guide__a">{a}</span></span>
+  <span class="tg-guide__go">{ARROW}</span>
+</a></li>""" for i, (p, q, a, emb) in enumerate(WEGWEISER))
+    return f"""
+<section class="tg-guide" id="wegweiser" aria-labelledby="wegweiser-titel">
+  <div class="wrap">
+    <div class="tg-guide__head">
+      {kicker("", "Wegweiser")}
+      <h2 id="wegweiser-titel" class="tg-h3">Neu im Imperium? Hier findest du dich zurecht.</h2>
+    </div>
+    <ul class="tg-guide__list">{items}</ul>
+  </div>
+</section>"""
+
+
+def onpage(links):
+    """Sprungleiste „Auf dieser Seite“ (klebt unter dem Kopf, markiert den aktuellen Abschnitt)."""
+    a = "".join(f'<a href="#{i}">{l}</a>' for i, l in links)
+    return (f'<nav class="tg-onpage" aria-label="Auf dieser Seite" data-onpage><div class="wrap">'
+            f'<span class="tg-onpage__label">Auf dieser Seite</span><div class="tg-onpage__links">{a}</div></div></nav>')
+
+
+def glance(rows, title="Auf einen Blick"):
+    dl = "".join(f"<div><dt>{k}</dt><dd>{v}</dd></div>" for k, v in rows)
+    return f'<aside class="tg-glance" aria-label="{title}"><p class="tg-label">{title}</p><dl class="tg-dl">{dl}</dl></aside>'
+
+
+REICH_GLANCE = [
+    ("Staatsform", "Teilzentralisierter Bundesstaat"),
+    ("Staatsoberhaupt", "Kaiser Alexander IX."),
+    ("Reichshauptstadt", "Groß-Berlin"),
+    ("Hoheitsgebiet", "1.205.000 km²"),
+    ("Staatsbürger", "217.000.000"),
+    ("Kurfürsten im Senat", "9"),
+    ("Amtszeit des Kaisers", "1 Jahr"),
+]
+
+
 def page_home():
     Ctx.prefix = ""
     hero_src = asset("img/original/" + S.IMAGES["if3da36451cad23de"]["file"])
@@ -697,79 +749,40 @@ def page_home():
       <img src="{asset("img/if3da36451cad23de-1280.webp")}" srcset="{asset("img/if3da36451cad23de-640.webp")} 640w, {asset("img/if3da36451cad23de-1280.webp")} 1280w, {hero_src} 1440w"
            sizes="(min-width: 1400px) 1360px, 100vw" width="1440" height="600" alt="Schloss Charlottenburg in Groß-Berlin" fetchpriority="high" decoding="async">
     </div></div>
-    <figcaption class="tg-cap"><span class="tg-cap__num">01</span><span>Schloss Charlottenburg, Groß-Berlin – private Residenz des Souveräns</span></figcaption>
+    <figcaption class="tg-cap"><span>Schloss Charlottenburg, Groß-Berlin – private Residenz des Souveräns</span></figcaption>
   </figure>
 </section>"""
 
     discover = f"""
 <section class="tg-discover" aria-labelledby="reich-titel">
-  <div class="wrap">
-    <div class="tg-discover__row">
-      <figure class="tg-discover__media">
-        {photo("icb9cbf1ec35c85a0", "Berliner Schloss", "(min-width: 900px) 58vw, 100vw", parallax=True)}
-        <figcaption class="tg-cap"><span class="tg-cap__num">02</span><span>Berliner Schloss – Arbeitssitz seiner Majestät und der Senatsverwaltung</span></figcaption>
-      </figure>
-      <div class="tg-discover__text" data-reveal>
-        {kicker("03", "Das Reich")}
-        <h2 id="reich-titel" class="tg-h2">Das Resultat dieser Entwicklung ist das Imperium Germanicum.</h2>
-        <p class="tg-intro">{INTRO_LEAD}</p>
-        {paras(*REICH_TEXT[:2])}
-        {more(u("das-imperium/"), "Das Imperium entdecken")}
-      </div>
+  <div class="wrap tg-discover__row">
+    <div class="tg-discover__text" data-reveal>
+      {kicker("01", "Das Reich")}
+      <h2 id="reich-titel" class="tg-h2">Das Resultat dieser Entwicklung ist das Imperium Germanicum.</h2>
+      {paras(*REICH_TEXT[1:])}
+      <div class="tg-actions">{more(u("das-imperium/"), "Mehr über das Imperium")}{more(u("informationen/"), "Zum Staatsaufbau")}</div>
     </div>
-    <div class="tg-discover__row is-reverse">
-      <div class="tg-discover__text" data-reveal>
-        <h3 class="tg-h3">Ein teilzentralisierter Bundesstaat</h3>
-        {paras(GEBIET_TEXT[3], GEBIET_TEXT[4])}
-        {more(u("informationen/imperiale-charta/"), "Die Imperiale Charta lesen")}
-      </div>
-      <figure class="tg-discover__media is-small">
-        {photo("i1230b12d712ff174", "Reichstagsgebäude", "(min-width: 900px) 40vw, 100vw")}
-        <figcaption class="tg-cap"><span>Reichstagsgebäude, Groß-Berlin</span></figcaption>
-      </figure>
-    </div>
+    <figure class="tg-discover__media">
+      {photo("icb9cbf1ec35c85a0", "Berliner Schloss", "(min-width: 900px) 50vw, 100vw")}
+      <figcaption class="tg-cap"><span>Berliner Schloss – Arbeitssitz seiner Majestät und der Senatsverwaltung</span></figcaption>
+    </figure>
   </div>
 </section>"""
 
-    inst_rest = [x for x in INSTITUTIONEN if x[0] in (
-        "informationen/hand-des-kaisers/", "informationen/der-reichsgerichtshof/", "informationen/die-stabschefs/",
-        "informationen/reichssicherheitsamt/", "informationen/die-reichsbehoerden/")]
+    inst = [x for x in INSTITUTIONEN if "charta" not in x[0] and "etikette" not in x[0]]
     rows = "".join(f"""
-<li data-reveal><a class="tg-index__row" href="{u(p)}">
-  <span class="tg-index__num">{i:02d}</span>{seal(emb, "56px", "tg-index__seal")}
+<li><a class="tg-index__row" href="{u(p)}">
+  {seal(emb, "48px", "tg-index__seal")}
   <span class="tg-index__title">{esc(t)}</span><span class="tg-index__desc">{esc(d)}</span><span class="tg-index__go">{ARROW}</span>
-</a></li>""" for i, (p, _s, t, d, emb) in enumerate(inst_rest, 3))
+</a></li>""" for p, _s, t, d, emb in inst)
     institutions = f"""
 <section class="tg-inst" id="institutionen" aria-labelledby="inst-titel">
   <div class="wrap">
-    <div class="tg-sechead">
-      {kicker("06", "Institutionen")}
-      <h2 id="inst-titel" class="tg-h2">Im Auftrag seiner Majestät</h2>
+    <div class="tg-sechead tg-sechead--row">
+      <div>{kicker("04", "Institutionen")}<h2 id="inst-titel" class="tg-h2">Im Auftrag seiner Majestät</h2></div>
+      {more(u("informationen/") + "#institutionen", "Alle Institutionen")}
     </div>
-    <article class="tg-feature">
-      {photo("i1230b12d712ff174", "Reichstagsgebäude", "(min-width: 900px) 66vw, 100vw", cls="tg-feature__media", parallax=True)}
-      <div class="tg-feature__card" data-reveal>
-        <span class="tg-index__num">01</span>
-        <p class="tg-org__panel-art">Legislative des Reiches</p>
-        <h3 class="tg-h3"><a href="{u("informationen/der-reichstag/")}">Der Reichstag</a></h3>
-        <p>Der Reichstag des Imperium Germanicum ist die legislative Versammlung aller Oberhäupter der Teilstaaten oder ihrer Abgesandten.</p>
-        {more(u("informationen/der-reichstag/"), "Zum Reichstag")}
-      </div>
-    </article>
-    <article class="tg-split">
-      <div class="tg-split__text" data-reveal>
-        <span class="tg-index__num">02</span>
-        <p class="tg-org__panel-art">Exekutive des Reiches</p>
-        <h3 class="tg-h3"><a href="{u("informationen/der-senat/")}">Der kaiserliche Senat</a></h3>
-        <p>Der kaiserliche Senat ist der exekutive Arm des Imperium Germanicum, er setzt sich zusammen aus den 9 Kurfürsten des Reiches welche zusammen mit seiner Majestät dem Kaiser das Reich führen.</p>
-        {more(u("informationen/der-senat/"), "Zum Senat")}
-      </div>
-      <figure class="tg-split__media">
-        {photo("ifaa30c71d018e2fa", "Herrenhausgebäude", "(min-width: 900px) 50vw, 100vw")}
-        <figcaption class="tg-cap"><span>Herrenhausgebäude, Groß-Berlin – Sitz des Senats</span></figcaption>
-      </figure>
-    </article>
-    <ul class="tg-index">{rows}</ul>
+    <ul class="tg-index tg-index--grid">{rows}</ul>
   </div>
 </section>"""
 
@@ -778,22 +791,20 @@ def page_home():
 <section class="tg-sov" aria-labelledby="sov-titel">
   <div class="wrap tg-sov__grid">
     <figure class="tg-sov__portrait">
-      {photo("iceaef15058c1dbef", "Seine Majestät Alexander IX.", "(min-width: 900px) 40vw, 100vw", parallax=True)}
-      <figcaption class="tg-cap"><span class="tg-cap__num">07</span><span>Seine Majestät Alexander IX.</span></figcaption>
+      {photo("iceaef15058c1dbef", "Seine Majestät Alexander IX.", "(min-width: 900px) 34vw, 100vw")}
     </figure>
     <div class="tg-sov__text" data-reveal>
-      {kicker("", "Der Souverän")}
+      {kicker("05", "Der Souverän")}
       <h2 id="sov-titel" class="tg-display tg-display--md">Alexander IX.</h2>
       <p class="tg-sov__title">{KAISER_TITEL}</p>
       <dl class="tg-dl tg-dl--light">{facts_dl}</dl>
-      <div class="tg-sov__duties">{paras(*SOUVERAEN_TEXT[1:])}</div>
       <div class="tg-actions">{btn(u("der-souveraen/"), "Zum Souverän", "light")}</div>
     </div>
   </div>
 </section>"""
 
-    body = hero + facts_band() + discover + map_section() + structure_section() + institutions + sovereign + \
-        documents_section() + join_section()
+    body = hero + wegweiser_section() + facts_band("") + discover + map_section("02") + structure_section("03") + \
+        institutions + sovereign + documents_section("06") + join_section("07")
     jsonld = {"@context": "https://schema.org", "@type": "Organization", "name": "Imperium Germanicum – Das Rollenspiel",
               "url": SITE_URL + "/", "email": EMAIL}
     render("", "Hauptseite",
@@ -804,26 +815,34 @@ def page_home():
 def page_imperium():
     Ctx.prefix = "../"
     body = page_head([("das-imperium/", "Das Imperium")], "Das Imperium", "Ein fiktiver Staatenbund in Europa",
-                     INTRO_LEAD, aside=img("idbbec25dc54e06be", "Großes Wappen des Imperium Germanicum", "(min-width: 900px) 320px, 60vw", eager=True)) + f"""
-<section class="tg-section">
-  <div class="wrap tg-cols">
-    <div class="tg-cols__label">{kicker("01", "Das Reich")}</div>
+                     INTRO_LEAD, aside=img("idbbec25dc54e06be", "Großes Wappen des Imperium Germanicum", "(min-width: 900px) 260px, 40vw", eager=True)) + \
+        onpage([("reich", "Das Reich"), ("karte", "Reichskarte"), ("gebiet", "Hoheitsgebiet"), ("kronen-titel", "Die Kronen")]) + f"""
+<section class="tg-section" id="reich">
+  <div class="wrap tg-withbox">
     <div class="tg-prose" data-reveal>
+      {kicker("01", "Das Reich")}
       <h2 class="tg-h2">Das Resultat dieser Entwicklung ist das Imperium Germanicum.</h2>
       {paras(*REICH_TEXT)}
     </div>
+    {glance(REICH_GLANCE)}
   </div>
 </section>
-{facts_band("02")}
-{map_section("03", full=True)}
-<section class="tg-section">
-  <div class="wrap tg-cols">
-    <div class="tg-cols__label">{kicker("04", "Mittel- und Südeuropa")}</div>
+{map_section("02", full=True)}
+<section class="tg-section" id="gebiet">
+  <div class="wrap tg-withbox">
     <div class="tg-prose" data-reveal>
+      {kicker("03", "Mittel- und Südeuropa")}
       <h2 class="tg-h2">Hoheitsgebiet des Imperium Germanicum</h2>
       {paras(*GEBIET_TEXT)}
-      <div class="tg-actions">{btn(u("informationen/"), "Zum Staatsaufbau")}{btn(u("informationen/imperiale-charta/"), "Die Imperiale Charta", "ghost")}</div>
     </div>
+    <aside class="tg-glance">
+      <p class="tg-label">Weiterlesen</p>
+      <ul class="tg-glance__links">
+        <li>{more(u("informationen/"), "Der Staatsaufbau")}</li>
+        <li>{more(u("informationen/imperiale-charta/"), "Die Imperiale Charta")}</li>
+        <li>{more(u("karte/"), "Die vollständige Reichskarte")}</li>
+      </ul>
+    </aside>
   </div>
 </section>
 {crowns_section()}"""
@@ -835,12 +854,13 @@ def page_imperium():
 def page_informationen():
     Ctx.prefix = "../"
     rows = "".join(f"""
-<li data-reveal><a class="tg-index__row" href="{u(p)}">
-  <span class="tg-index__num">{i:02d}</span>{seal(emb, "56px", "tg-index__seal")}
+<li><a class="tg-index__row" href="{u(p)}">
+  {seal(emb, "48px", "tg-index__seal")}
   <span class="tg-index__title">{esc(t)}</span><span class="tg-index__desc">{esc(d)}</span><span class="tg-index__go">{ARROW}</span>
-</a></li>""" for i, (p, _s, t, d, emb) in enumerate(INSTITUTIONEN, 1))
+</a></li>""" for p, _s, t, d, emb in INSTITUTIONEN)
     body = page_head([("informationen/", "Staatsaufbau")], "Staatsaufbau", "Die Verfassung und Institutionen",
                      "Das Imperium Germanicum verfügt über eine eigene Verfassung, die sogenannte „Imperiale Charta“, über einen Etiketten-Guide und viele staatliche Institutionen.") + \
+        onpage([("staatsaufbau", "Die Ordnung des Reiches"), ("institutionen", "Alle Institutionen")]) + \
         structure_section("01") + f"""
 <section class="tg-section tg-section--line" id="institutionen" aria-labelledby="alle-titel">
   <div class="wrap">
@@ -849,7 +869,7 @@ def page_informationen():
       <h2 id="alle-titel" class="tg-h2">Alle Institutionen</h2>
       <p class="tg-sechead__lead">Hier erhältst du einen Überblick und Informationen über alle staatlichen Institutionen die im Auftrag seiner Majestät tätig sind.</p>
     </div>
-    <ul class="tg-index">{rows}</ul>
+    <ul class="tg-index tg-index--grid">{rows}</ul>
   </div>
 </section>"""
     render("informationen/", "Staatsaufbau",
@@ -879,7 +899,7 @@ def page_souveraen():
     {breadcrumb([("der-souveraen/", "Der Souverän")])}
     <div class="tg-sov__grid">
       <figure class="tg-sov__portrait">
-        {S.zoom_link("iceaef15058c1dbef", photo("iceaef15058c1dbef", "Seine Majestät Alexander IX.", "(min-width: 900px) 40vw, 100vw", eager=True), "Seine Majestät Alexander IX.", "kaiser", cls="tg-zoom")}
+        {S.zoom_link("iceaef15058c1dbef", photo("iceaef15058c1dbef", "Seine Majestät Alexander IX.", "(min-width: 900px) 34vw, 100vw", eager=True), "Seine Majestät Alexander IX.", "kaiser", cls="tg-zoom")}
       </figure>
       <div class="tg-sov__text">
         {kicker("", "Staatsoberhaupt des Imperium Germanicum")}
@@ -890,48 +910,43 @@ def page_souveraen():
     </div>
   </div>
 </header>
+{onpage([("amt", "Das Amt"), ("lebenslauf", "Lebenslauf"), ("ex-officio", "Ex Officio"), ("sitz", "Arbeitssitz und Residenz"), ("kronen-titel", "Die Kronen")])}
 <section class="tg-section">
-  <div class="wrap tg-cols">
-    <div class="tg-cols__label">{kicker("01", "Das Amt")}</div>
-    <div class="tg-prose" data-reveal>
-      <h2 class="tg-h2">Der Souverän</h2>
+  <div class="wrap tg-pair tg-pair--text">
+    <div class="tg-prose" id="amt" data-reveal>
+      {kicker("01", "Das Amt")}
+      <h2 class="tg-h3">Der Souverän</h2>
       {paras(*SOUVERAEN_TEXT)}
     </div>
-  </div>
-</section>
-<section class="tg-section tg-section--stone">
-  <div class="wrap tg-cols">
-    <div class="tg-cols__label">{kicker("02", "Seine Majestät")}</div>
-    <div class="tg-prose" data-reveal>
-      <h2 class="tg-h2">Lebenslauf und Charakter</h2>
+    <div class="tg-prose" id="lebenslauf" data-reveal>
+      {kicker("02", "Seine Majestät")}
+      <h2 class="tg-h3">Lebenslauf und Charakter</h2>
       {paras(*bio)}
     </div>
   </div>
 </section>
-<section class="tg-section">
+<section class="tg-section tg-section--stone" id="ex-officio">
   <div class="wrap tg-twocol">
     <div class="tg-prose" data-reveal>
       {kicker("03", "Ex Officio")}
-      <h2 class="tg-h2">Kaiser, König und Erzherzog</h2>
+      <h2 class="tg-h3">Kaiser, König und Erzherzog</h2>
       {paras(*exo)}
     </div>
-    <div data-reveal>{S.figure("if0978cec8f01efe8", "Standarte von seiner Majestät dem Kaiser", group="kaiser")}</div>
+    <div data-reveal class="tg-twocol__fig">{S.figure("if0978cec8f01efe8", "Standarte von seiner Majestät dem Kaiser", group="kaiser")}</div>
   </div>
 </section>
-<section class="tg-section tg-section--line">
+<section class="tg-section" id="sitz">
   <div class="wrap">
     <div class="tg-sechead">
       {kicker("04", "Arbeitssitz und Residenz")}
-      <h2 class="tg-h2">Groß-Berlin</h2>
+      <h2 class="tg-h3">Groß-Berlin</h2>
       <p class="tg-sechead__lead">Der Arbeitssitz seiner Majestät befindet sich zusammen mit der Senatsverwaltung im Berliner Schloss. Die private Residenz des Souveräns befindet sich jedoch im Schloss Charlottenburg, welches sich ebenfalls in der Reichshauptstadt befindet.</p>
     </div>
-    <div class="tg-pair">
-      <figure>{photo("icb9cbf1ec35c85a0", "Berliner Schloss", "(min-width: 900px) 50vw, 100vw")}<figcaption class="tg-cap"><span>Berliner Schloss – Arbeitssitz</span></figcaption></figure>
-      <figure>{photo("if3da36451cad23de", "Schloss Charlottenburg", "(min-width: 900px) 50vw, 100vw")}<figcaption class="tg-cap"><span>Schloss Charlottenburg – Residenz</span></figcaption></figure>
-    </div>
-    <div class="tg-pair tg-pair--tight">
-      {S.figure("i50101bc1effeb76a", "Seine Majestät Alexander IX. in Uniform", group="kaiser")}
-      {S.figure("i15c0c0ea6780ad72", "Emblem des Kaisers", "Emblem des Kaisers: Schloss Charlottenburg mit dem Schriftzug Der Kaiser", group="kaiser")}
+    <div class="tg-quad">
+      <figure>{photo("icb9cbf1ec35c85a0", "Berliner Schloss", "(min-width: 900px) 25vw, 50vw")}<figcaption class="tg-cap"><span>Berliner Schloss – Arbeitssitz</span></figcaption></figure>
+      <figure>{photo("if3da36451cad23de", "Schloss Charlottenburg", "(min-width: 900px) 25vw, 50vw")}<figcaption class="tg-cap"><span>Schloss Charlottenburg – Residenz</span></figcaption></figure>
+      {S.figure("i50101bc1effeb76a", "Seine Majestät Alexander IX. in Uniform", group="kaiser", sizes="(min-width: 900px) 25vw, 50vw")}
+      {S.figure("i15c0c0ea6780ad72", "Emblem des Kaisers", "Emblem des Kaisers: Schloss Charlottenburg mit dem Schriftzug Der Kaiser", group="kaiser", sizes="(min-width: 900px) 25vw, 50vw")}
     </div>
   </div>
 </section>

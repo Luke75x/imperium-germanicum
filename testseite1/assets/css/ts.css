@@ -905,3 +905,160 @@ body.tg {
   .tg-burger { padding-right: 0; }
 }
 @media (max-width: 360px) { .tg-burger__label { display: none; } }
+
+/* ==========================================================================
+   Verdichtung (2026-11-01, Wunsch Luke: „mehr Struktur, nicht so ausgerollt“)
+   Engere Abstände, kleinere Überschriften, Wegweiser, Sprungleiste, Kurzinfo.
+   ========================================================================== */
+
+:root { --section: clamp(48px, 6vw, 96px); }
+.tg-h2 { font-size: clamp(1.9rem, 3.1vw, 2.75rem); max-width: 24ch; }
+.tg-h3 { font-size: clamp(1.45rem, 2vw, 1.85rem); }
+.tg-display--md { font-size: clamp(2.4rem, 4.4vw, 4rem); }
+.tg-sechead { margin-bottom: clamp(28px, 3.5vw, 48px); }
+.tg-sechead--row { max-width: none; display: flex; justify-content: space-between; align-items: flex-end; gap: var(--s-5); flex-wrap: wrap; }
+.tg-kicker { margin-bottom: var(--s-4); }
+
+/* Einstieg kompakter */
+.tg-hero { padding-top: clamp(28px, 4vw, 56px); }
+.tg-hero__title { font-size: clamp(2.7rem, 5.6vw, 5.4rem); }
+.tg-hero__media { margin-top: clamp(28px, 3.5vw, 48px); }
+.tg-hero__photo { aspect-ratio: 1440 / 460; }
+@media (max-width: 640px) { .tg-hero__photo { aspect-ratio: 16 / 10; } }
+
+/* Wegweiser */
+.tg-guide { padding: var(--section) 0 0; }
+.tg-guide__head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-5); flex-wrap: wrap; margin-bottom: var(--s-5); }
+.tg-guide__head .tg-h3 { margin: 0; }
+.tg-guide__list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--fg); }
+.tg-guide__item { display: grid; grid-template-columns: 48px minmax(0, 1fr) 32px; gap: 16px; align-items: center; height: 100%; padding: 20px 18px 20px 0;
+  border-bottom: 1px solid var(--line); text-decoration: none; color: var(--fg-2) !important; transition: background-color var(--t-fast), padding var(--t) var(--ease); }
+.tg-guide__list li:not(:nth-child(3n + 1)) .tg-guide__item { padding-left: 18px; border-left: 1px solid var(--line); }
+.tg-guide__seal { width: 48px; height: 48px; border-radius: 50%; }
+.tg-guide__body { display: grid; gap: 3px; }
+.tg-guide__q { font: 500 1.3rem/1.2 var(--serif); color: var(--fg); }
+.tg-guide__a { font-size: .875rem; line-height: 1.5; color: var(--fg-muted); }
+.tg-guide__go { color: var(--fg-muted); transition: transform var(--t) var(--ease), color var(--t-fast); }
+.tg-guide__go svg { width: 15px; height: 15px; }
+@media (hover: hover) { .tg-guide__item:hover { background: var(--bg-raised); } .tg-guide__item:hover .tg-guide__go { transform: translateX(4px); color: var(--fg); } }
+@media (max-width: 1000px) {
+  .tg-guide__list { grid-template-columns: 1fr 1fr; }
+  .tg-guide__list li:not(:nth-child(3n + 1)) .tg-guide__item { padding-left: 0; border-left: 0; }
+  .tg-guide__list li:nth-child(2n) .tg-guide__item { padding-left: 18px; border-left: 1px solid var(--line); }
+}
+@media (max-width: 640px) {
+  .tg-guide__list { grid-template-columns: 1fr; }
+  .tg-guide__list li:nth-child(2n) .tg-guide__item { padding-left: 0; border-left: 0; }
+  .tg-guide__item { grid-template-columns: 40px minmax(0, 1fr) 20px; padding: 16px 0; }
+  .tg-guide__seal { width: 40px; height: 40px; }
+  .tg-guide__q { font-size: 1.2rem; }
+}
+
+/* Kennzahlen als schmales Band */
+.tg-facts, .is-home .tg-facts { margin-top: var(--section); padding: clamp(36px, 4vw, 56px) 0; }
+.tg-facts__head { display: none; }
+.tg-facts__list { border-top: 0; }
+.tg-facts__item { padding-top: 0; }
+.tg-facts__num { font-size: clamp(2rem, 3.3vw, 3.2rem); }
+
+/* Das Reich: eine Zeile */
+.tg-discover__row { align-items: center; }
+.tg-discover__row .tg-discover__text { grid-column: 1 / span 6; grid-row: 1; }
+.tg-discover__row .tg-discover__media { grid-column: 8 / -1; grid-row: 1; }
+.tg-discover__media .tg-photo { aspect-ratio: 3 / 2; }
+.tg-discover__text .tg-actions { gap: var(--s-5); margin-top: var(--s-4); }
+@media (max-width: 900px) { .tg-discover__row .tg-discover__text, .tg-discover__row .tg-discover__media { grid-column: 1; grid-row: auto; } }
+
+/* Karte und Staatsaufbau dichter */
+.tg-mapsec__head { margin-bottom: var(--s-6); }
+.tg-map__stage { aspect-ratio: 4 / 3.3; }
+.tg-mapsec.is-full .tg-map__stage { aspect-ratio: 4 / 3.4; }
+.tg-org__tier { padding: var(--s-4) 0 var(--s-5); }
+.tg-org__node { padding: 14px 12px; }
+.tg-org__node img { width: 44px; height: 44px; margin-bottom: 4px; }
+.tg-org__panel-seal { width: 72px; height: 72px; }
+.tg-org__foot { margin-top: var(--s-6); }
+
+/* Institutionen: zweispaltige Liste */
+.tg-index--grid { margin-top: 0; display: grid; grid-template-columns: 1fr 1fr; column-gap: var(--s-7); border-top: 0; }
+.tg-index--grid li { border-top: 1px solid var(--fg); }
+.tg-index--grid li + li + li { border-top: 0; }
+.tg-index--grid .tg-index__row { grid-template-columns: 48px minmax(0, 1fr) 36px; grid-template-rows: auto auto; column-gap: var(--s-4); row-gap: 2px; padding: 16px 0; }
+.tg-index--grid .tg-index__seal { grid-row: span 2; width: 48px; height: 48px; }
+.tg-index--grid .tg-index__title { font-size: 1.3rem; }
+.tg-index--grid .tg-index__desc { grid-column: 2; font-size: .8438rem; line-height: 1.5; }
+.tg-index--grid .tg-index__go { grid-column: 3; grid-row: 1 / span 2; width: 36px; height: 36px; }
+@media (hover: hover) { .tg-index--grid .tg-index__row:hover { padding-inline: 10px; } }
+@media (max-width: 900px) {
+  .tg-index--grid { grid-template-columns: 1fr; }
+  .tg-index--grid li + li { border-top: 0; }
+}
+
+/* Souverän kompakter */
+.tg-sov__portrait { grid-column: 1 / span 4; }
+.tg-sov__portrait .tg-photo { aspect-ratio: 4 / 5; }
+.tg-sov__text { grid-column: 6 / -1; }
+.tg-sov__title { margin: var(--s-4) 0 var(--s-5); font-size: clamp(1.1rem, 1.4vw, 1.25rem); }
+.tg-sovhead { padding-bottom: var(--section); }
+@media (max-width: 900px) { .tg-sov__portrait, .tg-sov__text { grid-column: 1; } .tg-sov__portrait { max-width: 320px; } }
+
+/* Dokumente und Mitmachen dichter */
+.tg-docrow { padding: var(--s-5) 0; }
+.tg-docrow__title { font-size: clamp(1.45rem, 2.1vw, 1.9rem); }
+.tg-join__head .tg-display { font-size: clamp(2.2rem, 4vw, 3.6rem); }
+.tg-steps { margin-top: var(--s-7); }
+.tg-crowns__row { margin-top: var(--s-5); }
+.tg-crowns img { width: min(160px, 60%); }
+
+/* Seitenkopf der Unterseiten kleiner */
+.tg-pagehead { padding: clamp(24px, 3.5vw, 48px) 0 clamp(28px, 4vw, 52px); }
+.tg-crumbs { margin-bottom: var(--s-5); }
+.tg-pagehead__title { font-size: clamp(2.3rem, 4.6vw, 4.2rem); }
+.tg-pagehead__lead { margin-top: var(--s-4); }
+.tg-pagehead.has-aside .tg-pagehead__grid { grid-template-columns: minmax(0, 1fr) 220px; align-items: center; }
+.tg-pagehead__aside img { max-width: 220px; }
+
+/* Sprungleiste „Auf dieser Seite“ */
+.tg-onpage { position: sticky; top: var(--header-h); z-index: 30; background: color-mix(in srgb, var(--bg) 94%, transparent); border-bottom: 1px solid var(--line); }
+@supports (backdrop-filter: blur(1px)) { .tg-onpage { backdrop-filter: blur(10px); } }
+.is-scrolled .tg-onpage { top: 64px; }
+.tg-onpage .wrap { display: flex; align-items: center; gap: var(--s-5); min-height: 52px; }
+.tg-onpage__label { flex: none; font: 500 .6875rem/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--fg-muted); }
+.tg-onpage__links { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.tg-onpage__links::-webkit-scrollbar { display: none; }
+.tg-onpage__links a { flex: none; padding: 16px 12px; font: 450 .875rem/1 var(--sans); color: var(--fg-2) !important; text-decoration: none; box-shadow: inset 0 -2px 0 transparent; transition: box-shadow var(--t-fast), color var(--t-fast); }
+.tg-onpage__links a:hover { color: var(--fg) !important; }
+.tg-onpage__links a.is-active { color: var(--fg) !important; box-shadow: inset 0 -2px 0 var(--accent); }
+.tg-sovhead + .tg-onpage { border-top: 0; }
+@media (max-width: 640px) { .tg-onpage__label { display: none; } .tg-onpage .wrap { padding-inline: 0; } .tg-onpage__links { padding-inline: var(--gutter); } }
+@media (max-width: 1180px) { .is-scrolled .tg-onpage { top: var(--header-h); } }
+html { scroll-padding-top: calc(var(--header-h) + 72px); }
+
+/* Text mit Kurzinfo-Kasten */
+.tg-withbox { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: clamp(32px, 5vw, 80px); align-items: start; }
+.tg-glance { position: sticky; top: calc(var(--header-h) + 76px); background: var(--bg-raised); border: 1px solid var(--line); border-top: 2px solid var(--accent); padding: var(--s-5) var(--s-5) var(--s-4); }
+.tg-glance .tg-label { margin-bottom: var(--s-3); color: var(--fg); }
+.tg-glance .tg-dl { margin: 0; }
+.tg-glance .tg-dl > div { grid-template-columns: 1fr; gap: 2px; padding: 10px 0; }
+.tg-glance .tg-dl > div:last-child { border-bottom: 0; }
+.tg-glance__links { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+@media (max-width: 900px) { .tg-withbox { grid-template-columns: 1fr; } .tg-glance { position: static; } .tg-glance .tg-dl { grid-template-columns: 1fr 1fr; column-gap: var(--s-5); } }
+
+/* Zwei Textspalten, Viererreihe */
+.tg-pair--text { grid-template-columns: 1fr 1fr; gap: clamp(32px, 5vw, 80px); align-items: start; }
+.tg-twocol { grid-template-columns: 1.3fr .7fr; }
+.tg-twocol__fig { max-width: 360px; justify-self: end; width: 100%; }
+.tg-quad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-5); align-items: start; }
+.tg-quad .tg-photo { aspect-ratio: 4 / 3; }
+.tg-quad .figure .frame img { aspect-ratio: 4 / 3; object-fit: cover; }
+.tg-quad .figure.emblem img, .tg-quad .figure:last-child img { object-fit: contain; }
+@media (max-width: 900px) { .tg-pair--text { grid-template-columns: 1fr; } .tg-quad { grid-template-columns: 1fr 1fr; } .tg-twocol__fig { justify-self: start; } }
+:root { --section: clamp(40px, 4.6vw, 72px); }
+.tg-guide__head { display: block; }
+.tg-mapsec__head { align-items: start; }
+.tg-mapsec__head .tg-h2 { align-self: start; }
+.tg-map__panel { min-height: 0; padding: var(--s-5) 0; }
+@media (max-width: 760px) {
+  .tg-pagehead.has-aside .tg-pagehead__grid { grid-template-columns: 1fr; gap: var(--s-4); }
+  .tg-pagehead__aside img { max-width: 96px; }
+}
