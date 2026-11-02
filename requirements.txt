@@ -1,2 +1,4 @@
 aiohttp==3.10.10
 playwright==1.48.0
+pillow==11.0.0
+brotli

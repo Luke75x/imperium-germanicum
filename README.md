@@ -20,13 +20,22 @@ Neu aufgebaut am 02.11.2026, da der frühere „Wiki-Dienst“ nicht gesichert w
   - Jeder gespeicherte Stand ist eine Zeile in `organigramm_versionen` (Autor, Bemerkung, Zeit); der jüngste gilt.
   - Startstand in `organigramme_start.py` (Neuaufbau 02.11.2026; der frühere Stand ist verloren).
   - Datenschutz: `info.json` nennt nur Amtsträger mit Namen; Mitglieder werden nur gezählt.
+- `karte.py`: Reichskarte (`/karte/`, `/en/karte/`, karte.js) auf 1352 NUTS-3-Gebieten mit 19 Teilstaaten.
+  - Anzeige mit Legende und Gebietsfenster (Regent, Einwohner, Fläche, Anteile), Editor `/karte/bearbeiten/` (nur Admins),
+    `daten.json` (Stand), `info.json` (Einwohner, Regenten, eigene Rechte/Anträge), `geo.json`, `karte.png` (Startseite).
+  - Regent = Landesherr mit der Fraktionsrolle des Teilstaats; ohne Fraktionsrolle verwaltet der Kanzler.
+  - Gebietsnamen im Rollenspiel: Regenten beantragen (`POST /karte/antrag`, DM an den Kanzler), der Kanzler entscheidet auf
+    `/karte/antraege/` (DM an den Antragsteller) oder setzt Namen direkt (`POST /karte/gebietsname`).
+  - Versionen in `karte_versionen`, Anträge in `karte_antraege`. Startstand aus der alten Karte rekonstruiert
+    (`werkzeuge/karte_rekonstruktion/LIESMICH.md`), Geodaten von `werkzeuge/karte_bauen.py` (Eurostat/GISCO, © EuroGeographics).
+- `karte_bild.py`: zeichnet `karte.png` mit Pillow (Muster, Legende wie die alte Karte), beim Start und nach jeder Version.
 - `bild.py`: erzeugt `organigramm.png` mit Playwright-Chromium (`.browser/`), beim Start und nach jedem Speichern.
 - Seiten nutzen Kopf/Fußzeile aus `/var/www/imperium/404.html` (`seiten.py`), mit Anmelden/Abmelden in der Kopfleiste.
 
 ## Betrieb
 - Geheimnisse in `/root/.env`: `DISCORD_TOKEN` (Bot) und `DISCORD_CLIENT_SECRET` (OAuth).
 - Dienst: `imperium-dienst.service`, Log mit `journalctl -u imperium-dienst -f`
-- nginx: `location ^~` für `/anmelden/`, `/abmelden/` und die vier Organigramm-Pfade in `/etc/nginx/sites-available/imperium-germanicum.conf`,
+- nginx: `location ^~` für `/anmelden/`, `/abmelden/` und die vier Organigramm-Pfade sowie `/karte/` und `/en/karte/` in `/etc/nginx/sites-available/imperium-germanicum.conf`,
   Proxy-Header in `/etc/nginx/imperium-dienst-proxy.conf`
 - Löschwunsch: `.venv/bin/python konto_loeschen.py <discord-id>`
 - Einrichten: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`,

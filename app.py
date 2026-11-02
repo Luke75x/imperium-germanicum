@@ -1,7 +1,7 @@
 """Imperium-Dienst: dynamischer Teil von imperiumgermanicum.de hinter nginx (127.0.0.1:8090).
 
-Module: anmeldung (Discord-OAuth), organigramme (Staatsaufbau, Reichsverwaltung). Weitere Module
-(Karte, Vorschläge, interne Bereiche) registrieren ihre Routen hier und nutzen anmeldung.konto / anmeldung.angemeldet.
+Module: anmeldung (Discord-OAuth), organigramme (Staatsaufbau, Reichsverwaltung), karte (Reichskarte). Weitere Module
+(Vorschläge, interne Bereiche) registrieren ihre Routen hier und nutzen anmeldung.konto / anmeldung.angemeldet.
 """
 import logging
 
@@ -11,6 +11,7 @@ import anmeldung
 import config
 import db
 import discord_api
+import karte
 import organigramme
 
 
@@ -22,6 +23,7 @@ def erstellen():
     app.on_cleanup.append(dc.stop)
     app.add_routes(anmeldung.routes)
     organigramme.registrieren(app)
+    karte.registrieren(app)
     return app
 
 

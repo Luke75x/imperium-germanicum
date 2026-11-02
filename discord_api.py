@@ -1,4 +1,5 @@
 """Discord: OAuth2 (Code → Nutzer) und Abgleich der Mitgliedschaft auf dem Server per Bot-Token."""
+import logging
 import time
 from urllib.parse import urlencode
 
@@ -104,6 +105,20 @@ class Discord:
             nach = seite[-1]["user"]["id"]
         self._mitglieder = (time.time(), liste)
         return liste
+
+    async def dm(self, nutzer_id, text):
+        """Direktnachricht vom Bot; Fehler (z. B. DMs gesperrt) nur protokollieren."""
+        auth = {"Authorization": "Bot " + self.bot_token}
+        try:
+            async with self.session.post(API + "/users/@me/channels", json={"recipient_id": nutzer_id}, headers=auth) as r:
+                kanal = (await r.json())["id"]
+            async with self.session.post(API + f"/channels/{kanal}/messages", json={"content": text[:1900]}, headers=auth) as r:
+                if r.status >= 400:
+                    raise DiscordFehler(f"HTTP {r.status}")
+            return True
+        except (DiscordFehler, KeyError, aiohttp.ClientError) as e:
+            logging.getLogger("discord").warning("DM an %s fehlgeschlagen: %s", nutzer_id, e)
+            return False
 
     async def konto(self, nutzer):
         """Baut aus Discord-Nutzer + Servermitgliedschaft die Kontodaten (id, name, avatar, rollen, mitglied, admin)."""
