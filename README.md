@@ -15,3 +15,8 @@ Discord-Bot des Imperium Germanicum (discord.py). Wiederhergestellt am 02.11.202
 - Einrichten: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, `apt install poppler-utils`.
 - Dienst: `cp imperium-bot.service /etc/systemd/system/ && systemctl enable --now imperium-bot`
 - Log: `journalctl -u imperium-bot -f`
+
+## Sicherung
+`sicherung/info_kanal_sicherung.json` enthält alle Nachrichten des Informationskanals (Stand 02.11.2026: Willkommen,
+Richtlinien, Rollenspiel, Informationen und Links, Server-Abonnements, Einladung) samt Link-Knöpfen,
+`sicherung/banner/` die Banner-Bilder dazu.

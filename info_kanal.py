@@ -99,7 +99,9 @@ class InfoKanal(commands.Cog):
         neu = 0
         for embed in embeds(inter.guild):
             if embed.title in vorhanden:
-                await vorhanden[embed.title].edit(embed=embed)
+                # Nur das Text-Embed ersetzen, Banner-Embed (ohne Titel) davor bleibt erhalten
+                m = vorhanden[embed.title]
+                await m.edit(embeds=[embed if e.title == embed.title else e for e in m.embeds])
             else:
                 await kanal.send(embed=embed)
                 neu += 1

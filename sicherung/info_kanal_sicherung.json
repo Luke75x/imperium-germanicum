@@ -1,0 +1,327 @@
+[
+ {
+  "id": "1562933066400538667",
+  "timestamp": "2026-10-22T20:58:00.922000+00:00",
+  "content": "",
+  "embeds": [
+   {
+    "type": "rich",
+    "color": 16763937,
+    "image": {
+     "url": "https://cdn.discordapp.com/attachments/1523117025952661597/1564306352841556070/willkommen.png?ex=6aea03d1&is=6ae8b251&hm=7552918f27245f1001300ffe3e431b33b410c08b74d1753db0c139240a8d7b20&",
+     "proxy_url": "https://media.discordapp.net/attachments/1523117025952661597/1564306352841556070/willkommen.png?ex=6aea03d1&is=6ae8b251&hm=7552918f27245f1001300ffe3e431b33b410c08b74d1753db0c139240a8d7b20&",
+     "width": 1200,
+     "height": 300,
+     "content_type": "image/png",
+     "placeholder": "ivcFCoC/axJ2eAhkroXgewg=",
+     "placeholder_version": 1
+    },
+    "content_scan_version": 4
+   },
+   {
+    "type": "rich",
+    "title": "Herzlich willkommen im Imperium Germanicum",
+    "description": "Ein herzliches Willkommen im interaktiven Live-Action-Rollenspiel „Imperium Germanicum“.\n\nNutze die Zeit, um dich in Ruhe auf dem Server umzuschauen und dich allen Mitspielern vorzustellen.\n\nBevor du dir alles anschaust, nimm dir bitte die Zeit, die Richtlinien des Servers zu lesen und sie künftig auch umzusetzen.\n\nWir freuen uns, dass du da bist, und sind gespannt, wie du ein Teil der Geschichte wirst.",
+    "color": 16763937,
+    "author": {
+     "name": "Imperium Germanicum",
+     "icon_url": "https://imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp",
+     "proxy_icon_url": "https://images-ext-1.discordapp.net/external/s3_WdoqENr5KToYWdDUTSG6iTjb9eHn6mVwUBh2wv7k/https/imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp"
+    },
+    "footer": {
+     "text": "Das Imperium Germanicum",
+     "icon_url": "https://imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp",
+     "proxy_icon_url": "https://images-ext-1.discordapp.net/external/s3_WdoqENr5KToYWdDUTSG6iTjb9eHn6mVwUBh2wv7k/https/imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp"
+    },
+    "content_scan_version": 4
+   }
+  ],
+  "attachments": [],
+  "components": []
+ },
+ {
+  "id": "1562933072607973378",
+  "timestamp": "2026-10-22T20:58:02.402000+00:00",
+  "content": "",
+  "embeds": [
+   {
+    "type": "rich",
+    "color": 16763937,
+    "image": {
+     "url": "https://cdn.discordapp.com/attachments/1523117025952661597/1564306357635780688/regeln.png?ex=6aea03d3&is=6ae8b253&hm=7b2d3e02216cbb7806d20aa159507d393b04b50ba10808b349ce3566c7013cc2&",
+     "proxy_url": "https://media.discordapp.net/attachments/1523117025952661597/1564306357635780688/regeln.png?ex=6aea03d3&is=6ae8b253&hm=7b2d3e02216cbb7806d20aa159507d393b04b50ba10808b349ce3566c7013cc2&",
+     "width": 1200,
+     "height": 300,
+     "content_type": "image/png",
+     "placeholder": "ifcFCoDPaxJ2eAhTroXgewg=",
+     "placeholder_version": 1
+    },
+    "content_scan_version": 4
+   },
+   {
+    "type": "rich",
+    "title": "Richtlinien des Servers",
+    "description": "**1.** Der Server ist Eigentum von Bastian Hüsch und Karl Benjamin Wollnik, jeweils zu Anteilen von 50 %.\n\n**2.** Neue Mitglieder im Rollenspiel haben eine allgemeine Probezeit von 2 Wochen.\n\n**3.** Beleidigungen, Hassrede, Extremismus und Sexismus werden nicht geduldet.\n\n**4.** Unerlaubte Werbung für andere Projekte ist nicht gestattet.\n\n**5.** Spam oder andere Arten von Aufdringlichkeiten werden nicht geduldet.\n\n**6.** Wir bestehen auf einen höflichen und respektvollen Umgang miteinander.\n\n**7.** Zuschauer oder Gastrollen sind von befristeten Probezeiten ausgenommen, für sie gilt immer die Regelung der Probezeit.\n\n**8.** Weitere Regeln können jederzeit hinzugefügt werden.\n\n**9.** Mitspieler, die gegen diese Regeln verstoßen, müssen mit einer Verwarnung oder mit dem Ausschluss aus der Community rechnen.",
+    "color": 16763937,
+    "author": {
+     "name": "Imperium Germanicum",
+     "icon_url": "https://imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp",
+     "proxy_icon_url": "https://images-ext-1.discordapp.net/external/s3_WdoqENr5KToYWdDUTSG6iTjb9eHn6mVwUBh2wv7k/https/imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp"
+    },
+    "footer": {
+     "text": "Das Imperium Germanicum",
+     "icon_url": "https://imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp",
+     "proxy_icon_url": "https://images-ext-1.discordapp.net/external/s3_WdoqENr5KToYWdDUTSG6iTjb9eHn6mVwUBh2wv7k/https/imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp"
+    },
+    "content_scan_version": 4
+   }
+  ],
+  "attachments": [],
+  "components": []
+ },
+ {
+  "id": "1562933075820683417",
+  "timestamp": "2026-10-22T20:58:03.168000+00:00",
+  "content": "",
+  "embeds": [
+   {
+    "type": "rich",
+    "color": 16763937,
+    "image": {
+     "url": "https://cdn.discordapp.com/attachments/1523117025952661597/1564306359573553282/rollenspiel.png?ex=6aea03d3&is=6ae8b253&hm=4f5af9ed71f418102557463dcdcce5a4ff0c96c401aa63f8d74d3793b5d67f90&",
+     "proxy_url": "https://media.discordapp.net/attachments/1523117025952661597/1564306359573553282/rollenspiel.png?ex=6aea03d3&is=6ae8b253&hm=4f5af9ed71f418102557463dcdcce5a4ff0c96c401aa63f8d74d3793b5d67f90&",
+     "width": 1200,
+     "height": 300,
+     "content_type": "image/png",
+     "placeholder": "ivcFCoDPXCOGeAhUroXQewg=",
+     "placeholder_version": 1
+    },
+    "content_scan_version": 4
+   },
+   {
+    "type": "rich",
+    "title": "Zu welchem Zeitpunkt gilt die Rolle?",
+    "description": "Jeder Teilnehmer des Rollenspiels übernimmt eine Rolle. Diese Rolle darf den tatsächlichen Namen der Person oder einen erfundenen Namen tragen; zudem darf sie der realen Persönlichkeit entsprechen oder davon abweichen.\n\nWichtig ist, dass wir auf diesem Server die Rolle grundsätzlich nie vollständig ablegen. Die Rolle bleibt, wenn auch etwas gelockert, immer erhalten, um die Natur des Rollenspiels zu keiner Zeit abzulehnen.\n\nUm die Bereiche zu unterscheiden, gibt es Bereiche, in denen die Rolle etwas gelockert ist, und jene, in denen sie vollkommen gilt.",
+    "color": 16763937,
+    "fields": [
+     {
+      "name": "Bereiche mit gelockerter Rolle",
+      "value": "<#1522994778323816499> · <#1529463245482758214>\n<#1522995853390774363> · <#1537201477045456916> · <#1537200617280503828>\n\nHier sind die Rollen etwas gelockert, aber nie ganz abgelegt, es sei denn, ein geplantes Event schreibt die strenge Rolle vor. Für vollständig rollenfreie Kommunikation sind Gespräche privat zu führen.",
+      "inline": false
+     },
+     {
+      "name": "Was „gelockert“ bedeutet",
+      "value": "Zur Begrüßung und zum Abschied wird klassisch die korrekte Anrede genannt. Im Verlauf des Gesprächs darf zum Du gewechselt und offen über private Themen des echten Lebens gesprochen werden. Die Rangstruktur des Rollenspiels und die Würde, die die jeweiligen Positionen mit sich bringen, sind dabei zu beachten.",
+      "inline": false
+     },
+     {
+      "name": "Wichtig",
+      "value": "**Die Rollen werden nie ganz abgelegt.**",
+      "inline": false
+     }
+    ],
+    "author": {
+     "name": "Management des Rollenspiels",
+     "icon_url": "https://imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp",
+     "proxy_icon_url": "https://images-ext-1.discordapp.net/external/s3_WdoqENr5KToYWdDUTSG6iTjb9eHn6mVwUBh2wv7k/https/imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp"
+    },
+    "footer": {
+     "text": "Das Imperium Germanicum",
+     "icon_url": "https://imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp",
+     "proxy_icon_url": "https://images-ext-1.discordapp.net/external/s3_WdoqENr5KToYWdDUTSG6iTjb9eHn6mVwUBh2wv7k/https/imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp"
+    },
+    "content_scan_version": 4
+   }
+  ],
+  "attachments": [],
+  "components": []
+ },
+ {
+  "id": "1562933081101439032",
+  "timestamp": "2026-10-22T20:58:04.427000+00:00",
+  "content": "",
+  "embeds": [
+   {
+    "type": "rich",
+    "color": 16763937,
+    "image": {
+     "url": "https://cdn.discordapp.com/attachments/1523117025952661597/1564306397334868029/links.png?ex=6aea03dc&is=6ae8b25c&hm=15796ddfe630df71d533fae44813e6cc2a4d80f9f9ac0ae5a67dfc3ec365cba4&",
+     "proxy_url": "https://media.discordapp.net/attachments/1523117025952661597/1564306397334868029/links.png?ex=6aea03dc&is=6ae8b25c&hm=15796ddfe630df71d533fae44813e6cc2a4d80f9f9ac0ae5a67dfc3ec365cba4&",
+     "width": 1200,
+     "height": 300,
+     "content_type": "image/png",
+     "placeholder": "ivcFCoC/bBJ2eAhkroXgewg=",
+     "placeholder_version": 1
+    },
+    "content_scan_version": 4
+   },
+   {
+    "type": "rich",
+    "title": "Informationen und Links",
+    "description": "Alles Wesentliche zum Imperium Germanicum. Bei weiteren Fragen kannst du dich jederzeit an uns wenden.",
+    "color": 16763937,
+    "fields": [
+     {
+      "name": "Amtliche Seiten",
+      "value": "[Offizielle Website](https://imperiumgermanicum.de/)\n[Imperiale Charta](https://imperiumgermanicum.de/informationen/imperiale-charta/)\n[Etiketten-Guide](https://imperiumgermanicum.de/informationen/etiketten-guide/)",
+      "inline": true
+     },
+     {
+      "name": "Soziale Netzwerke",
+      "value": "[YouTube](https://youtube.com/@imperiumgermanicum)\n[Instagram](https://www.instagram.com/das_imperium_germanicum)",
+      "inline": true
+     }
+    ],
+    "author": {
+     "name": "Imperium Germanicum",
+     "icon_url": "https://imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp",
+     "proxy_icon_url": "https://images-ext-1.discordapp.net/external/s3_WdoqENr5KToYWdDUTSG6iTjb9eHn6mVwUBh2wv7k/https/imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp"
+    },
+    "footer": {
+     "text": "Das Imperium Germanicum",
+     "icon_url": "https://imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp",
+     "proxy_icon_url": "https://images-ext-1.discordapp.net/external/s3_WdoqENr5KToYWdDUTSG6iTjb9eHn6mVwUBh2wv7k/https/imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp"
+    },
+    "content_scan_version": 4
+   }
+  ],
+  "attachments": [],
+  "components": [
+   {
+    "type": 1,
+    "id": 1,
+    "components": [
+     {
+      "type": 2,
+      "id": 2,
+      "style": 5,
+      "label": "Website",
+      "url": "https://imperiumgermanicum.de/"
+     },
+     {
+      "type": 2,
+      "id": 3,
+      "style": 5,
+      "label": "Imperiale Charta",
+      "url": "https://imperiumgermanicum.de/informationen/imperiale-charta/"
+     },
+     {
+      "type": 2,
+      "id": 4,
+      "style": 5,
+      "label": "Etiketten-Guide",
+      "url": "https://imperiumgermanicum.de/informationen/etiketten-guide/"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "1562933089443913858",
+  "timestamp": "2026-10-22T20:58:06.416000+00:00",
+  "content": "",
+  "embeds": [
+   {
+    "type": "rich",
+    "color": 16763937,
+    "image": {
+     "url": "https://cdn.discordapp.com/attachments/1523117025952661597/1562933089016217842/schatzkammer.png?ex=6ae9a21e&is=6ae8509e&hm=af51a948e0c53f4558b13d8d407d4b2b926cf55e41f6ddc67814af2e1dc7384f&",
+     "proxy_url": "https://media.discordapp.net/attachments/1523117025952661597/1562933089016217842/schatzkammer.png?ex=6ae9a21e&is=6ae8509e&hm=af51a948e0c53f4558b13d8d407d4b2b926cf55e41f6ddc67814af2e1dc7384f&",
+     "width": 1200,
+     "height": 300,
+     "content_type": "image/png",
+     "placeholder": "ivcFCoC/ayJ2eAdkroXQewg=",
+     "placeholder_version": 1
+    },
+    "content_scan_version": 4
+   },
+   {
+    "type": "rich",
+    "title": "Server-Abonnements",
+    "description": "Das interaktive Rollenspiel Imperium Germanicum freut sich über jede Unterstützung.\n\nZum Erhalt dieses Projektes gibt es die Möglichkeit, gegen finanzielle Unterstützung einen Adelstitel samt Urkunde und Länderei im Rollenspiel zu erhalten.\n\nDie Urkunde wird persönlich von der Senatskanzlei angefertigt, von seiner kaiserlichen und königlichen Hoheit der Hand des Kaisers im Namen seiner Majestät ausgestellt und Ihnen postalisch zugesendet.",
+    "color": 16763937,
+    "author": {
+     "name": "Die Schatzkammer seiner Majestät",
+     "icon_url": "https://imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp",
+     "proxy_icon_url": "https://images-ext-1.discordapp.net/external/s3_WdoqENr5KToYWdDUTSG6iTjb9eHn6mVwUBh2wv7k/https/imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp"
+    },
+    "footer": {
+     "text": "Das Imperium Germanicum",
+     "icon_url": "https://imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp",
+     "proxy_icon_url": "https://images-ext-1.discordapp.net/external/s3_WdoqENr5KToYWdDUTSG6iTjb9eHn6mVwUBh2wv7k/https/imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp"
+    },
+    "content_scan_version": 4
+   }
+  ],
+  "attachments": [],
+  "components": [
+   {
+    "type": 1,
+    "id": 1,
+    "components": [
+     {
+      "type": 2,
+      "id": 2,
+      "style": 5,
+      "label": "Zur Abonnement-Seite",
+      "url": "https://mee6.gg/m/1522685223014371479"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "1562933098176446526",
+  "timestamp": "2026-10-22T20:58:08.498000+00:00",
+  "content": "",
+  "embeds": [
+   {
+    "type": "rich",
+    "color": 16763937,
+    "image": {
+     "url": "https://cdn.discordapp.com/attachments/1523117025952661597/1562933097832386662/einladung.png?ex=6ae9a220&is=6ae850a0&hm=2dd8f11718fe86df41e8f6d79b468e014d970b3ccb5852070f0aeee4d9cc8041&",
+     "proxy_url": "https://media.discordapp.net/attachments/1523117025952661597/1562933097832386662/einladung.png?ex=6ae9a220&is=6ae850a0&hm=2dd8f11718fe86df41e8f6d79b468e014d970b3ccb5852070f0aeee4d9cc8041&",
+     "width": 1200,
+     "height": 300,
+     "content_type": "image/png",
+     "placeholder": "ivcFCoC/bCF2eAhkroXgewg=",
+     "placeholder_version": 1
+    },
+    "content_scan_version": 4
+   },
+   {
+    "type": "rich",
+    "title": "Lade Freunde ins Imperium ein",
+    "description": "Teile diesen dauerhaften Einladungslink mit allen, die Teil der Geschichte werden wollen:\n\n**https://discord.gg/cbD4E7yXJp**",
+    "color": 16763937,
+    "author": {
+     "name": "Imperium Germanicum",
+     "icon_url": "https://imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp",
+     "proxy_icon_url": "https://images-ext-1.discordapp.net/external/s3_WdoqENr5KToYWdDUTSG6iTjb9eHn6mVwUBh2wv7k/https/imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp"
+    },
+    "footer": {
+     "text": "Das Imperium Germanicum",
+     "icon_url": "https://imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp",
+     "proxy_icon_url": "https://images-ext-1.discordapp.net/external/s3_WdoqENr5KToYWdDUTSG6iTjb9eHn6mVwUBh2wv7k/https/imperiumgermanicum.de/assets/img/i92158683d4a0cca4-640.webp"
+    },
+    "content_scan_version": 4
+   }
+  ],
+  "attachments": [],
+  "components": [
+   {
+    "type": 1,
+    "id": 1,
+    "components": [
+     {
+      "type": 2,
+      "id": 2,
+      "style": 5,
+      "label": "Einladungslink öffnen",
+      "url": "https://discord.gg/cbD4E7yXJp"
+     }
+    ]
+   }
+  ]
+ }
+]
