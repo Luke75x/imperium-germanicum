@@ -456,7 +456,7 @@ def seite_html(request, name, modus, konto, csrf, version, rollen):
 
     inhalt = (f'{kopf}<div class="section wiki"><div class="wrap with-aside wiki-cols"><div class="wiki-main">{wurzel}</div>{aside}</div></div>'
               f'{fenster}{dialoge}<script type="application/json" id="{o["cfg"]}">{cfg_json}</script>')
-    v = int(time.time() // 86400)
+    v = int(max(os.path.getmtime(f"{config.WEBSITE_DIR}/assets/{d}") for d in ("css/wiki.css", "js/" + o["js"])))   # neu laden, sobald die Dateien wechseln
     head = (f'<link rel="stylesheet" href="/assets/css/wiki.css?v={v}">\n<script src="/assets/js/{o["js"]}?v={v}" defer></script>')
     if modus == "bearbeiten":
         head += '\n<meta name="robots" content="noindex">'
