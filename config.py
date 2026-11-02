@@ -5,6 +5,7 @@ HIER = os.path.dirname(os.path.abspath(__file__))
 
 SITE_URL = "https://imperiumgermanicum.de"
 WEBROOT = "/var/www/imperium"
+WEBSITE_DIR = "/root/imperium_germanicum"   # Repo der Website (Bilderliste _build/bilder.json)
 DB = os.path.join(HIER, "daten", "dienst.db")
 HOST, PORT = "127.0.0.1", 8090
 

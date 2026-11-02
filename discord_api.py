@@ -26,8 +26,9 @@ class Discord:
         self.bot_token = config.env("DISCORD_TOKEN")
         self.secret = config.env("DISCORD_CLIENT_SECRET")
         self.session = None
-        self._rollen = (0, {})   # (Zeitpunkt, {rollen_id: {name, permissions, position}})
+        self._rollen = (0, [])   # (Zeitpunkt, Rollen wie von Discord)
         self._owner = None
+        self._mitglieder = (0, [])
 
     async def start(self, _app=None):
         self.session = aiohttp.ClientSession(headers={"User-Agent": UA}, timeout=aiohttp.ClientTimeout(total=15))
@@ -55,16 +56,54 @@ class Discord:
                 raise DiscordFehler(f"Nutzerdaten: HTTP {r.status}")
             return await r.json()
 
+    async def _rollen_roh(self):
+        """Rollen des Servers wie von Discord, oberste zuerst (5 Minuten zwischengespeichert)."""
+        zeit, liste = self._rollen
+        if time.time() - zeit > 300 or not liste:
+            liste = sorted(await self._bot(f"/guilds/{config.GUILD_ID}/roles") or [], key=lambda r: -r["position"])
+            self._rollen = (time.time(), liste)
+        return liste
+
     async def server_rollen(self):
-        zeit, rollen = self._rollen
-        if time.time() - zeit > 300 or not rollen:
-            liste = await self._bot(f"/guilds/{config.GUILD_ID}/roles") or []
-            rollen = {r["id"]: {"name": r["name"], "permissions": int(r["permissions"]), "position": r["position"]}
-                      for r in liste}
-            self._rollen = (time.time(), rollen)
+        rollen = {r["id"]: {"name": r["name"], "permissions": int(r["permissions"]), "position": r["position"]}
+                  for r in await self._rollen_roh()}
         if self._owner is None:
             self._owner = (await self._bot(f"/guilds/{config.GUILD_ID}") or {}).get("owner_id")
         return rollen
+
+    async def rollen_liste(self):
+        """Rollen des Servers für Auswahllisten, oberste zuerst; ohne @everyone, Bot-Rollen und Trenner („» ━━━『 … 』━━━ «“)."""
+        return [{"id": r["id"], "name": r["name"]} for r in await self._rollen_roh()
+                if r["id"] != str(config.GUILD_ID) and not r.get("managed") and "━" not in r["name"]]
+
+    async def rollen_der_gruppe(self, gruppe):
+        """IDs der Rollen unter einem Trenner (z. B. „Adelstitel“) bis zum nächsten Trenner."""
+        out, drin = set(), False
+        for r in await self._rollen_roh():
+            if "━" in r["name"]:
+                drin = gruppe in r["name"]
+            elif drin and r["name"] != gruppe:   # die gleichnamige Sammelrolle gehört nicht dazu
+                out.add(r["id"])
+        return out
+
+    async def mitglieder(self):
+        """Alle Mitglieder (id, name, rollen), zwei Minuten zwischengespeichert."""
+        zeit, liste = self._mitglieder
+        if time.time() - zeit < 120:
+            return liste
+        liste, nach = [], "0"
+        while True:
+            seite = await self._bot(f"/guilds/{config.GUILD_ID}/members?limit=1000&after={nach}") or []
+            for m in seite:
+                if m["user"].get("bot"):
+                    continue
+                u = m["user"]
+                liste.append({"id": u["id"], "name": m.get("nick") or u.get("global_name") or u["username"], "rollen": m["roles"]})
+            if len(seite) < 1000:
+                break
+            nach = seite[-1]["user"]["id"]
+        self._mitglieder = (time.time(), liste)
+        return liste
 
     async def konto(self, nutzer):
         """Baut aus Discord-Nutzer + Servermitgliedschaft die Kontodaten (id, name, avatar, rollen, mitglied, admin)."""

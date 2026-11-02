@@ -13,12 +13,21 @@ Neu aufgebaut am 02.11.2026, da der frühere „Wiki-Dienst“ nicht gesichert w
   - Für neue Module: `await anmeldung.konto(request)` bzw. der Dekorator `@anmeldung.angemeldet(prüfung)`
 - Cookies: `ig_sitzung` (30 Tage), `ig_anmeldung` (10 Minuten, Absicherung des Anmeldevorgangs).
   Das entspricht der Datenschutzerklärung der Website.
-- Seiten nutzen Kopf/Fußzeile aus `/var/www/imperium/404.html` (`seiten.py`).
+- `organigramme.py`: Organigramm des Reiches (`/informationen/organigramm/`, staatsaufbau.js) und der Reichsverwaltung
+  (`/informationen/die-reichsbehoerden/organigramm/`, organigramm.js), jeweils auch unter `/en/…`.
+  - `<pfad>`: Anzeige, `<pfad>bearbeiten/`: Editor (nur Server-Admins), `<pfad>info.json`: Amtsträger live aus Discord,
+    `POST <pfad>speichern`: neuer Stand mit Konflikterkennung, `<pfad>organigramm.png`: Bild für die Startseite
+  - Jeder gespeicherte Stand ist eine Zeile in `organigramm_versionen` (Autor, Bemerkung, Zeit); der jüngste gilt.
+  - Startstand in `organigramme_start.py` (Neuaufbau 02.11.2026; der frühere Stand ist verloren).
+  - Datenschutz: `info.json` nennt nur Amtsträger mit Namen; Mitglieder werden nur gezählt.
+- `bild.py`: erzeugt `organigramm.png` mit Playwright-Chromium (`.browser/`), beim Start und nach jedem Speichern.
+- Seiten nutzen Kopf/Fußzeile aus `/var/www/imperium/404.html` (`seiten.py`), mit Anmelden/Abmelden in der Kopfleiste.
 
 ## Betrieb
 - Geheimnisse in `/root/.env`: `DISCORD_TOKEN` (Bot) und `DISCORD_CLIENT_SECRET` (OAuth).
 - Dienst: `imperium-dienst.service`, Log mit `journalctl -u imperium-dienst -f`
-- nginx: `location ^~ /anmelden/` und `/abmelden/` in `/etc/nginx/sites-available/imperium-germanicum.conf`,
+- nginx: `location ^~` für `/anmelden/`, `/abmelden/` und die vier Organigramm-Pfade in `/etc/nginx/sites-available/imperium-germanicum.conf`,
   Proxy-Header in `/etc/nginx/imperium-dienst-proxy.conf`
 - Löschwunsch: `.venv/bin/python konto_loeschen.py <discord-id>`
-- Einrichten: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`
+- Einrichten: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`,
+  danach `PLAYWRIGHT_BROWSERS_PATH=.browser .venv/bin/playwright install --with-deps chromium`
