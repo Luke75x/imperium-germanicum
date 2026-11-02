@@ -1,0 +1,13 @@
+[Unit]
+Description=Imperium-Dienst (dynamischer Teil von imperiumgermanicum.de: Discord-Anmeldung)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/root/imperium-dienst
+ExecStart=/root/imperium-dienst/.venv/bin/python app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
