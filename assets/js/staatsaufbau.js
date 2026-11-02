@@ -1,7 +1,7 @@
 /* Allgemeines Organigramm des Reiches (/informationen/organigramm/): Anzeige und Editor.
    Konfiguration aus #og-cfg (vom Wiki-Dienst, Modul staatsaufbau.py), Amtsträger und Mitgliederzahlen aus info.json (Discord-Rollen, live).
    Organe stehen an festen Positionen (knoten.x/y), Rahmen (Senatskanzlei, Streitkräfte …) werden um ihre Organe gezeichnet,
-   Beziehungen (kanten) als Pfeile in der Farbe ihrer Art; mehrere Pfeile zwischen denselben Organen liegen nebeneinander.
+   Beziehungen (kanten) als weiche Pfeile in der Farbe ihrer Art, jeder mit eigenem Anschlusspunkt an der zugewandten Seite des Organs.
    Anzeige wie die Reichskarte: Zoomen (Mausrad, Knöpfe, Tasten, zwei Finger), Verschieben, Organ bzw. Beziehung unter dem Zeiger,
    Suche nach Organen und Amtsträgern, Legende hebt eine Beziehungsart hervor, Klick auf ein Organ öffnet ein Fenster (Amtsträger,
    Mitglieder, Beschreibung, alle Beziehungen), Herunterladen als Bild (PNG, helle Farben, mit Legende).
@@ -105,32 +105,39 @@
       if (!bb) return null;
       return { r: r, x: bb.x - FRAME, y: bb.y - FRAME, w: bb.w + 2 * FRAME, h: bb.h + FRAME + FRAME_LABEL };
     }).filter(Boolean);
-    // Beziehungen: gerade Pfeile von Rand zu Rand; mehrere zwischen denselben Organen nebeneinander
-    var pairs = {};
+    // Beziehungen: weiche Kurven, die senkrecht aus der Seite des Organs treten, die dem anderen Organ zugewandt ist;
+    // mehrere Pfeile an derselben Seite bekommen eigene Anschlusspunkte (nach Lage des Gegenübers geordnet, damit sie sich nicht kreuzen)
+    var ends = {}, list = [];
     stand.kanten.forEach(function (e) {
-      var key = [e.von, e.nach].sort().join("|");
-      (pairs[key] = pairs[key] || []).push(e);
-    });
-    edges = [];
-    Object.keys(pairs).forEach(function (key) {
-      var list = pairs[key], n = list.length;
-      list.forEach(function (e, i) {
-        var a = core(boxes[e.von]), b = core(boxes[e.nach]);
-        if (!a || !b) return;
-        var ax = a.x + a.w / 2, ay = a.y + a.h / 2, bx = b.x + b.w / 2, by = b.y + b.h / 2;
-        var dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
-        // Versatz immer bezogen auf die sortierte Richtung, damit Hin- und Rückpfeil nicht aufeinanderliegen
-        // mehrere Pfeile zwischen denselben Organen: leicht gebogen und gefächert, damit jeder einzeln erkennbar bleibt
-        var s = key.indexOf(e.von) === 0 ? 1 : -1, off = (i - (n - 1) / 2) * 12;
-        var ox = -dy / len * off * s, oy = dx / len * off * s;
-        var p1 = border(a, ax + ox, ay + oy, dx, dy), p2 = border(b, bx + ox, by + oy, -dx, -dy);
-        var g = { e: e, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
-        if (n > 1 && off) {
-          g.cx = (p1.x + p2.x) / 2 + ox * 1.6; g.cy = (p1.y + p2.y) / 2 + oy * 1.6;
-          g.d = "M" + r1(p1.x) + " " + r1(p1.y) + "Q" + r1(g.cx) + " " + r1(g.cy) + " " + r1(p2.x) + " " + r1(p2.y);
-        } else g.d = "M" + r1(p1.x) + " " + r1(p1.y) + "L" + r1(p2.x) + " " + r1(p2.y);
-        edges.push(g);
+      var a = core(boxes[e.von]), b = core(boxes[e.nach]);
+      if (!a || !b) return;
+      var dx = b.x + b.w / 2 - (a.x + a.w / 2), dy = b.y + b.h / 2 - (a.y + a.h / 2);
+      var vert = Math.abs(dy) / (a.h / 2 + b.h / 2) >= Math.abs(dx) / (a.w / 2 + b.w / 2);
+      var sa = vert ? (dy > 0 ? "s" : "n") : (dx > 0 ? "e" : "w"), sb = vert ? (dy > 0 ? "n" : "s") : (dx > 0 ? "w" : "e");
+      var g = { e: e, a: a, b: b, sa: sa, sb: sb };
+      list.push(g);
+      [[e.von, sa, "a", b], [e.nach, sb, "b", a]].forEach(function (x) {
+        var key = x[0] + "|" + x[1];
+        (ends[key] = ends[key] || []).push({ g: g, end: x[2], other: x[3] });
       });
+    });
+    Object.keys(ends).forEach(function (key) {
+      var side = key.split("|")[1], items = ends[key], n = items.length;
+      var along = function (it) { return side === "n" || side === "s" ? it.other.x + it.other.w / 2 : it.other.y + it.other.h / 2; };
+      items.sort(function (p, q) { return along(p) - along(q) || (p.g.e.id < q.g.e.id ? -1 : 1); });
+      items.forEach(function (it, i) {
+        var r = it.end === "a" ? it.g.a : it.g.b, horiz = side === "n" || side === "s";
+        var span = horiz ? r.w : r.h, sp = Math.min(22, Math.max(8, (span - 16) / n)), off = (i - (n - 1) / 2) * sp;
+        var cx = r.x + r.w / 2, cy = r.y + r.h / 2, pad = 4;
+        it.g[it.end] = horiz ? { x: cx + off, y: side === "n" ? r.y - pad : r.y + r.h + pad, nx: 0, ny: side === "n" ? -1 : 1 }
+          : { x: side === "w" ? r.x - pad : r.x + r.w + pad, y: cy + off, nx: side === "w" ? -1 : 1, ny: 0 };
+      });
+    });
+    edges = list.map(function (g) {
+      var p1 = g.a, p2 = g.b, dist = Math.hypot(p2.x - p1.x, p2.y - p1.y), k = Math.min(150, Math.max(26, dist * 0.38));
+      var h = { e: g.e, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, c1x: p1.x + p1.nx * k, c1y: p1.y + p1.ny * k, c2x: p2.x + p2.nx * k, c2y: p2.y + p2.ny * k };
+      h.d = "M" + r1(h.x1) + " " + r1(h.y1) + "C" + r1(h.c1x) + " " + r1(h.c1y) + " " + r1(h.c2x) + " " + r1(h.c2y) + " " + r1(h.x2) + " " + r1(h.y2);
+      return h;
     });
     var all = bboxOf(stand.knoten.map(function (k) { return k.id; })) || { x: 0, y: 0, w: 1, h: 1 };
     frames.forEach(function (f) {
@@ -142,15 +149,6 @@
   // sichtbarer Kern eines Organs (Siegel und Name), an dessen Rand die Pfeile enden
   function core(b) { return b ? { x: b.x + (b.w - b.cw) / 2, y: b.y - 4, w: b.cw, h: b.h + 4 } : null; }
   function r1(v) { return Math.round(v * 10) / 10; }
-  function border(b, cx, cy, dx, dy) {
-    // Schnittpunkt des Strahls vom (versetzten) Mittelpunkt in Richtung (dx, dy) mit dem Kasten, etwas Abstand
-    var hw = b.w / 2 + 3, hh = b.h / 2 + 3;
-    var mx = b.x + b.w / 2, my = b.y + b.h / 2, ox = cx - mx, oy = cy - my;
-    var tx = dx > 0 ? (hw - ox) / dx : dx < 0 ? (-hw - ox) / dx : Infinity;
-    var ty = dy > 0 ? (hh - oy) / dy : dy < 0 ? (-hh - oy) / dy : Infinity;
-    var t = Math.min(tx, ty);
-    return { x: cx + dx * t, y: cy + dy * t };
-  }
   function bboxOf(ids) {
     var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     ids.forEach(function (id) {
@@ -563,11 +561,11 @@
   }
   function arrow(g, e, art) {
     var col = ART_FARBE[art], head = art === "gliederung" ? 0 : 10;
-    var fx = e.cx != null ? e.cx : e.x1, fy = e.cy != null ? e.cy : e.y1, ang = Math.atan2(e.y2 - fy, e.x2 - fx);
+    var curve = e.c2x != null, fx = curve ? e.c2x : e.x1, fy = curve ? e.c2y : e.y1, ang = Math.atan2(e.y2 - fy, e.x2 - fx);
     var ex = e.x2 - Math.cos(ang) * head * 0.8, ey = e.y2 - Math.sin(ang) * head * 0.8;
     g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 1.8;
     g.beginPath(); g.moveTo(e.x1, e.y1);
-    if (e.cx != null) g.quadraticCurveTo(e.cx, e.cy, ex, ey); else g.lineTo(ex, ey);
+    if (curve) g.bezierCurveTo(e.c1x, e.c1y, e.c2x, e.c2y, ex, ey); else g.lineTo(ex, ey);
     g.stroke();
     if (!head) return;
     g.beginPath(); g.moveTo(e.x2, e.y2);
