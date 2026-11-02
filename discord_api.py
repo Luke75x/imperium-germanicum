@@ -132,7 +132,7 @@ class Discord:
         return {
             "id": nutzer["id"], "name": name, "avatar": nutzer.get("avatar"),
             "rollen": eigene, "mitglied": mitglied is not None,
-            "admin": mitglied is not None and (bool(rechte & ADMINISTRATOR) or nutzer["id"] == self._owner),
+            "admin": mitglied is not None and (bool(rechte & ADMINISTRATOR) or nutzer["id"] in (self._owner, config.KAISER_ID)),
         }
 
     async def konto_neu(self, konto_id):

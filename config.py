@@ -10,6 +10,7 @@ DB = os.path.join(HIER, "daten", "dienst.db")
 HOST, PORT = "127.0.0.1", 8090
 
 GUILD_ID = 1522685223014371479
+KAISER_ID = "463089934765391872"        # Der Kaiser: darf immer bearbeiten (Karte, Organigramme)
 CLIENT_ID = 1560287961189322752          # Anwendung „Imperium Germanicum“ (gleich dem Bot)
 REDIRECT_URI = SITE_URL + "/anmelden/rueckruf"   # so im Developer Portal eingetragen
 
