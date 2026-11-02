@@ -5,9 +5,9 @@ GUILD_ID = 1522685223014371479
 INFO_KANAL = 1523117025952661597
 
 # Reichsgesetzblatt (Discord-Forum) und der Kaiser, der neue Einträge per DM bestätigt.
-# Noch unbekannt – solange None, ist das Modul Gesetzblatt abgeschaltet.
+# Solange einer der Werte None ist, ist das Modul Gesetzblatt abgeschaltet.
 GESETZBLATT_FORUM = 1561866155273228359  # 📜｜reichsgesetzblatt
-KAISER_ID = None
+KAISER_ID = 463089934765391872
 
 # Website-Repo und Deploy (siehe /root/imperium_germanicum/README.md)
 WEBSITE_DIR = "/root/imperium_germanicum"
