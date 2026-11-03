@@ -1,6 +1,6 @@
-"""/newsflash [deckblatt]: öffnet ein Formular (Zeitungsname, Schlagzeile, Verfasser optional, Inhalt) und veröffentlicht die
+"""/newsflash [deckblatt] [artikelbild]: öffnet ein Formular (Zeitungsname, Schlagzeile, Verfasser optional, Inhalt) und veröffentlicht die
 Meldung als Zeitungsartikel im News-Kanal: Zeitungskopf mit Datum (automatisch, deutsche Zeit) und optionalem Deckblatt-Bild,
-darunter der Artikel mit Schlagzeile und Verfasserzeile. Das Bild kommt als Anhang des Befehls (Modals können keine Dateien).
+darunter der Artikel mit Schlagzeile und Verfasserzeile. Die Bilder (Deckblatt, Artikelbild) kommen als Anhänge des Befehls (Modals können keine Dateien).
 
 - Landesherren (und Administratoren) veröffentlichen sofort.
 - Staatsbürger ohne Landesherr-Rolle müssen vorher freigeschaltet werden: Ihre erste Meldung geht als Antrag in den Kanal
@@ -73,7 +73,7 @@ def datenbank():
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, zeitung TEXT NOT NULL, schlagzeile TEXT NOT NULL,
             inhalt TEXT NOT NULL, status TEXT NOT NULL, grund TEXT NOT NULL DEFAULT '', treffer TEXT NOT NULL DEFAULT '',
             zeit INTEGER NOT NULL, nachricht_id INTEGER);""")
-    for spalte in ("verfasser", "bild"):   # später ergänzt
+    for spalte in ("verfasser", "bild", "artikelbild"):   # später ergänzt
         try:
             con.execute(f"ALTER TABLE meldungen ADD COLUMN {spalte} TEXT NOT NULL DEFAULT ''")
         except sqlite3.OperationalError:
@@ -86,14 +86,36 @@ def datum_heute() -> str:
     return f"{TAGE[d.weekday()]}, {d.day}. {MONATE[d.month - 1]} {d.year}"
 
 
-def zeitung_embeds(zeitung, schlagzeile, inhalt, verfasser="", bild=None) -> list[discord.Embed]:
-    """Zeitungsartikel: Kopf (Zeitungsname, Datum, Deckblatt) und Artikel (Schlagzeile, Verfasser, Text)."""
+def zeitung_embeds(zeitung, schlagzeile, inhalt, verfasser="", bild=None, artikelbild=None) -> list[discord.Embed]:
+    """Zeitungsartikel: Kopf (Zeitungsname, Datum, Deckblatt) und Artikel (Schlagzeile, Verfasser, Text, Artikelbild)."""
     kopf = discord.Embed(description=f"# {zeitung}\n*{datum_heute()}*", color=FARBE_NEWS)
     if bild:
         kopf.set_image(url=f"attachment://{bild}")
     artikel = discord.Embed(title=schlagzeile[:256], description=(f"**Von {verfasser}**\n\n" if verfasser else "") + inhalt, color=FARBE_NEWS)
+    if artikelbild:
+        artikel.set_image(url=f"attachment://{artikelbild}")
     artikel.set_footer(text=f"{zeitung} · Newsflash")
     return [kopf, artikel]
+
+
+async def bild_lesen(anhang: discord.Attachment | None):
+    """(Bytes, Dateiendung) des Anhangs oder (None, None)."""
+    if anhang is None:
+        return None, None
+    return await anhang.read(), BILD_TYPEN[(anhang.content_type or "").split(";")[0]]
+
+
+def bild_ungueltig(anhang: discord.Attachment | None) -> bool:
+    return anhang is not None and ((anhang.content_type or "").split(";")[0] not in BILD_TYPEN or anhang.size > BILD_MAX)
+
+
+def bilddateien(deckblatt, artikelbild) -> list[discord.File]:
+    """Anhänge der Nachricht; Eingabe je (Bytes, Endung) oder (None, None)."""
+    return [discord.File(io.BytesIO(b), filename=f"{name}.{e}") for name, (b, e) in (("deckblatt", deckblatt), ("artikelbild", artikelbild)) if b]
+
+
+def bildnamen(deckblatt, artikelbild):
+    return tuple(f"{name}.{e}" if b else None for name, (b, e) in (("deckblatt", deckblatt), ("artikelbild", artikelbild)))
 
 
 def pruef_view(meldung_id: int, freischalten: bool) -> discord.ui.View:
@@ -110,12 +132,12 @@ class NewsflashModal(discord.ui.Modal, title="Newsflash"):
     verfasser = discord.ui.TextInput(label="Verfasser (optional)", required=False, max_length=80)
     inhalt = discord.ui.TextInput(label="Inhalt des Artikels", style=discord.TextStyle.paragraph, min_length=10, max_length=3500)
 
-    def __init__(self, cog: "Newsflash", bild: discord.Attachment | None):
+    def __init__(self, cog: "Newsflash", deckblatt: discord.Attachment | None, artikelbild: discord.Attachment | None):
         super().__init__()
-        self.cog, self.bild = cog, bild
+        self.cog, self.deckblatt, self.artikelbild = cog, deckblatt, artikelbild
 
     async def on_submit(self, inter: discord.Interaction):
-        await self.cog.einreichen(inter, self.zeitung.value, self.schlagzeile.value, self.inhalt.value, self.verfasser.value, self.bild)
+        await self.cog.einreichen(inter, self.zeitung.value, self.schlagzeile.value, self.inhalt.value, self.verfasser.value, self.deckblatt, self.artikelbild)
 
     async def on_error(self, inter: discord.Interaction, error: Exception):
         log.exception("Newsflash fehlgeschlagen", exc_info=error)
@@ -150,8 +172,10 @@ class Newsflash(commands.Cog):
 
     @app_commands.command(name="newsflash", description="Einen Zeitungsartikel veröffentlichen")
     @app_commands.guild_only()
-    @app_commands.describe(deckblatt="Optional: Bild für das Deckblatt (PNG, JPG, WEBP oder GIF, bis 8 MB)")
-    async def newsflash(self, inter: discord.Interaction, deckblatt: discord.Attachment | None = None):
+    @app_commands.describe(deckblatt="Optional: Bild für das Deckblatt (PNG, JPG, WEBP oder GIF, bis 8 MB)",
+                           artikelbild="Optional: Bild zum Artikel (PNG, JPG, WEBP oder GIF, bis 8 MB)")
+    async def newsflash(self, inter: discord.Interaction, deckblatt: discord.Attachment | None = None,
+                        artikelbild: discord.Attachment | None = None):
         """Prüft die Berechtigung und öffnet das Formular (Zeitungsname, Schlagzeile, Verfasser, Inhalt)."""
         rollen = {r.id for r in inter.user.roles}
         if config.LANDESHERR_ROLLE not in rollen and config.STAATSBUERGER_ROLLE not in rollen and not inter.user.guild_permissions.administrator:
@@ -160,10 +184,10 @@ class Newsflash(commands.Cog):
         if not self.freigeschaltet(inter.user) and self.antrag_offen(inter.user):
             await inter.response.send_message("Dein Antrag auf Freischaltung liegt der Leitung schon vor. Bitte warte auf die Entscheidung.", ephemeral=True)
             return
-        if deckblatt is not None and ((deckblatt.content_type or "").split(";")[0] not in BILD_TYPEN or deckblatt.size > BILD_MAX):
-            await inter.response.send_message("Das Deckblatt muss ein Bild sein (PNG, JPG, WEBP oder GIF) und darf höchstens 8 MB groß sein.", ephemeral=True)
+        if bild_ungueltig(deckblatt) or bild_ungueltig(artikelbild):
+            await inter.response.send_message("Deckblatt und Artikelbild müssen Bilder sein (PNG, JPG, WEBP oder GIF) und dürfen höchstens 8 MB groß sein.", ephemeral=True)
             return
-        await inter.response.send_modal(NewsflashModal(self, deckblatt))
+        await inter.response.send_modal(NewsflashModal(self, deckblatt, artikelbild))
 
     def freigeschaltet(self, user: discord.Member) -> bool:
         return (config.LANDESHERR_ROLLE in {r.id for r in user.roles} or user.guild_permissions.administrator
@@ -175,18 +199,17 @@ class Newsflash(commands.Cog):
     async def kanal(self, kanal_id):
         return self.bot.get_channel(kanal_id) or await self.bot.fetch_channel(kanal_id)
 
-    async def veroeffentlichen(self, zeitung, schlagzeile, inhalt, verfasser, bild: bytes | None, endung: str = "png") -> discord.Message:
-        name = f"deckblatt.{endung}" if bild else None
-        dateien = [discord.File(io.BytesIO(bild), filename=name)] if bild else []
+    async def veroeffentlichen(self, zeitung, schlagzeile, inhalt, verfasser, deckblatt=(None, None), artikelbild=(None, None)) -> discord.Message:
         return await (await self.kanal(config.NEWS_KANAL)).send(
-            embeds=zeitung_embeds(zeitung, schlagzeile, inhalt, verfasser, name), files=dateien, allowed_mentions=discord.AllowedMentions.none())
+            embeds=zeitung_embeds(zeitung, schlagzeile, inhalt, verfasser, *bildnamen(deckblatt, artikelbild)),
+            files=bilddateien(deckblatt, artikelbild), allowed_mentions=discord.AllowedMentions.none())
 
     async def einreichen(self, inter: discord.Interaction, zeitung: str, schlagzeile: str, inhalt: str, verfasser: str = "",
-                         deckblatt: discord.Attachment | None = None):
+                         deckblatt_anhang: discord.Attachment | None = None, artikelbild_anhang: discord.Attachment | None = None):
         await inter.response.defer(ephemeral=True)
         zeitung, schlagzeile, inhalt, verfasser = zeitung.strip(), schlagzeile.strip(), inhalt.strip(), verfasser.strip()
         treffer = filter_treffer(zeitung, schlagzeile, inhalt, verfasser)
-        bild, endung = (await deckblatt.read(), BILD_TYPEN[(deckblatt.content_type or "").split(";")[0]]) if deckblatt else (None, "png")
+        deckblatt, artikelbild = await bild_lesen(deckblatt_anhang), await bild_lesen(artikelbild_anhang)
 
         gruende = []
         if not self.freigeschaltet(inter.user):
@@ -198,7 +221,7 @@ class Newsflash(commands.Cog):
             gruende.append("filter")
 
         if not gruende:   # sofort veröffentlichen
-            nachricht = await self.veroeffentlichen(zeitung, schlagzeile, inhalt, verfasser, bild, endung)
+            nachricht = await self.veroeffentlichen(zeitung, schlagzeile, inhalt, verfasser, deckblatt, artikelbild)
             self.db.execute("INSERT INTO meldungen (user_id, zeitung, schlagzeile, inhalt, verfasser, status, zeit, nachricht_id) VALUES (?, ?, ?, ?, ?, 'veroeffentlicht', ?, ?)",
                             (inter.user.id, zeitung, schlagzeile, inhalt, verfasser, int(time.time()), nachricht.id))
             self.db.commit()
@@ -209,13 +232,15 @@ class Newsflash(commands.Cog):
         cur = self.db.execute("INSERT INTO meldungen (user_id, zeitung, schlagzeile, inhalt, verfasser, status, grund, treffer, zeit) VALUES (?, ?, ?, ?, ?, 'offen', ?, ?, ?)",
                               (inter.user.id, zeitung, schlagzeile, inhalt, verfasser, ",".join(gruende), ", ".join(treffer), int(time.time())))
         mid = cur.lastrowid
-        bild_datei = ""
-        if bild:
-            os.makedirs(BILDER, exist_ok=True)
-            bild_datei = f"{mid}.{endung}"
-            with open(os.path.join(BILDER, bild_datei), "wb") as fh:
-                fh.write(bild)
-        self.db.execute("UPDATE meldungen SET bild = ? WHERE id = ?", (bild_datei, mid))
+        dateien = {}
+        for spalte, (daten, endung) in (("bild", deckblatt), ("artikelbild", artikelbild)):
+            dateien[spalte] = ""
+            if daten:
+                os.makedirs(BILDER, exist_ok=True)
+                dateien[spalte] = f"{mid}-{spalte}.{endung}"
+                with open(os.path.join(BILDER, dateien[spalte]), "wb") as fh:
+                    fh.write(daten)
+        self.db.execute("UPDATE meldungen SET bild = ?, artikelbild = ? WHERE id = ?", (dateien["bild"], dateien["artikelbild"], mid))
         self.db.commit()
 
         warum = []
@@ -226,10 +251,9 @@ class Newsflash(commands.Cog):
             warum.append(f"**Filter:** Treffer bei {', '.join(f'„{t}“' for t in treffer)}.")
         pruef = discord.Embed(title=f"Meldung Nr. {mid} zur Prüfung", color=FARBE_PRUEFUNG,
                               description=f"Von {inter.user.mention} ({inter.user.id})\n" + "\n".join(warum) + "\n\nSo würde der Artikel erscheinen (Datum = Tag der Veröffentlichung):")
-        name = f"deckblatt.{endung}" if bild else None
         nachricht = await (await self.kanal(config.NEWSFLASH_PRUEFUNG)).send(
-            embeds=[pruef] + zeitung_embeds(zeitung, schlagzeile, inhalt, verfasser, name),
-            files=[discord.File(io.BytesIO(bild), filename=name)] if bild else [],
+            embeds=[pruef] + zeitung_embeds(zeitung, schlagzeile, inhalt, verfasser, *bildnamen(deckblatt, artikelbild)),
+            files=bilddateien(deckblatt, artikelbild),
             view=pruef_view(mid, "freischaltung" in gruende), allowed_mentions=discord.AllowedMentions.none())
         self.db.execute("UPDATE meldungen SET nachricht_id = ? WHERE id = ?", (nachricht.id, mid))
         self.db.commit()
@@ -258,6 +282,18 @@ class Newsflash(commands.Cog):
             await inter.response.defer()
             await self.entscheiden(inter, int(mid), inter.message, True)
 
+    @staticmethod
+    def gespeichertes_bild(datei: str):
+        """(Bytes, Endung) eines für die Prüfung gespeicherten Bildes oder (None, None)."""
+        if not datei:
+            return None, None
+        try:
+            with open(os.path.join(BILDER, datei), "rb") as fh:
+                return fh.read(), datei.rsplit(".", 1)[-1]
+        except FileNotFoundError:
+            log.warning("Bild %s fehlt", datei)
+            return None, None
+
     async def entscheiden(self, inter: discord.Interaction, mid: int, nachricht: discord.Message, ja: bool, begruendung: str = ""):
         m = self.db.execute("SELECT * FROM meldungen WHERE id = ? AND status = 'offen'", (mid,)).fetchone()
         if not m:
@@ -266,15 +302,8 @@ class Newsflash(commands.Cog):
         embeds = nachricht.embeds
         embed = embeds[0]
         if ja:
-            bild = None
-            if m["bild"]:
-                try:
-                    with open(os.path.join(BILDER, m["bild"]), "rb") as fh:
-                        bild = fh.read()
-                except FileNotFoundError:
-                    log.warning("Deckblatt %s fehlt", m["bild"])
-            veroeffentlicht = await self.veroeffentlichen(m["zeitung"], m["schlagzeile"], m["inhalt"], m["verfasser"], bild,
-                                                          m["bild"].rsplit(".", 1)[-1] if m["bild"] else "png")
+            bilder = [self.gespeichertes_bild(m[spalte]) for spalte in ("bild", "artikelbild")]
+            veroeffentlicht = await self.veroeffentlichen(m["zeitung"], m["schlagzeile"], m["inhalt"], m["verfasser"], *bilder)
             self.db.execute("UPDATE meldungen SET status = 'veroeffentlicht', nachricht_id = ? WHERE id = ?", (veroeffentlicht.id, mid))
             freigeschaltet = "freischaltung" in m["grund"]
             if freigeschaltet:
@@ -296,11 +325,12 @@ class Newsflash(commands.Cog):
             await user.send(text)
         except discord.HTTPException:
             embed.add_field(name="Hinweis", value="Die Direktnachricht an den Verfasser konnte nicht zugestellt werden.", inline=False)
-        if m["bild"]:
-            try:
-                os.remove(os.path.join(BILDER, m["bild"]))
-            except FileNotFoundError:
-                pass
+        for datei in (m["bild"], m["artikelbild"]):
+            if datei:
+                try:
+                    os.remove(os.path.join(BILDER, datei))
+                except FileNotFoundError:
+                    pass
         await nachricht.edit(embeds=[embed] + embeds[1:], view=None)
 
 
