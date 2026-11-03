@@ -22,7 +22,7 @@
   var stand = clone(cfg.stand);
   var saved = clone(cfg.stand);
   var geo, svg, defs, layer, hilite, paths = {}, full, view = { x: 0, y: 0, w: 1 };
-  var raf = 0, kk = null, beschr = null, komp = null, detailTimer = 0, mask, flu, netzEl, schGrob = [], schFein = [], schSeen = null, schSeenF = null, schProv = null, ansicht = null, schInfra = [], schInfraF = [], infraFein = false;
+  var raf = 0, kk = null, beschr = null, komp = null, detailTimer = 0, mask, flu, netzEl, schGrob = [], schFein = [], schSeen = null, schSeenF = null, schProv = null, ansicht = null;
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -223,8 +223,6 @@
       for (var k = 1; k <= 4; k++) flu.querySelectorAll(".fl" + k).forEach(function (e) { e.style.opacity = k === 1 ? 1 : k === 2 ? (zt > 3.8 ? 1 : 0) : k === 3 ? (zt > 5 ? 1 : 0) : (zt > 6 ? 1 : 0); });
     }
     netzEl.style.opacity = zt > 6.5 ? 0 : 0.6;
-    ["L-str", "L-str-f"].forEach(function (c) { svg.querySelector("." + c).style.opacity = Math.max(0, Math.min(0.9, (zt - 5.2) * 0.9)); });
-    ["L-bahn", "L-bahn-f"].forEach(function (c) { svg.querySelector("." + c).style.opacity = Math.max(0, Math.min(0.9, (zt - 5.8) * 1.2)); });
     kk.staat.style.strokeWidth = (zt < 3.5 ? 0.8 : zt < 4.6 ? 1.3 : 1.7) + "px";
     if (flu) flu.style.opacity = zt < 3 ? 0.55 : zt < 4 ? 0.8 : 0.95;
   }
@@ -234,10 +232,9 @@
   function lod(zt) {
     if (zt >= 6.0 && !fein && !feinLaden && cfg.geoFein) {
       feinLaden = true;
-      fetch(cfg.geoFein).then(function (r) { if (!r.ok) throw r; return r.json(); }).then(function (f) { fein = f; feinBauen(); lod(stufe()); })
+      holeJson([cfg.geoFein, cfg.geoFeinAlt], 4).then(function (f) { fein = f; feinBauen(); lod(stufe()); })
         .catch(function () { feinLaden = false; });
     }
-    infraSchalten(zt);
     var an = !!fein && zt >= 6.0;
     if (an !== feinAn) { feinAn = an; feinSchalten(); }
   }
@@ -261,17 +258,7 @@
   }
   function schichtenZeigen() {
     schGrob.forEach(schichtZeigen); schichtZeigen(schSeen);
-    (infraFein ? schInfraF : schInfra).forEach(schichtZeigen);
     if (feinAn) { schFein.forEach(schichtZeigen); schichtZeigen(schSeenF); schichtZeigen(schProv); }
-  }
-  // Verkehrswege: bis Stufe 7,2 die grobe Fassung, danach die feine (dort ist der Ausschnitt klein genug)
-  function infraSchalten(zt) {
-    var f = !!fein && zt >= 7.2;
-    if (f === infraFein && svg.querySelector(".L-str").getAttribute("data-an")) return;
-    infraFein = f;
-    svg.querySelector(".L-str").setAttribute("data-an", "1");
-    ["L-bahn", "L-str"].forEach(function (c) { svg.querySelector("." + c).style.display = f ? "none" : ""; });
-    ["L-bahn-f", "L-str-f"].forEach(function (c) { svg.querySelector("." + c).style.display = f ? "" : "none"; });
   }
   function feinBauen() {
     var w = geo.breite;
@@ -284,7 +271,6 @@
     schFein = [sch("L-land-f", fein.land), sch("L-gren-f", fein.grenzen, "kk-welt")];
     [1, 2, 3, 4].forEach(function (k) { schFein.push(sch("L-fl" + k + "f", fk[k])); });
     schSeenF = sch("L-seen-f", fein.seen);
-    schInfraF = [sch("L-bahn-f", fein.bahn), sch("L-str-f", fein.strassen)];
     schProv = sch("L-prov", fein.provinzen, "kk-prov");
   }
   function feinSchalten() {
@@ -293,7 +279,6 @@
     });
     mask.style.display = feinAn ? "" : "none";
     svg.querySelector(".L-seen").style.display = feinAn ? "none" : "";
-    infraSchalten(stufe());
     if (!feinAn) Object.keys(paths).forEach(function (id) { if (paths[id].getAttribute("data-fein")) { paths[id].setAttribute("d", geo.gebiete[id].d); paths[id].removeAttribute("data-fein"); } });
     redraw();
   }
@@ -313,10 +298,40 @@
   }
 
   // ---------- Aufbau ----------
-  fetch(cfg.geo).then(function (r) { if (!r.ok) throw r; return r.json(); }).then(init).catch(function () {
+  // Laden mit Wiederholungen: abwechselnd die statische Datei (nginx) und die Route des Dienstes, mit Zeitlimit und wachsender Wartezeit
+  function holeJson(urls, versuche) {
+    var n = 0;
+    urls = urls.filter(Boolean);
+    return new Promise(function (ok, fehl) {
+      (function los() {
+        var url = urls[n % urls.length], ctl = window.AbortController ? new AbortController() : null, timer = setTimeout(function () { if (ctl) ctl.abort(); }, 60000);
+        fetch(url, ctl ? { signal: ctl.signal, credentials: "same-origin" } : { credentials: "same-origin" })
+          .then(function (r) { if (!r.ok) throw r; return r.json(); })
+          .then(function (j) { clearTimeout(timer); if (!j || !j.gebiete) throw new Error("unvollständig"); ok(j); })
+          .catch(function () {
+            clearTimeout(timer); n++;
+            if (n >= versuche) { fehl(); return; }
+            var l = surface.querySelector(".karte-laden");
+            if (l && !geo) l.textContent = T.loadingRetry.replace("{n}", n + 1);
+            setTimeout(los, Math.min(6000, 600 * Math.pow(2, n - 1)));
+          });
+      })();
+    });
+  }
+  function kartePruefenUndLaden() {
     var l = surface.querySelector(".karte-laden");
-    if (l) l.textContent = T.loadError;
-  });
+    if (l) l.textContent = T.loading;
+    holeJson([cfg.geo, cfg.geoAlt], 6).then(init).catch(function () {
+      var box = surface.querySelector(".karte-laden") || surface;
+      box.innerHTML = "";
+      var p = document.createElement("p"); p.className = "karte-laden"; p.textContent = T.loadError;
+      var b = document.createElement("button"); b.type = "button"; b.className = "btn btn-navy btn-small"; b.textContent = T.retry;
+      b.addEventListener("click", function () { surface.innerHTML = '<p class="karte-laden"></p>'; kartePruefenUndLaden(); });
+      var img = document.createElement("img"); img.src = cfg.bild; img.alt = ""; img.style.cssText = "max-width:100%;margin-top:12px;opacity:.85";
+      box.appendChild(p); box.appendChild(b); box.appendChild(img);
+    });
+  }
+  kartePruefenUndLaden();
 
   function init(g) {
     geo = g;
@@ -328,7 +343,6 @@
     Object.keys(g.gebiete).forEach(function (k) { html.push('<path data-id="' + k + '" d="' + g.gebiete[k].d + '"/>'); });
     html.push('</g><g class="karte-wasser"><g class="L-seen"></g><g class="L-seen-f" style="display:none"></g></g>');
     html.push('<g class="karte-fluesse">' + [1, 2, 3, 4].map(function (k) { return '<g class="fl' + k + ' L-fl' + k + '"></g><g class="fl' + k + ' L-fl' + k + 'f" style="display:none"></g>'; }).join("") + "</g>");
-    html.push('<g class="karte-infra"><g class="L-bahn"></g><g class="L-bahn-f" style="display:none"></g><g class="L-str"></g><g class="L-str-f" style="display:none"></g></g>');
     html.push('<g class="karte-kanten"><g class="L-prov"></g><path class="kk-kreis"/><path class="kk-land"/><path class="kk-staat"/></g><g class="karte-beschr"></g><g class="karte-markierung"></g></svg>');
     surface.innerHTML = html.join("");
     svg = surface.querySelector("svg");
@@ -342,7 +356,6 @@
     schGrob = [sch("L-land", g.land), sch("L-gren", g.grenzen, "kk-welt")];
     [1, 2, 3, 4].forEach(function (k) { schGrob.push(sch("L-fl" + k, (g.fluesse || {})[k])); });
     schSeen = sch("L-seen", g.seen);
-    schInfra = [sch("L-bahn", g.bahn), sch("L-str", g.strassen)];
     layer.querySelectorAll("path").forEach(function (p) { paths[p.getAttribute("data-id")] = p; });
     buildPatterns();
     paintAll();

@@ -14,9 +14,11 @@
 Regent eines Teilstaats: Landesherr mit der Fraktionsrolle des Teilstaats; Teilstaaten ohne Fraktionsrolle verwaltet der Kanzler.
 Jeder Stand ist eine Zeile in karte_versionen; der jüngste gilt. Startstand: karte_daten/startstand.json (aus der alten Karte).
 """
+import asyncio
 import gzip
 import html
 import json
+import logging
 import os
 import re
 import secrets
@@ -32,6 +34,7 @@ import karte_bild
 from seiten import seite
 
 esc = html.escape
+log = logging.getLogger("karte")
 DATEN = os.path.join(config.HIER, "karte_daten")
 ROLLE_LANDESHERR = "1522701576295415969"
 ROLLE_SOUVERAEN = "1522685953054081054"      # Imperator Rex
@@ -47,7 +50,8 @@ with open(os.path.join(DATEN, "bevoelkerung.json"), encoding="utf-8") as _fh:
     BEV = json.load(_fh)
 
 T = {
-    "de": {"answer": "Antwort", "area": "Fläche", "capital": "Hauptstadt",
+    "de": {"answer": "Antwort", "area": "Fläche", "capital": "Hauptstadt", "loading": "Karte wird geladen …", "loadingRetry": "Karte wird geladen … (Versuch {n})",
+           "retry": "Erneut versuchen",
            "capitalPrompt": "Name der Hauptstadt von „{state}“", "toolCapital": "Hauptstadt",
            "capitalHint": "Hauptstadt: Mit gewähltem Teilstaat auf die Karte klicken setzt dessen Hauptstadt an diese Stelle (der Name kommt vom nächsten Ort oder wird abgefragt).", "changes": "{n} ungespeicherte Änderungen", "chooseState": "Teilstaat wählen",
            "confirmDelete": "Teilstaat „{name}“ löschen? {n} Gebiete werden dann keinem Teilstaat mehr zugeordnet.",
@@ -74,7 +78,8 @@ T = {
            "unassigned": "Kein Teilstaat", "undo": "Rückgängig", "vacant": "unbesetzt (kein Landesherr mit der Rolle „{f}“)",
            "pending": "Dein Antrag vom {d} auf „{n}“ liegt dem Kanzler vor.", "accepted": "Dein Antrag vom {d} auf „{n}“ wurde angenommen.",
            "rejected": "Dein Antrag vom {d} auf „{n}“ wurde abgelehnt."},
-    "en": {"answer": "Answer", "area": "Area", "capital": "Capital",
+    "en": {"answer": "Answer", "area": "Area", "capital": "Capital", "loading": "Loading map …", "loadingRetry": "Loading map … (attempt {n})",
+           "retry": "Try again",
            "capitalPrompt": "Name of the capital of “{state}”", "toolCapital": "Capital",
            "capitalHint": "Capital: with a state selected, click the map to place its capital there (the name comes from the nearest place or is asked for).", "changes": "{n} unsaved changes", "chooseState": "Choose a state",
            "confirmDelete": "Delete the state “{name}”? {n} regions will then no longer belong to any state.",
@@ -238,7 +243,8 @@ def seite_html(request, modus, konto, csrf, version, rollen):
     prefix = "/en" if en else ""
     stand = version["stand"]
     cfg = {"i18n": T[lang], "lang": lang, "modus": modus, "stand": stand, "basis": version["id"], "version": None,
-           "geo": f"/karte/geo.json?v={_geo_version()}", "geoFein": f"/karte/geo_fein.json?v={_geo_version()}", "info": "/karte/info.json", "speichern": "/karte/speichern", "antrag": "/karte/antrag",
+           "geo": _geo_url("geo"), "geoAlt": f"/karte/geo.json?v={_geo_version()}",
+           "geoFein": _geo_url("geo_fein"), "geoFeinAlt": f"/karte/geo_fein.json?v={_geo_version()}", "bild": "/karte/karte.png", "info": "/karte/info.json", "speichern": "/karte/speichern", "antrag": "/karte/antrag",
            "gebietsname": "/karte/gebietsname", "anmelden": "/anmelden/?weiter=" + request.path, "csrf": csrf or "",
            "laender": GEO["laender"]}
     cfg_json = json.dumps(cfg, ensure_ascii=False).replace("</", "<\\/")
@@ -264,8 +270,6 @@ def seite_html(request, modus, konto, csrf, version, rollen):
               f'<input id="karte-suche" type="search" list="karte-gebiete" autocomplete="off" placeholder="{L("Gebiet suchen, z. B. Heidelberg", "Search a region, e.g. Heidelberg")}">'
               f'<datalist id="karte-gebiete"></datalist></form>'
               f'<label class="field-check karte-grenzen"><input type="checkbox" data-grenzen> {L("Gebietsgrenzen", "Region borders")}</label>'
-              f'<label class="field-check karte-grenzen"><input type="checkbox" data-ebene="strassen" checked> {L("Autobahnen", "Motorways")}</label>'
-              f'<label class="field-check karte-grenzen"><input type="checkbox" data-ebene="bahn" checked> {L("Bahnstrecken", "Railways")}</label>'
               f'<label class="field-check karte-grenzen"><input type="checkbox" data-ebene="bauwerke" checked> {L("Gebäude", "Buildings")}</label></div>')
     wurzel = (f'<div class="karte karte-cols" data-karte>{leiste}<div class="karte-buehne">'
               f'<div class="karte-flaeche" tabindex="0" aria-label="{titel}"><p class="karte-laden">{L("Karte wird geladen …", "Loading map …")}</p>'
@@ -273,7 +277,7 @@ def seite_html(request, modus, konto, csrf, version, rollen):
               f'<div class="karte-info" aria-live="polite"></div></div>'
               f'<p class="karte-quelle">{L("Stand", "As of")} {_datum(version["zeit"])}. '
               f'{L("Grenzen: © EuroGeographics (NUTS 2021), Einwohner: Eurostat, Gewässer und Länder: Natural Earth", "Boundaries: © EuroGeographics (NUTS 2021), population: Eurostat, water and countries: Natural Earth")}'
-              f'{(L(", Verkehrswege: © OpenStreetMap-Mitwirkende (ODbL).", ", transport: © OpenStreetMap contributors (ODbL).") if "OpenStreet" in GEO.get("quelle_infra", "") else ".")}</p></div>')
+              f'.</p></div>')
 
     if modus == "bearbeiten":
         rollen_opt = f'<option value="">{L("– keine (verwaltet der Kanzler) –", "– none (administered by the Chancellor) –")}</option>' + "".join(
@@ -356,24 +360,75 @@ def _geo_version():
     return int(max(os.path.getmtime(os.path.join(DATEN, n)) for n in ("geo.json", "geo_fein.json")))
 
 
+STATISCH = "/var/lib/imperium-karte"   # von nginx ausgeliefert (location /karte-daten/), unabhängig vom Dienst
+
+
+def _gz_schreiben(quelle, ziel):
+    """gzip -9 nach ziel (atomar)."""
+    with open(quelle, "rb") as fh, gzip.open(ziel + ".tmp", "wb", compresslevel=9) as out:
+        shutil.copyfileobj(fh, out)
+    os.replace(ziel + ".tmp", ziel)
+
+
 def _vorverdichtet(name):
-    """Geodatei einmal mit gzip -9 vorverdichten (spart Rechenzeit und Übertragung); Pfad der .gz-Datei."""
+    """Pfad der vorverdichteten Geodatei (cache/<name>.gz) oder None, solange sie fehlt oder veraltet ist (dann liefert die Route die Rohdatei,
+    statt im Request 16 MB zu verdichten und den Dienst zu blockieren)."""
     quelle = os.path.join(DATEN, name)
     ziel = os.path.join(DATEN, "cache", name + ".gz")
-    if not os.path.exists(ziel) or os.path.getmtime(ziel) < os.path.getmtime(quelle):
-        os.makedirs(os.path.dirname(ziel), exist_ok=True)
-        with open(quelle, "rb") as fh, gzip.open(ziel + ".tmp", "wb", compresslevel=9) as out:
-            shutil.copyfileobj(fh, out)
-        os.replace(ziel + ".tmp", ziel)
-    return ziel
+    return ziel if os.path.exists(ziel) and os.path.getmtime(ziel) >= os.path.getmtime(quelle) else None
+
+
+def _geo_url(basis):
+    """Adresse der Geodatei: statisch über nginx (mit Version im Namen, unveränderlich), solange die Dateien da sind, sonst über die Route des Dienstes."""
+    name = basis + ".json"
+    v = int(os.path.getmtime(os.path.join(DATEN, name)))
+    if all(os.path.exists(f"{STATISCH}/{basis}-{v}.json{e}") for e in ("", ".gz")):
+        return f"/karte-daten/{basis}-{v}.json"
+    return f"/karte/{name}?v={_geo_version()}"
+
+
+def geo_vorbereiten():
+    """Verdichtet die Geodateien und legt sie versioniert für nginx ab (läuft im Hintergrund, blockiert den Dienst nicht)."""
+    os.makedirs(os.path.join(DATEN, "cache"), exist_ok=True)
+    os.makedirs(STATISCH, mode=0o755, exist_ok=True)
+    os.chmod(STATISCH, 0o755)
+    for name in ("geo.json", "geo_fein.json"):
+        quelle = os.path.join(DATEN, name)
+        basis, v = name[:-5], int(os.path.getmtime(quelle))
+        cache = os.path.join(DATEN, "cache", name + ".gz")
+        if not os.path.exists(cache) or os.path.getmtime(cache) < os.path.getmtime(quelle):
+            _gz_schreiben(quelle, cache)
+        ziel = f"{STATISCH}/{basis}-{v}.json"
+        if not os.path.exists(ziel + ".gz"):
+            shutil.copyfile(cache, ziel + ".gz.tmp")
+            os.replace(ziel + ".gz.tmp", ziel + ".gz")
+        if not os.path.exists(ziel):
+            shutil.copyfile(quelle, ziel + ".tmp")
+            os.replace(ziel + ".tmp", ziel)
+        for f in os.listdir(STATISCH):   # alte Versionen entfernen
+            if re.fullmatch(re.escape(basis) + r"-\d+\.json(\.gz)?", f) and not f.startswith(f"{basis}-{v}.json"):
+                os.remove(os.path.join(STATISCH, f))
+        for e in ("", ".gz"):
+            os.chmod(ziel + e, 0o644)
+        log.info("Geodatei %s (Version %s) bereit", name, v)
+
+
+async def _geo_hintergrund(app):
+    async def lauf():
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, geo_vorbereiten)
+        except Exception:
+            log.exception("Geodateien konnten nicht vorbereitet werden (die Route des Dienstes liefert sie weiter)")
+    app["geo_task"] = asyncio.get_running_loop().create_task(lauf())
 
 
 def _geo_antwort(request, name):
     # Die Adresse trägt die Version (?v=…), deshalb darf der Browser die Datei lange behalten
     kopf = {"Cache-Control": "public, max-age=31536000, immutable", "Vary": "Accept-Encoding", "Content-Type": "application/json"}
-    if "gzip" in request.headers.get("Accept-Encoding", ""):
+    gz = _vorverdichtet(name)
+    if gz and "gzip" in request.headers.get("Accept-Encoding", ""):
         kopf["Content-Encoding"] = "gzip"
-        return web.FileResponse(_vorverdichtet(name), headers=kopf)
+        return web.FileResponse(gz, headers=kopf)
     return web.FileResponse(os.path.join(DATEN, name), headers=kopf)
 
 
@@ -585,6 +640,7 @@ async def _bild_beim_start(app):
 
 def registrieren(app):
     einrichten(app["db"])
+    app.on_startup.append(_geo_hintergrund)
     app.on_startup.append(_bild_beim_start)
     for p in ("", "/en"):
         app.router.add_get(p + "/karte/", anzeige)

@@ -140,11 +140,6 @@ def _details(bild, geo, stand, staaten, a):
         if dd:
             for l in a.linien(dd):
                 d.line(l, fill=f, width=w, joint="curve")
-    for name, farbe, w in (("bahn", (59, 63, 80), 2), ("strassen", (210, 105, 30), 3)):
-        dd = "".join(c[4] for c in geo.get(name, []))
-        if dd:
-            for l in a.linien(dd):
-                d.line(l, fill=farbe, width=w, joint="curve")
     ov = Image.new("RGBA", (B, H), (0, 0, 0, 0))
     od = ImageDraw.Draw(ov)
     for l in a.linien("".join(c[4] for c in geo.get("grenzen", []))):

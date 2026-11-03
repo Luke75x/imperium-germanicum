@@ -1,0 +1,10 @@
+[Unit]
+Description=Reichskarte alle zwei Minuten prüfen
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

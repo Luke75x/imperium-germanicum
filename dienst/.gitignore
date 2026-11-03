@@ -5,3 +5,4 @@ daten/
 .browser/
 karte_daten/cache/
 karte_daten/*.vor-koenigsberg
+karte_daten/*.vor-verkehr

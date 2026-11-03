@@ -2,7 +2,7 @@
     python karte_infra.py <ne-ordner> [<osm-ordner>]
 <osm-ordner> enthält entweder Overpass-Kacheln (mw_*.json, rail_*.json) oder OpenFreeMap-Vektorkacheln (ofm/8_<x>_<y>.pbf, braucht mapbox-vector-tile)
 
-- strassen / bahn: Autobahnen und Hauptstrecken der Bahn als räumliche Blöcke (grob in geo.json, fein in geo_fein.json).
+- (strassen / bahn: Autobahnen und Bahnstrecken wurden am 04.11.2026 von der Karte entfernt, siehe main().)
   Quelle: OpenStreetMap (Overpass-Kacheln mit mw_*.json / rail_*.json) falls vorhanden, sonst Natural Earth (nur Straßen).
 - bauwerke: Gebäude, die auf der Website genannt werden [[Name, x, y, Zeile 2, Rang]] (Koordinaten von Hand, siehe BAUWERKE).
 """
@@ -160,8 +160,10 @@ def main():
         bahn = osm_linien("rail")
     mw, bahn = verbinden(mw), verbinden(bahn)
     print(len(mw), "Straßenzüge,", len(bahn), "Bahnzüge, Quelle:", quelle)
-    kern["strassen"], fein["strassen"] = bloecke(pfade(ausduennen(mw, 5.0, 1.0, 20))), bloecke(pfade(ausduennen(mw, 0.5, 0.3)))
-    kern["bahn"], fein["bahn"] = (bloecke(pfade(ausduennen(bahn, 5.0, 1.0, 20))), bloecke(pfade(ausduennen(bahn, 0.5, 0.3)))) if bahn else ([], [])
+    # Straßen und Bahnstrecken sind seit 04.11.2026 von der Karte entfernt (Wunsch des Nutzers): hier werden nur noch die Bauwerke geschrieben
+    for d in (kern, fein):
+        d.pop("strassen", None)
+        d.pop("bahn", None)
     kern["bauwerke"] = [[n, *xy(lo, la), z, 1] for n, z, lo, la in BAUWERKE]
     kern["quelle_infra"] = quelle
     for name, d in (("geo.json", kern), ("geo_fein.json", fein)):

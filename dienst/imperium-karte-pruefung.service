@@ -1,0 +1,6 @@
+[Unit]
+Description=Prüfung der Reichskarte (lädt sie? sonst Dienst neu starten)
+
+[Service]
+Type=oneshot
+ExecStart=/root/imperium-dienst/werkzeuge/karte_pruefung.sh

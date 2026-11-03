@@ -43,6 +43,13 @@ Neu aufgebaut am 02.11.2026, da der frühere „Wiki-Dienst“ nicht gesichert w
 - Königsberg (04.11.2026): Das Kaliningrader Gebiet ist als Gebiet `RU001` (Name „Kaliningrad“, im Stand „Königsberg“, Land RU) Teil der Karte, weil die NUTS-Daten
   keine Gebiete außerhalb der EU enthalten. Erzeugt von `werkzeuge/karte_gebiet_koenigsberg.py` (braucht shapely; Sicherungen `karte_daten/*.vor-koenigsberg`,
   nicht im Repo). Einwohner 1 029 966 (Volkszählung 2021) statt Eurostat. Bei einem Neubau der Karte mit `karte_welt.py` muss das Skript danach erneut laufen.
+- Zuverlässiges Laden der Karte (04.11.2026): Autobahnen und Bahnstrecken sind von der Karte entfernt (Daten, `karte.js`, Bild, Kontrollkästchen; Sicherungen
+  `karte_daten/*.vor-verkehr`). Die Geodaten liefert nginx versioniert und vorverdichtet unter `/karte-daten/geo-<mtime>.json(.gz)` aus
+  `/var/lib/imperium-karte` (legt der Dienst beim Start im Hintergrund an, alte Versionen werden gelöscht, nginx `location ^~ /karte-daten/` mit `gzip_static`),
+  unabhängig vom Dienst. `karte.js` lädt mit bis zu 6 Versuchen abwechselnd statisch und über `/karte/geo.json` (Zeitlimit 60 s, wachsende Wartezeit), zeigt sonst
+  Hinweis + „Erneut versuchen“ + Kartenbild. Die Route des Dienstes verdichtet nicht mehr im Request (blockierte früher den Dienst). `RestartSec=2`.
+  `werkzeuge/karte_pruefung.sh` mit `imperium-karte-pruefung.service/.timer` prüft die Karte alle 2 Minuten und startet den Dienst nach zwei Fehlern neu; die Units sind im Repo,
+  aber nicht eingerichtet (`cp imperium-karte-pruefung.* /etc/systemd/system/ && systemctl enable --now imperium-karte-pruefung.timer`).
 
 ## Betrieb
 - Geheimnisse in `/root/.env`: `DISCORD_TOKEN` (Bot) und `DISCORD_CLIENT_SECRET` (OAuth).
@@ -64,6 +71,6 @@ Die Karte ist jetzt eine Web-Mercator-Weltkarte (Welt 40000×40000 Einheiten). `
 Kartenstufe in `karte.js` (`stufe()`) entspricht Kachelstufen; Orte/Länder/Meere tragen Natural-Earth-Mindeststufen. Rohdaten werden nicht im Repo gehalten
 (Download siehe Kopf des Skripts). `karte_details.py` ist damit überholt. Regenten: nur höchster Titel; Zusatzämter (ROLLEN_AEMTER) bei Fraktionsrolle.
 
-## Verkehrswege und Bauwerke (03.11.2026)
+## Bauwerke (03.11.2026; Verkehrswege seit 04.11.2026 entfernt)
 `werkzeuge/karte_ofm_holen.py` holt OpenFreeMap-Kacheln (OSM), `werkzeuge/karte_infra.py` schreibt daraus Autobahnen (`strassen`), Hauptstrecken (`bahn`) und die Bauwerke der Website (`bauwerke`, Liste BAUWERKE im Skript) in geo.json/geo_fein.json.
 Reihenfolge nach Neubau der Karte: karte_welt.py → karte_infra.py. Quellenhinweis: © OpenStreetMap-Mitwirkende (ODbL). karte.js: Autobahnen ab Stufe 5,2, Bahn ab 5,8, Bauwerke ab 7,2 (Namen ab 8,6); ab Stufe 7,2 die feine Fassung; Linien mit butt/miter und optimizeSpeed (sonst ruckelt das Verschieben).
