@@ -30,6 +30,9 @@ HAFT_LOG = 1567218532691877989              # Thread „RP-Ereignisse: Haft- und
 NEWSFLASH_PRUEFUNG = 1567221657121067108    # Thread „RP-Ereignisse: Newsflash (Filter- und Staatsbürger)“
 LANDESHERR_ROLLE = 1522701576295415969
 STAATSBUERGER_ROLLE = 1522929940885143683
+# Einstellen/Beförderungen (einstellen.py): Genehmigungs-Thread des Kaisers (ab OF-6) und Log-Thread
+GENEHMIGUNG_KANAL = 1567231337490948158
+PERSONAL_LOG = 1567231628718375044
 TICKET_KANAL = 1523025911493038203          # 🛂｜einwanderungsbehörde, Panel 1565507299345436713
 THREAD_ABGELAUFEN = 1565505112888058019     # Abgelaufene Aufenthaltsvisen (Austritt)
 THREAD_EINBUERGERUNGEN = 1565505189132243026  # Erfolgreiche Einbürgerungen
