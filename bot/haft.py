@@ -141,12 +141,12 @@ class Haft(commands.Cog):
         bis = f" bis <t:{ende}:F>" if ende else " (unbefristet)"
         await inter.followup.send(f"{nutzer.mention} ist in **{name}**{bis}. {len(entfernen)} Rollen wurden entfernt.", ephemeral=True)
 
-    async def entlassen(self, guild: discord.Guild, fall: sqlite3.Row, grund_text: str, farbe: int = 0x2F6B3A):
+    async def entlassen(self, guild: discord.Guild, fall: sqlite3.Row, grund_text: str, farbe: int = 0x2F6B3A, zusatz=()):
         """Beendet einen Haftfall: Haftrolle weg, Rollen zurück (wenn vorgesehen), Log."""
         self.db.execute("DELETE FROM haft WHERE user_id = ?", (fall["user_id"],))
         self.db.commit()
         name, haft_id, _ = ARTEN[fall["art"]]
-        felder = [("Person", f"<@{fall['user_id']}> ({fall['user_id']})"), ("Grund der Haft", fall["grund"])]
+        felder = [("Person", f"<@{fall['user_id']}> ({fall['user_id']})"), ("Grund der Haft", fall["grund"]), *zusatz]
         try:
             member = guild.get_member(fall["user_id"]) or await guild.fetch_member(fall["user_id"])
         except discord.NotFound:
@@ -216,6 +216,23 @@ class Haft(commands.Cog):
     @app_commands.describe(nutzer="Person in KRS-Haft", grund="Grund der KRS-Haft", dauer="z. B. 3d, 12h, 1d12h")
     async def krs_haft(self, inter: discord.Interaction, nutzer: discord.Member, grund: str, dauer: str):
         await self.inhaftieren(inter, "krs-haft", nutzer, grund, dauer, True, None, config.KRS_BEFUGTE_ROLLE)
+
+    @app_commands.command(name="entlassen", description="Eine Person vorzeitig aus der Haft entlassen")
+    @app_commands.guild_only()
+    @app_commands.describe(nutzer="Person in Haft", grund="Optional: Grund der vorzeitigen Entlassung")
+    async def entlassen_befehl(self, inter: discord.Interaction, nutzer: discord.Member, grund: str | None = None):
+        fall = self.db.execute("SELECT * FROM haft WHERE user_id = ?", (nutzer.id,)).fetchone()
+        if not fall:
+            await inter.response.send_message("Diese Person ist nicht in Haft (oder die Haft wurde nicht über den Bot verhängt).", ephemeral=True)
+            return
+        pflicht = config.KRS_BEFUGTE_ROLLE if fall["art"] == "krs-haft" else config.HAFT_BEFUGTE_ROLLE
+        if not (inter.user.guild_permissions.administrator or any(r.id == pflicht for r in inter.user.roles)):
+            await inter.response.send_message("Diese Haft kann nur die zuständige Stelle beenden.", ephemeral=True)
+            return
+        await inter.response.defer(ephemeral=True)
+        zusatz = [("Entlassen durch", inter.user.mention)] + ([("Begründung", grund)] if grund else [])
+        await self.entlassen(inter.guild, fall, "vorzeitig entlassen", zusatz=zusatz)
+        await inter.followup.send(f"{nutzer.mention} wurde aus der Haft entlassen.", ephemeral=True)
 
 
 async def setup(bot):
