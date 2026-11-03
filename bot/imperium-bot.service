@@ -1,0 +1,13 @@
+[Unit]
+Description=Imperium-Bot (Discord, imperiumgermanicum.de)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/root/imperium-bot
+ExecStart=/root/imperium-bot/.venv/bin/python bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
