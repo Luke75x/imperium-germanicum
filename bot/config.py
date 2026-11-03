@@ -19,6 +19,13 @@ NEWS_KANAL = 1522995542047723581            # 📰｜news, dort erscheint die Ge
 # Reichstag: wer /antrag nutzen darf (Reichstag, Abgeordneter, Präsidium, Landesherr), Rest im Imperium-Dienst
 REICHSTAG_ROLLEN = {1522700666856800447, 1528931629819494454, 1522701497413144776, 1522701576295415969}
 SERVERANTRAG_KANAL = 1567217562477928528     # 📄｜anträge (Server- und RP-Leitung): Serverantrag mit Akzeptieren/Abweisen
+# Haft (haft.py): Befugte, Haftrollen, Trenner „Auszeichnungen“ (alles bis einschließlich bleibt bei /haft) und Log-Thread
+HAFT_BEFUGTE_ROLLE = 1522699091279216710    # Reichsgerichtshof: /u-haft und /haft
+KRS_BEFUGTE_ROLLE = 1526343577481904379     # Kaiserliches Reichssicherheitsamt: /krs-haft
+HAFT_ROLLE = 1562930209622069298            # Häftling
+KRS_HAFT_ROLLE = 1564696460258316429        # KRS-Häftling
+HAFT_BEHALTEN_BIS = 1560326270229938196     # » ━━━『 Auszeichnungen 』━━━ «
+HAFT_LOG = 1567218532691877989              # Thread „RP-Ereignisse: Haft- und Untersuchungshaft“
 TICKET_KANAL = 1523025911493038203          # 🛂｜einwanderungsbehörde, Panel 1565507299345436713
 THREAD_ABGELAUFEN = 1565505112888058019     # Abgelaufene Aufenthaltsvisen (Austritt)
 THREAD_EINBUERGERUNGEN = 1565505189132243026  # Erfolgreiche Einbürgerungen

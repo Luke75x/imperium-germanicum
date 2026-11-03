@@ -21,6 +21,10 @@ Discord-Bot des Imperium Germanicum (discord.py). Wiederhergestellt am 02.11.202
 - `serverantrag.py`: `/serverantrag` (jeder Nutzer) → Modal (Ereignis, Beschreibung, betroffene Charaktere, Zeitpunkt) → Embed in
   📄｜anträge 1567217562477928528 mit Knöpfen Akzeptieren/Abweisen (Abweisen mit optionaler Begründung); der Antragsteller bekommt
   zu jeder Entscheidung eine DM. Entscheiden darf, wer den Kanal sehen kann. Persistent, ohne Datenbank (Antragsteller-ID im Footer).
+- `haft.py`: `/u-haft` und `/haft` (Rolle Reichsgerichtshof), `/krs-haft` (Reichssicherheitsamt). Alle Rollen weg + Häftling bzw. KRS-Häftling,
+  nach Ablauf kommen die Rollen zurück (bei `/haft` bleiben die Auszeichnungsrollen bis einschließlich des Trenners, „rollen-nach-haft: Nein“ gibt nichts zurück,
+  Dauer optional = unbefristet). Fälle in `haft.db` (nicht im Repo), Ablauf prüft ein Hintergrundlauf alle 30 s; Haftrolle von Hand entfernen = vorzeitige
+  Entlassung. Log jeder Ausführung und jedes Endes in den Thread `HAFT_LOG`.
 
 ## Betrieb
 - Geheimnisse: `/root/.env` (`DISCORD_TOKEN`, `DISCORD_CLIENT_SECRET`), nicht im Repo.

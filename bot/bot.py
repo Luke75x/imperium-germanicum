@@ -10,7 +10,7 @@ from discord.ext import commands
 
 import config
 
-MODULE = ["info_kanal", "gesetzblatt", "zollamt", "ticket", "audienz", "antrag", "serverantrag"]
+MODULE = ["info_kanal", "gesetzblatt", "zollamt", "ticket", "audienz", "antrag", "serverantrag", "haft"]
 
 log = logging.getLogger("imperium-bot")
 
