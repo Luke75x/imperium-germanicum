@@ -37,6 +37,9 @@ Neu aufgebaut am 02.11.2026, da der frühere „Wiki-Dienst“ nicht gesichert w
   (Konstanten oben im Modul), bearbeiten darf das Präsidium und Admins. Ankündigung im Kanal 📨｜anträge (wird bei Änderungen der
   Tagesordnung bearbeitet), Ergebnisse beim Beenden im Kanal 📁｜beschlüsse. Tabellen `reichstag_*`. Anträge kommen vom Bot-Befehl `/antrag`
   über `POST /intern-api/reichstag/antrag` (Header `X-Bot-Token`, nginx leitet den Pfad nicht weiter).
+- Hauptstädte (04.11.2026): Jeder Teilstaat kann `hauptstadt: {name, x, y}` (Weltkoordinaten) im Stand tragen. Editor: Feld „Hauptstadt“ im Teilstaat-Dialog
+  (Ortsname aus der Liste setzt die Lage, sonst Mitte des größten Teils) und Werkzeug „Hauptstadt“ (Teilstaat wählen, auf die Karte klicken). Anzeige:
+  Stern mit fettem Namen ab Kartenstufe 3,4 (`bs-hs` in wiki.css), Zeile „Hauptstadt“ im Gebietsfenster, Stern auch in `karte.png` (`karte_bild.py`).
 
 ## Betrieb
 - Geheimnisse in `/root/.env`: `DISCORD_TOKEN` (Bot) und `DISCORD_CLIENT_SECRET` (OAuth).

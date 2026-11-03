@@ -189,6 +189,22 @@ def _details(bild, geo, stand, staaten, a):
             d.ellipse([x - r, y - r, x + r, y + r], fill=(201, 164, 58) if rang == 1 else (16, 22, 46), outline=(16, 22, 46) if rang == 1 else (255, 255, 255), width=3)
             halo((x + r * 2, y), n, f, (16, 22, 46), (255, 255, 255), anker="lm", breite=4)
 
+    # Hauptstädte der Teilstaaten: Stern mit fettem Namen (ab der Stufe, auf der Teilstaaten sichtbar sind), vor allen anderen Namen
+    if a.zt >= 3.0:
+        for st in stand["staaten"]:
+            h = st.get("hauptstadt")
+            if not h:
+                continue
+            x, y = a.p(h["x"], h["y"])
+            f = _schrift(quelle, 40, 800)
+            r = 15
+            w = d.textlength(h["name"], font=f)
+            if not frei((x - r, y - 24, x + r * 1.8 + w, y + 24)):
+                continue
+            stern = [(x + math.cos(-math.pi / 2 + i * math.pi / 5) * (r if i % 2 == 0 else r * 0.45),
+                      y + math.sin(-math.pi / 2 + i * math.pi / 5) * (r if i % 2 == 0 else r * 0.45)) for i in range(10)]
+            d.polygon(stern, fill=(255, 216, 74), outline=(16, 22, 46), width=3)
+            halo((x + r * 1.5, y), h["name"], f, (16, 22, 46), (255, 255, 255), anker="lm", breite=5)
     orte(True)
     # Teilstaaten
     for c in _komponenten(geo, stand):

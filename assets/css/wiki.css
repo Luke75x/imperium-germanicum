@@ -291,6 +291,8 @@
 .bs-ort.r1 { font-weight: 700; }
 .bs-punkt { fill: #10162e; stroke: #fff; stroke-width: 1px; vector-effect: non-scaling-stroke; }
 .bs-punkt.r1 { fill: #c9a43a; stroke: #10162e; }
+.bs-hs { fill: #ffd84a; stroke: #10162e; stroke-linejoin: round; }
+.bs-hs-name { font-weight: 800; }
 :root[data-theme="dark"] .bs-land { fill: #9aa0ad; }
 .karte-cols .mit-grenzen .karte-gebiete path { stroke: var(--karte-linie) !important; stroke-width: .6px; }
 .karte.is-fokus .karte-gebiete path:not(.is-fokus) { opacity: .22; }

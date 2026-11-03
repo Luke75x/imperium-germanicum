@@ -47,7 +47,9 @@ with open(os.path.join(DATEN, "bevoelkerung.json"), encoding="utf-8") as _fh:
     BEV = json.load(_fh)
 
 T = {
-    "de": {"answer": "Antwort", "area": "Fläche", "changes": "{n} ungespeicherte Änderungen", "chooseState": "Teilstaat wählen",
+    "de": {"answer": "Antwort", "area": "Fläche", "capital": "Hauptstadt",
+           "capitalPrompt": "Name der Hauptstadt von „{state}“", "toolCapital": "Hauptstadt",
+           "capitalHint": "Hauptstadt: Mit gewähltem Teilstaat auf die Karte klicken setzt dessen Hauptstadt an diese Stelle (der Name kommt vom nächsten Ort oder wird abgefragt).", "changes": "{n} ungespeicherte Änderungen", "chooseState": "Teilstaat wählen",
            "confirmDelete": "Teilstaat „{name}“ löschen? {n} Gebiete werden dann keinem Teilstaat mehr zugeordnet.",
            "conflict": "Inzwischen hat {name} einen neueren Stand gespeichert. Bitte lade die Seite neu und übernimm deine Änderungen erneut.",
            "countryPick": "– Land wählen –", "density": "Bevölkerungsdichte", "edit": "Bearbeiten", "editState": "Teilstaat bearbeiten",
@@ -72,7 +74,9 @@ T = {
            "unassigned": "Kein Teilstaat", "undo": "Rückgängig", "vacant": "unbesetzt (kein Landesherr mit der Rolle „{f}“)",
            "pending": "Dein Antrag vom {d} auf „{n}“ liegt dem Kanzler vor.", "accepted": "Dein Antrag vom {d} auf „{n}“ wurde angenommen.",
            "rejected": "Dein Antrag vom {d} auf „{n}“ wurde abgelehnt."},
-    "en": {"answer": "Answer", "area": "Area", "changes": "{n} unsaved changes", "chooseState": "Choose a state",
+    "en": {"answer": "Answer", "area": "Area", "capital": "Capital",
+           "capitalPrompt": "Name of the capital of “{state}”", "toolCapital": "Capital",
+           "capitalHint": "Capital: with a state selected, click the map to place its capital there (the name comes from the nearest place or is asked for).", "changes": "{n} unsaved changes", "chooseState": "Choose a state",
            "confirmDelete": "Delete the state “{name}”? {n} regions will then no longer belong to any state.",
            "conflict": "{name} has saved a newer version in the meantime. Please reload the page and apply your changes again.",
            "countryPick": "– choose a country –", "density": "Population density", "edit": "Edit", "editState": "Edit state",
@@ -156,8 +160,18 @@ def pruefen(stand):
         if fr and not re.match(r"^[0-9]{5,22}$", fr):
             raise Ungueltig("Ungültige Fraktionsrolle.")
         ids.add(s["id"]); namen.add(name.lower())
-        staaten.append({"id": s["id"], "name": name, "farbe": s["farbe"].lower(), "muster": s.get("muster") if s.get("muster") in MUSTER else "voll",
-                        "farbe2": s["farbe2"].lower(), "fraktion": fr})
+        eintrag = {"id": s["id"], "name": name, "farbe": s["farbe"].lower(), "muster": s.get("muster") if s.get("muster") in MUSTER else "voll",
+                   "farbe2": s["farbe2"].lower(), "fraktion": fr}
+        h = s.get("hauptstadt")
+        if h:   # Hauptstadt: Name und Lage auf der Karte (Weltkoordinaten)
+            x0, y0, x1, y1 = GEO["welt"]   # Kartenfläche in Weltkoordinaten
+            if not isinstance(h, dict) or not all(isinstance(h.get(k), (int, float)) and not isinstance(h.get(k), bool) for k in ("x", "y")) \
+                    or not (x0 <= h["x"] <= x1 and y0 <= h["y"] <= y1):
+                raise Ungueltig("Ungültige Hauptstadt.")
+            hn = str(h.get("name", "")).strip()[:80]
+            if hn:
+                eintrag["hauptstadt"] = {"name": hn, "x": round(float(h["x"]), 1), "y": round(float(h["y"]), 1)}
+        staaten.append(eintrag)
     gebiete = {}
     for g, sid in (stand.get("gebiete") or {}).items():
         if g not in GEO["gebiete"] or sid not in ids:
@@ -268,8 +282,10 @@ def seite_html(request, modus, konto, csrf, version, rollen):
                  f'<div class="aside-box"><p><strong>{L("Werkzeug", "Tool")}</strong></p><div class="karte-aktionen">'
                  f'<button type="button" class="btn btn-line btn-small" data-werkzeug="malen" aria-pressed="true">{T[lang]["toolPaint"]}</button>'
                  f'<button type="button" class="btn btn-line btn-small" data-werkzeug="pipette" aria-pressed="false">{T[lang]["toolPick"]}</button>'
+                 f'<button type="button" class="btn btn-line btn-small" data-werkzeug="hauptstadt" aria-pressed="false">{T[lang]["toolCapital"]}</button>'
                  f'<button type="button" class="btn btn-line btn-small" data-werkzeug="verschieben" aria-pressed="false">{T[lang]["toolPan"]}</button></div>'
                  f'<p class="karte-feldhinweis">{L("Malen: klicken oder ziehen weist Gebiete dem gewählten Teilstaat zu; mit Umschalt entfernen. Leertaste halten: verschieben.", "Paint: click or drag assigns regions to the selected state; hold Shift to remove. Hold Space to move.")}</p>'
+                 f'<p class="karte-feldhinweis">{T[lang]["capitalHint"]}</p>'
                  f'<div class="karte-verlauf"><button type="button" class="btn btn-line btn-small" data-aktion="undo" disabled>↶ {T[lang]["undo"]}</button>'
                  f'<button type="button" class="btn btn-line btn-small" data-aktion="redo" disabled>↷</button></div></div>'
                  f'<nav class="aside-nav"><h2 class="wiki-aside-h">{L("Teilstaaten", "States")}</h2><ul class="karte-legende karte-staaten" data-staaten></ul></nav>'
@@ -291,6 +307,8 @@ def seite_html(request, modus, konto, csrf, version, rollen):
                    f'<div class="field karte-vorschau-feld"><label>{L("Vorschau", "Preview")}</label><div data-vorschau></div></div></div>'
                    f'<div class="field"><label for="ks-fraktion">{L("Fraktionsrolle (Regent: Landesherr mit dieser Rolle)", "Faction role (ruler: Landesherr with this role)")}</label>'
                    f'<select id="ks-fraktion">{rollen_opt}</select></div>'
+                   f'<div class="field"><label for="ks-hauptstadt">{T[lang]["capital"]}</label><input id="ks-hauptstadt" maxlength="80" list="ks-orte" autocomplete="off">'
+                   f'<datalist id="ks-orte"></datalist><p class="karte-feldhinweis">{L("Ein Ortsname aus der Liste setzt die Hauptstadt an dessen Lage; sonst mit dem Werkzeug „Hauptstadt“ auf der Karte platzieren.", "A place name from the list puts the capital at its location; otherwise place it on the map with the “Capital” tool.")}</p></div>'
                    f'<div class="dialog-actions"><button class="btn btn-navy" value="ok">{L("Übernehmen", "Apply")}</button>'
                    f'<button class="btn btn-line" value="cancel" formnovalidate>{L("Abbrechen", "Cancel")}</button>'
                    f'<button type="button" class="btn btn-line karte-loeschen" data-aktion="loeschen">{L("Löschen", "Delete")}</button></div></form></dialog>')

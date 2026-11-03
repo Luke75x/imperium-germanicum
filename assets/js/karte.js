@@ -150,6 +150,19 @@
       out.push('<circle class="bs-punkt r' + rang + '" cx="' + o[1] + '" cy="' + o[2] + '" r="' + r.toFixed(2) + '"/>' +
         text(o[0], o[1] + r * 1.9, o[2] + px * 0.35 * u, px, "bs-ort r" + rang, ""));
     }
+    // Hauptstädte der Teilstaaten: Stern mit fettem Namen, ab der Stufe der Teilstaaten, vor allen anderen Namen
+    if (zt >= 3.4 && !root.classList.contains("ohne-hauptstaedte")) {
+      stand.staaten.forEach(function (s) {
+        var h = s.hauptstadt;
+        if (!h || !sichtbar(h.x, h.y)) return;
+        var px = 13.5, r = 6.2 * u, w = breite(h.name, px) + r * 3.2, hh = px * 1.3 * u;
+        if (!frei(h.x - r, h.y - hh / 2, w, hh)) return;
+        var pts = [];
+        for (var i = 0; i < 10; i++) { var a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r; pts.push((h.x + Math.cos(a) * rr).toFixed(1) + "," + (h.y + Math.sin(a) * rr).toFixed(1)); }
+        out.push('<polygon class="bs-hs" points="' + pts.join(" ") + '" stroke-width="' + (1.4 * u).toFixed(2) + '"/>' +
+          text(h.name, h.x + r * 1.5, h.y + px * 0.35 * u, px, "bs-ort bs-hs-name", ""));
+      });
+    }
     kand.filter(function (o) { return o[4] === 1; }).forEach(ort);
     // Bauwerke aus der Website (Sitze der Institutionen): ab starker Vergrößerung, vor allen anderen Namen
     if (zt >= 7.2 && !root.classList.contains("ohne-bauwerke")) {
@@ -426,7 +439,7 @@
     return el && el.parentNode === layer ? el.getAttribute("data-id") : null;
   }
   function panMode(e) {
-    return !EDIT || spaceDown || e.button === 1 || tool === "verschieben" || e.pointerType === "touch" && Object.keys(pointers).length > 1;
+    return !EDIT || spaceDown || e.button === 1 || tool === "verschieben" || tool === "hauptstadt" || e.pointerType === "touch" && Object.keys(pointers).length > 1;
   }
 
   function bindView() {
@@ -497,6 +510,7 @@
       pendingTouch = null;
       delete pointers[e.pointerId];
       if (Object.keys(pointers).length < 2) pinch = null;
+      if (drag && !drag.moved && EDIT && tool === "hauptstadt" && e.button === 0 && e.type === "pointerup") hauptstadtSetzen(toMap(e.clientX, e.clientY));
       if (drag && !drag.moved && !EDIT && e.button !== 1) { var hit = regionAt(e); hover(hit); if (hit) openInfo(hit); }  // Klick/Antippen: Angaben zum Gebiet
       if (drag) { drag = null; surface.classList.remove("is-ziehen"); }
       if (moving && !Object.keys(pointers).length) { moving = false; redraw(); }
@@ -640,6 +654,7 @@
     var rows = [];
     if (gname(id) !== g.n) rows.push(row(T.todayName, esc(g.n)));
     if (s) rows.push(row(T.regent, regentHtml(s, infoData.regenten[s.id])));
+    if (s && s.hauptstadt) rows.push(row(T.capital, "<strong>" + esc(s.hauptstadt.name) + "</strong>"));
     rows.push(row(T.population, p ? fmt(p[0]) + " " + esc(T.inhabitants) : esc(T.noData)));
     rows.push(row(T.area, fmt(g.a) + " km²"));
     if (p && g.a) rows.push(row(T.density, fmt(Math.round(p[0] / g.a)) + " " + esc(T.perKm2)));
@@ -836,7 +851,7 @@
   function setTool(t) {
     tool = t;
     side.querySelectorAll("[data-werkzeug]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-werkzeug") === t)); });
-    surface.classList.toggle("is-verschieben", t === "verschieben");
+    surface.classList.toggle("is-verschieben", t === "verschieben" || t === "hauptstadt");
     surface.classList.toggle("is-pipette", t === "pipette");
     updateBar();
   }
@@ -968,11 +983,52 @@
       .catch(function () { say(T.saveError, "err"); updateStatus(); });
   }
 
+  // ---------- Hauptstädte ----------
+  function ortSuchen(name, sid) {
+    // exakter Ortsname (ohne Groß-/Kleinschreibung); bei mehreren Treffern der innerhalb der Gebiete des Teilstaats
+    var low = name.toLowerCase(), treffer = (geo.orte || []).filter(function (o) { return o[0].toLowerCase() === low; });
+    if (treffer.length < 2) return treffer[0] || null;
+    var ids = Object.keys(stand.gebiete).filter(function (k) { return stand.gebiete[k] === sid; });
+    return treffer.filter(function (o) {
+      return ids.some(function (k) { var b = geo.gebiete[k].b; return o[1] >= b[0] && o[1] <= b[2] && o[2] >= b[1] && o[2] <= b[3]; });
+    })[0] || treffer[0];
+  }
+  function hauptstadtSetzenAn(t, name) {
+    name = (name || "").trim();
+    if (!name) { delete t.hauptstadt; return; }
+    if (t.hauptstadt && t.hauptstadt.name === name) return;
+    var o = ortSuchen(name, t.id);
+    if (o) { t.hauptstadt = { name: name, x: o[1], y: o[2] }; return; }
+    if (t.hauptstadt) { t.hauptstadt.name = name; return; }   // nur umbenannt
+    var c = komponenten().filter(function (k) { return k.staat === t.id; })[0];   // sonst Mitte des größten zusammenhängenden Teils
+    if (c) t.hauptstadt = { name: name, x: Math.round(c.x * 10) / 10, y: Math.round(c.y * 10) / 10 };
+  }
+  function hauptstadtSetzen(p) {
+    var s = state(active);
+    if (!s) return;
+    var name = s.hauptstadt ? s.hauptstadt.name : "";
+    if (!name) {
+      var nah = null, bd = 16 * (base || view).w / Math.max(1, surface.clientWidth);
+      (geo.orte || []).forEach(function (o) { var d = Math.hypot(o[1] - p.x, o[2] - p.y); if (d < bd) { bd = d; nah = o; } });
+      name = (window.prompt(T.capitalPrompt.replace("{state}", s.name), nah ? nah[0] : "") || "").trim();
+      if (!name) return;
+    }
+    var step = newStep();
+    step.vorher = clone(stand.staaten);
+    s.hauptstadt = { name: name, x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 };
+    step.nachher = clone(stand.staaten);
+    detailsNeu();
+    commit(step);
+  }
+
   // ---------- Dialog: Teilstaat anlegen / bearbeiten ----------
   var dlg, editing = null;
   function bindDialog() {
     dlg = document.querySelector("[data-dialog]");
-    var f = { name: dlg.querySelector("#ks-name"), farbe: dlg.querySelector("#ks-farbe"), muster: dlg.querySelector("#ks-muster"), farbe2: dlg.querySelector("#ks-farbe2"), fraktion: dlg.querySelector("#ks-fraktion") };
+    var f = { name: dlg.querySelector("#ks-name"), farbe: dlg.querySelector("#ks-farbe"), muster: dlg.querySelector("#ks-muster"), farbe2: dlg.querySelector("#ks-farbe2"), fraktion: dlg.querySelector("#ks-fraktion"), hauptstadt: dlg.querySelector("#ks-hauptstadt") };
+    var namen = {};
+    (geo.orte || []).forEach(function (o) { namen[o[0]] = 1; });
+    dlg.querySelector("#ks-orte").innerHTML = Object.keys(namen).sort(function (a, b) { return a.localeCompare(b, "de"); }).map(function (n) { return '<option value="' + esc(n) + '">'; }).join("");
     function current() { return { id: editing ? editing.id : "neu", name: f.name.value.trim(), farbe: f.farbe.value.toLowerCase(), muster: f.muster.value, farbe2: f.farbe2.value.toLowerCase(), fraktion: f.fraktion.value }; }
     function preview() {
       var s = current();
@@ -989,10 +1045,12 @@
       if (editing) {
         var t = state(editing.id);
         t.name = s.name; t.farbe = s.farbe; t.muster = s.muster; t.farbe2 = s.farbe2; t.fraktion = s.fraktion;
+        hauptstadtSetzenAn(t, f.hauptstadt.value);
       } else {
         var max = stand.staaten.reduce(function (m, x) { return Math.max(m, parseInt(x.id.slice(1), 10) || 0); }, 0);
         s.id = "s" + (max + 1);
         stand.staaten.push(s);
+        hauptstadtSetzenAn(s, f.hauptstadt.value);
         active = s.id;
       }
       step.nachher = clone(stand.staaten);
@@ -1032,6 +1090,7 @@
     f.muster.value = s ? s.muster : "voll";
     f.farbe2.value = s ? s.farbe2 : "#ffffff";
     f.fraktion.value = s ? s.fraktion || "" : "";
+    f.hauptstadt.value = s && s.hauptstadt ? s.hauptstadt.name : "";
     if (f.fraktion.value !== (s ? s.fraktion || "" : "")) f.fraktion.value = "";  // Rolle existiert nicht mehr
     dlg.querySelector("[data-dialog-fehler]").hidden = true;
     dlg.querySelector('[data-aktion="loeschen"]').hidden = !s;
