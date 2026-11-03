@@ -18,6 +18,7 @@ AUDIENZ_KANAL = 1523025487847227402         # 🤴🏼｜Audienzzimmer (Sprachka
 NEWS_KANAL = 1522995542047723581            # 📰｜news, dort erscheint die Generalaudienz
 # Reichstag: wer /antrag nutzen darf (Reichstag, Abgeordneter, Präsidium, Landesherr), Rest im Imperium-Dienst
 REICHSTAG_ROLLEN = {1522700666856800447, 1528931629819494454, 1522701497413144776, 1522701576295415969}
+SERVERANTRAG_KANAL = 1567217562477928528     # 📄｜anträge (Server- und RP-Leitung): Serverantrag mit Akzeptieren/Abweisen
 TICKET_KANAL = 1523025911493038203          # 🛂｜einwanderungsbehörde, Panel 1565507299345436713
 THREAD_ABGELAUFEN = 1565505112888058019     # Abgelaufene Aufenthaltsvisen (Austritt)
 THREAD_EINBUERGERUNGEN = 1565505189132243026  # Erfolgreiche Einbürgerungen

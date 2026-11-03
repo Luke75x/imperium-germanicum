@@ -18,6 +18,9 @@ Discord-Bot des Imperium Germanicum (discord.py). Wiederhergestellt am 02.11.202
   mit Ja/Nein. Ja → Embed „Generalaudienz“ (Bilder in `sicherung/`) in den News-Kanal 1522995542047723581.
 - `antrag.py`: `/antrag` (Reichstags-Rollen) → Modal (Betreff, Antragstext, Begründung) → Imperium-Dienst legt den Antrag an
   (siehe `reichstag.py` im Dienst) und veröffentlicht ihn im Anträge-Kanal.
+- `serverantrag.py`: `/serverantrag` (jeder Nutzer) → Modal (Ereignis, Beschreibung, betroffene Charaktere, Zeitpunkt) → Embed in
+  📄｜anträge 1567217562477928528 mit Knöpfen Akzeptieren/Abweisen (Abweisen mit optionaler Begründung); der Antragsteller bekommt
+  zu jeder Entscheidung eine DM. Entscheiden darf, wer den Kanal sehen kann. Persistent, ohne Datenbank (Antragsteller-ID im Footer).
 
 ## Betrieb
 - Geheimnisse: `/root/.env` (`DISCORD_TOKEN`, `DISCORD_CLIENT_SECRET`), nicht im Repo.
