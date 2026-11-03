@@ -25,7 +25,7 @@ Discord-Bot des Imperium Germanicum (discord.py). Wiederhergestellt am 02.11.202
   nach Ablauf kommen die Rollen zurück (bei `/haft` bleiben die Auszeichnungsrollen bis einschließlich des Trenners, „rollen-nach-haft: Nein“ gibt nichts zurück,
   Dauer optional = unbefristet). Fälle in `haft.db` (nicht im Repo), Ablauf prüft ein Hintergrundlauf alle 30 s; Haftrolle von Hand entfernen = vorzeitige
   Entlassung. Log jeder Ausführung und jedes Endes in den Thread `HAFT_LOG`.
-- `newsflash.py`: `/newsflash zeitungsname schlagzeile inhalt` → Embed in 📰｜news. Landesherren und Admins sofort; Staatsbürger ohne Landesherr müssen
+- `newsflash.py`: `/newsflash` öffnet ein Formular (Zeitungsname, Schlagzeile, Inhalt) → Embed in 📰｜news. Landesherren und Admins sofort; Staatsbürger ohne Landesherr müssen
   einmalig freigeschaltet werden (erste Meldung = Antrag im Prüf-Thread, Knopf „Freischalten und veröffentlichen“); Treffer der Filterliste
   `newsflash_filter.txt` (jederzeit editierbar) gehen vor der Veröffentlichung in den Prüf-Thread. DM an den Verfasser bei jeder Entscheidung.
   Daten in `newsflash.db` (nicht im Repo).

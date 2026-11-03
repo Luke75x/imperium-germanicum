@@ -1,4 +1,4 @@
-"""/newsflash zeitungsname schlagzeile inhalt: Zeitungsmeldung im News-Kanal veröffentlichen.
+"""/newsflash: öffnet ein Formular (Zeitungsname, Schlagzeile, Inhalt) und veröffentlicht die Meldung im News-Kanal.
 
 - Landesherren (und Administratoren) veröffentlichen sofort.
 - Staatsbürger ohne Landesherr-Rolle müssen vorher freigeschaltet werden: Ihre erste Meldung geht als Antrag in den Kanal
@@ -81,6 +81,27 @@ def pruef_view(meldung_id: int, freischalten: bool) -> discord.ui.View:
     return v
 
 
+class NewsflashModal(discord.ui.Modal, title="Newsflash"):
+    zeitung = discord.ui.TextInput(label="Zeitungsname", min_length=2, max_length=80)
+    schlagzeile = discord.ui.TextInput(label="Schlagzeile", min_length=3, max_length=200)
+    inhalt = discord.ui.TextInput(label="Inhalt", style=discord.TextStyle.paragraph, min_length=10, max_length=3500)
+
+    def __init__(self, cog: "Newsflash"):
+        super().__init__()
+        self.cog = cog
+
+    async def on_submit(self, inter: discord.Interaction):
+        await self.cog.einreichen(inter, self.zeitung.value, self.schlagzeile.value, self.inhalt.value)
+
+    async def on_error(self, inter: discord.Interaction, error: Exception):
+        log.exception("Newsflash fehlgeschlagen", exc_info=error)
+        msg = "Die Meldung konnte nicht verarbeitet werden. Bitte versuche es später noch einmal."
+        if inter.response.is_done():
+            await inter.followup.send(msg, ephemeral=True)
+        else:
+            await inter.response.send_message(msg, ephemeral=True)
+
+
 class AblehnenModal(discord.ui.Modal, title="Meldung ablehnen"):
     begruendung = discord.ui.TextInput(label="Begründung (optional)", style=discord.TextStyle.paragraph, required=False, max_length=1000)
 
@@ -105,17 +126,25 @@ class Newsflash(commands.Cog):
 
     @app_commands.command(name="newsflash", description="Eine Zeitungsmeldung veröffentlichen")
     @app_commands.guild_only()
-    @app_commands.describe(zeitungsname="Name deiner Zeitung", schlagzeile="Die Schlagzeile",
-                           inhalt="Der Text der Meldung (\\n für einen Zeilenumbruch)")
-    async def newsflash(self, inter: discord.Interaction, zeitungsname: app_commands.Range[str, 2, 80],
-                        schlagzeile: app_commands.Range[str, 3, 200], inhalt: app_commands.Range[str, 10, 3500]):
+    async def newsflash(self, inter: discord.Interaction):
+        """Prüft die Berechtigung und öffnet das Formular (Zeitungsname, Schlagzeile, Inhalt)."""
         rollen = {r.id for r in inter.user.roles}
-        landesherr = config.LANDESHERR_ROLLE in rollen or inter.user.guild_permissions.administrator
-        freigeschaltet = landesherr or self.db.execute("SELECT 1 FROM freigeschaltet WHERE user_id = ?", (inter.user.id,)).fetchone()
-        if not landesherr and config.STAATSBUERGER_ROLLE not in rollen:
+        if config.LANDESHERR_ROLLE not in rollen and config.STAATSBUERGER_ROLLE not in rollen and not inter.user.guild_permissions.administrator:
             await inter.response.send_message("Zeitungen können nur Staatsbürger und Landesherren veröffentlichen.", ephemeral=True)
             return
-        zeitung, schlagzeile, inhalt = zeitungsname.strip(), schlagzeile.strip(), inhalt.replace("\\n", "\n").strip()
+        if not self.freigeschaltet(inter.user) and self.db.execute(
+                "SELECT 1 FROM meldungen WHERE user_id = ? AND status = 'offen' AND grund LIKE '%freischaltung%'", (inter.user.id,)).fetchone():
+            await inter.response.send_message("Dein Antrag auf Freischaltung liegt der Leitung schon vor. Bitte warte auf die Entscheidung.", ephemeral=True)
+            return
+        await inter.response.send_modal(NewsflashModal(self))
+
+    def freigeschaltet(self, user: discord.Member) -> bool:
+        return (config.LANDESHERR_ROLLE in {r.id for r in user.roles} or user.guild_permissions.administrator
+                or bool(self.db.execute("SELECT 1 FROM freigeschaltet WHERE user_id = ?", (user.id,)).fetchone()))
+
+    async def einreichen(self, inter: discord.Interaction, zeitung: str, schlagzeile: str, inhalt: str):
+        freigeschaltet = self.freigeschaltet(inter.user)
+        zeitung, schlagzeile, inhalt = zeitung.strip(), schlagzeile.strip(), inhalt.strip()
         treffer = filter_treffer(zeitung, schlagzeile, inhalt)
 
         gruende = []
