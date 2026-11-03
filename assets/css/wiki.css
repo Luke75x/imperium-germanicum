@@ -258,6 +258,15 @@
 .karte-svg { position: absolute; left: -50%; top: -50%; width: 200%; height: 200%; display: block; transform-origin: 50% 50%; will-change: transform; }
 .karte-hg path { fill: var(--karte-land); stroke: var(--karte-land); stroke-width: .5px; vector-effect: non-scaling-stroke; }
 .karte-gebiete path { fill: var(--karte-land); fill-rule: evenodd; stroke: var(--karte-land); stroke-width: .5px; vector-effect: non-scaling-stroke; transition: opacity .15s; }
+.karte-hg .kk-welt { fill: none; stroke: #7b8190; stroke-width: .8px; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.karte-hg .karte-maske { fill: var(--karte-meer); stroke: none; }
+.karte-wasser { pointer-events: none; }
+.karte-wasser path { fill: var(--karte-meer); stroke: #7ea6c4; stroke-width: .6px; vector-effect: non-scaling-stroke; fill-rule: evenodd; }
+.karte-fluesse { pointer-events: none; }
+.karte-fluesse path { fill: none; stroke: #4f93c8; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.karte-fluesse .fl1 { stroke-width: 1.7px; } .karte-fluesse .fl2 { stroke-width: 1.2px; } .karte-fluesse .fl3 { stroke-width: .9px; } .karte-fluesse .fl4 { stroke-width: .7px; }
+.kk-prov { stroke: #6e7484; stroke-width: .6px; stroke-dasharray: 3 2; }
+.bs-fluss { fill: #3f7fb4; font-style: italic; stroke: rgba(255,255,255,.7); }
 .karte-netz path { fill: none; stroke: var(--karte-linie); stroke-opacity: .35; stroke-width: .6px; vector-effect: non-scaling-stroke; stroke-dasharray: 2 4; pointer-events: none; }
 .karte-kanten { pointer-events: none; }
 .karte-kanten path { fill: none; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }

@@ -22,7 +22,7 @@
   var stand = clone(cfg.stand);
   var saved = clone(cfg.stand);
   var geo, svg, defs, layer, hilite, paths = {}, full, view = { x: 0, y: 0, w: 1 };
-  var raf = 0, kk = null, beschr = null, komp = null, detailTimer = 0;
+  var raf = 0, kk = null, beschr = null, komp = null, detailTimer = 0, mask, feinLand, feinGren, feinSeen, grobSeen, flu, netzEl, feinFl;
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -76,10 +76,11 @@
     clearTimeout(detailTimer);
     detailTimer = setTimeout(function () { komp = null; grenzen(); beschriften(); }, 30);
   }
+  function kantenListe() { return (feinAn && fein && fein.kanten) || geo.kanten || []; }
   function grenzen() {
     if (!kk || !geo.kanten) return;
     var kreis = [], land = [], staat = [];
-    geo.kanten.forEach(function (e) {
+    kantenListe().forEach(function (e) {
       var sa = stand.gebiete[e[0]] || "", sb = stand.gebiete[e[1]] || "";
       if (sa !== sb) staat.push(e[2]);
       else if (geo.gebiete[e[0]].c !== geo.gebiete[e[1]].c) land.push(e[2]);
@@ -93,7 +94,7 @@
   function komponenten() {
     if (komp) return komp;
     var nb = {};
-    (geo.kanten || []).forEach(function (e) {
+    kantenListe().forEach(function (e) {
       if ((stand.gebiete[e[0]] || "") === (stand.gebiete[e[1]] || "")) { (nb[e[0]] = nb[e[0]] || []).push(e[1]); (nb[e[1]] = nb[e[1]] || []).push(e[0]); }
     });
     var seen = {}, out = [];
@@ -119,10 +120,13 @@
     var n = parseInt(String(hex).slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
     return (0.299 * r + 0.587 * g + 0.114 * b) < 140;
   }
+  // Kartenstufe wie bei Kacheln: 0 = ganze Welt auf 256 px … je höher, desto näher
+  function stufe() { return Math.log(geo.breite / (base || view).w) / Math.LN2 + Math.log(Math.max(300, surface.clientWidth) / 256) / Math.LN2; }
   function beschriften() {
     if (!beschr || !geo.orte || !base) return;
+    var zt = stufe();
+    lod(zt);
     var u = base.w / Math.max(1, surface.clientWidth);     // Kartenpixel je Bildschirmpixel
-    var z = full.w / base.w;
     var x0 = base.x - base.w / 2, x1 = base.x + base.w * 1.5, y0 = base.y - base.h / 2, y1 = base.y + base.h * 1.5;
     var belegt = [], out = [];
     function frei(x, y, w, h) {
@@ -136,13 +140,18 @@
         (rot ? ' transform="rotate(' + rot + " " + x.toFixed(1) + " " + y.toFixed(1) + ')"' : "") + ">" + esc(t) + "</text>";
     }
     function sichtbar(x, y) { return x > x0 && x < x1 && y > y0 && y < y1; }
-    // Meere und Nachbarländer (zurückhaltend, nur bis zu mittlerer Vergrößerung)
-    if (z < 5) {
-      geo.meere.forEach(function (m) { if (sichtbar(m[1], m[2])) out.push(text(m[0], m[1], m[2], 12 + Math.min(z, 3) * 1.5, "bs-meer", "", "middle", m[3])); });
-      geo.laender_namen.forEach(function (m) { if (sichtbar(m[1], m[2])) out.push(text(m[0].toUpperCase(), m[1], m[2], 11 + Math.min(z, 3), "bs-land", "", "middle")); });
+    // Orte nach eigener Mindeststufe, Hauptstädte zuerst
+    var orte = fein && feinAn ? geo.orte.concat(fein.orte || []) : geo.orte;
+    var kand = orte.filter(function (o) { return o[3] <= zt && sichtbar(o[1], o[2]); }).sort(function (a, b) { return a[4] - b[4] || a[3] - b[3]; });
+    function ort(o) {
+      var rang = o[4], px = rang === 1 ? 12.5 : rang === 2 ? 11.5 : 10.5, r = (rang === 1 ? 3.4 : rang === 2 ? 2.8 : 2.2) * u;
+      var w = breite(o[0], px) + r * 3, h = px * 1.2 * u;
+      if (!frei(o[1] - r, o[2] - h / 2, w, h)) return;
+      out.push('<circle class="bs-punkt r' + rang + '" cx="' + o[1] + '" cy="' + o[2] + '" r="' + r.toFixed(2) + '"/>' +
+        text(o[0], o[1] + r * 1.9, o[2] + px * 0.35 * u, px, "bs-ort r" + rang, ""));
     }
+    kand.filter(function (o) { return o[4] === 1; }).forEach(ort);
     // Teilstaaten: Name im größten Teil jedes Staats, kleinere Teile erst bei starker Vergrößerung
-    var staatsnamen = [];
     komponenten().forEach(function (c) {
       var s = state(c.staat); if (!s || !sichtbar(c.x, c.y)) return;
       var breitePx = Math.sqrt(c.a) / u;
@@ -150,9 +159,7 @@
       var px = Math.max(11, Math.min(16, breitePx * 0.11));
       var wort = s.name.split(" "), mitte = Math.ceil(wort.length / 2);
       var zeilen = s.name.length > 14 && wort.length > 1 ? [wort.slice(0, mitte).join(" "), wort.slice(mitte).join(" ")] : [s.name];
-      if (zeilen.length === 2 && zeilen[0].length > 18 && zeilen[0].indexOf("-") > 0) zeilen = s.name.length > 0 ? [s.name] : zeilen;
       var w = 0; zeilen.forEach(function (t) { w = Math.max(w, breite(t, px)); });
-      if (w > Math.sqrt(c.a) * 1.15 && zeilen.length === 1 && wort.length > 1) zeilen = [wort.slice(0, mitte).join(" "), wort.slice(mitte).join(" ")];
       var h = zeilen.length * px * 1.15 * u;
       if (!frei(c.x - w / 2, c.y - h / 2, w, h)) return;
       var d = dunkel(s.farbe) && s.muster === "voll";
@@ -160,20 +167,72 @@
         out.push(text(t, c.x, c.y - h / 2 + (i + 0.85) * px * 1.15 * u, px, "bs-staat " + (d ? "hell" : "dunkel"), "", "middle"));
       });
     });
-    // Orte nach Rang; je höher die Vergrößerung, desto mehr Rang
-    var maxRang = z < 1.7 ? 1 : z < 3 ? 2 : 3;
-    geo.orte.forEach(function (o) {
-      if (o[3] > maxRang || !sichtbar(o[1], o[2])) return;
-      var px = o[3] === 1 ? 12.5 : o[3] === 2 ? 11.5 : 10.5, r = (o[3] === 1 ? 3.4 : o[3] === 2 ? 2.8 : 2.2) * u;
-      var w = breite(o[0], px) + r * 3, h = px * 1.2 * u;
-      if (!frei(o[1] - r, o[2] - h / 2, w, h)) return;
-      out.push('<circle class="bs-punkt r' + o[3] + '" cx="' + o[1] + '" cy="' + o[2] + '" r="' + r.toFixed(2) + '"/>' +
-        text(o[0], o[1] + r * 1.9, o[2] + px * 0.35 * u, px, "bs-ort r" + o[3], ""));
+    kand.filter(function (o) { return o[4] !== 1; }).forEach(ort);
+    // Flüsse (entlang der Linie gedreht), Ländernamen und Meere
+    (geo.flussnamen || []).forEach(function (m) {
+      if (m[4] > zt || !sichtbar(m[1], m[2])) return;
+      var px = 10.5, w = breite(m[0], px);
+      if (!frei(m[1] - w / 2, m[2] - px * u, w, px * 2 * u)) return;
+      out.push(text(m[0], m[1], m[2] - 2 * u, px, "bs-fluss", "", "middle", m[3]));
+    });
+    (geo.laender_namen || []).forEach(function (m) {
+      if (zt < m[3] || zt > m[4] + 1.5 || !sichtbar(m[1], m[2]) || (m[5] && zt > 4.6)) return;
+      var px = Math.max(10.5, Math.min(15, 9 + zt * 0.8)), t = m[0].toUpperCase();
+      var w = breite(t, px) * 1.25;
+      if (!frei(m[1] - w / 2, m[2] - px * u, w, px * 2 * u)) return;
+      out.push(text(t, m[1], m[2], px, "bs-land", "", "middle"));
+    });
+    geo.meere.forEach(function (m) {
+      if (zt < m[4] - 0.2 || zt > m[5] + 1 || !sichtbar(m[1], m[2])) return;
+      var px = 12 + Math.min(zt, 5) * 0.6, w = breite(m[0], px) * 1.1;
+      if (!frei(m[1] - w / 2, m[2] - px * u, w, px * 2 * u)) return;
+      out.push(text(m[0], m[1], m[2], px, "bs-meer", "", "middle", m[3]));
     });
     beschr.innerHTML = out.join("");
-    var kreisOp = root.classList.contains("mit-grenzen") ? 0.85 : Math.max(0, Math.min(0.6, (z - 1.6) * 0.45));
+    var kreisOp = root.classList.contains("mit-grenzen") ? 0.85 : Math.max(0, Math.min(0.6, (zt - 5.2) * 0.45));
     kk.kreis.style.opacity = kreisOp;
-    kk.land.style.opacity = z < 1.2 ? 0.5 : 0.8;
+    kk.land.style.opacity = zt < 4 ? 0.55 : 0.85;
+    svg.querySelectorAll(".kk-welt").forEach(function (e) { e.style.opacity = zt < 3 ? 0.6 : 0.9; });
+    kk.prov.style.opacity = Math.max(0, Math.min(0.7, (zt - 4.8) * 0.5));
+    if (flu) {
+      flu.classList.toggle("f-nah", zt > 6);
+      for (var k = 1; k <= 4; k++) flu.querySelectorAll(".fl" + k).forEach(function (e) { e.style.opacity = k === 1 ? 1 : k === 2 ? (zt > 3.8 ? 1 : 0) : k === 3 ? (zt > 5 ? 1 : 0) : (zt > 6 ? 1 : 0); });
+    }
+    netzEl.style.opacity = zt > 6.5 ? 0 : 0.6;
+    kk.staat.style.strokeWidth = (zt < 3.5 ? 0.8 : zt < 4.6 ? 1.3 : 1.7) + "px";
+    if (flu) flu.style.opacity = zt < 3 ? 0.55 : zt < 4 ? 0.8 : 0.95;
+  }
+
+  // ---------- Feine Ebene: genauere Grenzen, Seen, Flüsse, Orte (wird beim Hineinzoomen nachgeladen) ----------
+  var fein = null, feinLaden = false, feinAn = false;
+  function lod(zt) {
+    if (zt >= 5.0 && !fein && !feinLaden && cfg.geoFein) {
+      feinLaden = true;
+      fetch(cfg.geoFein).then(function (r) { if (!r.ok) throw r; return r.json(); }).then(function (f) { fein = f; feinBauen(); lod(stufe()); })
+        .catch(function () { feinLaden = false; });
+    }
+    var an = !!fein && zt >= 5.0;
+    if (an !== feinAn) { feinAn = an; feinSchalten(); }
+  }
+  function feinBauen() {
+    var w = geo.breite;
+    function m(lon, lat) { return [(lon + 180) / 360 * w, (0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI)) * w]; }
+    var a = m(-32, 74), b = m(80, 22);
+    // Meer-Rechteck deckt die grobe Ebene im Ausschnitt ab; darauf liegt die feine Ebene
+    mask.setAttribute("d", "M" + a[0] + " " + a[1] + "H" + b[0] + "V" + b[1] + "H" + a[0] + "Z");
+    feinLand.innerHTML = fein.land.map(function (d) { return '<path d="' + d + '"/>'; }).join("");
+    feinGren.setAttribute("d", fein.grenzen || "");
+    kk.prov.setAttribute("d", fein.provinzen || "");
+    feinSeen.innerHTML = fein.seen.map(function (d) { return '<path d="' + d + '"/>'; }).join("");
+    var fk = fein.fluesse || {};
+    for (var k = 1; k <= 4; k++) feinFl[k].setAttribute("d", fk[k] || "");
+  }
+  function feinSchalten() {
+    mask.style.display = feinLand.style.display = feinGren.style.display = feinSeen.style.display = feinAn ? "" : "none";
+    grobSeen.style.display = feinAn ? "none" : "";
+    flu.querySelectorAll(".fl-fein").forEach(function (e) { e.style.display = feinAn ? "" : "none"; });
+    Object.keys(paths).forEach(function (id) { paths[id].setAttribute("d", feinAn ? fein.gebiete[id] : geo.gebiete[id].d); });
+    komp = null; grenzen();
   }
 
   // ---------- Aufbau ----------
@@ -186,19 +245,25 @@
     geo = g;
     full = { x: 0, y: 0, w: g.breite, h: g.hoehe };
     var html = ['<svg xmlns="' + NS + '" class="karte-svg" preserveAspectRatio="xMidYMid meet"><defs></defs><g class="karte-hg">'];
-    g.hintergrund.forEach(function (d) { html.push('<path d="' + d + '"/>'); });
-    html.push('</g>');
-    if (g.netz) html.push('<g class="karte-netz">' + g.netz.map(function (d) { return '<path d="' + d + '"/>'; }).join("") + "</g>");
+    g.land.forEach(function (d) { html.push('<path d="' + d + '"/>'); });
+    html.push('<path class="kk-welt kk-welt-grob" d="' + (g.grenzen || "") + '"/>');
+    html.push('<path class="karte-maske" style="display:none"/><g class="karte-hg-fein" style="display:none"></g><path class="kk-welt kk-welt-fein" style="display:none"/></g>');
+    html.push('<g class="karte-netz">' + g.netz.map(function (d) { return '<path d="' + d + '"/>'; }).join("") + "</g>");
     html.push('<g class="karte-gebiete">');
     Object.keys(g.gebiete).forEach(function (k) { html.push('<path data-id="' + k + '" d="' + g.gebiete[k].d + '"/>'); });
-    html.push('</g><g class="karte-kanten"><path class="kk-kreis"/><path class="kk-land"/><path class="kk-staat"/></g><g class="karte-beschr"></g><g class="karte-markierung"></g></svg>');
+    html.push('</g><g class="karte-wasser"><g class="w-grob">' + g.seen.map(function (d) { return '<path d="' + d + '"/>'; }).join("") + '</g><g class="w-fein" style="display:none"></g></g>');
+    html.push('<g class="karte-fluesse">' + [1, 2, 3, 4].map(function (k) { return '<path class="fl' + k + '" d="' + ((g.fluesse || {})[k] || "") + '"/><path class="fl' + k + ' fl-fein" d=""/>'; }).join("") + "</g>");
+    html.push('<g class="karte-kanten"><path class="kk-prov"/><path class="kk-kreis"/><path class="kk-land"/><path class="kk-staat"/></g><g class="karte-beschr"></g><g class="karte-markierung"></g></svg>');
     surface.innerHTML = html.join("");
     svg = surface.querySelector("svg");
     defs = svg.querySelector("defs");
     layer = svg.querySelector(".karte-gebiete");
     hilite = svg.querySelector(".karte-markierung");
-    kk = { kreis: svg.querySelector(".kk-kreis"), land: svg.querySelector(".kk-land"), staat: svg.querySelector(".kk-staat") };
+    kk = { kreis: svg.querySelector(".kk-kreis"), land: svg.querySelector(".kk-land"), staat: svg.querySelector(".kk-staat"), prov: svg.querySelector(".kk-prov"), welt: svg.querySelector(".kk-welt-grob") };
     beschr = svg.querySelector(".karte-beschr");
+    mask = svg.querySelector(".karte-maske"); feinLand = svg.querySelector(".karte-hg-fein"); feinGren = svg.querySelector(".kk-welt-fein");
+    feinSeen = svg.querySelector(".w-fein"); grobSeen = svg.querySelector(".w-grob"); flu = svg.querySelector(".karte-fluesse"); netzEl = svg.querySelector(".karte-netz");
+    feinFl = {}; [1, 2, 3, 4].forEach(function (k) { feinFl[k] = svg.querySelector(".fl" + k + ".fl-fein"); });
     layer.querySelectorAll("path").forEach(function (p) { paths[p.getAttribute("data-id")] = p; });
     buildPatterns();
     paintAll();
@@ -215,7 +280,7 @@
   // ---------- Ausschnitt ----------
   function aspect() { return surface.clientHeight / Math.max(1, surface.clientWidth); }
   function setView(cx, cy, w) {
-    w = Math.min(Math.max(w, 120), full.w * 1.3);
+    w = Math.min(Math.max(w, 160), full.w * 1.05);
     var h = w * aspect();
     view = { x: cx - w / 2, y: cy - h / 2, w: w, h: h };
     schedule();
@@ -268,7 +333,7 @@
   }
   function zoomAt(clientX, clientY, f) {
     var m = toMap(clientX, clientY);
-    var w = Math.min(Math.max(view.w / f, 120), full.w * 1.3), k = w / view.w;
+    var w = Math.min(Math.max(view.w / f, 160), full.w * 1.05), k = w / view.w;
     var cx = m.x - (m.x - (view.x + view.w / 2)) * k, cy = m.y - (m.y - (view.y + view.h / 2)) * k;
     setView(cx, cy, w);
   }
@@ -393,7 +458,7 @@
   function hover(id) {
     if (id === hoverId) return;
     hoverId = id;
-    hilite.innerHTML = id ? '<path d="' + geo.gebiete[id].d + '"/>' : "";
+    hilite.innerHTML = id ? '<path d="' + paths[id].getAttribute("d") + '"/>' : "";
     if (!id) { info.innerHTML = ""; info.classList.remove("is-sichtbar"); return; }
     var g = geo.gebiete[id], s = state(stand.gebiete[id]);
     info.innerHTML = '<strong>' + esc(gname(id)) + "</strong>" + (gname(id) !== g.n ? " (" + esc(T.today) + ": " + esc(g.n) + ")" : "") +
@@ -479,8 +544,10 @@
     if (!r) return esc(T.noFaction);
     var names = r.personen.map(function (p) {
       var n = esc(p.name);
-      return "<strong>" + n + "</strong>" + (p.titel.length ? " <span class=\"karte-titel\">" + esc(p.titel.join(" · ")) + "</span>" : "");
-    }).join("<br>");
+      var t = (p.titel || []).concat(p.aemter || []);
+      return "<strong>" + n + "</strong>" + (t.length ? " <span class=\"karte-titel\">" + esc(t.join(" · ")) + "</span>" : "");
+    }).join(r.art === "reich" ? " " + esc(T.und) + " " : "<br>");
+    if (r.art === "reich") return names;
     if (r.art === "kanzler") return (names || esc(T.noKanzler)) + (names ? '<span class="karte-hinweis">' + esc(T.kanzlerNote) + "</span>" : "");
     if (r.art === "landesherr") return names || esc(T.vacant.replace("{f}", r.fraktion || s.name));
     return esc(T.noFaction);
@@ -512,7 +579,7 @@
         ra += gg.a; if (pp) { rb += pp[0]; years[pp[1]] = 1; }
         if (stand.gebiete[k] === s.id) { n++; a += gg.a; if (pp) b += pp[0]; }
       });
-      html += '<h3 class="karte-gebiet-h">' + esc(T.state) + ": " + esc(s.name) + "</h3>" +
+      html += '<h3 class="karte-gebiet-h">' + (infoData.regenten[s.id] && infoData.regenten[s.id].art === "reich" ? esc(T.reich) : esc(T.state) + ": " + esc(s.name)) + "</h3>" +
         '<table class="styles-table is-grid karte-gebiet-tabelle"><tbody>' +
         row(T.population, fmt(b) + " " + esc(T.inhabitants)) + row(T.area, fmt(a) + " km²") + row(T.regionCount, fmt(n)) +
         row(T.sharePop, pct(b, rb)) + row(T.shareArea, pct(a, ra)) + "</tbody></table>";

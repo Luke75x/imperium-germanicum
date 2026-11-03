@@ -45,3 +45,9 @@ Neu aufgebaut am 02.11.2026, da der frühere „Wiki-Dienst“ nicht gesichert w
 `werkzeuge/karte_details.py` ergänzt `karte_daten/geo.json` um `kanten` (Grenzabschnitte zwischen Gebieten), `mitte`, `orte`, `meere`, `laender_namen`, `netz`.
 `karte.js` zeichnet daraus Staats-/Landes-/Kreisgrenzen und Namen (Teilstaaten, Orte nach Zoomstufe, Meere, Nachbarländer); `karte_bild.py` ebenso fürs Startseitenbild.
 Organigramm: Auswahl der Wappen im Editor nur aus `organigramme.WAPPEN` (keine Personenbilder), mit Rasteransicht und Hover-Vorschau.
+
+## Weltkarte (03.11.2026)
+Die Karte ist jetzt eine Web-Mercator-Weltkarte (Welt 40000×40000 Einheiten). `werkzeuge/karte_welt.py` baut aus GISCO NUTS 1:1 Mio. und Natural Earth
+`karte_daten/geo.json` (grob, sofort) und `geo_fein.json` (fein, wird ab Kartenstufe 5 nachgeladen; ersetzt Gebietspfade, Kanten, Land, Seen, Flüsse, Orte).
+Kartenstufe in `karte.js` (`stufe()`) entspricht Kachelstufen; Orte/Länder/Meere tragen Natural-Earth-Mindeststufen. Rohdaten werden nicht im Repo gehalten
+(Download siehe Kopf des Skripts). `karte_details.py` ist damit überholt. Regenten: nur höchster Titel; Zusatzämter (ROLLEN_AEMTER) bei Fraktionsrolle.

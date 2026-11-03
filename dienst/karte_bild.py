@@ -5,6 +5,7 @@ Läuft beim Start (falls das Bild fehlt) und nach jeder neuen Version im Hinterg
 """
 import asyncio
 import logging
+import math
 import os
 import re
 
@@ -68,7 +69,7 @@ def _linien(d):
 
 
 def _komponenten(geo, stand):
-    """Zusammenhängende Teile je Teilstaat (über gemeinsame Grenzen): Fläche und Schwerpunkt."""
+    """Zusammenhängende Teile je Teilstaat (über gemeinsame Grenzen): Fläche und Schwerpunkt (Kartenkoordinaten)."""
     zu, nb = stand["gebiete"], {}
     for a, b, _d in geo.get("kanten", []):
         if zu.get(a) == zu.get(b):
@@ -96,33 +97,70 @@ def _komponenten(geo, stand):
     return sorted(out, key=lambda c: -c["a"])
 
 
-def _details(bild, geo, stand, staaten):
-    """Grenzen, Namen von Meeren, Ländern, Teilstaaten und Orten (wie auf der Karte der Website)."""
-    if "kanten" not in geo:
-        return
+class _Ausschnitt:
+    """Abbildung Kartenkoordinaten → Bildpunkte (Ausschnitt um die Teilstaaten, Teilstaaten rechts der Legende)."""
+
+    def __init__(self, geo, stand, B, H):
+        xs, ys = [], []
+        for gid in stand["gebiete"]:
+            if gid in geo["gebiete"]:
+                for r in _ringe(geo["gebiete"][gid]["d"]):
+                    for x, y in r:
+                        xs.append(x); ys.append(y)
+        x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+        self.s = max((x1 - x0) * 1.1 / B, (y1 - y0) * 1.1 / H)
+        self.vx = (x0 + x1) / 2 - B * self.s / 2 - B * self.s * 0.07
+        self.vy = (y0 + y1) / 2 - H * self.s / 2
+        self.B, self.H, self.W = B, H, geo["breite"]
+        self.zt = math.log2(self.W / (B * self.s)) + math.log2(1300 / 256)    # Kartenstufe wie auf der Website
+
+    def p(self, x, y):
+        return ((x - self.vx) / self.s, (y - self.vy) / self.s)
+
+    def ringe(self, d):
+        for r in _ringe(d):
+            yield [self.p(x, y) for x, y in r]
+
+    def linien(self, d):
+        for l in _linien(d):
+            yield [self.p(x, y) for x, y in l]
+
+
+def _details(bild, geo, stand, staaten, a):
+    """Grenzen, Flüsse, Seen und Namen (wie auf der Karte der Website)."""
     B, H = bild.size
+    d = ImageDraw.Draw(bild)
+    quelle = "source-sans-3.woff2"
+    for p in geo.get("seen", []):
+        for r in a.ringe(p):
+            if len(r) > 2:
+                d.polygon(r, fill=MEER, outline=(126, 166, 196))
+    for k, w, f in ((1, 4, (79, 147, 200)), (2, 3, (95, 158, 207)), (3, 2, (110, 170, 215))):
+        dd = geo.get("fluesse", {}).get(str(k))
+        if dd:
+            for l in a.linien(dd):
+                d.line(l, fill=f, width=w, joint="curve")
     ov = Image.new("RGBA", (B, H), (0, 0, 0, 0))
     od = ImageDraw.Draw(ov)
-    for p in geo.get("netz", []):
-        for l in _linien(p):
-            for i in range(0, len(l) - 1, 2):
-                od.line([l[i], l[i + 1]], fill=(255, 255, 255, 110), width=2)
+    for l in a.linien(geo.get("grenzen", "")) if geo.get("grenzen") else []:
+        od.line(l, fill=(110, 116, 132, 220), width=2)
     zu = stand["gebiete"]
-    for a, b, d in geo["kanten"]:
-        if (zu.get(a) or "") != (zu.get(b) or ""):
+    for ga, gb, dd in geo["kanten"]:
+        if (zu.get(ga) or "") != (zu.get(gb) or ""):
             farbe, w = (16, 22, 46, 255), 4
-        elif geo["gebiete"][a]["c"] != geo["gebiete"][b]["c"]:
+        elif geo["gebiete"][ga]["c"] != geo["gebiete"][gb]["c"]:
             farbe, w = (75, 81, 99, 220), 2
         else:
             farbe, w = (29, 37, 64, 70), 1
-        for l in _linien(d):
+        for l in a.linien(dd):
             od.line(l, fill=farbe, width=w, joint="curve")
-    bild.alpha_composite(ov) if bild.mode == "RGBA" else bild.paste(Image.alpha_composite(bild.convert("RGBA"), ov).convert("RGB"))
+    bild.paste(Image.alpha_composite(bild.convert("RGBA"), ov).convert("RGB"))
     d = ImageDraw.Draw(bild)
-    quelle = "source-sans-3.woff2"
     belegt = []
 
     def frei(box):
+        if box[2] < 0 or box[0] > B or box[3] < 0 or box[1] > H:
+            return False
         for b in belegt:
             if box[0] < b[2] and box[2] > b[0] and box[1] < b[3] and box[3] > b[1]:
                 return False
@@ -132,53 +170,72 @@ def _details(bild, geo, stand, staaten):
     def halo(xy, t, font, fuell, rand, anker="mm", breite=4):
         d.text(xy, t, font=font, fill=fuell, anchor=anker, stroke_width=breite, stroke_fill=rand)
 
-    for n, x, y, rot in geo.get("meere", []):
-        f = _schrift(quelle, 38, 400)
-        kachel = Image.new("RGBA", (int(d.textlength(n, font=f)) + 40, 70), (0, 0, 0, 0))
-        ImageDraw.Draw(kachel).text((kachel.width / 2, 35), n, font=f, fill=(91, 134, 168, 255), anchor="mm")
-        kachel = kachel.rotate(-rot, expand=True, resample=Image.BICUBIC)
-        bild.paste(kachel, (int(x - kachel.width / 2), int(y - kachel.height / 2)), kachel)
-    for n, x, y in geo.get("laender_namen", []):
-        f = _schrift(quelle, 34, 600)
-        halo((x, y), " ".join(n.upper()), f, (138, 144, 156), (209, 219, 221), breite=3)
+    # Orte: Hauptstädte zuerst (vor den Teilstaatsnamen), die übrigen danach, nur bis zur Stufe des Bildes
+    def orte(haupt):
+        for n, ox, oy, mz, rang in sorted(geo.get("orte", []), key=lambda o: (o[4], o[3])):
+            if mz > a.zt - 0.4 or (rang == 1) != haupt:
+                continue
+            x, y = a.p(ox, oy)
+            px, r = (36, 9) if rang == 1 else (31, 7) if rang == 2 else (28, 6)
+            f = _schrift(quelle, px, 700 if rang == 1 else 600)
+            w = d.textlength(n, font=f)
+            if not frei((x - r, y - px / 2, x + r * 2.4 + w, y + px / 2)):
+                continue
+            d.ellipse([x - r, y - r, x + r, y + r], fill=(201, 164, 58) if rang == 1 else (16, 22, 46), outline=(16, 22, 46) if rang == 1 else (255, 255, 255), width=3)
+            halo((x + r * 2, y), n, f, (16, 22, 46), (255, 255, 255), anker="lm", breite=4)
+
+    orte(True)
     # Teilstaaten
     for c in _komponenten(geo, stand):
         st = staaten.get(c["staat"])
-        if not st or c["a"] ** 0.5 < 90:
+        x, y = a.p(c["x"], c["y"])
+        if not st or (c["a"] ** 0.5) / a.s < 90:
             continue
-        px = int(max(28, min(46, c["a"] ** 0.5 * 0.13)))
+        px = int(max(28, min(44, (c["a"] ** 0.5) / a.s * 0.12)))
         f = _schrift(quelle, px, 700)
         wort = st["name"].split(" ")
         m = (len(wort) + 1) // 2
         zeilen = [" ".join(wort[:m]), " ".join(wort[m:])] if len(st["name"]) > 14 and len(wort) > 1 else [st["name"]]
         w = max(d.textlength(t, font=f) for t in zeilen)
         h = len(zeilen) * px * 1.15
-        if not frei((c["x"] - w / 2, c["y"] - h / 2, c["x"] + w / 2, c["y"] + h / 2)):
+        if not frei((x - w / 2, y - h / 2, x + w / 2, y + h / 2)):
             continue
         r, g, b = _hex(st["farbe"])
         dunkel = st["muster"] == "voll" and (0.299 * r + 0.587 * g + 0.114 * b) < 140
         for i, t in enumerate(zeilen):
-            halo((c["x"], c["y"] - h / 2 + (i + 0.5) * px * 1.15), t, f, (255, 255, 255) if dunkel else (16, 22, 46),
+            halo((x, y - h / 2 + (i + 0.5) * px * 1.15), t, f, (255, 255, 255) if dunkel else (16, 22, 46),
                  (0, 0, 0) if dunkel else (255, 255, 255), breite=4)
-    # Orte (Rang 1 und 2; alle 3 Ränge wären auf dem Übersichtsbild zu dicht)
-    for n, x, y, rang in sorted(geo.get("orte", []), key=lambda o: o[3]):
-        if rang > 2 or not (0 < x < B and 0 < y < H):
+    orte(False)
+    # Länder und Meere
+    for n, lx, ly, mn, mx, eigen in geo.get("laender_namen", []):
+        if eigen or a.zt < mn + 0.3 or a.zt > mx + 1.5:
             continue
-        px, r = (36, 9) if rang == 1 else (31, 7)
-        f = _schrift(quelle, px, 700 if rang == 1 else 600)
-        w = d.textlength(n, font=f)
-        if not frei((x - r, y - px / 2, x + r * 2.4 + w, y + px / 2)):
+        x, y = a.p(lx, ly)
+        f = _schrift(quelle, 34, 600)
+        t = " ".join(n.upper())
+        w = d.textlength(t, font=f)
+        if frei((x - w / 2, y - 22, x + w / 2, y + 22)):
+            halo((x, y), t, f, (138, 144, 156), (209, 219, 221), breite=3)
+    for n, mx_, my_, rot, mn, mx in geo.get("meere", []):
+        if a.zt < mn or a.zt > mx + 1:
             continue
-        d.ellipse([x - r, y - r, x + r, y + r], fill=(201, 164, 58) if rang == 1 else (16, 22, 46), outline=(16, 22, 46) if rang == 1 else (255, 255, 255), width=3)
-        halo((x + r * 2, y), n, f, (16, 22, 46), (255, 255, 255), anker="lm", breite=4)
+        x, y = a.p(mx_, my_)
+        f = _schrift(quelle, 38, 400)
+        kachel = Image.new("RGBA", (int(d.textlength(n, font=f)) + 40, 70), (0, 0, 0, 0))
+        if not frei((x - kachel.width / 2, y - 30, x + kachel.width / 2, y + 30)):
+            continue
+        ImageDraw.Draw(kachel).text((kachel.width / 2, 35), n, font=f, fill=(91, 134, 168, 255), anchor="mm")
+        kachel = kachel.rotate(-rot, expand=True, resample=Image.BICUBIC)
+        bild.paste(kachel, (int(x - kachel.width / 2), int(y - kachel.height / 2)), kachel)
 
 
 def zeichnen(geo, stand, ziel=PFAD):
-    B, H = geo["breite"], geo["hoehe"]
+    B, H = 3000, 2325
+    a = _Ausschnitt(geo, stand, B, H)
     bild = Image.new("RGB", (B, H), MEER)
     d = ImageDraw.Draw(bild)
-    for p in geo["hintergrund"]:
-        for r in _ringe(p):
+    for p in geo["land"]:
+        for r in a.ringe(p):
             if len(r) > 2:
                 d.polygon(r, fill=LAND)
     staaten = {s["id"]: s for s in stand["staaten"]}
@@ -188,14 +245,14 @@ def zeichnen(geo, stand, ziel=PFAD):
         if sid in staaten:
             je_staat.setdefault(sid, []).append(g["d"])
         else:
-            for r in _ringe(g["d"]):
+            for r in a.ringe(g["d"]):
                 if len(r) > 2:
                     d.polygon(r, fill=LAND, outline=LAND)
     for sid, pfade in je_staat.items():
         maske = Image.new("L", (B, H), 0)
         md = ImageDraw.Draw(maske)
         for p in pfade:
-            for r in _ringe(p):
+            for r in a.ringe(p):
                 if len(r) > 2:
                     md.polygon(r, fill=255, outline=255)
         fuellung = _muster(staaten[sid], B, H)
@@ -204,7 +261,8 @@ def zeichnen(geo, stand, ziel=PFAD):
         else:
             bild.paste(fuellung, (0, 0), maske)
 
-    _details(bild, geo, stand, staaten)
+    _details(bild, geo, stand, staaten, a)
+    d = ImageDraw.Draw(bild)
 
     # Legende oben links wie auf der alten Karte
     liste = sorted([s for s in stand["staaten"] if s["id"] in je_staat], key=lambda s: s["name"])

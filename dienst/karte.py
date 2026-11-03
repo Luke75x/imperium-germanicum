@@ -32,6 +32,10 @@ from seiten import seite
 esc = html.escape
 DATEN = os.path.join(config.HIER, "karte_daten")
 ROLLE_LANDESHERR = "1522701576295415969"
+ROLLE_SOUVERAEN = "1522685953054081054"      # Imperator Rex
+# Zusatzämter von Regenten (Vizekönig … Bürgermeister), erscheinen in der Gebietsübersicht
+ROLLEN_AEMTER = ("1525947356049309788", "1525947448776986665", "1525947612639793253", "1555971841888223242", "1525948431267532860")
+REICHSGEBIETE = "Freie Reichsgebiete"        # kein Teilstaat: Kanzler und Souverän regieren
 ROLLE_KANZLER = "1561856444913946664"
 MUSTER = ("voll", "streifen", "karo", "punkte")
 
@@ -61,7 +65,7 @@ T = {
            "resetName": "Heutigen Namen wiederherstellen", "save": "Speichern", "saved": "Gespeichert.", "saveError": "Speichern fehlgeschlagen.",
            "send": "Antrag senden", "setName": "Namen festlegen", "shareArea": "Anteil an der Fläche des Reiches",
            "sharePop": "Anteil an der Bevölkerung des Reiches", "sheetClose": "Zur Karte",
-           "source": "Einwohner: Eurostat, Stand {j}. Grenzen: © EuroGeographics (NUTS 2021).", "state": "Teilstaat",
+           "source": "Einwohner: Eurostat, Stand {j}. Grenzen: © EuroGeographics (NUTS 2021).", "state": "Teilstaat", "reich": "Reichsgebiete", "und": "und",
            "today": "heute", "todayName": "Heutiger Name", "toolPaint": "Malen", "toolPan": "Verschieben", "toolPick": "Pipette",
            "unassigned": "Kein Teilstaat", "undo": "Rückgängig", "vacant": "unbesetzt (kein Landesherr mit der Rolle „{f}“)",
            "pending": "Dein Antrag vom {d} auf „{n}“ liegt dem Kanzler vor.", "accepted": "Dein Antrag vom {d} auf „{n}“ wurde angenommen.",
@@ -86,7 +90,7 @@ T = {
            "resetName": "Restore today's name", "save": "Save", "saved": "Saved.", "saveError": "Saving failed.",
            "send": "Send request", "setName": "Set name", "shareArea": "Share of the Empire's area",
            "sharePop": "Share of the Empire's population", "sheetClose": "To the map",
-           "source": "Population: Eurostat, {j}. Boundaries: © EuroGeographics (NUTS 2021).", "state": "State",
+           "source": "Population: Eurostat, {j}. Boundaries: © EuroGeographics (NUTS 2021).", "state": "State", "reich": "Imperial territories", "und": "and",
            "today": "today", "todayName": "Today's name", "toolPaint": "Paint", "toolPan": "Move", "toolPick": "Eyedropper",
            "unassigned": "No state", "undo": "Undo", "vacant": "vacant (no Landesherr with the role “{f}”)",
            "pending": "Your request of {d} for “{n}” is with the Chancellor.", "accepted": "Your request of {d} for “{n}” was accepted.",
@@ -218,7 +222,7 @@ def seite_html(request, modus, konto, csrf, version, rollen):
     prefix = "/en" if en else ""
     stand = version["stand"]
     cfg = {"i18n": T[lang], "lang": lang, "modus": modus, "stand": stand, "basis": version["id"], "version": None,
-           "geo": "/karte/geo.json", "info": "/karte/info.json", "speichern": "/karte/speichern", "antrag": "/karte/antrag",
+           "geo": "/karte/geo.json", "geoFein": "/karte/geo_fein.json", "info": "/karte/info.json", "speichern": "/karte/speichern", "antrag": "/karte/antrag",
            "gebietsname": "/karte/gebietsname", "anmelden": "/anmelden/?weiter=" + request.path, "csrf": csrf or "",
            "laender": GEO["laender"]}
     cfg_json = json.dumps(cfg, ensure_ascii=False).replace("</", "<\\/")
@@ -230,9 +234,9 @@ def seite_html(request, modus, konto, csrf, version, rollen):
         krumen += f'<li><span aria-current="page">{titel}</span></li>'
     n_staaten, ew = _zahlen(stand)
     gesamt_ew = sum(ew.values())
-    lead = L(f"Das Hoheitsgebiet des Imperium Germanicum mit seinen {len(stand['staaten'])} Teilstaaten: {len(stand['gebiete']):,} Gebiete und rund "
+    lead = L(f"Das Hoheitsgebiet des Imperium Germanicum mit seinen {sum(1 for t in stand['staaten'] if t['name'] != REICHSGEBIETE)} Teilstaaten: {len(stand['gebiete']):,} Gebiete und rund "
              f"{round(gesamt_ew / 1e6):,} Millionen Einwohner. Ein Klick auf ein Gebiet nennt Teilstaat, Regent, Einwohner und Fläche.".replace(",", "."),
-             f"The territory of the Imperium Germanicum with its {len(stand['staaten'])} constituent states: {len(stand['gebiete']):,} regions and about "
+             f"The territory of the Imperium Germanicum with its {sum(1 for t in stand['staaten'] if t['name'] != REICHSGEBIETE)} constituent states: {len(stand['gebiete']):,} regions and about "
              f"{round(gesamt_ew / 1e6):,} million inhabitants. Click a region to see its state, ruler, population and area.")
     kopf = (f'<div class="page-head"><div class="wrap"><nav class="breadcrumb" aria-label="{L("Brotkrumen", "Breadcrumb")}"><ol>{krumen}</ol></nav>'
             f'<span class="eyebrow">{L("Hoheitsgebiet", "Territory")}</span><h1>{titel}</h1><p class="wiki-intro rt-lead">{esc(lead)}</p></div></div>')
@@ -324,6 +328,10 @@ async def editor(request):
                         content_type="text/html", headers={"Cache-Control": "no-store"})
 
 
+async def geo_fein_json(request):
+    return web.FileResponse(os.path.join(DATEN, "geo_fein.json"), headers={"Cache-Control": "public, max-age=600"})
+
+
 async def geo_json(request):
     return web.FileResponse(os.path.join(DATEN, "geo.json"), headers={"Cache-Control": "public, max-age=600"})
 
@@ -340,14 +348,23 @@ async def info_json(request):
     titel_rollen = await dc.rollen_der_gruppe("Adelstitel")
     rollen = {r["id"]: r["name"] for r in await dc.rollen_liste()}
 
-    def person(m):
-        return {"name": m["name"], "titel": [rollen[r] for r in m["rollen"] if r in titel_rollen and r in rollen]}
+    rang = {r["id"]: i for i, r in enumerate(await dc.rollen_liste())}   # oberste Rolle zuerst
+
+    def person(m, fraktion=None):
+        # nur der höchste Titel; Zusatzämter nur zusammen mit der Fraktionsrolle
+        titel = sorted((r for r in m["rollen"] if r in titel_rollen and r in rollen), key=lambda r: rang.get(r, 9999))[:1]
+        aemter = sorted((r for r in m["rollen"] if fraktion and r in ROLLEN_AEMTER and r != fraktion and r in rollen),
+                        key=lambda r: rang.get(r, 9999))
+        return {"name": m["name"], "titel": [rollen[r] for r in titel], "aemter": [rollen[r] for r in aemter]}
     kanzler = [person(m) for m in mitglieder if ROLLE_KANZLER in m["rollen"]]
+    souveraen = [{"name": m["name"], "titel": [], "aemter": []} for m in mitglieder if ROLLE_SOUVERAEN in m["rollen"]]
     regenten = {}
     for s in stand["staaten"]:
-        if s["fraktion"]:
+        if s["name"] == REICHSGEBIETE:
+            regenten[s["id"]] = {"art": "reich", "personen": [{"name": p["name"], "titel": [], "aemter": []} for p in kanzler] + souveraen}
+        elif s["fraktion"]:
             regenten[s["id"]] = {"art": "landesherr", "fraktion": rollen.get(s["fraktion"], ""),
-                                 "personen": [person(m) for m in mitglieder if ROLLE_LANDESHERR in m["rollen"] and s["fraktion"] in m["rollen"]]}
+                                 "personen": [person(m, s["fraktion"]) for m in mitglieder if ROLLE_LANDESHERR in m["rollen"] and s["fraktion"] in m["rollen"]]}
         else:
             regenten[s["id"]] = {"art": "kanzler", "personen": kanzler}
     ich = None
@@ -520,7 +537,7 @@ def registrieren(app):
     for p in ("", "/en"):
         app.router.add_get(p + "/karte/", anzeige)
         app.router.add_get(p + "/karte/bearbeiten/", editor)
-    for pfad, h in (("geo.json", geo_json), ("daten.json", daten_json), ("info.json", info_json), ("karte.png", png),
+    for pfad, h in (("geo.json", geo_json), ("geo_fein.json", geo_fein_json), ("daten.json", daten_json), ("info.json", info_json), ("karte.png", png),
                     ("antraege/", antraege_seite)):
         app.router.add_get("/karte/" + pfad, h)
     for pfad, h in (("speichern", speichern), ("gebietsname", gebietsname), ("antrag", antrag), ("antraege/entscheiden", antrag_entscheiden)):
