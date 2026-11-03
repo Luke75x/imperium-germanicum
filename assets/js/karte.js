@@ -22,7 +22,7 @@
   var stand = clone(cfg.stand);
   var saved = clone(cfg.stand);
   var geo, svg, defs, layer, hilite, paths = {}, full, view = { x: 0, y: 0, w: 1 };
-  var raf = 0;
+  var raf = 0, kk = null, beschr = null, komp = null, detailTimer = 0;
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -68,7 +68,113 @@
     // Kontur in der Füllfarbe schließt die feinen Haarfugen zwischen benachbarten Gebieten
     p.style.fill = p.style.stroke = s ? fillOf(s) : "";
   }
-  function paintAll() { Object.keys(paths).forEach(paint); }
+  function paintAll() { Object.keys(paths).forEach(paint); detailsNeu(); }
+
+  // ---------- Details: Grenzen, Teilstaatsnamen, Orte ----------
+  // Grenzen und Namen hängen an der Zuordnung der Gebiete und werden deshalb nach jeder Änderung neu berechnet.
+  function detailsNeu() {
+    clearTimeout(detailTimer);
+    detailTimer = setTimeout(function () { komp = null; grenzen(); beschriften(); }, 30);
+  }
+  function grenzen() {
+    if (!kk || !geo.kanten) return;
+    var kreis = [], land = [], staat = [];
+    geo.kanten.forEach(function (e) {
+      var sa = stand.gebiete[e[0]] || "", sb = stand.gebiete[e[1]] || "";
+      if (sa !== sb) staat.push(e[2]);
+      else if (geo.gebiete[e[0]].c !== geo.gebiete[e[1]].c) land.push(e[2]);
+      else kreis.push(e[2]);
+    });
+    kk.kreis.setAttribute("d", kreis.join(""));
+    kk.land.setAttribute("d", land.join(""));
+    kk.staat.setAttribute("d", staat.join(""));
+  }
+  // Zusammenhängende Teile eines Teilstaats (über gemeinsame Grenzabschnitte) mit Schwerpunkt und Fläche
+  function komponenten() {
+    if (komp) return komp;
+    var nb = {};
+    (geo.kanten || []).forEach(function (e) {
+      if ((stand.gebiete[e[0]] || "") === (stand.gebiete[e[1]] || "")) { (nb[e[0]] = nb[e[0]] || []).push(e[1]); (nb[e[1]] = nb[e[1]] || []).push(e[0]); }
+    });
+    var seen = {}, out = [];
+    Object.keys(stand.gebiete).forEach(function (id) {
+      if (seen[id] || !stand.gebiete[id] || !geo.mitte[id]) return;
+      var st = [id], c = { staat: stand.gebiete[id], ids: [], a: 0, x: 0, y: 0 };
+      seen[id] = 1;
+      while (st.length) {
+        var k = st.pop(), m = geo.mitte[k];
+        c.ids.push(k); c.a += m[2]; c.x += m[0] * m[2]; c.y += m[1] * m[2];
+        (nb[k] || []).forEach(function (n) { if (!seen[n] && stand.gebiete[n] === c.staat) { seen[n] = 1; st.push(n); } });
+      }
+      c.x /= c.a; c.y /= c.a;
+      // liegt der Schwerpunkt außerhalb (Hufeisenform), nimm den nächsten Gebietsmittelpunkt
+      var best = null, bd = Infinity;
+      c.ids.forEach(function (k) { var m = geo.mitte[k], d = Math.hypot(m[0] - c.x, m[1] - c.y); if (d < bd) { bd = d; best = m; } });
+      if (best && bd > Math.sqrt(c.a) * 0.12) { c.x = best[0]; c.y = best[1]; }
+      out.push(c);
+    });
+    return (komp = out.sort(function (a, b) { return b.a - a.a; }));
+  }
+  function dunkel(hex) {
+    var n = parseInt(String(hex).slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) < 140;
+  }
+  function beschriften() {
+    if (!beschr || !geo.orte || !base) return;
+    var u = base.w / Math.max(1, surface.clientWidth);     // Kartenpixel je Bildschirmpixel
+    var z = full.w / base.w;
+    var x0 = base.x - base.w / 2, x1 = base.x + base.w * 1.5, y0 = base.y - base.h / 2, y1 = base.y + base.h * 1.5;
+    var belegt = [], out = [];
+    function frei(x, y, w, h) {
+      for (var i = 0; i < belegt.length; i++) { var b = belegt[i]; if (x < b[2] && x + w > b[0] && y < b[3] && y + h > b[1]) return false; }
+      belegt.push([x, y, x + w, y + h]); return true;
+    }
+    function breite(t, px) { return t.length * px * 0.56 * u; }
+    function text(t, x, y, px, cls, stil, anker, rot) {
+      return '<text class="' + cls + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" font-size="' + (px * u).toFixed(2) + '" stroke-width="' + (px * u * 0.28).toFixed(2) + '"' +
+        (anker ? ' text-anchor="' + anker + '"' : "") + (stil ? ' style="' + stil + '"' : "") +
+        (rot ? ' transform="rotate(' + rot + " " + x.toFixed(1) + " " + y.toFixed(1) + ')"' : "") + ">" + esc(t) + "</text>";
+    }
+    function sichtbar(x, y) { return x > x0 && x < x1 && y > y0 && y < y1; }
+    // Meere und Nachbarländer (zurückhaltend, nur bis zu mittlerer Vergrößerung)
+    if (z < 5) {
+      geo.meere.forEach(function (m) { if (sichtbar(m[1], m[2])) out.push(text(m[0], m[1], m[2], 12 + Math.min(z, 3) * 1.5, "bs-meer", "", "middle", m[3])); });
+      geo.laender_namen.forEach(function (m) { if (sichtbar(m[1], m[2])) out.push(text(m[0].toUpperCase(), m[1], m[2], 11 + Math.min(z, 3), "bs-land", "", "middle")); });
+    }
+    // Teilstaaten: Name im größten Teil jedes Staats, kleinere Teile erst bei starker Vergrößerung
+    var staatsnamen = [];
+    komponenten().forEach(function (c) {
+      var s = state(c.staat); if (!s || !sichtbar(c.x, c.y)) return;
+      var breitePx = Math.sqrt(c.a) / u;
+      if (breitePx < 46) return;
+      var px = Math.max(11, Math.min(16, breitePx * 0.11));
+      var wort = s.name.split(" "), mitte = Math.ceil(wort.length / 2);
+      var zeilen = s.name.length > 14 && wort.length > 1 ? [wort.slice(0, mitte).join(" "), wort.slice(mitte).join(" ")] : [s.name];
+      if (zeilen.length === 2 && zeilen[0].length > 18 && zeilen[0].indexOf("-") > 0) zeilen = s.name.length > 0 ? [s.name] : zeilen;
+      var w = 0; zeilen.forEach(function (t) { w = Math.max(w, breite(t, px)); });
+      if (w > Math.sqrt(c.a) * 1.15 && zeilen.length === 1 && wort.length > 1) zeilen = [wort.slice(0, mitte).join(" "), wort.slice(mitte).join(" ")];
+      var h = zeilen.length * px * 1.15 * u;
+      if (!frei(c.x - w / 2, c.y - h / 2, w, h)) return;
+      var d = dunkel(s.farbe) && s.muster === "voll";
+      zeilen.forEach(function (t, i) {
+        out.push(text(t, c.x, c.y - h / 2 + (i + 0.85) * px * 1.15 * u, px, "bs-staat " + (d ? "hell" : "dunkel"), "", "middle"));
+      });
+    });
+    // Orte nach Rang; je höher die Vergrößerung, desto mehr Rang
+    var maxRang = z < 1.7 ? 1 : z < 3 ? 2 : 3;
+    geo.orte.forEach(function (o) {
+      if (o[3] > maxRang || !sichtbar(o[1], o[2])) return;
+      var px = o[3] === 1 ? 12.5 : o[3] === 2 ? 11.5 : 10.5, r = (o[3] === 1 ? 3.4 : o[3] === 2 ? 2.8 : 2.2) * u;
+      var w = breite(o[0], px) + r * 3, h = px * 1.2 * u;
+      if (!frei(o[1] - r, o[2] - h / 2, w, h)) return;
+      out.push('<circle class="bs-punkt r' + o[3] + '" cx="' + o[1] + '" cy="' + o[2] + '" r="' + r.toFixed(2) + '"/>' +
+        text(o[0], o[1] + r * 1.9, o[2] + px * 0.35 * u, px, "bs-ort r" + o[3], ""));
+    });
+    beschr.innerHTML = out.join("");
+    var kreisOp = root.classList.contains("mit-grenzen") ? 0.85 : Math.max(0, Math.min(0.6, (z - 1.6) * 0.45));
+    kk.kreis.style.opacity = kreisOp;
+    kk.land.style.opacity = z < 1.2 ? 0.5 : 0.8;
+  }
 
   // ---------- Aufbau ----------
   fetch(cfg.geo).then(function (r) { if (!r.ok) throw r; return r.json(); }).then(init).catch(function () {
@@ -81,21 +187,25 @@
     full = { x: 0, y: 0, w: g.breite, h: g.hoehe };
     var html = ['<svg xmlns="' + NS + '" class="karte-svg" preserveAspectRatio="xMidYMid meet"><defs></defs><g class="karte-hg">'];
     g.hintergrund.forEach(function (d) { html.push('<path d="' + d + '"/>'); });
-    html.push('</g><g class="karte-gebiete">');
+    html.push('</g>');
+    if (g.netz) html.push('<g class="karte-netz">' + g.netz.map(function (d) { return '<path d="' + d + '"/>'; }).join("") + "</g>");
+    html.push('<g class="karte-gebiete">');
     Object.keys(g.gebiete).forEach(function (k) { html.push('<path data-id="' + k + '" d="' + g.gebiete[k].d + '"/>'); });
-    html.push('</g><g class="karte-markierung"></g></svg>');
+    html.push('</g><g class="karte-kanten"><path class="kk-kreis"/><path class="kk-land"/><path class="kk-staat"/></g><g class="karte-beschr"></g><g class="karte-markierung"></g></svg>');
     surface.innerHTML = html.join("");
     svg = surface.querySelector("svg");
     defs = svg.querySelector("defs");
     layer = svg.querySelector(".karte-gebiete");
     hilite = svg.querySelector(".karte-markierung");
+    kk = { kreis: svg.querySelector(".kk-kreis"), land: svg.querySelector(".kk-land"), staat: svg.querySelector(".kk-staat") };
+    beschr = svg.querySelector(".karte-beschr");
     layer.querySelectorAll("path").forEach(function (p) { paths[p.getAttribute("data-id")] = p; });
     buildPatterns();
     paintAll();
     fillSearch();
     root.classList.toggle("mit-grenzen", EDIT);
     var cb = root.querySelector("[data-grenzen]");
-    if (cb) { cb.checked = EDIT; cb.addEventListener("change", function () { root.classList.toggle("mit-grenzen", cb.checked); }); }
+    if (cb) { cb.checked = EDIT; cb.addEventListener("change", function () { root.classList.toggle("mit-grenzen", cb.checked); beschriften(); }); }
     fit(Object.keys(stand.gebiete));
     bindView();
     if (EDIT) initEditor(); else { bindLegend(); bindInfo(); }
@@ -135,6 +245,7 @@
     svg.setAttribute("viewBox", (view.x - view.w / 2) + " " + (view.y - view.h / 2) + " " + view.w * 2 + " " + view.h * 2);
     svg.style.transform = "";
     scalePatterns();
+    beschriften();
   }
   function bboxOf(ids) {
     var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;

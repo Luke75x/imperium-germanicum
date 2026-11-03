@@ -325,7 +325,7 @@ async def editor(request):
 
 
 async def geo_json(request):
-    return web.FileResponse(os.path.join(DATEN, "geo.json"), headers={"Cache-Control": "public, max-age=86400"})
+    return web.FileResponse(os.path.join(DATEN, "geo.json"), headers={"Cache-Control": "public, max-age=600"})
 
 
 async def daten_json(request):

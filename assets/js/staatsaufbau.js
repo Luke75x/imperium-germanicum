@@ -667,9 +667,41 @@
     if (!dlg.open) dlg.showModal();
     fld("titel").focus();
   }
+  // Auswahl der Wappen/Siegel als Raster: Überfahren (oder Fokus) zeigt das Bild groß, Klick wählt es
   function showEmblem() {
-    var v = fld("bild").value;
-    dlg.querySelector("[data-bild-vorschau]").innerHTML = v ? '<img src="' + cfg.bilder + v + '.webp" alt="" width="64" height="64">' : "";
+    var sel = fld("bild"), v = sel.value, vor = dlg.querySelector("[data-bild-vorschau]"), wahl = dlg.querySelector("[data-bild-wahl]");
+    function zeige(src, name) {
+      vor.innerHTML = src ? '<img src="' + cfg.bilder + src + '.webp" alt="" width="64" height="64">' : "";
+      if (!wahl) return;
+      var gross = wahl.querySelector(".og-bild-gross");
+      gross.innerHTML = src ? '<img src="' + cfg.bilder + src.replace(/-640$/, "-1280") + '.webp" alt=""><span>' + esc(name) + "</span>" : "<span>" + esc(T.noEmblem || "Kein Bild") + "</span>";
+    }
+    function aktuell() { var o = sel.options[sel.selectedIndex]; zeige(sel.value, o ? o.textContent : ""); }
+    if (!wahl) {
+      wahl = document.createElement("div");
+      wahl.className = "og-bild-wahl";
+      wahl.setAttribute("data-bild-wahl", "");
+      wahl.innerHTML = '<div class="og-bild-gross"></div><div class="og-bild-raster" role="listbox"></div>';
+      vor.parentNode.parentNode.insertBefore(wahl, vor.parentNode.nextSibling);
+      sel.hidden = true;
+      sel.closest(".field").querySelector("label").removeAttribute("for");
+      wahl.querySelector(".og-bild-raster").addEventListener("mouseleave", aktuell);
+    }
+    var raster = wahl.querySelector(".og-bild-raster");
+    raster.innerHTML = Array.prototype.map.call(sel.options, function (o) {
+      var on = o.value === v;
+      return '<button type="button" role="option" class="og-bild-opt' + (on ? " on" : "") + '" aria-selected="' + on + '" data-v="' + esc(o.value) + '" title="' + esc(o.textContent) + '">' +
+        (o.value ? '<img src="' + cfg.bilder + o.value + '.webp" alt="" loading="lazy" width="56" height="56">' : "<span>–</span>") + "</button>";
+    }).join("");
+    Array.prototype.forEach.call(raster.children, function (b) {
+      var o = sel.querySelector('option[value="' + b.getAttribute("data-v") + '"]');
+      function vorschau() { zeige(o.value, o.textContent); }
+      b.addEventListener("mouseenter", vorschau);
+      b.addEventListener("focus", vorschau);
+      b.addEventListener("blur", aktuell);
+      b.addEventListener("click", function () { sel.value = o.value; showEmblem(); });
+    });
+    aktuell();
   }
   function showError(t) { var e = dlg.querySelector("[data-dialog-fehler]"); e.textContent = t; e.hidden = !t; }
   function apply() {
@@ -706,7 +738,6 @@
       e.preventDefault();
       if (apply()) dlg.close("ok");
     });
-    fld("bild").addEventListener("change", showEmblem);
     fld("rolle").addEventListener("change", function () {
       var v = fld("rolle").value;
       if (v && chips.indexOf(v) < 0) { chips.push(v); drawChips(); }

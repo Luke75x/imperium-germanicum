@@ -361,17 +361,45 @@ def _editor_dialog(name, lang, rollen, bilder):
             f'<button class="btn btn-line" value="cancel" formnovalidate>{esc(L("Abbrechen", "Cancel"))}</button></div></form></dialog>')
 
 
+# Nur Institutionsflaggen, Wappen, Siegel, Standarten, Kronen und Logos (keine Bilder von Personen, Gebäuden oder Schreiben)
+WAPPEN = {
+    "i92158683d4a0cca4": "Wappen des Imperium Germanicum",
+    "idbbec25dc54e06be": "Großes Wappen des Imperium Germanicum",
+    "i05f85b1d8736e0f0": "Doppelkopfadler",
+    "i4ee586247fc514c2": "Logo der Streitkräfte",
+    "i2b32d4cb098dab2c": "Flagge der Streitkräfte",
+    "i11aaca30dcc486be": "Siegel der Streitkräfte",
+    "i15c0c0ea6780ad72": "Emblem des Kaisers",
+    "ie6ecf3d509ef6fc3": "Emblem des Kaisers (Schloss Charlottenburg)",
+    "if0978cec8f01efe8": "Standarte des Kaisers",
+    "i2990580d50400cfc": "Krone des Kaisers",
+    "i23c1241b7ac79d7f": "Krone der Kaiserin",
+    "i7843be5e8c7b2235": "Krone der Hand des Kaisers",
+    "i1493da48e15343da": "Kurfürstenhut",
+    "ib7c33ba7d6bef700": "Emblem der Hand des Kaisers",
+    "ie52e566a1afc77a5": "Standarte der Hand des Kaisers",
+    "i0ed2170b7ed819f2": "Emblem des Senats",
+    "i9aaec4e5a4cd55cd": "Emblem des Reichstags",
+    "id9019adce22b0976": "Siegel des Reichsgerichtshofs",
+    "iac7a254e9f22265b": "Emblem der Stabschefs",
+    "i4dd5fb31eadc1d24": "Logo des Reichssicherheitsamts",
+    "i416b7a1e6d04b155": "Siegel der Reichsbehörden",
+    "icf5ad018407fe134": "Siegel des Kanzlers",
+    "i5a9f8040f8005417": "Standarte des Kanzlers",
+    "i42648ed6ea92d607": "Amtslogo des Kanzlers",
+    "i2e330402e5d67b0a": "Emblem der Imperialen Charta",
+    "i1ed8e9913dc91849": "Emblem des Etiketten-Guides",
+}
+
+
 def _bilder():
-    """Wappen/Siegel für die Auswahl im Editor (Startstand + alle Bilder der Website)."""
+    """Wappen/Siegel für die Auswahl im Editor: nur Institutionsbilder, nicht Bilder von Personen."""
     try:
         with open(config.WEBSITE_DIR + "/_build/bilder.json", encoding="utf-8") as fh:
             alle = json.load(fh)
     except OSError:
         alle = {}
-    bekannt = organigramme_start.BILDER
-    out = [(f"{i}-640", t) for i, t in bekannt.items()]
-    out += [(f"{i}-640", i) for i in sorted(alle) if i not in bekannt]
-    return out
+    return [(f"{i}-640", t) for i, t in WAPPEN.items() if not alle or i in alle]
 
 
 def seite_html(request, name, modus, konto, csrf, version, rollen):

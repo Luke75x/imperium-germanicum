@@ -40,3 +40,8 @@ Neu aufgebaut am 02.11.2026, da der frühere „Wiki-Dienst“ nicht gesichert w
 - Löschwunsch: `.venv/bin/python konto_loeschen.py <discord-id>`
 - Einrichten: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`,
   danach `PLAYWRIGHT_BROWSERS_PATH=.browser .venv/bin/playwright install --with-deps chromium`
+
+## Kartendetails (03.11.2026)
+`werkzeuge/karte_details.py` ergänzt `karte_daten/geo.json` um `kanten` (Grenzabschnitte zwischen Gebieten), `mitte`, `orte`, `meere`, `laender_namen`, `netz`.
+`karte.js` zeichnet daraus Staats-/Landes-/Kreisgrenzen und Namen (Teilstaaten, Orte nach Zoomstufe, Meere, Nachbarländer); `karte_bild.py` ebenso fürs Startseitenbild.
+Organigramm: Auswahl der Wappen im Editor nur aus `organigramme.WAPPEN` (keine Personenbilder), mit Rasteransicht und Hover-Vorschau.
