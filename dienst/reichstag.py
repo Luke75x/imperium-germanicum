@@ -3,7 +3,7 @@
     GET  /informationen/der-reichstag/intern/               Übersicht (Mitglieder des Reichstags)
     GET  …/intern/sitzung/<id>/                             Sitzung mit Tagesordnung, Abstimmung (Präsidium bearbeitet)
     GET  …/intern/antrag/<id>/                              Antrag mit Verlauf
-    GET  …/intern/archiv/                                   beendete Sitzungen + Abstimmungsverhalten je Abgeordnetem
+    GET  …/intern/sitzungen/ | antraege/ | archiv/ | abstimmungsverhalten/   Reiter der Ansicht
     GET  …/intern/abgeordnete/<id>/                         Abstimmungsverhalten einer Person
     POST …/intern/sitzung-anlegen | sitzung/<id>/aktion | tagesordnung | abstimmung        (Präsidium)
     POST /intern-api/reichstag/antrag                       nur lokal (nginx leitet das nicht weiter): Bot-Befehl /antrag
@@ -171,23 +171,66 @@ async def _ergebnisse_melden(app, sid):
 
 # ---------------------------------------------------------------- Seiten
 
-def _rahmen(request, titel, eyebrow, inhalt, brot=(), lead=""):
+STIL = """<style>
+.rt-nav{display:flex;flex-wrap:wrap;gap:4px;margin:22px 0 0;border-bottom:1px solid var(--rule)}
+.rt-nav a{padding:10px 16px;font:600 .9rem var(--sans);color:var(--muted);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-1px}
+.rt-nav a:hover{color:var(--ink)}
+.rt-nav a[aria-current]{color:var(--ink);border-bottom-color:var(--flag)}
+.rt-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:0 0 30px}
+.rt-stat{background:var(--white);border:1px solid var(--rule);padding:16px 18px;text-decoration:none;color:var(--ink)}
+.rt-stat strong{display:block;font:600 2rem/1.1 var(--serif)}
+.rt-stat span{font:.8125rem var(--sans);color:var(--muted)}
+.rt-card{background:var(--white);border:1px solid var(--rule);padding:20px 22px;margin:0 0 18px}
+.rt-card h2,.rt-card h3{margin-top:0}
+.rt-sec{margin:34px 0 12px;font-size:1.3rem}
+.rt-meta{display:flex;flex-wrap:wrap;gap:6px 22px;margin:0 0 12px;font:.9375rem var(--sans);color:var(--muted)}
+.rt-meta b{color:var(--ink);font-weight:600}
+.rt-badge{display:inline-block;padding:2px 9px;font:600 .72rem var(--sans);letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--rule-strong);color:var(--muted);white-space:nowrap}
+.rt-badge.ok{color:var(--success);background:var(--success-bg);border-color:transparent}
+.rt-badge.nein{color:var(--danger);background:var(--danger-bg);border-color:transparent}
+.rt-badge.aktiv{color:var(--ink);background:var(--flag);border-color:transparent}
+.rt-top{list-style:none;margin:0;padding:0;counter-reset:top}
+.rt-top li{display:grid;grid-template-columns:2.2em 1fr auto;gap:4px 12px;align-items:start;padding:12px 0;border-top:1px solid var(--rule);counter-increment:top}
+.rt-top li:first-child{border-top:0}
+.rt-top li::before{content:counter(top);font:600 1.3rem var(--serif);color:var(--muted)}
+.rt-top .titel{font-weight:600}
+.rt-top .zahlen{grid-column:2/4;font:.875rem var(--sans);color:var(--muted)}
+.rt-top .werkzeug{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.rt-panel{border:1px solid var(--rule);background:var(--paper);margin:0 0 18px}
+.rt-panel>summary{cursor:pointer;padding:12px 18px;font:600 .95rem var(--sans)}
+.rt-panel[open]>summary{border-bottom:1px solid var(--rule)}
+.rt-panel>.rt-inhalt{padding:16px 18px}
+.rt-filter{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.rt-filter a{padding:5px 12px;border:1px solid var(--rule-strong);text-decoration:none;color:var(--ink);font:.875rem var(--sans)}
+.rt-filter a[aria-current]{background:var(--ink);color:var(--paper)}
+.form-inline{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0}
+.rt-text{white-space:pre-line}
+@media(max-width:640px){.rt-top li{grid-template-columns:1.8em 1fr}.rt-top .werkzeug{grid-column:2;justify-content:flex-start}}
+</style>"""
+
+TABS = (("", "Übersicht"), ("sitzungen/", "Sitzungen"), ("antraege/", "Anträge"), ("archiv/", "Archiv"), ("abstimmungsverhalten/", "Abstimmungsverhalten"))
+
+
+def _rahmen(request, titel, eyebrow, inhalt, aktiv=None, brot=(), lead=""):
+    """aktiv: Pfad des Reiters (siehe TABS); brot: weitere Brotkrumen [(Text, Adresse)] vor der Seite."""
     basis = _basis(request)
     krumen = '<li><a href="/">Hauptseite</a></li><li><a href="/informationen/der-reichstag/">Der Reichstag</a></li>'
-    if brot:
+    if aktiv == "":
+        krumen += '<li><span aria-current="page">Interne Sitzungen</span></li>'
+    else:
         krumen += f'<li><a href="{basis}">Interne Sitzungen</a></li>' + "".join(f'<li><a href="{u}">{esc(t)}</a></li>' for t, u in brot)
         krumen += f'<li><span aria-current="page">{esc(titel)}</span></li>'
-    else:
-        krumen += f'<li><span aria-current="page">Interne Sitzungen</span></li>'
+    reiter = "".join(f'<a href="{basis}{p}"' + (' aria-current="page"' if p == aktiv else "") + f">{t}</a>" for p, t in TABS)
     kopf = (f'<div class="page-head"><div class="wrap"><nav class="breadcrumb" aria-label="Brotkrumen"><ol>{krumen}</ol></nav>'
             f'<span class="eyebrow">{esc(eyebrow)}</span><h1>{esc(titel)}</h1>'
-            + (f'<p class="wiki-intro rt-lead">{lead}</p>' if lead else "") + "</div></div>")
+            + (f'<p class="wiki-intro rt-lead">{lead}</p>' if lead else "")
+            + f'<nav class="rt-nav" aria-label="Bereiche">{reiter}</nav></div></div>')
     meldung = {"ok": '<div class="form-status ok" role="status">Gespeichert.</div>',
                "fehler": '<div class="form-status err" role="status">Das ging nicht: ' + esc(request.query.get("t", "ungültige Eingabe")) + "</div>"
                }.get(request.query.get("m"), "")
     return web.Response(text=seite(titel, kopf + f'<div class="section"><div class="wrap">{meldung}{inhalt}</div></div>',
                                    konto=request["konto"], csrf=request["csrf"], pfad=request.path,
-                                   kopf='<meta name="robots" content="noindex">'),
+                                   kopf='<meta name="robots" content="noindex">' + STIL),
                         content_type="text/html", headers={"Cache-Control": "no-store"})
 
 
@@ -199,7 +242,7 @@ def _form(request, aktion, inhalt, klasse="form"):
 def _tabelle(kopf, zeilen, leer="Keine Einträge."):
     if not zeilen:
         return f'<p class="callout">{esc(leer)}</p>'
-    return ('<div class="table-scroll"><table class="styles-table"><thead><tr>' + "".join(f"<th>{k}</th>" for k in kopf)
+    return ('<div class="table-scroll"><table class="styles-table is-grid"><thead><tr>' + "".join(f"<th>{k}</th>" for k in kopf)
             + "</tr></thead><tbody>" + "".join(f"<tr>{z}</tr>" for z in zeilen) + "</tbody></table></div>")
 
 
@@ -207,65 +250,151 @@ def _td(*zellen):
     return "".join(f"<td>{z}</td>" for z in zellen)
 
 
-@anmeldung.angemeldet(ist_mitglied, "Die internen Sitzungen stehen den Mitgliedern des Reichstags offen (Abgeordnete, Landesherren, Präsidium).")
-async def uebersicht(request):
-    con, basis, k = request.app["db"], _basis(request), request["konto"]
-    praes = ist_praesidium(k)
-    kommende = con.execute("SELECT * FROM reichstag_sitzungen WHERE status IN ('angekuendigt', 'laeuft') ORDER BY termin").fetchall()
-    zeilen = []
-    for s in kommende:
-        n = con.execute("SELECT COUNT(*) FROM reichstag_tagesordnung WHERE sitzung_id = ?", (s["id"],)).fetchone()[0]
-        zeilen.append(_td(f'<a href="{basis}sitzung/{s["id"]}/"><strong>{s["nummer"]}. Sitzung</strong></a><br>{esc(s["titel"])}',
-                          _zeit(s["termin"]), esc(s["ort"]), f'{n} {"Antrag" if n == 1 else "Anträge"}', SITZUNG_STATUS[s["status"]]))
-    inhalt = "<h2>Kommende Sitzungen</h2>" + _tabelle(["Sitzung", "Termin", "Ort", "Tagesordnung", "Stand"], zeilen, "Zurzeit ist keine Sitzung angekündigt.")
+def _panel(titel, inhalt, offen=False):
+    return f'<details class="rt-panel"{" open" if offen else ""}><summary>{titel}</summary><div class="rt-inhalt">{inhalt}</div></details>'
 
-    offene = con.execute("SELECT * FROM reichstag_antraege WHERE status = 'eingebracht' ORDER BY id").fetchall()
-    ziele = "".join(f'<option value="{s["id"]}">{s["nummer"]}. Sitzung ({_zeit(s["termin"], False)})</option>' for s in kommende)
-    zeilen = []
-    for a in offene:
-        aktion = ""
-        if praes and kommende:
-            aktion = _form(request, "tagesordnung", f'<input type="hidden" name="antrag" value="{a["id"]}"><input type="hidden" name="aktion" value="hinzu">'
-                           f'<select name="sitzung" aria-label="Sitzung">{ziele}</select> <button class="btn btn-navy btn-small">Auf die Tagesordnung</button>',
-                           "form form-inline")
-        zeilen.append(_td(f'<a href="{basis}antrag/{a["id"]}/"><strong>Nr. {a["id"]}</strong> {esc(a["titel"])}</a>',
-                          esc(a["einreicher_name"]), _zeit(a["erstellt"], False), aktion))
-    inhalt += ("<h2>Eingebrachte Anträge</h2>"
-               + _tabelle(["Antrag", "Eingereicht von", "Eingang", "Tagesordnung" if praes else ""], zeilen, "Es liegen keine unbehandelten Anträge vor.")
-               + '<p>Anträge reichen Abgeordnete im Discord mit dem Befehl <code>/antrag</code> ein.</p>')
 
-    if praes:
-        inhalt += "<h2>Sitzung ankündigen</h2>" + _form(request, "sitzung-anlegen", """
+def _badge(text, art=""):
+    return f'<span class="rt-badge {art}">{esc(text)}</span>'
+
+
+def _antrag_badge(status):
+    return _badge(ANTRAG_STATUS[status], {"angenommen": "ok", "abgelehnt": "nein", "tagesordnung": "aktiv"}.get(status, ""))
+
+
+def _sitzung_badge(status):
+    return _badge(SITZUNG_STATUS[status], {"laeuft": "aktiv", "beendet": "ok", "abgesagt": "nein"}.get(status, ""))
+
+
+def _ergebnis_badge(e):
+    return _badge(_ergebnis_text(e).replace("Antrag ", "").capitalize() if e else "Offen", {"angenommen": "ok", "abgelehnt": "nein"}.get(e, ""))
+
+
+def _top_liste(con, request, sid, werkzeug=False):
+    """Tagesordnung einer Sitzung als nummerierte Liste (werkzeug: Knöpfe für das Präsidium)."""
+    basis = _basis(request)
+    punkte = []
+    for t in con.execute("""SELECT t.*, a.titel, a.einreicher_name FROM reichstag_tagesordnung t JOIN reichstag_antraege a ON a.id = t.antrag_id
+                            WHERE t.sitzung_id = ? ORDER BY t.position""", (sid,)):
+        z = _zaehlen(con, sid, t["antrag_id"])
+        zahlen = (f'{z["ja"]} Ja · {z["nein"]} Nein · {z["enthaltung"]} Enthaltung · {z["abwesend"]} abwesend'
+                  if t["ergebnis"] else f'Antrag Nr. {t["antrag_id"]} · eingereicht von {esc(t["einreicher_name"])}')
+        knoepfe = ""
+        if werkzeug and not t["ergebnis"]:
+            knoepfe = "".join(_form(request, "tagesordnung", f'<input type="hidden" name="sitzung" value="{sid}"><input type="hidden" name="antrag" value="{t["antrag_id"]}">'
+                                    f'<button class="btn btn-line btn-small" name="aktion" value="{w}" title="{b}">{s}</button>', "form-inline")
+                              for w, b, s in (("hoch", "Nach oben", "↑"), ("runter", "Nach unten", "↓"), ("weg", "Von der Tagesordnung entfernen", "Entfernen")))
+        punkte.append(f'<li><div class="titel"><a href="{basis}antrag/{t["antrag_id"]}/">{esc(t["titel"])}</a> {_ergebnis_badge(t["ergebnis"]) if t["ergebnis"] else ""}</div>'
+                      f'<div class="werkzeug">{knoepfe}</div><div class="zahlen">{zahlen}</div></li>')
+    return f'<ol class="rt-top">{"".join(punkte)}</ol>' if punkte else '<p class="callout">Noch keine Anträge auf der Tagesordnung.</p>'
+
+
+def _sitzung_form(request):
+    return _form(request, "sitzung-anlegen", """
 <div class="field"><label for="titel">Titel</label><input id="titel" name="titel" maxlength="100" value="Ordentliche Sitzung" required></div>
 <div class="field"><label for="termin">Termin (Uhrzeit nach deutscher Zeit)</label><input id="termin" name="termin" type="datetime-local" required></div>
 <div class="field"><label for="ort">Ort</label><input id="ort" name="ort" maxlength="100" value="🏯｜Plenarsaal"></div>
 <div class="field"><label for="bem">Bemerkung (optional)</label><textarea id="bem" name="bemerkung" maxlength="1000" rows="3"></textarea></div>
 <button class="btn btn-navy" type="submit">Sitzung ankündigen</button>
 <p class="form-note">Die Ankündigung erscheint im Discord-Kanal der Anträge und benachrichtigt Landesherren und Abgeordnete.</p>""")
-    inhalt += f'<p style="margin-top:2rem"><a class="btn btn-line" href="{basis}archiv/">Archiv und Abstimmungsverhalten</a></p>'
-    return _rahmen(request, "Interne Sitzungen", "Für Mitglieder des Reichstages", inhalt,
+
+
+def _zuweisen(request, antrag_id, kommende):
+    ziele = "".join(f'<option value="{s["id"]}">{s["nummer"]}. Sitzung ({_zeit(s["termin"], False)})</option>' for s in kommende)
+    return _form(request, "tagesordnung", f'<input type="hidden" name="antrag" value="{antrag_id}"><input type="hidden" name="aktion" value="hinzu">'
+                 f'<select name="sitzung" aria-label="Sitzung">{ziele}</select><button class="btn btn-navy btn-small">Zur Tagesordnung</button>', "form-inline")
+
+
+MITGLIEDS_HINWEIS = "Die internen Sitzungen stehen den Mitgliedern des Reichstags offen (Abgeordnete, Landesherren, Präsidium)."
+
+
+@anmeldung.angemeldet(ist_mitglied, MITGLIEDS_HINWEIS)
+async def uebersicht(request):
+    con, basis, k = request.app["db"], _basis(request), request["konto"]
+    praes = ist_praesidium(k)
+    kommende = con.execute("SELECT * FROM reichstag_sitzungen WHERE status IN ('angekuendigt', 'laeuft') ORDER BY termin").fetchall()
+    offene = con.execute("SELECT * FROM reichstag_antraege WHERE status = 'eingebracht' ORDER BY id").fetchall()
+    beendet = con.execute("SELECT COUNT(*) FROM reichstag_sitzungen WHERE status = 'beendet'").fetchone()[0]
+    angenommen = con.execute("SELECT COUNT(*) FROM reichstag_antraege WHERE status = 'angenommen'").fetchone()[0]
+    stat = (f'<div class="rt-stats"><a class="rt-stat" href="{basis}sitzungen/"><strong>{len(kommende)}</strong><span>kommende Sitzungen</span></a>'
+            f'<a class="rt-stat" href="{basis}antraege/?status=eingebracht"><strong>{len(offene)}</strong><span>Anträge im Eingang</span></a>'
+            f'<a class="rt-stat" href="{basis}archiv/"><strong>{beendet}</strong><span>beendete Sitzungen</span></a>'
+            f'<a class="rt-stat" href="{basis}antraege/?status=angenommen"><strong>{angenommen}</strong><span>angenommene Anträge</span></a></div>')
+    inhalt = stat
+    if kommende:
+        s = kommende[0]
+        inhalt += (f'<h2 class="rt-sec">Nächste Sitzung</h2><div class="rt-card"><h3><a href="{basis}sitzung/{s["id"]}/">{s["nummer"]}. Sitzung – {esc(s["titel"])}</a> {_sitzung_badge(s["status"])}</h3>'
+                   f'<p class="rt-meta"><span><b>Termin</b> {_zeit(s["termin"])}</span>' + (f'<span><b>Ort</b> {esc(s["ort"])}</span>' if s["ort"] else "") + "</p>"
+                   + (f'<p>{esc(s["bemerkung"])}</p>' if s["bemerkung"] else "") + "<h4>Tagesordnung</h4>" + _top_liste(con, request, s["id"])
+                   + f'<p><a class="btn btn-line btn-small" href="{basis}sitzung/{s["id"]}/">Zur Sitzung</a></p></div>')
+    else:
+        inhalt += '<h2 class="rt-sec">Nächste Sitzung</h2><p class="callout">Zurzeit ist keine Sitzung angekündigt.</p>'
+    zeilen = [_td(f'<a href="{basis}antrag/{a["id"]}/"><strong>Nr. {a["id"]}</strong> {esc(a["titel"])}</a>', esc(a["einreicher_name"]), _zeit(a["erstellt"], False),
+                  _zuweisen(request, a["id"], kommende) if (praes and kommende) else "") for a in offene]
+    inhalt += (f'<h2 class="rt-sec">Anträge im Eingang</h2>' + _tabelle(["Antrag", "Eingereicht von", "Eingang", "Tagesordnung" if praes else ""], zeilen, "Es liegen keine unbehandelten Anträge vor.")
+               + '<p>Anträge reichen Abgeordnete im Discord mit dem Befehl <code>/antrag</code> ein.</p>')
+    if praes:
+        inhalt += f'<p><a class="btn btn-navy" href="{basis}sitzungen/#neu">Sitzung ankündigen</a></p>'
+    return _rahmen(request, "Interne Sitzungen", "Für Mitglieder des Reichstages", inhalt, aktiv="",
                    lead="Sitzungen des Reichstags, eingebrachte Anträge und ihre Tagesordnung.")
 
 
-@anmeldung.angemeldet(ist_mitglied, "Die internen Sitzungen stehen den Mitgliedern des Reichstags offen.")
+@anmeldung.angemeldet(ist_mitglied, MITGLIEDS_HINWEIS)
+async def sitzungen_seite(request):
+    con, basis, k = request.app["db"], _basis(request), request["konto"]
+    inhalt = '<h2 class="rt-sec" style="margin-top:0">Kommende Sitzungen</h2>'
+    kommende = con.execute("SELECT * FROM reichstag_sitzungen WHERE status IN ('angekuendigt', 'laeuft') ORDER BY termin").fetchall()
+    for s in kommende:
+        inhalt += (f'<div class="rt-card"><h3><a href="{basis}sitzung/{s["id"]}/">{s["nummer"]}. Sitzung – {esc(s["titel"])}</a> {_sitzung_badge(s["status"])}</h3>'
+                   f'<p class="rt-meta"><span><b>Termin</b> {_zeit(s["termin"])}</span>' + (f'<span><b>Ort</b> {esc(s["ort"])}</span>' if s["ort"] else "") + "</p>"
+                   + _top_liste(con, request, s["id"]) + "</div>")
+    if not kommende:
+        inhalt += '<p class="callout">Zurzeit ist keine Sitzung angekündigt.</p>'
+    if ist_praesidium(k):
+        inhalt += f'<div id="neu">{_panel("Neue Sitzung ankündigen", _sitzung_form(request), offen=True)}</div>'
+    vergangene = [_td(f'<a href="{basis}sitzung/{s["id"]}/"><strong>{s["nummer"]}. Sitzung</strong></a> {esc(s["titel"])}', _zeit(s["termin"], False), _sitzung_badge(s["status"]))
+                  for s in con.execute("SELECT * FROM reichstag_sitzungen WHERE status IN ('beendet', 'abgesagt') ORDER BY termin DESC LIMIT 10")]
+    inhalt += '<h2 class="rt-sec">Zuletzt</h2>' + _tabelle(["Sitzung", "Datum", "Stand"], vergangene, "Noch keine Sitzung beendet.") + f'<p><a href="{basis}archiv/">Zum Archiv</a></p>'
+    return _rahmen(request, "Sitzungen", "Reichstag", inhalt, aktiv="sitzungen/")
+
+
+FILTER = (("", "Alle"), ("eingebracht", "Im Eingang"), ("tagesordnung", "Auf der Tagesordnung"), ("angenommen", "Angenommen"), ("abgelehnt", "Abgelehnt"), ("zurueckgezogen", "Zurückgezogen"))
+
+
+@anmeldung.angemeldet(ist_mitglied, MITGLIEDS_HINWEIS)
+async def antraege_seite(request):
+    con, basis, k = request.app["db"], _basis(request), request["konto"]
+    wahl = request.query.get("status", "")
+    wahl = wahl if wahl in ANTRAG_STATUS else ""
+    kommende = con.execute("SELECT * FROM reichstag_sitzungen WHERE status IN ('angekuendigt', 'laeuft') ORDER BY termin").fetchall()
+    filt = "".join(f'<a href="{basis}antraege/' + (f"?status={w}" if w else "") + '"' + (' aria-current="page"' if w == wahl else "") + f">{b}</a>" for w, b in FILTER)
+    zeilen = []
+    for a in con.execute("SELECT * FROM reichstag_antraege " + ("WHERE status = ? " if wahl else "") + "ORDER BY id DESC", (wahl,) if wahl else ()):
+        zuw = _zuweisen(request, a["id"], kommende) if (ist_praesidium(k) and a["status"] == "eingebracht" and kommende) else ""
+        zeilen.append(_td(f'<a href="{basis}antrag/{a["id"]}/"><strong>Nr. {a["id"]}</strong> {esc(a["titel"])}</a>', esc(a["einreicher_name"]),
+                          _zeit(a["erstellt"], False), _antrag_badge(a["status"]) + (f"<br>{zuw}" if zuw else "")))
+    inhalt = (f'<div class="rt-filter">{filt}</div>' + _tabelle(["Antrag", "Eingereicht von", "Eingang", "Stand"], zeilen, "Keine Anträge in dieser Ansicht.")
+              + '<p>Anträge reichen Abgeordnete im Discord mit dem Befehl <code>/antrag</code> ein.</p>')
+    return _rahmen(request, "Anträge", "Reichstag", inhalt, aktiv="antraege/")
+
+
+@anmeldung.angemeldet(ist_mitglied, MITGLIEDS_HINWEIS)
 async def antrag_seite(request):
     con, basis = request.app["db"], _basis(request)
     a = con.execute("SELECT * FROM reichstag_antraege WHERE id = ?", (request.match_info["id"],)).fetchone() if request.match_info["id"].isdigit() else None
     if not a:
         raise web.HTTPNotFound()
-    inhalt = (f'<p><strong>{ANTRAG_STATUS[a["status"]]}</strong> · eingereicht von {esc(a["einreicher_name"])} am {_zeit(a["erstellt"])}</p>'
-              f'<h2>Antragstext</h2><div class="prose"><p>{esc(a["text"]).replace(chr(10), "<br>")}</p></div>')
-    if a["begruendung"]:
-        inhalt += f'<h2>Begründung</h2><div class="prose"><p>{esc(a["begruendung"]).replace(chr(10), "<br>")}</p></div>'
+    inhalt = (f'<div class="rt-card"><p class="rt-meta"><span><b>Stand</b> {_antrag_badge(a["status"])}</span><span><b>Eingereicht von</b> {esc(a["einreicher_name"])}</span>'
+              f'<span><b>Eingang</b> {_zeit(a["erstellt"])}</span></p><h3>Antragstext</h3><div class="rt-text">{esc(a["text"])}</div>'
+              + (f'<h3 style="margin-top:20px">Begründung</h3><div class="rt-text">{esc(a["begruendung"])}</div>' if a["begruendung"] else "") + "</div>")
     zeilen = []
     for t in con.execute("""SELECT t.*, s.nummer, s.termin FROM reichstag_tagesordnung t JOIN reichstag_sitzungen s ON s.id = t.sitzung_id
                             WHERE t.antrag_id = ? ORDER BY s.termin""", (a["id"],)):
         z = _zaehlen(con, t["sitzung_id"], a["id"])
         zeilen.append(_td(f'<a href="{basis}sitzung/{t["sitzung_id"]}/">{t["nummer"]}. Sitzung</a>', _zeit(t["termin"], False),
-                          f'{z["ja"]} Ja · {z["nein"]} Nein · {z["enthaltung"]} Enth. · {z["abwesend"]} abw.' if t["ergebnis"] else "–",
-                          _ergebnis_text(t["ergebnis"]) if t["ergebnis"] else "offen"))
-    inhalt += "<h2>Verlauf</h2>" + _tabelle(["Sitzung", "Datum", "Abstimmung", "Ergebnis"], zeilen, "Der Antrag wurde noch keiner Sitzung zugeordnet.")
-    return _rahmen(request, f"Antrag Nr. {a['id']}: {a['titel']}", "Antrag", inhalt, brot=[("Archiv", basis + "archiv/")])
+                          f'{z["ja"]} Ja · {z["nein"]} Nein · {z["enthaltung"]} Enth. · {z["abwesend"]} abw.' if t["ergebnis"] else "–", _ergebnis_badge(t["ergebnis"])))
+    inhalt += '<h2 class="rt-sec">Verlauf</h2>' + _tabelle(["Sitzung", "Datum", "Abstimmung", "Ergebnis"], zeilen, "Der Antrag wurde noch keiner Sitzung zugeordnet.")
+    return _rahmen(request, f"Antrag Nr. {a['id']}: {a['titel']}", "Antrag", inhalt, aktiv="antraege/", brot=[("Anträge", basis + "antraege/")])
 
 
 async def _abgeordnete(request):
@@ -273,7 +402,7 @@ async def _abgeordnete(request):
     return sorted((m for m in await request.app["discord"].mitglieder() if ROLLEN_MITGLIED & set(m["rollen"])), key=lambda m: m["name"].lower())
 
 
-@anmeldung.angemeldet(ist_mitglied, "Die internen Sitzungen stehen den Mitgliedern des Reichstags offen.")
+@anmeldung.angemeldet(ist_mitglied, MITGLIEDS_HINWEIS)
 async def sitzung_seite(request):
     con, basis, k = request.app["db"], _basis(request), request["konto"]
     sid = request.match_info["id"]
@@ -282,94 +411,90 @@ async def sitzung_seite(request):
         raise web.HTTPNotFound()
     praes = ist_praesidium(k)
     offen = s["status"] in ("angekuendigt", "laeuft")
-    top = con.execute("""SELECT t.*, a.titel, a.einreicher_name FROM reichstag_tagesordnung t JOIN reichstag_antraege a ON a.id = t.antrag_id
-                         WHERE t.sitzung_id = ? ORDER BY t.position""", (s["id"],)).fetchall()
-    inhalt = (f'<p><strong>{SITZUNG_STATUS[s["status"]]}</strong> · {_zeit(s["termin"])}' + (f' · {esc(s["ort"])}' if s["ort"] else "") + "</p>"
-              + (f'<p>{esc(s["bemerkung"])}</p>' if s["bemerkung"] else ""))
-
+    top = con.execute("SELECT * FROM reichstag_tagesordnung WHERE sitzung_id = ? ORDER BY position", (s["id"],)).fetchall()
+    inhalt = (f'<div class="rt-card"><p class="rt-meta"><span><b>Stand</b> {_sitzung_badge(s["status"])}</span><span><b>Termin</b> {_zeit(s["termin"])}</span>'
+              + (f'<span><b>Ort</b> {esc(s["ort"])}</span>' if s["ort"] else "") + "</p>" + (f'<div class="rt-text">{esc(s["bemerkung"])}</div>' if s["bemerkung"] else ""))
     if praes and offen:
         knoepfe = ""
         if s["status"] == "angekuendigt":
-            knoepfe += '<button class="btn btn-navy btn-small" name="aktion" value="eroeffnen">Sitzung eröffnen</button> '
+            knoepfe += '<button class="btn btn-navy btn-small" name="aktion" value="eroeffnen">Sitzung eröffnen</button>'
         if s["status"] == "laeuft":
-            knoepfe += '<button class="btn btn-navy btn-small" name="aktion" value="beenden">Sitzung beenden und Ergebnis verkünden</button> '
+            knoepfe += '<button class="btn btn-navy btn-small" name="aktion" value="beenden">Sitzung beenden und Ergebnis verkünden</button>'
         knoepfe += '<button class="btn btn-line btn-small" name="aktion" value="absagen">Sitzung absagen</button>'
-        inhalt += _form(request, f"sitzung/{s['id']}/aktion", knoepfe, "form form-inline")
+        inhalt += '<div style="margin-top:14px">' + _form(request, f"sitzung/{s['id']}/aktion", knoepfe, "form-inline") + "</div>"
+    inhalt += "</div>"
 
-    zeilen = []
-    for i, t in enumerate(top, 1):
-        z = _zaehlen(con, s["id"], t["antrag_id"])
-        stand = (f'<strong>{_ergebnis_text(t["ergebnis"])}</strong><br>{z["ja"]} Ja · {z["nein"]} Nein · {z["enthaltung"]} Enthaltung · {z["abwesend"]} abwesend'
-                 if t["ergebnis"] else "offen")
-        aktion = ""
-        if praes and offen and not t["ergebnis"]:
-            aktion = "".join(_form(request, "tagesordnung", f'<input type="hidden" name="sitzung" value="{s["id"]}"><input type="hidden" name="antrag" value="{t["antrag_id"]}">'
-                                   f'<button class="btn btn-line btn-small" name="aktion" value="{w}">{b}</button>', "form form-inline")
-                             for w, b in (("hoch", "↑"), ("runter", "↓"), ("weg", "Entfernen")))
-        zeilen.append(_td(str(i), f'<a href="{basis}antrag/{t["antrag_id"]}/"><strong>{esc(t["titel"])}</strong></a><br>'
-                          f'<span class="karte-feldhinweis">Antrag Nr. {t["antrag_id"]} · {esc(t["einreicher_name"])}</span>', stand, aktion))
-    inhalt += "<h2>Tagesordnung</h2>" + _tabelle(["TOP", "Antrag", "Abstimmung", "" if not (praes and offen) else "Bearbeiten"], zeilen, "Noch keine Anträge auf der Tagesordnung.")
-
+    inhalt += '<h2 class="rt-sec">Tagesordnung</h2><div class="rt-card">' + _top_liste(con, request, s["id"], werkzeug=praes and offen) + "</div>"
     if praes and offen:
         frei = con.execute("SELECT id, titel FROM reichstag_antraege WHERE status = 'eingebracht' ORDER BY id").fetchall()
         if frei:
-            inhalt += _form(request, "tagesordnung", f'<input type="hidden" name="sitzung" value="{s["id"]}"><input type="hidden" name="aktion" value="hinzu">'
-                            '<select name="antrag" aria-label="Antrag">' + "".join(f'<option value="{a["id"]}">Nr. {a["id"]} – {esc(a["titel"][:80])}</option>' for a in frei)
-                            + '</select> <button class="btn btn-navy btn-small">Antrag zur Tagesordnung hinzufügen</button>', "form form-inline")
+            inhalt += _panel("Antrag zur Tagesordnung hinzufügen", _form(
+                request, "tagesordnung", f'<input type="hidden" name="sitzung" value="{s["id"]}"><input type="hidden" name="aktion" value="hinzu">'
+                '<select name="antrag" aria-label="Antrag">' + "".join(f'<option value="{a["id"]}">Nr. {a["id"]} – {esc(a["titel"][:80])}</option>' for a in frei)
+                + '</select><button class="btn btn-navy btn-small">Hinzufügen</button>', "form-inline"))
 
-    voters = await _abgeordnete(request) if (praes and s["status"] == "laeuft") else []
-    stimmen = {(r["antrag_id"], r["konto_id"]): r["stimme"] for r in con.execute("SELECT * FROM reichstag_stimmen WHERE sitzung_id = ?", (s["id"],))}
-    if voters:
+    if praes and s["status"] == "laeuft":
+        voters = await _abgeordnete(request)
+        titel = {a["id"]: a["titel"] for a in con.execute("SELECT id, titel FROM reichstag_antraege")}
+        panels = ""
         for t in top:
             if t["ergebnis"]:
                 continue
             zeilen = "".join(f'<tr><td>{esc(m["name"])}</td><td><select name="s_{m["id"]}" aria-label="Stimme von {esc(m["name"])}"><option value="">–</option>'
                              + "".join(f'<option value="{w}">{b}</option>' for w, b in STIMMEN.items()) + "</select></td></tr>" for m in voters)
-            inhalt += (f'<h3>Abstimmung: {esc(t["titel"])}</h3>'
-                       + _form(request, "abstimmung", f'<input type="hidden" name="sitzung" value="{s["id"]}"><input type="hidden" name="antrag" value="{t["antrag_id"]}">'
-                               f'<div class="table-scroll"><table class="styles-table"><thead><tr><th>Abgeordnete/r</th><th>Stimme</th></tr></thead><tbody>{zeilen}</tbody></table></div>'
-                               '<div class="field"><label for="erg-' + str(t["antrag_id"]) + '">Ergebnis</label><select id="erg-' + str(t["antrag_id"]) + '" name="ergebnis">'
-                               '<option value="auto">Nach den Stimmen (mehr Ja als Nein = angenommen)</option><option value="vertagt">Vertagt</option>'
-                               '<option value="zurueckgezogen">Antrag zurückgezogen</option></select></div>'
-                               '<button class="btn btn-navy" type="submit">Abstimmung speichern</button>'))
+            aid = t["antrag_id"]
+            panels += _panel(f'Abstimmung: {esc(titel[aid])}', _form(
+                request, "abstimmung", f'<input type="hidden" name="sitzung" value="{s["id"]}"><input type="hidden" name="antrag" value="{aid}">'
+                f'<div class="table-scroll"><table class="styles-table is-grid"><thead><tr><th>Abgeordnete/r</th><th>Stimme</th></tr></thead><tbody>{zeilen}</tbody></table></div>'
+                f'<div class="field"><label for="erg-{aid}">Ergebnis</label><select id="erg-{aid}" name="ergebnis">'
+                '<option value="auto">Nach den Stimmen (mehr Ja als Nein = angenommen)</option><option value="vertagt">Vertagt</option>'
+                '<option value="zurueckgezogen">Antrag zurückgezogen</option></select></div>'
+                '<button class="btn btn-navy" type="submit">Abstimmung speichern</button>'), offen=len(top) == 1)
+        if panels:
+            inhalt += '<h2 class="rt-sec">Abstimmungen erfassen</h2>' + panels
 
-    # Abstimmungsverhalten dieser Sitzung (nur abgeschlossene Abstimmungen)
     fertig = [t for t in top if t["ergebnis"]]
     if fertig:
-        namen = {}
-        for r in con.execute("SELECT DISTINCT konto_id, name FROM reichstag_stimmen WHERE sitzung_id = ?", (s["id"],)):
-            namen[r["konto_id"]] = r["name"]
+        stimmen = {(r["antrag_id"], r["konto_id"]): r["stimme"] for r in con.execute("SELECT * FROM reichstag_stimmen WHERE sitzung_id = ?", (s["id"],))}
+        namen = {r["konto_id"]: r["name"] for r in con.execute("SELECT DISTINCT konto_id, name FROM reichstag_stimmen WHERE sitzung_id = ?", (s["id"],))}
         kopf = ["Abgeordnete/r"] + [f'Nr. {t["antrag_id"]}' for t in fertig]
         zeilen = [_td(f'<a href="{basis}abgeordnete/{kid}/">{esc(n)}</a>', *[STIMMEN.get(stimmen.get((t["antrag_id"], kid)), "–") for t in fertig])
                   for kid, n in sorted(namen.items(), key=lambda x: x[1].lower())]
-        inhalt += "<h2>Abstimmungsverhalten</h2>" + _tabelle(kopf, zeilen)
-    return _rahmen(request, f"{s['nummer']}. Sitzung – {s['titel']}", "Sitzung des Reichstages", inhalt, brot=[("Archiv", basis + "archiv/")])
+        inhalt += '<h2 class="rt-sec">Abstimmungsverhalten dieser Sitzung</h2>' + _tabelle(kopf, zeilen)
+    return _rahmen(request, f"{s['nummer']}. Sitzung – {s['titel']}", "Sitzung des Reichstages", inhalt, aktiv="sitzungen/", brot=[("Sitzungen", basis + "sitzungen/")])
 
 
-@anmeldung.angemeldet(ist_mitglied, "Das Archiv steht den Mitgliedern des Reichstags offen.")
+@anmeldung.angemeldet(ist_mitglied, MITGLIEDS_HINWEIS)
 async def archiv(request):
     con, basis = request.app["db"], _basis(request)
     zeilen = []
     for s in con.execute("SELECT * FROM reichstag_sitzungen WHERE status IN ('beendet', 'abgesagt') ORDER BY termin DESC"):
-        erg = [f'{esc(t["titel"])}: <strong>{_ergebnis_text(t["ergebnis"]).replace("Antrag ", "")}</strong>'
+        erg = [f'{esc(t["titel"])} {_ergebnis_badge(t["ergebnis"])}'
                for t in con.execute("""SELECT t.ergebnis, a.titel FROM reichstag_tagesordnung t JOIN reichstag_antraege a ON a.id = t.antrag_id
                                        WHERE t.sitzung_id = ? ORDER BY t.position""", (s["id"],)) if t["ergebnis"]]
-        zeilen.append(_td(f'<a href="{basis}sitzung/{s["id"]}/"><strong>{s["nummer"]}. Sitzung</strong></a>', _zeit(s["termin"], False),
-                          "<br>".join(erg) or ("abgesagt" if s["status"] == "abgesagt" else "keine Anträge behandelt")))
-    inhalt = "<h2>Beendete Sitzungen</h2>" + _tabelle(["Sitzung", "Datum", "Ergebnisse"], zeilen, "Noch keine Sitzung beendet.")
+        zeilen.append(_td(f'<a href="{basis}sitzung/{s["id"]}/"><strong>{s["nummer"]}. Sitzung</strong></a><br>{esc(s["titel"])}', _zeit(s["termin"], False),
+                          _badge("Abgesagt", "nein") if s["status"] == "abgesagt" else ("<br>".join(erg) or "keine Anträge behandelt")))
+    inhalt = '<h2 class="rt-sec" style="margin-top:0">Beendete Sitzungen</h2>' + _tabelle(["Sitzung", "Datum", "Behandelte Anträge"], zeilen, "Noch keine Sitzung beendet.")
+    antr = [_td(f'<a href="{basis}antrag/{a["id"]}/"><strong>Nr. {a["id"]}</strong> {esc(a["titel"])}</a>', esc(a["einreicher_name"]), _antrag_badge(a["status"]))
+            for a in con.execute("SELECT * FROM reichstag_antraege WHERE status IN ('angenommen', 'abgelehnt', 'zurueckgezogen') ORDER BY id DESC")]
+    inhalt += '<h2 class="rt-sec">Entschiedene Anträge</h2>' + _tabelle(["Antrag", "Eingereicht von", "Stand"], antr, "Noch kein Antrag entschieden.")
+    inhalt += f'<p><a class="btn btn-line" href="{basis}abstimmungsverhalten/">Abstimmungsverhalten der Abgeordneten</a></p>'
+    return _rahmen(request, "Archiv", "Reichstag", inhalt, aktiv="archiv/")
 
+
+@anmeldung.angemeldet(ist_mitglied, MITGLIEDS_HINWEIS)
+async def verhalten_seite(request):
+    con, basis = request.app["db"], _basis(request)
     zeilen = []
     for r in con.execute("""SELECT konto_id, MAX(name) name, SUM(stimme='ja') ja, SUM(stimme='nein') nein, SUM(stimme='enthaltung') enth,
                                    SUM(stimme='abwesend') abw FROM reichstag_stimmen GROUP BY konto_id ORDER BY name COLLATE NOCASE"""):
         zeilen.append(_td(f'<a href="{basis}abgeordnete/{r["konto_id"]}/">{esc(r["name"])}</a>', str(r["ja"]), str(r["nein"]), str(r["enth"]), str(r["abw"])))
-    inhalt += "<h2>Abstimmungsverhalten</h2>" + _tabelle(["Abgeordnete/r", "Ja", "Nein", "Enthaltung", "Abwesend"], zeilen, "Noch keine Abstimmung erfasst.")
-    antr = [_td(f'<a href="{basis}antrag/{a["id"]}/"><strong>Nr. {a["id"]}</strong> {esc(a["titel"])}</a>', esc(a["einreicher_name"]), ANTRAG_STATUS[a["status"]])
-            for a in con.execute("SELECT * FROM reichstag_antraege WHERE status IN ('angenommen', 'abgelehnt', 'zurueckgezogen') ORDER BY id DESC")]
-    inhalt += "<h2>Entschiedene Anträge</h2>" + _tabelle(["Antrag", "Eingereicht von", "Stand"], antr, "Noch kein Antrag entschieden.")
-    return _rahmen(request, "Archiv", "Reichstag", inhalt)
+    inhalt = (_tabelle(["Abgeordnete/r", "Ja", "Nein", "Enthaltung", "Abwesend"], zeilen, "Noch keine Abstimmung erfasst.")
+              + '<p class="form-note">Gezählt werden alle erfassten Abstimmungen beendeter und laufender Sitzungen.</p>')
+    return _rahmen(request, "Abstimmungsverhalten", "Reichstag", inhalt, aktiv="abstimmungsverhalten/")
 
 
-@anmeldung.angemeldet(ist_mitglied, "Das Archiv steht den Mitgliedern des Reichstags offen.")
+@anmeldung.angemeldet(ist_mitglied, MITGLIEDS_HINWEIS)
 async def abgeordneter_seite(request):
     con, basis = request.app["db"], _basis(request)
     kid = request.match_info["id"]
@@ -380,13 +505,13 @@ async def abgeordneter_seite(request):
     if not rows:
         raise web.HTTPNotFound()
     zeilen = [_td(f'<a href="{basis}sitzung/{r["sitzung_id"]}/">{r["nummer"]}. Sitzung</a>', _zeit(r["termin"], False),
-                  f'<a href="{basis}antrag/{r["antrag_id"]}/">{esc(r["titel"])}</a>', f'<strong>{STIMMEN[r["stimme"]]}</strong>', _ergebnis_text(r["ergebnis"]))
+                  f'<a href="{basis}antrag/{r["antrag_id"]}/">{esc(r["titel"])}</a>', f'<strong>{STIMMEN[r["stimme"]]}</strong>', _ergebnis_badge(r["ergebnis"]))
               for r in rows]
-    eigene = [_td(f'<a href="{basis}antrag/{a["id"]}/">Nr. {a["id"]} {esc(a["titel"])}</a>', ANTRAG_STATUS[a["status"]])
+    eigene = [_td(f'<a href="{basis}antrag/{a["id"]}/">Nr. {a["id"]} {esc(a["titel"])}</a>', _antrag_badge(a["status"]))
               for a in con.execute("SELECT * FROM reichstag_antraege WHERE einreicher_id = ? ORDER BY id DESC", (kid,))]
-    inhalt = ("<h2>Abstimmungsverhalten</h2>" + _tabelle(["Sitzung", "Datum", "Antrag", "Stimme", "Ergebnis"], zeilen)
-              + "<h2>Eingereichte Anträge</h2>" + _tabelle(["Antrag", "Stand"], eigene, "Keine Anträge eingereicht."))
-    return _rahmen(request, rows[0]["name"], "Abstimmungsverhalten", inhalt, brot=[("Archiv", basis + "archiv/")])
+    inhalt = ('<h2 class="rt-sec" style="margin-top:0">Abstimmungen</h2>' + _tabelle(["Sitzung", "Datum", "Antrag", "Stimme", "Ergebnis"], zeilen)
+              + '<h2 class="rt-sec">Eingereichte Anträge</h2>' + _tabelle(["Antrag", "Stand"], eigene, "Keine Anträge eingereicht."))
+    return _rahmen(request, rows[0]["name"], "Abstimmungsverhalten", inhalt, aktiv="abstimmungsverhalten/", brot=[("Abstimmungsverhalten", basis + "abstimmungsverhalten/")])
 
 
 # ---------------------------------------------------------------- Aktionen (Präsidium)
@@ -401,7 +526,7 @@ async def sitzung_anlegen(request):
     titel, ort, bem = _bereinigt(form.get("titel"), 100), _bereinigt(form.get("ort"), 100), _bereinigt(form.get("bemerkung"), 1000)
     termin = _termin_lesen(str(form.get("termin", "")))
     if not titel or termin is None:
-        _zurueck(request, "", False, "Titel und Termin fehlen")
+        _zurueck(request, "sitzungen/", False, "Titel und Termin fehlen")
     con = request.app["db"]
     nummer = max((con.execute("SELECT MAX(nummer) FROM reichstag_sitzungen").fetchone()[0] or ERSTE_SITZUNG - 1) + 1, ERSTE_SITZUNG)
     cur = con.execute("INSERT INTO reichstag_sitzungen (nummer, titel, termin, ort, bemerkung, erstellt_von, erstellt) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -545,6 +670,9 @@ def registrieren(app):
         b = p + BASIS
         app.router.add_get(b, uebersicht)
         app.router.add_get(b + "archiv/", archiv)
+        app.router.add_get(b + "sitzungen/", sitzungen_seite)
+        app.router.add_get(b + "antraege/", antraege_seite)
+        app.router.add_get(b + "abstimmungsverhalten/", verhalten_seite)
         app.router.add_get(b + "sitzung/{id}/", sitzung_seite)
         app.router.add_get(b + "antrag/{id}/", antrag_seite)
         app.router.add_get(b + "abgeordnete/{id}/", abgeordneter_seite)
