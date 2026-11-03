@@ -132,17 +132,17 @@ def _details(bild, geo, stand, staaten, a):
     d = ImageDraw.Draw(bild)
     quelle = "source-sans-3.woff2"
     for p in geo.get("seen", []):
-        for r in a.ringe(p):
+        for r in a.ringe(p[4]):
             if len(r) > 2:
                 d.polygon(r, fill=MEER, outline=(126, 166, 196))
     for k, w, f in ((1, 4, (79, 147, 200)), (2, 3, (95, 158, 207)), (3, 2, (110, 170, 215))):
-        dd = geo.get("fluesse", {}).get(str(k))
+        dd = "".join(c[4] for c in geo.get("fluesse", {}).get(str(k), []))
         if dd:
             for l in a.linien(dd):
                 d.line(l, fill=f, width=w, joint="curve")
     ov = Image.new("RGBA", (B, H), (0, 0, 0, 0))
     od = ImageDraw.Draw(ov)
-    for l in a.linien(geo.get("grenzen", "")) if geo.get("grenzen") else []:
+    for l in a.linien("".join(c[4] for c in geo.get("grenzen", []))):
         od.line(l, fill=(110, 116, 132, 220), width=2)
     zu = stand["gebiete"]
     for ga, gb, dd in geo["kanten"]:
@@ -235,7 +235,7 @@ def zeichnen(geo, stand, ziel=PFAD):
     bild = Image.new("RGB", (B, H), MEER)
     d = ImageDraw.Draw(bild)
     for p in geo["land"]:
-        for r in a.ringe(p):
+        for r in a.ringe(p[4]):
             if len(r) > 2:
                 d.polygon(r, fill=LAND)
     staaten = {s["id"]: s for s in stand["staaten"]}

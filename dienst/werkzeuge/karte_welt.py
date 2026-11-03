@@ -5,7 +5,7 @@ Schreibt karte_daten/geo.json (grob: sofort geladen) und karte_daten/geo_fein.js
 Die Gebiets-IDs, Namen und Flächen stammen aus karte_daten/rekonstruktion/gebiete_meta.json. Benötigt numpy, shapely, pyshp.
 Koordinaten: x/y in Kartenpixeln, Welt = 40000 × 40000 (1 Einheit ≈ 1 km am Äquator), Ursprung links oben bei 180°W / ~85°N.
 """
-import glob, json, math, os, sys, time
+import glob, json, math, os, re, sys, time
 import numpy as np
 import shapefile
 import shapely
@@ -86,6 +86,30 @@ def lesen(name):
 
 
 WELT = box(-180, LAT_S, 180, LAT_N)
+ZELLE = 1600          # Kantenlänge der Blöcke, in die die Hintergrunddaten räumlich aufgeteilt werden (Seite zeichnet nur sichtbare Blöcke)
+
+
+def _bb(d):
+    z = np.array([float(v) for v in re.findall(r"-?\d+\.?\d*", d)])
+    return z[0::2].min(), z[1::2].min(), z[0::2].max(), z[1::2].max()
+
+
+def bloecke(teile):
+    """Pfadstücke (je ein Objekt, Ringe bleiben zusammen) → [[x0, y0, x1, y1, d], …] nach Zelle des Mittelpunkts."""
+    gr = {}
+    for d in teile:
+        if not d:
+            continue
+        x0, y0, x1, y1 = _bb(d)
+        g = gr.setdefault((int((x0 + x1) / 2 // ZELLE), int((y0 + y1) / 2 // ZELLE)), [x0, y0, x1, y1, []])
+        g[0], g[1], g[2], g[3] = min(g[0], x0), min(g[1], y0), max(g[2], x1), max(g[3], y1)
+        g[4].append(d)
+    return [[int(g[0]), int(g[1]) , int(g[2]) + 1, int(g[3]) + 1, "".join(g[4])] for g in gr.values()]
+
+
+def bloecke_lin(d):
+    return bloecke(["M" + t for t in d.split("M")[1:]])
+
 
 
 def begrenzen(g):
@@ -103,7 +127,7 @@ for f in json.load(open(NUTS))["features"]:
 roh = np.array(roh, dtype=object)
 log(len(ids), "Gebiete, Koordinatenprüfung:", int(np.sum(~shapely.coverage_is_valid(roh))), "ungültig")
 L0 = shapely.coverage_simplify(roh, 3.0)
-L1 = shapely.coverage_simplify(roh, 0.35)
+L1 = shapely.coverage_simplify(roh, 0.6)
 log("vereinfacht")
 
 
@@ -132,7 +156,7 @@ mitte = {}
 for i, g in zip(ids, L0):
     rp = g.centroid if g.contains(g.centroid) else g.representative_point()
     mitte[i] = [round(rp.x), round(rp.y), round(g.area)]
-gebiete0 = {i: {"d": pfad_poly(g), "n": gebiete_meta[i]["n"], "c": gebiete_meta[i]["c"], "a": gebiete_meta[i]["a"]} for i, g in zip(ids, L0)}
+gebiete0 = {i: {"b": [round(v) for v in g.bounds], "d": pfad_poly(g), "n": gebiete_meta[i]["n"], "c": gebiete_meta[i]["c"], "a": gebiete_meta[i]["a"]} for i, g in zip(ids, L0)}
 gebiete1 = {i: pfad_poly(g, 0.01) for i, g in zip(ids, L1)}
 nuts_union0 = unary_union(list(L0))
 nuts_union1 = unary_union(list(L1))
@@ -302,13 +326,17 @@ for lon in range(-180, 181, 10):
     netz.append(f"M{x:g} {y0:g}L{x:g} {y1:g}")
 x_min, y_min = mxy(-180, LAT_N); x_max, y_max = mxy(180, LAT_S)
 
+def fl_bloecke(fl):
+    return {k: bloecke_lin(v) for k, v in fl.items()}
+
+
 kern = {"breite": W, "hoehe": W, "welt": [x_min, y_min, x_max, y_max], "projektion": "Web-Mercator",
         "quelle": "© EuroGeographics für die Verwaltungsgrenzen (GISCO, NUTS 2021), Natural Earth (gemeinfrei)",
         "laender": laender, "gebiete": gebiete0, "mitte": mitte, "kanten": kanten0,
-        "land": land0, "grenzen": grenzen0, "seen": seen0, "fluesse": fluesse0, "flussnamen": flussnamen,
+        "land": bloecke(land0), "grenzen": bloecke_lin(grenzen0), "seen": bloecke(seen0), "fluesse": fl_bloecke(fluesse0), "flussnamen": flussnamen,
         "orte": orte0, "meere": meere, "laender_namen": laender_namen, "netz": netz}
-fein = {"gebiete": gebiete1, "kanten": kanten1, "land": land1, "grenzen": grenzen1, "provinzen": provinzen,
-        "seen": seen1, "fluesse": fluesse1, "orte": orte1}
+fein = {"gebiete": gebiete1, "kanten": kanten1, "land": bloecke(land1), "grenzen": bloecke_lin(grenzen1), "provinzen": bloecke_lin(provinzen),
+        "seen": bloecke(seen1), "fluesse": fl_bloecke(fluesse1), "orte": orte1}
 for name, d in (("geo.json", kern), ("geo_fein.json", fein)):
     p = os.path.join(ZIEL, name)
     json.dump(d, open(p, "w"), ensure_ascii=False, separators=(",", ":"))
