@@ -40,6 +40,9 @@ Neu aufgebaut am 02.11.2026, da der frühere „Wiki-Dienst“ nicht gesichert w
 - Hauptstädte (04.11.2026): Jeder Teilstaat kann `hauptstadt: {name, x, y}` (Weltkoordinaten) im Stand tragen. Editor: Feld „Hauptstadt“ im Teilstaat-Dialog
   (Ortsname aus der Liste setzt die Lage, sonst Mitte des größten Teils) und Werkzeug „Hauptstadt“ (Teilstaat wählen, auf die Karte klicken). Anzeige:
   Stern mit fettem Namen ab Kartenstufe 3,4 (`bs-hs` in wiki.css), Zeile „Hauptstadt“ im Gebietsfenster, Stern auch in `karte.png` (`karte_bild.py`).
+- Königsberg (04.11.2026): Das Kaliningrader Gebiet ist als Gebiet `RU001` (Name „Kaliningrad“, im Stand „Königsberg“, Land RU) Teil der Karte, weil die NUTS-Daten
+  keine Gebiete außerhalb der EU enthalten. Erzeugt von `werkzeuge/karte_gebiet_koenigsberg.py` (braucht shapely; Sicherungen `karte_daten/*.vor-koenigsberg`,
+  nicht im Repo). Einwohner 1 029 966 (Volkszählung 2021) statt Eurostat. Bei einem Neubau der Karte mit `karte_welt.py` muss das Skript danach erneut laufen.
 
 ## Betrieb
 - Geheimnisse in `/root/.env`: `DISCORD_TOKEN` (Bot) und `DISCORD_CLIENT_SECRET` (OAuth).

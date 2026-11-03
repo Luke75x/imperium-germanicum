@@ -4,3 +4,4 @@ __pycache__/
 daten/
 .browser/
 karte_daten/cache/
+karte_daten/*.vor-koenigsberg
