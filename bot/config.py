@@ -26,6 +26,10 @@ HAFT_ROLLE = 1562930209622069298            # Häftling
 KRS_HAFT_ROLLE = 1564696460258316429        # KRS-Häftling
 HAFT_BEHALTEN_BIS = 1560326270229938196     # » ━━━『 Auszeichnungen 』━━━ «
 HAFT_LOG = 1567218532691877989              # Thread „RP-Ereignisse: Haft- und Untersuchungshaft“
+# Newsflash (newsflash.py): Prüf-Thread der Leitung, Rollen Landesherr / Staatsbürger
+NEWSFLASH_PRUEFUNG = 1567221657121067108    # Thread „RP-Ereignisse: Newsflash (Filter- und Staatsbürger)“
+LANDESHERR_ROLLE = 1522701576295415969
+STAATSBUERGER_ROLLE = 1522929940885143683
 TICKET_KANAL = 1523025911493038203          # 🛂｜einwanderungsbehörde, Panel 1565507299345436713
 THREAD_ABGELAUFEN = 1565505112888058019     # Abgelaufene Aufenthaltsvisen (Austritt)
 THREAD_EINBUERGERUNGEN = 1565505189132243026  # Erfolgreiche Einbürgerungen

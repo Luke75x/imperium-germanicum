@@ -1,0 +1,14 @@
+# Filterliste für /newsflash (eine Wendung pro Zeile, Groß-/Kleinschreibung egal, # = Kommentar).
+# Trifft eine Zeile in Schlagzeile, Inhalt oder Zeitungsname, geht die Meldung vor der Veröffentlichung
+# zur Prüfung in den Kanal der Leitung. Die Datei wird bei jedem Aufruf neu gelesen, Änderungen gelten sofort.
+volksfeind
+volksverräter
+volksschädling
+untermensch
+lügenpresse
+neger
+kanake
+nigger
+judensau
+zigeunerpack
+ausländerpack
