@@ -14,11 +14,13 @@
 Regent eines Teilstaats: Landesherr mit der Fraktionsrolle des Teilstaats; Teilstaaten ohne Fraktionsrolle verwaltet der Kanzler.
 Jeder Stand ist eine Zeile in karte_versionen; der jüngste gilt. Startstand: karte_daten/startstand.json (aus der alten Karte).
 """
+import gzip
 import html
 import json
 import os
 import re
 import secrets
+import shutil
 import time
 from datetime import datetime, timezone
 
@@ -222,7 +224,7 @@ def seite_html(request, modus, konto, csrf, version, rollen):
     prefix = "/en" if en else ""
     stand = version["stand"]
     cfg = {"i18n": T[lang], "lang": lang, "modus": modus, "stand": stand, "basis": version["id"], "version": None,
-           "geo": "/karte/geo.json", "geoFein": "/karte/geo_fein.json", "info": "/karte/info.json", "speichern": "/karte/speichern", "antrag": "/karte/antrag",
+           "geo": f"/karte/geo.json?v={_geo_version()}", "geoFein": f"/karte/geo_fein.json?v={_geo_version()}", "info": "/karte/info.json", "speichern": "/karte/speichern", "antrag": "/karte/antrag",
            "gebietsname": "/karte/gebietsname", "anmelden": "/anmelden/?weiter=" + request.path, "csrf": csrf or "",
            "laender": GEO["laender"]}
     cfg_json = json.dumps(cfg, ensure_ascii=False).replace("</", "<\\/")
@@ -328,12 +330,37 @@ async def editor(request):
                         content_type="text/html", headers={"Cache-Control": "no-store"})
 
 
+def _geo_version():
+    return int(max(os.path.getmtime(os.path.join(DATEN, n)) for n in ("geo.json", "geo_fein.json")))
+
+
+def _vorverdichtet(name):
+    """Geodatei einmal mit gzip -9 vorverdichten (spart Rechenzeit und Übertragung); Pfad der .gz-Datei."""
+    quelle = os.path.join(DATEN, name)
+    ziel = os.path.join(DATEN, "cache", name + ".gz")
+    if not os.path.exists(ziel) or os.path.getmtime(ziel) < os.path.getmtime(quelle):
+        os.makedirs(os.path.dirname(ziel), exist_ok=True)
+        with open(quelle, "rb") as fh, gzip.open(ziel + ".tmp", "wb", compresslevel=9) as out:
+            shutil.copyfileobj(fh, out)
+        os.replace(ziel + ".tmp", ziel)
+    return ziel
+
+
+def _geo_antwort(request, name):
+    # Die Adresse trägt die Version (?v=…), deshalb darf der Browser die Datei lange behalten
+    kopf = {"Cache-Control": "public, max-age=31536000, immutable", "Vary": "Accept-Encoding", "Content-Type": "application/json"}
+    if "gzip" in request.headers.get("Accept-Encoding", ""):
+        kopf["Content-Encoding"] = "gzip"
+        return web.FileResponse(_vorverdichtet(name), headers=kopf)
+    return web.FileResponse(os.path.join(DATEN, name), headers=kopf)
+
+
 async def geo_fein_json(request):
-    return web.FileResponse(os.path.join(DATEN, "geo_fein.json"), headers={"Cache-Control": "public, max-age=600"})
+    return _geo_antwort(request, "geo_fein.json")
 
 
 async def geo_json(request):
-    return web.FileResponse(os.path.join(DATEN, "geo.json"), headers={"Cache-Control": "public, max-age=600"})
+    return _geo_antwort(request, "geo.json")
 
 
 async def daten_json(request):

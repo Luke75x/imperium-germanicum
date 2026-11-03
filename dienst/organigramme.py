@@ -30,6 +30,7 @@ from seiten import seite
 routes = web.RouteTableDef()
 esc = html.escape
 
+SICHTBAR = ["wahl", "ernennung", "ausfertigung", "bildung", "beschluss", "gliederung"]   # standardmäßig sichtbare Beziehungsarten, der Rest lässt sich einblenden
 ARTEN = ["vorschlag", "wahl", "ernennung", "ausfertigung", "bildung", "beschluss", "veto", "kontrolle", "gliederung"]
 FORMEN = {"organ": ("Organ", "Body"), "krone": ("Krone", "Crown"), "volk": ("Volk", "People"), "dokument": ("Dokument", "Document")}
 ARTEN_AMT = {"amt": ("Amt", "Office"), "kanzlei": ("Kanzlei", "Chancellery"), "saeule": ("Säule", "Pillar"),
@@ -251,7 +252,13 @@ def pruefen(name, stand):
         if s not in schluessel:
             schluessel.add(s)
             kanten.append({"id": f"e{len(kanten) + 1}", "von": e["von"], "nach": e["nach"], "art": e["art"]})
-    return {"knoten": knoten, "rahmen": rahmen, "kanten": kanten}
+    bahnen = []
+    for b in (stand.get("bahnen") or [])[:12]:
+        try:
+            bahnen.append({"titel": _text(b.get("titel"), 100), "titel_en": _text(b.get("titel_en"), 100), "von": round(float(b["von"])), "bis": round(float(b["bis"]))})
+        except (AttributeError, KeyError, TypeError, ValueError):
+            raise Ungueltig("Ungültige Bahn.")
+    return {"knoten": knoten, "rahmen": rahmen, "kanten": kanten, "bahnen": bahnen}
 
 
 # ---------- Seiten ----------
@@ -417,7 +424,7 @@ def seite_html(request, name, modus, konto, csrf, version, rollen):
            "csrf": csrf or "", "prefix": prefix, "stand_datum": stand_datum,
            "rollen": {r["id"]: r["name"] for r in rollen} if modus == "bearbeiten" else {}}
     if name == "staatsaufbau":
-        cfg.update(arten=ARTEN, bilder="/assets/img/")
+        cfg.update(arten=ARTEN, bilder="/assets/img/", sichtbar=SICHTBAR)
     cfg_json = json.dumps(cfg, ensure_ascii=False).replace("</", "<\\/")
 
     krumen = "".join(f'<li><a href="{prefix}{u}">{esc(t[en])}</a></li>' for u, t in o["brotkrumen"])
@@ -460,9 +467,12 @@ def seite_html(request, name, modus, konto, csrf, version, rollen):
     if name == "staatsaufbau":
         t = texte(name, lang)
         nav = (f'<nav class="aside-nav" aria-label="{L("Legende", "Legend")}"><h2>{L("Beziehungen", "Relations")}</h2><ul class="karte-legende">'
-               + "".join(f'<li><button type="button" class="karte-legende-item" data-art="{a}" aria-pressed="false">{_swatch(a)}'
+               + "".join(f'<li><button type="button" class="karte-legende-item" data-art="{a}" aria-pressed="{"true" if a in SICHTBAR else "false"}">{_swatch(a)}'
                          f'<span class="karte-legende-name">{esc(t["arten"][a]["aktiv"])}</span></button></li>' for a in ARTEN)
-               + "</ul></nav>")
+               + "</ul>"
+               + f'<div class="karte-aktionen"><button type="button" class="btn btn-line btn-small" data-ebene="struktur">{L("Nur Struktur", "Structure only")}</button>'
+               f'<button type="button" class="btn btn-line btn-small" data-ebene="alle">{L("Alle zeigen", "Show all")}</button></div>'
+               f'<p class="karte-feldhinweis">{L("Ein Klick blendet eine Beziehungsart ein oder aus. Ein Klick auf ein Organ zeigt immer alle seine Beziehungen.", "Click to show or hide a type of relation. Clicking a body always shows all of its relations.")}</p></nav>')
         aside_klasse = "og-aside"
     else:
         nav = f'<nav class="aside-nav org-gliederung" aria-label="{L("Gliederung", "Structure")}"><h2>{L("Gliederung", "Structure")}</h2><div data-gliederung></div></nav>'

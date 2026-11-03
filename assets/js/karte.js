@@ -127,7 +127,7 @@
     if (!beschr || !geo.orte || !base) return;
     var zt = stufe();
     var u = base.w / Math.max(1, surface.clientWidth);     // Kartenpixel je Bildschirmpixel
-    var x0 = base.x - base.w / 2, x1 = base.x + base.w * 1.5, y0 = base.y - base.h / 2, y1 = base.y + base.h * 1.5;
+    var x0 = base.x - base.w / 4, x1 = base.x + base.w * 1.25, y0 = base.y - base.h / 4, y1 = base.y + base.h * 1.25;
     var belegt = [], out = [];
     function frei(x, y, w, h) {
       for (var i = 0; i < belegt.length; i++) { var b = belegt[i]; if (x < b[2] && x + w > b[0] && y < b[3] && y + h > b[1]) return false; }
@@ -337,7 +337,7 @@
       var cw = surface.clientWidth, ch = surface.clientHeight;
       var s1 = cw / view.w, k = base.w / view.w;
       var tx = (base.x + base.w / 2 - view.x - view.w / 2) * s1, ty = (base.y + base.h / 2 - view.y - view.h / 2) * s1;
-      if (Math.abs(tx) > cw * 0.42 || Math.abs(ty) > ch * 0.42 || k < 0.55 || k > 4) { redraw(); return; }
+      if (Math.abs(tx) > cw * 0.2 || Math.abs(ty) > ch * 0.2 || k < 0.75 || k > 4) { redraw(); return; }
       svg.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + k + ")";
     });
   }
@@ -345,9 +345,9 @@
     clearTimeout(settle);
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
     base = { x: view.x, y: view.y, w: view.w, h: view.h };
-    svg.setAttribute("viewBox", (view.x - view.w / 2) + " " + (view.y - view.h / 2) + " " + view.w * 2 + " " + view.h * 2);
+    svg.setAttribute("viewBox", (view.x - view.w / 4) + " " + (view.y - view.h / 4) + " " + view.w * 1.5 + " " + view.h * 1.5);
     svg.style.transform = "";
-    ansicht = { x0: view.x - view.w / 2, x1: view.x + view.w * 1.5, y0: view.y - view.h / 2, y1: view.y + view.h * 1.5 };
+    ansicht = { x0: view.x - view.w / 4, x1: view.x + view.w * 1.25, y0: view.y - view.h / 4, y1: view.y + view.h * 1.25 };
     lod(stufe());
     scalePatterns();
     feinGebiete();

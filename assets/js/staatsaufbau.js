@@ -22,7 +22,7 @@
   var stand = clone(cfg.stand);
   var saved = clone(cfg.stand);
   var personen = [], zahlen = {};
-  var boxes = {}, frames = [], edges = [], full = { x: 0, y: 0, w: 1, h: 1 }, view = { x: 0, y: 0, w: 1, h: 1 };
+  var boxes = {}, frames = [], bahnen = [], hiddenArt = {}, edges = [], full = { x: 0, y: 0, w: 1, h: 1 }, view = { x: 0, y: 0, w: 1, h: 1 };
   var svg = null, raf = 0, focus = null, hoverId = null, roleNames = cfg.rollen || {};
 
   var PAD = 14, FRAME = 26, FRAME_LABEL = 34;
@@ -105,46 +105,151 @@
       if (!bb) return null;
       return { r: r, x: bb.x - FRAME, y: bb.y - FRAME, w: bb.w + 2 * FRAME, h: bb.h + FRAME + FRAME_LABEL };
     }).filter(Boolean);
-    // Beziehungen: weiche Kurven, die senkrecht aus der Seite des Organs treten, die dem anderen Organ zugewandt ist;
-    // mehrere Pfeile an derselben Seite bekommen eigene Anschlusspunkte (nach Lage des Gegenübers geordnet, damit sie sich nicht kreuzen)
-    var ends = {}, list = [];
-    stand.kanten.forEach(function (e) {
-      var a = core(boxes[e.von]), b = core(boxes[e.nach]);
-      if (!a || !b) return;
-      var dx = b.x + b.w / 2 - (a.x + a.w / 2), dy = b.y + b.h / 2 - (a.y + a.h / 2);
-      var vert = Math.abs(dy) / (a.h / 2 + b.h / 2) >= Math.abs(dx) / (a.w / 2 + b.w / 2);
-      var sa = vert ? (dy > 0 ? "s" : "n") : (dx > 0 ? "e" : "w"), sb = vert ? (dy > 0 ? "n" : "s") : (dx > 0 ? "w" : "e");
-      var g = { e: e, a: a, b: b, sa: sa, sb: sb };
-      list.push(g);
-      [[e.von, sa, "a", b], [e.nach, sb, "b", a]].forEach(function (x) {
-        var key = x[0] + "|" + x[1];
-        (ends[key] = ends[key] || []).push({ g: g, end: x[2], other: x[3] });
-      });
-    });
-    Object.keys(ends).forEach(function (key) {
-      var side = key.split("|")[1], items = ends[key], n = items.length;
-      var along = function (it) { return side === "n" || side === "s" ? it.other.x + it.other.w / 2 : it.other.y + it.other.h / 2; };
-      items.sort(function (p, q) { return along(p) - along(q) || (p.g.e.id < q.g.e.id ? -1 : 1); });
-      items.forEach(function (it, i) {
-        var r = it.end === "a" ? it.g.a : it.g.b, horiz = side === "n" || side === "s";
-        var span = horiz ? r.w : r.h, sp = Math.min(22, Math.max(8, (span - 16) / n)), off = (i - (n - 1) / 2) * sp;
-        var cx = r.x + r.w / 2, cy = r.y + r.h / 2, pad = 4;
-        it.g[it.end] = horiz ? { x: cx + off, y: side === "n" ? r.y - pad : r.y + r.h + pad, nx: 0, ny: side === "n" ? -1 : 1 }
-          : { x: side === "w" ? r.x - pad : r.x + r.w + pad, y: cy + off, nx: side === "w" ? -1 : 1, ny: 0 };
-      });
-    });
-    edges = list.map(function (g) {
-      var p1 = g.a, p2 = g.b, dist = Math.hypot(p2.x - p1.x, p2.y - p1.y), k = Math.min(150, Math.max(26, dist * 0.38));
-      var h = { e: g.e, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, c1x: p1.x + p1.nx * k, c1y: p1.y + p1.ny * k, c2x: p2.x + p2.nx * k, c2y: p2.y + p2.ny * k };
-      h.d = "M" + r1(h.x1) + " " + r1(h.y1) + "C" + r1(h.c1x) + " " + r1(h.c1y) + " " + r1(h.c2x) + " " + r1(h.c2y) + " " + r1(h.x2) + " " + r1(h.y2);
-      return h;
-    });
+    edges = routeAll();
+    var lanes = (stand.bahnen || []);
+    bahnen = [];
     var all = bboxOf(stand.knoten.map(function (k) { return k.id; })) || { x: 0, y: 0, w: 1, h: 1 };
     frames.forEach(function (f) {
       var x1 = Math.max(all.x + all.w, f.x + f.w), y1 = Math.max(all.y + all.h, f.y + f.h);
       all.x = Math.min(all.x, f.x); all.y = Math.min(all.y, f.y); all.w = x1 - all.x; all.h = y1 - all.y;
     });
+    if (lanes.length) {
+      var top = all.y - 120, bot = all.y + all.h + 30;
+      bahnen = lanes.map(function (l) { return { l: l, x: l.von, w: l.bis - l.von, y: top, h: bot - top }; });
+      bahnen.forEach(function (bn) {
+        var x1 = Math.max(all.x + all.w, bn.x + bn.w), y1 = Math.max(all.y + all.h, bn.y + bn.h);
+        all.x = Math.min(all.x, bn.x); all.y = Math.min(all.y, bn.y); all.w = x1 - all.x; all.h = y1 - all.y;
+      });
+    }
     full = all;
+  }
+
+  // ---------- Linienführung: rechtwinklig, mit gemeinsamer Sammelschiene je Ausgangsorgan und Art ----------
+  var RAD = 10;
+  function obstacle(id) { var c = core(boxes[id]); return { id: id, x0: c.x - 8, y0: c.y - 8, x1: c.x + c.w + 8, y1: c.y + c.h + 8 }; }
+  function segFree(x0, y0, x1, y1, skip, rects) {
+    var ax = Math.min(x0, x1), bx = Math.max(x0, x1), ay = Math.min(y0, y1), by = Math.max(y0, y1);
+    for (var i = 0; i < rects.length; i++) {
+      var r = rects[i];
+      if (skip.indexOf(r.id) >= 0) continue;
+      if (bx > r.x0 && ax < r.x1 && by > r.y0 && ay < r.y1) return false;
+    }
+    return true;
+  }
+  function roundPath(pts) {
+    var d = "M" + r1(pts[0][0]) + " " + r1(pts[0][1]);
+    for (var i = 1; i < pts.length - 1; i++) {
+      var p0 = pts[i - 1], p1 = pts[i], p2 = pts[i + 1];
+      var l1 = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]), l2 = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]), r = Math.min(RAD, l1 / 2, l2 / 2);
+      if (r < 1) { d += "L" + r1(p1[0]) + " " + r1(p1[1]); continue; }
+      var ax = p1[0] + (p0[0] - p1[0]) / l1 * r, ay = p1[1] + (p0[1] - p1[1]) / l1 * r, bx = p1[0] + (p2[0] - p1[0]) / l2 * r, by = p1[1] + (p2[1] - p1[1]) / l2 * r;
+      d += "L" + r1(ax) + " " + r1(ay) + "Q" + r1(p1[0]) + " " + r1(p1[1]) + " " + r1(bx) + " " + r1(by);
+    }
+    var q = pts[pts.length - 1];
+    return d + "L" + r1(q[0]) + " " + r1(q[1]);
+  }
+  function routeAll() {
+    var ids = Object.keys(boxes), rects = ids.map(obstacle);
+    var inFrame = {};
+    stand.knoten.forEach(function (k) { inFrame[k.id] = !!k.rahmen; });
+    // Zeilen (Bänder) aus den Höhen der Organe
+    var order = ids.slice().sort(function (p, q) { return boxes[p].y - boxes[q].y; }), bands = [];
+    order.forEach(function (id) {
+      var b = boxes[id], last = bands[bands.length - 1];
+      if (last && Math.abs(b.y - last.y0) < 70) { last.y1 = Math.max(last.y1, b.y + b.h + (inFrame[id] ? 44 : 0)); last.ids.push(id); }
+      else bands.push({ y0: b.y, y1: b.y + b.h + (inFrame[id] ? 44 : 0), ids: [id] });
+    });
+    var bandOf = {};
+    bands.forEach(function (bd, i) { bd.ids.forEach(function (id) { bandOf[id] = i; }); });
+    function gapY(i) { return i < 0 ? bands[0].y0 - 46 : i >= bands.length - 1 ? bands[bands.length - 1].y1 + 30 : (bands[i].y1 + bands[i + 1].y0) / 2; }
+    // Seiten und Anschlusspunkte; gleiche Art vom selben Ausgangsorgan teilt sich einen Anschlusspunkt (Sammelschiene)
+    var list = [], ends = {};
+    stand.kanten.forEach(function (e) {
+      var A = boxes[e.von], B = boxes[e.nach];
+      if (!A || !B) return;
+      var ca = core(A), cb = core(B), dy = (cb.y + cb.h / 2) - (ca.y + ca.h / 2), dx = (cb.x + cb.w / 2) - (ca.x + ca.w / 2);
+      var same = bandOf[e.von] === bandOf[e.nach];
+      var sa = same ? (dx > 0 ? "e" : "w") : (dy > 0 ? "s" : "n"), sb = same ? (dx > 0 ? "w" : "e") : (dy > 0 ? "n" : "s");
+      var g = { e: e, sa: sa, sb: sb, same: same, ca: ca, cb: cb };
+      list.push(g);
+      [[e.von, sa, "a", cb, e.art + "|"], [e.nach, sb, "b", ca, e.art + "|" + e.von]].forEach(function (x) {
+        var key = x[0] + "|" + x[1], it = (ends[key] = ends[key] || {});
+        var gk = x[2] + "|" + x[4];
+        (it[gk] = it[gk] || { items: [], other: x[3] }).items.push({ g: g, end: x[2] });
+      });
+    });
+    Object.keys(ends).forEach(function (key) {
+      var parts = key.split("|"), id = parts[0], side = parts[1], groups = Object.keys(ends[key]).map(function (k) { return ends[key][k]; });
+      var horiz = side === "n" || side === "s", b = boxes[id], c = core(b), n = groups.length;
+      var along = function (gr) { return horiz ? gr.other.x + gr.other.w / 2 : gr.other.y + gr.other.h / 2; };
+      groups.sort(function (p, q) { return along(p) - along(q); });
+      var span = horiz ? c.w : 110, sp = Math.min(24, Math.max(9, (span - 20) / Math.max(1, n)));
+      groups.forEach(function (gr, i) {
+        var off = (i - (n - 1) / 2) * sp, pt;
+        if (horiz) pt = { x: c.x + c.w / 2 + off, y: side === "n" ? c.y : c.y + c.h };
+        else pt = { x: side === "w" ? c.x : c.x + c.w, y: b.y + 56 + off };
+        gr.items.forEach(function (it) { it.g[it.end] = pt; });
+      });
+    });
+    // Kanäle: jede Gruppe (Ausgangsorgan + Art) je Lücke bekommt eine eigene Höhe
+    var chan = {};
+    list.forEach(function (g) {
+      if (g.same) return;
+      var bs = bandOf[g.e.von], bt = bandOf[g.e.nach], down = bt > bs;
+      var gaps = [];
+      if (down) for (var i = bs; i < bt; i++) gaps.push(i); else for (var j = bs - 1; j >= bt; j--) gaps.push(j);
+      g.gaps = gaps;
+    });
+    var out = [];
+    list.forEach(function (g) {
+      var skip = [g.e.von, g.e.nach], A = g.a, B = g.b, pts = null, k;
+      if (!g.same) {
+        if (Math.abs(A.x - B.x) < 2 && segFree(A.x, A.y, B.x, B.y, skip, rects)) pts = [[A.x, A.y], [A.x, B.y]];
+        else {
+          for (k = 0; k < g.gaps.length && !pts; k++) {
+            var gi = g.gaps[k], yc = gapY(gi), key = gi + "|" + g.e.von + "|" + g.e.art;
+            if (segFree(A.x, A.y, A.x, yc, skip, rects) && segFree(B.x, yc, B.x, B.y, skip, rects)) {
+              (chan[gi] = chan[gi] || {})[key] = 1; g.gi = gi; g.ckey = key; pts = [[A.x, A.y], [A.x, yc], [B.x, yc], [B.x, B.y]];
+            }
+          }
+        }
+      } else {
+        if (Math.abs(A.y - B.y) < 2) { if (segFree(A.x, A.y, B.x, B.y, skip, rects)) pts = [[A.x, A.y], [B.x, B.y]]; }
+        else {
+          var mx = (A.x + B.x) / 2;
+          if (segFree(A.x, A.y, mx, A.y, skip, rects) && segFree(mx, A.y, mx, B.y, skip, rects) && segFree(mx, B.y, B.x, B.y, skip, rects)) pts = [[A.x, A.y], [mx, A.y], [mx, B.y], [B.x, B.y]];
+        }
+        if (!pts) {
+          // Bogen über die Zeile: oben aus beiden Organen heraus
+          var bi = bandOf[g.e.von], yt = gapY(bi - 1), ax = g.ca.x + g.ca.w / 2, bx = g.cb.x + g.cb.w / 2, ay = g.ca.y, by = g.cb.y;
+          if (segFree(ax, ay, ax, yt, skip, rects) && segFree(bx, yt, bx, by, skip, rects)) { g.gi = bi - 1; g.ckey = g.gi + "|" + g.e.von + "|" + g.e.art; (chan[g.gi] = chan[g.gi] || {})[g.ckey] = 1; pts = [[ax, ay], [ax, yt], [bx, yt], [bx, by]]; }
+        }
+      }
+      g.pts = pts;
+      out.push(g);
+    });
+    // Kanalhöhen verteilen (Versatz je Gruppe) und Pfade bauen
+    var order2 = {};
+    Object.keys(chan).forEach(function (gi) {
+      var keys = Object.keys(chan[gi]);
+      keys.sort(function (p, q) { return p < q ? -1 : 1; });
+      keys.forEach(function (kk, i) { order2[kk] = (i - (keys.length - 1) / 2) * 9; });
+    });
+    return out.map(function (g) {
+      var h = { e: g.e }, A = g.a, B = g.b;
+      if (g.pts) {
+        if (g.ckey != null && g.pts.length === 4) { var yo = order2[g.ckey] || 0; g.pts[1][1] += yo; g.pts[2][1] += yo; }
+        h.pts = g.pts; h.d = roundPath(g.pts);
+        h.x1 = g.pts[0][0]; h.y1 = g.pts[0][1]; h.x2 = g.pts[g.pts.length - 1][0]; h.y2 = g.pts[g.pts.length - 1][1];
+        return h;
+      }
+      // Rückfall: weiche Kurve
+      var nv = function (side) { return side === "n" ? [0, -1] : side === "s" ? [0, 1] : side === "w" ? [-1, 0] : [1, 0]; };
+      var na = nv(g.sa), nb = nv(g.sb), dist = Math.hypot(B.x - A.x, B.y - A.y), kk2 = Math.min(150, Math.max(26, dist * 0.38));
+      h.x1 = A.x; h.y1 = A.y; h.x2 = B.x; h.y2 = B.y; h.c1x = A.x + na[0] * kk2; h.c1y = A.y + na[1] * kk2; h.c2x = B.x + nb[0] * kk2; h.c2y = B.y + nb[1] * kk2;
+      h.d = "M" + r1(h.x1) + " " + r1(h.y1) + "C" + r1(h.c1x) + " " + r1(h.c1y) + " " + r1(h.c2x) + " " + r1(h.c2y) + " " + r1(h.x2) + " " + r1(h.y2);
+      return h;
+    });
   }
   // sichtbarer Kern eines Organs (Siegel und Name), an dessen Rand die Pfeile enden
   function core(b) { return b ? { x: b.x + (b.w - b.cw) / 2, y: b.y - 4, w: b.cw, h: b.h + 4 } : null; }
@@ -166,7 +271,12 @@
     cfg.arten.forEach(function (a) {
       out.push('<marker id="og-m-' + a + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path class="og-f-' + a + '" d="M0 0L10 5L0 10Z"/></marker>');
     });
-    out.push('</defs><g class="og-rahmen">');
+    out.push('</defs><g class="og-bahnen">');
+    bahnen.forEach(function (bn, i) {
+      out.push('<g class="og-bahn' + (i % 2 ? " alt" : "") + '"><rect x="' + bn.x + '" y="' + bn.y + '" width="' + bn.w + '" height="' + bn.h + '"/><text x="' + (bn.x + bn.w / 2) + '" y="' + (bn.y + 46) +
+        '" text-anchor="middle">' + esc(L(bn.l, "titel")) + "</text></g>");
+    });
+    out.push('</g><g class="og-rahmen">');
     frames.forEach(function (f) {
       out.push('<g data-rahmen="' + f.r.id + '"><rect x="' + f.x + '" y="' + f.y + '" width="' + f.w + '" height="' + f.h + '"/><text x="' + (f.x + f.w / 2) +
         '" y="' + (f.y + f.h - 13) + '" text-anchor="middle">' + esc(L(f.r, "titel")) + "</text></g>");
@@ -174,7 +284,7 @@
     out.push('</g><g class="og-kanten">');
     edges.forEach(function (g) {
       var a = g.e.art;
-      out.push('<g data-e="' + g.e.id + '"><path class="og-k-' + a + '" d="' + g.d + '"' + (a === "gliederung" ? "" : ' marker-end="url(#og-m-' + a + ')"') +
+      out.push('<g data-e="' + g.e.id + '"' + (hiddenArt[a] ? ' class="og-aus"' : "") + '><path class="og-k-' + a + '" d="' + g.d + '"' + (a === "gliederung" ? "" : ' marker-end="url(#og-m-' + a + ')"') +
         '/><path class="og-treffer" d="' + g.d + '"/></g>');
     });
     out.push('</g><g class="org-kaesten">');
@@ -423,16 +533,28 @@
 
   // ---------- Legende ----------
   var pinnedArt = null;
+  function setArtVisible() {
+    document.querySelectorAll(".og-aside [data-art]").forEach(function (x) { x.setAttribute("aria-pressed", String(!hiddenArt[x.getAttribute("data-art")])); });
+    if (svg) svg.querySelectorAll("[data-e]").forEach(function (g) {
+      var e = stand.kanten.find(function (x) { return x.id === g.getAttribute("data-e"); });
+      g.classList.toggle("og-aus", !!(e && hiddenArt[e.art]));
+    });
+  }
   function bindLegend() {
+    var sicht = cfg.sichtbar || cfg.arten;
+    cfg.arten.forEach(function (a) { hiddenArt[a] = sicht.indexOf(a) < 0; });
+    setArtVisible();
     document.querySelectorAll(".og-aside [data-art]").forEach(function (b) {
       var art = b.getAttribute("data-art");
-      b.addEventListener("pointerenter", function (e) { if (!pinnedArt && e.pointerType === "mouse") setFocus(focusArt(art)); });
-      b.addEventListener("pointerleave", function (e) { if (!pinnedArt && e.pointerType === "mouse") setFocus(null); });
+      b.addEventListener("pointerenter", function (e) { if (e.pointerType === "mouse") setFocus(focusArt(art)); });
+      b.addEventListener("pointerleave", function (e) { if (e.pointerType === "mouse") setFocus(null); });
+      b.addEventListener("click", function () { hiddenArt[art] = !hiddenArt[art]; setArtVisible(); });
+    });
+    document.querySelectorAll(".og-aside [data-ebene]").forEach(function (b) {
       b.addEventListener("click", function () {
-        pinnedArt = pinnedArt === art ? null : art;
-        pinnedFocus = focusArt(pinnedArt);
-        document.querySelectorAll(".og-aside [data-art]").forEach(function (x) { x.setAttribute("aria-pressed", String(x.getAttribute("data-art") === pinnedArt)); });
-        setFocus(null);
+        var alle = b.getAttribute("data-ebene") === "alle";
+        cfg.arten.forEach(function (a) { hiddenArt[a] = alle ? false : (cfg.sichtbar || []).indexOf(a) < 0; });
+        setArtVisible();
       });
     });
   }
@@ -519,19 +641,23 @@
     // Legende rechts
     var lx = cw - M - LEG + 30, ly = HEAD;
     g.font = "600 17px " + SERIF; g.fillStyle = PNG.ink; g.fillText(T.legend, lx, ly + 4);
-    cfg.arten.forEach(function (a, i) {
+    cfg.arten.filter(function (a) { return !hiddenArt[a]; }).forEach(function (a, i) {
       var y = ly + 30 + i * 26;
       arrow(g, { x1: lx, y1: y, x2: lx + 34, y2: y }, a);
       g.fillStyle = PNG.ink2; g.font = "400 14px " + SANS; g.fillText(T.arten[a].aktiv, lx + 46, y + 5);
     });
     g.save();
     g.translate(M - full.x, HEAD - full.y);
+    bahnen.forEach(function (bn, i) {
+      g.fillStyle = i % 2 ? "#eeeae6" : "#f5eedd"; g.fillRect(bn.x, bn.y, bn.w, bn.h);
+      g.fillStyle = PNG.muted; g.font = "600 22px " + SERIF; g.textAlign = "center"; g.fillText(L(bn.l, "titel"), bn.x + bn.w / 2, bn.y + 46); g.textAlign = "left";
+    });
     frames.forEach(function (f) {
       g.fillStyle = PNG.ivory; g.fillRect(f.x, f.y, f.w, f.h);
       g.strokeStyle = PNG.ruleStrong; g.lineWidth = 1; g.setLineDash([5, 4]); g.strokeRect(f.x + 0.5, f.y + 0.5, f.w - 1, f.h - 1); g.setLineDash([]);
       g.fillStyle = PNG.muted; g.font = F.rahmen.font; g.textAlign = "center"; g.fillText(L(f.r, "titel"), f.x + f.w / 2, f.y + f.h - 13); g.textAlign = "left";
     });
-    edges.forEach(function (e) { arrow(g, e, e.e.art); });
+    edges.forEach(function (e) { if (!hiddenArt[e.e.art]) arrow(g, e, e.e.art); });
     stand.knoten.forEach(function (k) {
       var b = boxes[k.id], im = images[k.bild];
       if (im && im.complete && im.naturalWidth) {
@@ -561,6 +687,20 @@
   }
   function arrow(g, e, art) {
     var col = ART_FARBE[art], head = art === "gliederung" ? 0 : 10;
+    if (e.pts) {
+      var P = e.pts, n = P.length, last = P[n - 1], prev = P[n - 2], an = Math.atan2(last[1] - prev[1], last[0] - prev[0]);
+      g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 1.8; g.lineJoin = "round";
+      g.beginPath(); g.moveTo(P[0][0], P[0][1]);
+      for (var i = 1; i < n - 1; i++) g.arcTo(P[i][0], P[i][1], P[i + 1][0], P[i + 1][1], RAD);
+      g.lineTo(last[0] - Math.cos(an) * head * 0.8, last[1] - Math.sin(an) * head * 0.8);
+      g.stroke();
+      if (!head) return;
+      g.beginPath(); g.moveTo(last[0], last[1]);
+      g.lineTo(last[0] - head * Math.cos(an) + head * 0.5 * Math.sin(an), last[1] - head * Math.sin(an) - head * 0.5 * Math.cos(an));
+      g.lineTo(last[0] - head * Math.cos(an) - head * 0.5 * Math.sin(an), last[1] - head * Math.sin(an) + head * 0.5 * Math.cos(an));
+      g.closePath(); g.fill();
+      return;
+    }
     var curve = e.c2x != null, fx = curve ? e.c2x : e.x1, fy = curve ? e.c2y : e.y1, ang = Math.atan2(e.y2 - fy, e.x2 - fx);
     var ex = e.x2 - Math.cos(ang) * head * 0.8, ey = e.y2 - Math.sin(ang) * head * 0.8;
     g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 1.8;

@@ -255,7 +255,7 @@
 .karte-flaeche noscript img { width: 100%; height: 100%; object-fit: contain; }
 .karte-laden { margin: 0; padding: 24px; font: .9375rem/1.4 var(--sans); color: var(--muted); }
 /* doppelt so groß wie die Fläche: Rand für flüssiges Verschieben (karte.js verschiebt es per Transform) */
-.karte-svg { position: absolute; left: -50%; top: -50%; width: 200%; height: 200%; display: block; transform-origin: 50% 50%; will-change: transform; }
+.karte-svg { position: absolute; left: -25%; top: -25%; width: 150%; height: 150%; display: block; transform-origin: 50% 50%; will-change: transform; }
 .karte-hg path { fill: var(--karte-land); stroke: var(--karte-land); stroke-width: .5px; vector-effect: non-scaling-stroke; }
 .karte-gebiete path { fill: var(--karte-land); fill-rule: evenodd; stroke: var(--karte-land); stroke-width: .5px; vector-effect: non-scaling-stroke; transition: opacity .15s; }
 .karte-hg .kk-welt { fill: none; stroke: #7b8190; stroke-width: .8px; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
@@ -513,6 +513,12 @@
 .og.is-fokus .og-kanten g:not(.is-fokus) { opacity: .06; }
 .og.is-fokus .og-knoten:not(.is-fokus) { opacity: .3; }
 .og-rahmen rect { fill: var(--paper); }
+.og-bahn rect { fill: rgba(201, 164, 58, .09); stroke: none; }
+.og-bahn.alt rect { fill: rgba(18, 24, 60, .05); }
+.og-bahn text { font: 600 22px var(--serif); fill: var(--muted); letter-spacing: .02em; }
+.og-kanten g.og-aus { display: none; }
+.og-kanten g.og-aus.is-fokus { display: inline; }
+.og-kanten g { opacity: .8; }
 /* Fenster: Kopf mit Siegel */
 .og-amt-kopf { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; }
 .og-amt-kopf img { flex: none; width: 84px; height: 84px; object-fit: contain; }

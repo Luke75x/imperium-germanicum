@@ -136,7 +136,7 @@ def organigramm():
     caption = "Staatsaufbau des Imperium Germanicum"
     alt = "Organigramm des Imperium Germanicum: Souverän, Senat mit Kurfürsten und Hand des Kaisers, Reichstag, Reichsgerichtshof, Streitkräfte, Kanzler und Staatsbürger mit ihren Beziehungen"
     return (f'<figure class="figure"><a class="zoom frame" href="{u("informationen/organigramm/")}"><img src="{u("informationen/organigramm/organigramm.png")}" '
-            f'width="3162" height="2427" alt="{esc(alt)}" loading="lazy" decoding="async"><span class="zoom-hint">{icon("zoom")}</span>'
+            f'width="5936" height="3376" alt="{esc(alt)}" loading="lazy" decoding="async"><span class="zoom-hint">{icon("zoom")}</span>'
             f'<span class="sr-only"> – Organigramm öffnen</span></a><figcaption>{esc(caption)}</figcaption></figure>')
 
 
