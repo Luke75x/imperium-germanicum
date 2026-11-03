@@ -2,6 +2,7 @@
 import html
 import os
 import re
+import time
 
 import config
 
@@ -39,6 +40,8 @@ def seite(titel, inhalt, kopf="", body_klasse="", konto=None, csrf="", pfad=None
     kopf: zusätzliche Einträge im <head>; pfad: zeigt das Konto in der Kopfleiste (Anmelden/Abmelden)."""
     text = _vorlage()
     text = re.sub(r"<title>.*?</title>", lambda m: f"<title>{html.escape(titel)} – Imperium Germanicum</title>", text, 1, re.S)
+    if pfad is not None and "wiki.css" not in kopf:   # Kopfleiste mit Konto (.wiki-user) ist in wiki.css gestaltet
+        kopf += f'\n<link rel="stylesheet" href="/assets/css/wiki.css?v={int(time.time() // 86400)}">'
     if kopf:
         text = text.replace("</head>", kopf + "\n</head>", 1)
     if canonical:

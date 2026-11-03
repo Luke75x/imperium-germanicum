@@ -23,6 +23,8 @@
 }
 .topbar .wiki-user button:hover { color: var(--gold-300); }
 @media (max-width: 520px) { .topbar .wiki-user .lbl { max-width: 9ch; } .topbar .wiki-user { gap: 8px; } }
+@media (max-width: 760px), (pointer: coarse) { .topbar .wiki-user button, .topbar .wiki-user a { display: inline-flex; align-items: center; min-height: 40px; padding: 8px 6px; } }
+@media (max-width: 380px) { .topbar .wiki-user .lbl { display: none; } .topbar .wiki-user { gap: 4px; } }
 
 .wiki.section { padding-top: clamp(28px, 4vw, 44px); }
 .wiki-controls { position: static; margin-bottom: clamp(28px, 4vw, 44px); padding-top: 0; }
@@ -637,3 +639,4 @@
 .rv-rank-n { font: 600 1rem/1 var(--sans); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
 .rv-register .rt-nr { width: auto; white-space: nowrap; letter-spacing: .04em; }
 .rv-quelle { margin-top: 18px; }
+@media (max-width: 760px), (pointer: coarse) { .karte-staat-edit { display: inline-flex; align-items: center; min-height: 40px; padding: 0 8px; } .karte-legende-item { min-height: 40px; } }

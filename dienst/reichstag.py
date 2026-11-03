@@ -13,6 +13,7 @@ Anträge reichen Abgeordnete mit /antrag im Discord ein (Bot → intern-api). Si
 """
 import html
 import logging
+import re
 import secrets
 import time
 from datetime import datetime
@@ -172,8 +173,9 @@ async def _ergebnisse_melden(app, sid):
 # ---------------------------------------------------------------- Seiten
 
 STIL = """<style>
-.rt-nav{display:flex;flex-wrap:wrap;gap:4px;margin:22px 0 0;border-bottom:1px solid var(--rule)}
-.rt-nav a{padding:10px 16px;font:600 .9rem var(--sans);color:var(--muted);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-1px}
+.rt-nav{display:flex;flex-wrap:nowrap;gap:4px;margin:22px 0 0;border-bottom:1px solid var(--rule);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.rt-nav::-webkit-scrollbar{display:none}
+.rt-nav a{padding:12px 16px;font:600 .9rem var(--sans);color:var(--muted);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap}
 .rt-nav a:hover{color:var(--ink)}
 .rt-nav a[aria-current]{color:var(--ink);border-bottom-color:var(--flag)}
 .rt-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:0 0 30px}
@@ -205,7 +207,23 @@ STIL = """<style>
 .rt-filter a[aria-current]{background:var(--ink);color:var(--paper)}
 .form-inline{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0}
 .rt-text{white-space:pre-line}
-@media(max-width:640px){.rt-top li{grid-template-columns:1.8em 1fr}.rt-top .werkzeug{grid-column:2;justify-content:flex-start}}
+@media(max-width:700px){
+.rt-stats{grid-template-columns:repeat(2,1fr);gap:10px}
+.rt-stat{padding:12px 14px}.rt-stat strong{font-size:1.6rem}
+.rt-card{padding:16px 16px}
+.rt-top li{grid-template-columns:1.8em 1fr}.rt-top .werkzeug{grid-column:2;justify-content:flex-start}
+.rt-top .werkzeug .btn{min-height:44px;min-width:44px}
+.rt-stack thead{display:none}
+.rt-stack table,.rt-stack tbody,.rt-stack tr,.rt-stack td{display:block;width:100%}
+.rt-stack tr{border:1px solid var(--rule);background:var(--white);margin:0 0 12px;padding:6px 0}
+.rt-stack td{border:0!important;padding:6px 14px;display:grid;grid-template-columns:7em minmax(0,1fr);gap:8px;overflow-wrap:anywhere}
+.rt-stack td::before{content:attr(data-label);font:600 .7rem var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-top:3px}
+.rt-stack td[data-label=""]::before{content:none}.rt-stack td[data-label=""]{grid-template-columns:1fr}
+.rt-panel select,.rt-card select,.rt-stack select,.form-inline select,.field select,.field input,.field textarea{min-height:44px;font-size:16px}
+.rt-panel .btn,.rt-card .btn,.rt-stack .btn,.form-inline .btn{min-height:44px}
+.form-inline{width:100%}.form-inline select{flex:1 1 12em;min-width:0}
+.rt-filter a{padding:10px 14px}
+}
 </style>"""
 
 TABS = (("", "Übersicht"), ("sitzungen/", "Sitzungen"), ("antraege/", "Anträge"), ("archiv/", "Archiv"), ("abstimmungsverhalten/", "Abstimmungsverhalten"))
@@ -242,8 +260,11 @@ def _form(request, aktion, inhalt, klasse="form"):
 def _tabelle(kopf, zeilen, leer="Keine Einträge."):
     if not zeilen:
         return f'<p class="callout">{esc(leer)}</p>'
-    return ('<div class="table-scroll"><table class="styles-table is-grid"><thead><tr>' + "".join(f"<th>{k}</th>" for k in kopf)
-            + "</tr></thead><tbody>" + "".join(f"<tr>{z}</tr>" for z in zeilen) + "</tbody></table></div>")
+    def beschriften(zeile):   # jede Zelle bekommt ihre Spaltenüberschrift (für die gestapelte Darstellung am Handy)
+        i = iter(kopf)
+        return re.sub(r"<td>", lambda m: f'<td data-label="{esc(re.sub("<[^>]+>", "", next(i, "")))}">', zeile)
+    return ('<div class="table-scroll rt-stack"><table class="styles-table is-grid"><thead><tr>' + "".join(f"<th>{k}</th>" for k in kopf)
+            + "</tr></thead><tbody>" + "".join(f"<tr>{beschriften(z)}</tr>" for z in zeilen) + "</tbody></table></div>")
 
 
 def _td(*zellen):

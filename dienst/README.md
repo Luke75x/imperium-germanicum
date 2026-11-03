@@ -50,6 +50,10 @@ Neu aufgebaut am 02.11.2026, da der frühere „Wiki-Dienst“ nicht gesichert w
   Hinweis + „Erneut versuchen“ + Kartenbild. Die Route des Dienstes verdichtet nicht mehr im Request (blockierte früher den Dienst). `RestartSec=2`.
   `werkzeuge/karte_pruefung.sh` mit `imperium-karte-pruefung.service/.timer` prüft die Karte alle 2 Minuten und startet den Dienst nach zwei Fehlern neu; die Units sind im Repo,
   aber nicht eingerichtet (`cp imperium-karte-pruefung.* /etc/systemd/system/ && systemctl enable --now imperium-karte-pruefung.timer`).
+- Handy-Darstellung (04.11.2026): Seiten des Dienstes lade `wiki.css` immer mit (`seiten.seite`, Kopfleiste mit Konto). Reichstag: Reiter scrollen einzeilig, Tabellen
+  werden unter 700 px zu Karten (`rt-stack`, Spaltenüberschrift je Zelle per `data-label`), Auswahlfelder/Knöpfe mind. 44 px. `wiki.css`: größere Tippflächen in der
+  Kopfleiste und im Karteneditor, ab 380 px ohne Kontoname in der Kopfleiste (sonst wird die Seite bei 320 px breiter als der Bildschirm). Geprüft per Playwright-Emulation
+  (390/360/320 px, Touch) auf Überlauf, Tippflächen und Dialoge.
 
 ## Betrieb
 - Geheimnisse in `/root/.env`: `DISCORD_TOKEN` (Bot) und `DISCORD_CLIENT_SECRET` (OAuth).
