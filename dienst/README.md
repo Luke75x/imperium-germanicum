@@ -31,6 +31,12 @@ Neu aufgebaut am 02.11.2026, da der frühere „Wiki-Dienst“ nicht gesichert w
 - `karte_bild.py`: zeichnet `karte.png` mit Pillow (Muster, Legende wie die alte Karte), beim Start und nach jeder Version.
 - `bild.py`: erzeugt `organigramm.png` mit Playwright-Chromium (`.browser/`), beim Start und nach jedem Speichern.
 - Seiten nutzen Kopf/Fußzeile aus `/var/www/imperium/404.html` (`seiten.py`), mit Anmelden/Abmelden in der Kopfleiste.
+- `reichstag.py`: Reichstag (04.11.2026). Interne Ansicht `/informationen/der-reichstag/intern/` (auch /en): Sitzungen ankündigen, Anträge
+  auf die Tagesordnung setzen/sortieren/entfernen, Sitzung eröffnen/beenden/absagen, Abstimmung je Abgeordnetem erfassen, Archiv mit
+  Abstimmungsverhalten (`archiv/`, `abgeordnete/<id>/`, `sitzung/<id>/`, `antrag/<id>/`). Zugang: Rollen Reichstag/Abgeordneter/Präsidium/Landesherr
+  (Konstanten oben im Modul), bearbeiten darf das Präsidium und Admins. Ankündigung im Kanal 📨｜anträge (wird bei Änderungen der
+  Tagesordnung bearbeitet), Ergebnisse beim Beenden im Kanal 📁｜beschlüsse. Tabellen `reichstag_*`. Anträge kommen vom Bot-Befehl `/antrag`
+  über `POST /intern-api/reichstag/antrag` (Header `X-Bot-Token`, nginx leitet den Pfad nicht weiter).
 
 ## Betrieb
 - Geheimnisse in `/root/.env`: `DISCORD_TOKEN` (Bot) und `DISCORD_CLIENT_SECRET` (OAuth).

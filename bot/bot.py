@@ -10,7 +10,7 @@ from discord.ext import commands
 
 import config
 
-MODULE = ["info_kanal", "gesetzblatt"]
+MODULE = ["info_kanal", "gesetzblatt", "zollamt", "ticket", "audienz", "antrag"]
 
 log = logging.getLogger("imperium-bot")
 
@@ -33,6 +33,7 @@ def main():
     if not token:
         raise SystemExit("DISCORD_TOKEN fehlt in /root/.env")
     intents = discord.Intents.default()
+    intents.members = True  # Beitritt/Austritt fürs Zollamt (privilegierter Intent, im Developer-Portal aktiv)
     bot = ImperiumBot(command_prefix=commands.when_mentioned, intents=intents)
     bot.run(token, root_logger=True)
 

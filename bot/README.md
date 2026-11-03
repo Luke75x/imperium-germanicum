@@ -8,6 +8,16 @@ Discord-Bot des Imperium Germanicum (discord.py). Wiederhergestellt am 02.11.202
   in den Informationskanal und übernimmt das Regelwerk danach auf die Website (`regelwerk_holen.py` + `deploy.sh`).
 - `gesetzblatt.py`: neuer Beitrag im Reichsgesetzblatt-Forum → DM an den Kaiser → nach Bestätigung auf die Website.
   Erst aktiv, wenn `GESETZBLATT_FORUM` und `KAISER_ID` in `config.py` gesetzt sind.
+- `zollamt.py`: Kaiserliches Zollamt. Beitritt → Visum-Embed in Thread „Erteilte Aufenthaltsvisen“, Austritt → „Aufenthaltvisum
+  abgelaufen“ in Thread „Abgelaufene Aufenthaltsvisen“, `/einbürgern @Person` (nur Rolle Zollverwaltung) → Modal mit IC-Name →
+  6 Rollen, Umbenennung, Embed in Thread „Erfolgreiche Einbürgerungen“. IDs in `config.py`. Braucht den Members-Intent.
+- `ticket.py`: Ticketsystem der Einwanderungsbehörde. Das Panel (Nachricht 1565507299345436713, Auswahlmenü `einreise-panel`)
+  öffnet ein Modal (IC-Name, Geschichte, Vorstellung) → privater Thread `einreise-<name>` mit den Antworten, Antragsteller und
+  Zollverwaltung; Knopf „Ticket schließen“ archiviert und sperrt. Ein offenes Ticket pro Person, Bedienelemente persistent.
+- `audienz.py`: Betritt der Kaiser den Sprachkanal Audienzzimmer (1523025487847227402), kommt eine DM „Generalaudienz öffnen?“
+  mit Ja/Nein. Ja → Embed „Generalaudienz“ (Bilder in `sicherung/`) in den News-Kanal 1522995542047723581.
+- `antrag.py`: `/antrag` (Reichstags-Rollen) → Modal (Betreff, Antragstext, Begründung) → Imperium-Dienst legt den Antrag an
+  (siehe `reichstag.py` im Dienst) und veröffentlicht ihn im Anträge-Kanal.
 
 ## Betrieb
 - Geheimnisse: `/root/.env` (`DISCORD_TOKEN`, `DISCORD_CLIENT_SECRET`), nicht im Repo.

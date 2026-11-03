@@ -9,6 +9,25 @@ INFO_KANAL = 1523117025952661597
 GESETZBLATT_FORUM = 1561866155273228359  # 📜｜reichsgesetzblatt
 KAISER_ID = 463089934765391872
 
+# Kaiserliches Zollamt (Kanal 1537221044648022036) mit seinen Threads
+ZOLLVERWALTUNG_ROLLE = 1557187375006875758  # darf /einbürgern
+THREAD_VISEN = [1565505165048553503,        # Erteilte Aufenthaltsvisen (Beitritt), Zollamt
+                1565505917829652613]        # dasselbe als Thread in der Einwanderungsbehörde
+EINWANDERER_ROLLE = 1522930374332780614     # Rolle für neu Beigetretene
+AUDIENZ_KANAL = 1523025487847227402         # 🤴🏼｜Audienzzimmer (Sprachkanal), Beitritt des Kaisers löst die DM aus
+NEWS_KANAL = 1522995542047723581            # 📰｜news, dort erscheint die Generalaudienz
+# Reichstag: wer /antrag nutzen darf (Reichstag, Abgeordneter, Präsidium, Landesherr), Rest im Imperium-Dienst
+REICHSTAG_ROLLEN = {1522700666856800447, 1528931629819494454, 1522701497413144776, 1522701576295415969}
+TICKET_KANAL = 1523025911493038203          # 🛂｜einwanderungsbehörde, Panel 1565507299345436713
+THREAD_ABGELAUFEN = 1565505112888058019     # Abgelaufene Aufenthaltsvisen (Austritt)
+THREAD_EINBUERGERUNGEN = 1565505189132243026  # Erfolgreiche Einbürgerungen
+# Rollen bei der Einbürgerung: Fraktionen-/Imperium-Trenner, Gefolgschaft, Staatsbürger
+EINBUERGERUNG_ROLLEN = [1560633153243058226, 1522931909959880844, 1522931993661407363,
+                        1560633154480377956, 1522929767706398871, 1522929940885143683]
+ZOLL_BILD_VISUM = ("https://cdn-longterm.mee6.xyz/plugins/welcome/images/1522685223014371479/"
+                   "e968ca8a0aa5365d1e86839ab23aefbd875498b2d0d46c9aa301fd55b4769142.png")
+ZOLL_BILD_ABGELAUFEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sicherung", "zoll.png")
+
 # Website-Repo und Deploy (siehe /root/imperium_germanicum/README.md)
 WEBSITE_DIR = "/root/imperium_germanicum"
 VENV_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".venv", "bin")

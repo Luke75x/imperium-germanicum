@@ -120,6 +120,19 @@ class Discord:
             logging.getLogger("discord").warning("DM an %s fehlgeschlagen: %s", nutzer_id, e)
             return False
 
+    async def senden(self, kanal_id, inhalt, nachricht=None):
+        """Schreibt eine Nachricht in einen Kanal (oder bearbeitet `nachricht`); gibt deren ID zurück, bei Fehlern None."""
+        auth = {"Authorization": "Bot " + self.bot_token}
+        url = API + f"/channels/{kanal_id}/messages" + (f"/{nachricht}" if nachricht else "")
+        try:
+            async with self.session.request("PATCH" if nachricht else "POST", url, json=inhalt, headers=auth) as r:
+                if r.status >= 400:
+                    raise DiscordFehler(f"HTTP {r.status}: {(await r.text())[:200]}")
+                return (await r.json())["id"]
+        except (DiscordFehler, KeyError, aiohttp.ClientError) as e:
+            logging.getLogger("discord").warning("Nachricht in %s fehlgeschlagen: %s", kanal_id, e)
+            return None
+
     async def konto(self, nutzer):
         """Baut aus Discord-Nutzer + Servermitgliedschaft die Kontodaten (id, name, avatar, rollen, mitglied, admin)."""
         mitglied = await self._bot(f"/guilds/{config.GUILD_ID}/members/{nutzer['id']}")

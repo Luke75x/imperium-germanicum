@@ -13,6 +13,7 @@ import db
 import discord_api
 import karte
 import organigramme
+import reichstag
 
 
 def erstellen():
@@ -24,6 +25,7 @@ def erstellen():
     app.add_routes(anmeldung.routes)
     organigramme.registrieren(app)
     karte.registrieren(app)
+    reichstag.registrieren(app)
     return app
 
 
