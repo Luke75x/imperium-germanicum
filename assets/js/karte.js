@@ -22,7 +22,7 @@
   var stand = clone(cfg.stand);
   var saved = clone(cfg.stand);
   var geo, svg, defs, layer, hilite, paths = {}, full, view = { x: 0, y: 0, w: 1 };
-  var raf = 0, kk = null, beschr = null, komp = null, detailTimer = 0, mask, flu, netzEl, schGrob = [], schFein = [], schSeen = null, schSeenF = null, schProv = null, ansicht = null;
+  var raf = 0, kk = null, beschr = null, komp = null, detailTimer = 0, mask, flu, netzEl, schGrob = [], schFein = [], schSeen = null, schSeenF = null, schProv = null, ansicht = null, schInfra = [], schInfraF = [], infraFein = false;
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -151,6 +151,17 @@
         text(o[0], o[1] + r * 1.9, o[2] + px * 0.35 * u, px, "bs-ort r" + rang, ""));
     }
     kand.filter(function (o) { return o[4] === 1; }).forEach(ort);
+    // Bauwerke aus der Website (Sitze der Institutionen): ab starker Vergrößerung, vor allen anderen Namen
+    if (zt >= 7.2 && !root.classList.contains("ohne-bauwerke")) {
+      (geo.bauwerke || []).forEach(function (b) {
+        if (!sichtbar(b[1], b[2])) return;
+        var px = 12, px2 = 10, r = 5.5 * u, w = Math.max(breite(b[0], px) * 1.08, breite(b[3], px2)) + r * 3.4, h = (px + px2) * 1.3 * u;
+        out.push('<rect class="bs-bau" x="' + (b[1] - r).toFixed(1) + '" y="' + (b[2] - r).toFixed(1) + '" width="' + (2 * r).toFixed(1) + '" height="' + (2 * r).toFixed(1) + '" rx="' + (r * 0.25).toFixed(1) + '" stroke-width="' + (1.6 * u).toFixed(2) + '"/>');
+        belegt.push([b[1] - r, b[2] - r, b[1] + r, b[2] + r]);
+        if (zt < 8.6 || !frei(b[1] + r * 1.2, b[2] - h / 2, w, h)) return;     // Namen nur, wo Platz ist
+        out.push(text(b[0], b[1] + r * 1.9, b[2] - px * 0.1 * u, px, "bs-ort r1", "") + text(b[3], b[1] + r * 1.9, b[2] + px2 * 1.25 * u, px2, "bs-ort bau2", ""));
+      });
+    }
     // Teilstaaten: Name im größten Teil jedes Staats, kleinere Teile erst bei starker Vergrößerung
     komponenten().forEach(function (c) {
       var s = state(c.staat); if (!s || !sichtbar(c.x, c.y)) return;
@@ -199,6 +210,8 @@
       for (var k = 1; k <= 4; k++) flu.querySelectorAll(".fl" + k).forEach(function (e) { e.style.opacity = k === 1 ? 1 : k === 2 ? (zt > 3.8 ? 1 : 0) : k === 3 ? (zt > 5 ? 1 : 0) : (zt > 6 ? 1 : 0); });
     }
     netzEl.style.opacity = zt > 6.5 ? 0 : 0.6;
+    ["L-str", "L-str-f"].forEach(function (c) { svg.querySelector("." + c).style.opacity = Math.max(0, Math.min(0.9, (zt - 5.2) * 0.9)); });
+    ["L-bahn", "L-bahn-f"].forEach(function (c) { svg.querySelector("." + c).style.opacity = Math.max(0, Math.min(0.9, (zt - 5.8) * 1.2)); });
     kk.staat.style.strokeWidth = (zt < 3.5 ? 0.8 : zt < 4.6 ? 1.3 : 1.7) + "px";
     if (flu) flu.style.opacity = zt < 3 ? 0.55 : zt < 4 ? 0.8 : 0.95;
   }
@@ -211,6 +224,7 @@
       fetch(cfg.geoFein).then(function (r) { if (!r.ok) throw r; return r.json(); }).then(function (f) { fein = f; feinBauen(); lod(stufe()); })
         .catch(function () { feinLaden = false; });
     }
+    infraSchalten(zt);
     var an = !!fein && zt >= 6.0;
     if (an !== feinAn) { feinAn = an; feinSchalten(); }
   }
@@ -234,7 +248,17 @@
   }
   function schichtenZeigen() {
     schGrob.forEach(schichtZeigen); schichtZeigen(schSeen);
+    (infraFein ? schInfraF : schInfra).forEach(schichtZeigen);
     if (feinAn) { schFein.forEach(schichtZeigen); schichtZeigen(schSeenF); schichtZeigen(schProv); }
+  }
+  // Verkehrswege: bis Stufe 7,2 die grobe Fassung, danach die feine (dort ist der Ausschnitt klein genug)
+  function infraSchalten(zt) {
+    var f = !!fein && zt >= 7.2;
+    if (f === infraFein && svg.querySelector(".L-str").getAttribute("data-an")) return;
+    infraFein = f;
+    svg.querySelector(".L-str").setAttribute("data-an", "1");
+    ["L-bahn", "L-str"].forEach(function (c) { svg.querySelector("." + c).style.display = f ? "none" : ""; });
+    ["L-bahn-f", "L-str-f"].forEach(function (c) { svg.querySelector("." + c).style.display = f ? "" : "none"; });
   }
   function feinBauen() {
     var w = geo.breite;
@@ -247,6 +271,7 @@
     schFein = [sch("L-land-f", fein.land), sch("L-gren-f", fein.grenzen, "kk-welt")];
     [1, 2, 3, 4].forEach(function (k) { schFein.push(sch("L-fl" + k + "f", fk[k])); });
     schSeenF = sch("L-seen-f", fein.seen);
+    schInfraF = [sch("L-bahn-f", fein.bahn), sch("L-str-f", fein.strassen)];
     schProv = sch("L-prov", fein.provinzen, "kk-prov");
   }
   function feinSchalten() {
@@ -255,6 +280,7 @@
     });
     mask.style.display = feinAn ? "" : "none";
     svg.querySelector(".L-seen").style.display = feinAn ? "none" : "";
+    infraSchalten(stufe());
     if (!feinAn) Object.keys(paths).forEach(function (id) { if (paths[id].getAttribute("data-fein")) { paths[id].setAttribute("d", geo.gebiete[id].d); paths[id].removeAttribute("data-fein"); } });
     redraw();
   }
@@ -289,6 +315,7 @@
     Object.keys(g.gebiete).forEach(function (k) { html.push('<path data-id="' + k + '" d="' + g.gebiete[k].d + '"/>'); });
     html.push('</g><g class="karte-wasser"><g class="L-seen"></g><g class="L-seen-f" style="display:none"></g></g>');
     html.push('<g class="karte-fluesse">' + [1, 2, 3, 4].map(function (k) { return '<g class="fl' + k + ' L-fl' + k + '"></g><g class="fl' + k + ' L-fl' + k + 'f" style="display:none"></g>'; }).join("") + "</g>");
+    html.push('<g class="karte-infra"><g class="L-bahn"></g><g class="L-bahn-f" style="display:none"></g><g class="L-str"></g><g class="L-str-f" style="display:none"></g></g>');
     html.push('<g class="karte-kanten"><g class="L-prov"></g><path class="kk-kreis"/><path class="kk-land"/><path class="kk-staat"/></g><g class="karte-beschr"></g><g class="karte-markierung"></g></svg>');
     surface.innerHTML = html.join("");
     svg = surface.querySelector("svg");
@@ -302,11 +329,15 @@
     schGrob = [sch("L-land", g.land), sch("L-gren", g.grenzen, "kk-welt")];
     [1, 2, 3, 4].forEach(function (k) { schGrob.push(sch("L-fl" + k, (g.fluesse || {})[k])); });
     schSeen = sch("L-seen", g.seen);
+    schInfra = [sch("L-bahn", g.bahn), sch("L-str", g.strassen)];
     layer.querySelectorAll("path").forEach(function (p) { paths[p.getAttribute("data-id")] = p; });
     buildPatterns();
     paintAll();
     fillSearch();
     root.classList.toggle("mit-grenzen", EDIT);
+    root.querySelectorAll("[data-ebene]").forEach(function (c) {
+      c.addEventListener("change", function () { root.classList.toggle("ohne-" + c.getAttribute("data-ebene"), !c.checked); beschriften(); });
+    });
     var cb = root.querySelector("[data-grenzen]");
     if (cb) { cb.checked = EDIT; cb.addEventListener("change", function () { root.classList.toggle("mit-grenzen", cb.checked); beschriften(); }); }
     fit(Object.keys(stand.gebiete));
@@ -318,7 +349,7 @@
   // ---------- Ausschnitt ----------
   function aspect() { return surface.clientHeight / Math.max(1, surface.clientWidth); }
   function setView(cx, cy, w) {
-    w = Math.min(Math.max(w, 160), full.w * 1.05);
+    w = Math.min(Math.max(w, 30), full.w * 1.05);
     var h = w * aspect();
     view = { x: cx - w / 2, y: cy - h / 2, w: w, h: h };
     schedule();
@@ -376,7 +407,7 @@
   }
   function zoomAt(clientX, clientY, f) {
     var m = toMap(clientX, clientY);
-    var w = Math.min(Math.max(view.w / f, 160), full.w * 1.05), k = w / view.w;
+    var w = Math.min(Math.max(view.w / f, 30), full.w * 1.05), k = w / view.w;
     var cx = m.x - (m.x - (view.x + view.w / 2)) * k, cy = m.y - (m.y - (view.y + view.h / 2)) * k;
     setView(cx, cy, w);
   }

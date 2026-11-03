@@ -51,3 +51,7 @@ Die Karte ist jetzt eine Web-Mercator-Weltkarte (Welt 40000×40000 Einheiten). `
 `karte_daten/geo.json` (grob, sofort) und `geo_fein.json` (fein, wird ab Kartenstufe 5 nachgeladen; ersetzt Gebietspfade, Kanten, Land, Seen, Flüsse, Orte).
 Kartenstufe in `karte.js` (`stufe()`) entspricht Kachelstufen; Orte/Länder/Meere tragen Natural-Earth-Mindeststufen. Rohdaten werden nicht im Repo gehalten
 (Download siehe Kopf des Skripts). `karte_details.py` ist damit überholt. Regenten: nur höchster Titel; Zusatzämter (ROLLEN_AEMTER) bei Fraktionsrolle.
+
+## Verkehrswege und Bauwerke (03.11.2026)
+`werkzeuge/karte_ofm_holen.py` holt OpenFreeMap-Kacheln (OSM), `werkzeuge/karte_infra.py` schreibt daraus Autobahnen (`strassen`), Hauptstrecken (`bahn`) und die Bauwerke der Website (`bauwerke`, Liste BAUWERKE im Skript) in geo.json/geo_fein.json.
+Reihenfolge nach Neubau der Karte: karte_welt.py → karte_infra.py. Quellenhinweis: © OpenStreetMap-Mitwirkende (ODbL). karte.js: Autobahnen ab Stufe 5,2, Bahn ab 5,8, Bauwerke ab 7,2 (Namen ab 8,6); ab Stufe 7,2 die feine Fassung; Linien mit butt/miter und optimizeSpeed (sonst ruckelt das Verschieben).

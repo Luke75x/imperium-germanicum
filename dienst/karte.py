@@ -249,13 +249,17 @@ def seite_html(request, modus, konto, csrf, version, rollen):
               f'<form class="karte-suche field" role="search"><label class="sr-only" for="karte-suche">{L("Gebiet suchen", "Search region")}</label>'
               f'<input id="karte-suche" type="search" list="karte-gebiete" autocomplete="off" placeholder="{L("Gebiet suchen, z. B. Heidelberg", "Search a region, e.g. Heidelberg")}">'
               f'<datalist id="karte-gebiete"></datalist></form>'
-              f'<label class="field-check karte-grenzen"><input type="checkbox" data-grenzen> {L("Gebietsgrenzen", "Region borders")}</label></div>')
+              f'<label class="field-check karte-grenzen"><input type="checkbox" data-grenzen> {L("Gebietsgrenzen", "Region borders")}</label>'
+              f'<label class="field-check karte-grenzen"><input type="checkbox" data-ebene="strassen" checked> {L("Autobahnen", "Motorways")}</label>'
+              f'<label class="field-check karte-grenzen"><input type="checkbox" data-ebene="bahn" checked> {L("Bahnstrecken", "Railways")}</label>'
+              f'<label class="field-check karte-grenzen"><input type="checkbox" data-ebene="bauwerke" checked> {L("Gebäude", "Buildings")}</label></div>')
     wurzel = (f'<div class="karte karte-cols" data-karte>{leiste}<div class="karte-buehne">'
               f'<div class="karte-flaeche" tabindex="0" aria-label="{titel}"><p class="karte-laden">{L("Karte wird geladen …", "Loading map …")}</p>'
               f'<noscript><img src="/karte/karte.png" alt="{titel}"></noscript></div>'
               f'<div class="karte-info" aria-live="polite"></div></div>'
               f'<p class="karte-quelle">{L("Stand", "As of")} {_datum(version["zeit"])}. '
-              f'{L("Grenzen: © EuroGeographics (NUTS 2021), Einwohner: Eurostat.", "Boundaries: © EuroGeographics (NUTS 2021), population: Eurostat.")}</p></div>')
+              f'{L("Grenzen: © EuroGeographics (NUTS 2021), Einwohner: Eurostat, Gewässer und Länder: Natural Earth", "Boundaries: © EuroGeographics (NUTS 2021), population: Eurostat, water and countries: Natural Earth")}'
+              f'{(L(", Verkehrswege: © OpenStreetMap-Mitwirkende (ODbL).", ", transport: © OpenStreetMap contributors (ODbL).") if "OpenStreet" in GEO.get("quelle_infra", "") else ".")}</p></div>')
 
     if modus == "bearbeiten":
         rollen_opt = f'<option value="">{L("– keine (verwaltet der Kanzler) –", "– none (administered by the Chancellor) –")}</option>' + "".join(
