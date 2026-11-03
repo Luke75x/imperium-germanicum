@@ -30,7 +30,7 @@ Discord-Bot des Imperium Germanicum (discord.py). Wiederhergestellt am 02.11.202
   `newsflash_filter.txt` (jederzeit editierbar) gehen vor der Veröffentlichung in den Prüf-Thread. DM an den Verfasser bei jeder Entscheidung.
   Daten in `newsflash.db`, Deckblätter wartender Meldungen in `newsflash_bilder/` (beides nicht im Repo).
 - `einstellen.py` + `dienstgrade.py`: `/einstellen person institution dienstgrad` (Landesherren, Kaiser). Institutionen und Dienstgrade stammen aus der Dienstgrad-Tabelle
-  (Beschluss im Reichsgesetzblatt) und den Discord-Rollen: Marine, Heer, Luftwaffe, Reichssicherheitsamt, Polizei, Zoll, Katastrophenschutz (Inquisition hat keine Rollen).
+  (Beschluss im Reichsgesetzblatt) und den Discord-Rollen: Marine, Heer, Luftwaffe, Reichssicherheitsamt, Polizei, Zoll, Katastrophenschutz und die Reichsverwaltung (Beamtenlaufbahn Amtsmann … Generaldirektor; dort stellen nur Kanzler und Kaiser ein; Inquisition hat keine Rollen).
   Bis OF-5 sofort; ab OF-6 Antrag mit Knöpfen im Genehmigungs-Thread, nur der Kaiser entscheidet. Einstellung = Institutionsrolle + „Abteilungen“ + Dienstgrad + Gruppenrolle,
   Beförderung ersetzt die alten Dienstgrad-Rollen der Institution. Log jeder Ausführung im Personal-Log-Thread. Dienstgrade ändern sich in `dienstgrade.py` (RAENGE).
 

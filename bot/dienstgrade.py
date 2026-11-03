@@ -5,6 +5,8 @@ Quelle: Beschluss „Imperium Germanicum – Dienstgrade“ (Tabelle im Reichsge
 Tabelle; sie ist Grundlage für die Genehmigungsgrenze (ab OF-6 entscheidet der Kaiser). Heer, Luftwaffe und Reichssicherheitsamt teilen
 sich dieselben Rollen. Nicht enthalten: Inquisition (die Justiz-Dienstgrade der Tabelle haben keine Discord-Rollen) und Ämter wie
 Stabschef oder Generaldirektor (das sind Positionen, keine Dienstgrade).
+Reichsverwaltung: Beamtenlaufbahn nach der Reihenfolge der Discord-Rollen (Amtsmann … Generaldirektor), Stufe „RV“; die Regionalämter
+Vizekönig … Bürgermeister sind Ämter der Regenten und gehören nicht dazu.
 """
 
 INSTITUTIONEN = {
@@ -15,7 +17,10 @@ INSTITUTIONEN = {
     "polizei": ("Kaiserliche Polizeibehörde", 1557800373861753002),
     "zoll": ("Kaiserliche Zollverwaltung", 1557187375006875758),
     "kks": ("Kaiserlicher Katastrophenschutz", 1557187293100515328),
+    "reichsverwaltung": ("Reichsverwaltung", 1526348059984789504),
 }
+ZIVIL = {"reichsverwaltung"}      # Beamtenlaufbahn: keine Stufen OF/OR, keine Sammelrolle „Abteilungen“, keine Gruppenrollen
+NUR_KANZLER = {"reichsverwaltung"}  # einstellen darf nur der Kanzler (oder der Kaiser), sonst jeder Landesherr
 SAMMELROLLE_ABTEILUNGEN = 1526342856438972556     # Rolle „Abteilungen“, kommt mit jeder Institutionsrolle
 GRUPPENROLLEN = {"mannschaften": 1522921421398081689, "unteroffiziere": 1522917239769141428,
                  "offiziere": 1522914146390380636, "generalstab": 1522706926973096057}
@@ -172,13 +177,20 @@ RAENGE = {'marine': [('OR-1', 'Matrose', '1522923137900085288'),
          ('OF-8', 'Schutzdirektor', '1557172195254603816'),
          ('OF-9', 'Leitender Schutzdirektor', '1557171030173294613')]}
 
+RAENGE["reichsverwaltung"] = [("RV", n, r) for n, r in (
+    ("Amtsmann", 1555985042180669541), ("Amtsrat", 1555985146392617061), ("Inspektor", 1526342268691419278),
+    ("Direktor", 1526341196081791076), ("Ministerialrat", 1526342162952884304), ("Ministerialdirektor", 1555985280203231322),
+    ("Staatssekretär", 1526341106755960912), ("Generaldirektor", 1555972124215353445))]
+
 
 def stufe_zahl(stufe: str) -> int:
     return int(stufe.split("-")[1])
 
 
-def gruppe(stufe: str) -> str:
-    """Dienstgradgruppe (Rollen Mannschaften/Unteroffiziere/Offiziersränge/Generalstab) zur Stufe."""
+def gruppe(stufe: str):
+    """Dienstgradgruppe (Rollen Mannschaften/Unteroffiziere/Offiziersränge/Generalstab) zur Stufe; None bei Beamten (RV)."""
+    if stufe == "RV":
+        return None
     n = stufe_zahl(stufe)
     if stufe.startswith("OR"):
         return "mannschaften" if n <= 4 else "unteroffiziere"
@@ -191,4 +203,4 @@ def braucht_genehmigung(stufe: str) -> bool:
 
 def bezeichnung(schluessel: str, index: int) -> str:
     stufe, name, _ = RAENGE[schluessel][index]
-    return f"{stufe} {name}"
+    return name if stufe == "RV" else f"{stufe} {name}"

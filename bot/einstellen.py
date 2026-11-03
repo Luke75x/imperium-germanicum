@@ -1,6 +1,7 @@
 """/einstellen person institution dienstgrad: Landesherren stellen Personen ein bzw. befördern sie (Dienstgradstrukturen in dienstgrade.py).
 
-- Landesherren (und der Kaiser) dürfen bis einschließlich OF-5 direkt einstellen/befördern; ab OF-6 geht ein Antrag in den
+- Landesherren (und der Kaiser) dürfen bis einschließlich OF-5 direkt einstellen/befördern; in die Reichsverwaltung (Beamtenlaufbahn) stellen
+  nur der Kanzler und der Kaiser ein; ab OF-6 geht ein Antrag in den
   Genehmigungs-Thread, den nur der Kaiser mit „Genehmigen“/„Ablehnen“ entscheidet.
 - Eine Person ohne Dienstgrad der Institution wird eingestellt (Institutionsrolle + „Abteilungen“ + Dienstgrad + Gruppenrolle),
   mit niedrigerem Dienstgrad wird sie befördert (alte Dienstgrad-Rollen der Institution entfallen). Herabstufungen gibt es hier nicht.
@@ -28,6 +29,15 @@ def ist_landesherr(user: discord.Member) -> bool:
     return user.id == config.KAISER_ID or any(r.id == config.LANDESHERR_ROLLE for r in user.roles)
 
 
+def ist_kanzler(user: discord.Member) -> bool:
+    return user.id == config.KAISER_ID or any(r.id == config.KANZLER_ROLLE for r in user.roles)
+
+
+def darf_einstellen(user: discord.Member, schluessel: str) -> bool:
+    """Reichsverwaltung nur Kanzler/Kaiser, alle anderen Institutionen jeder Landesherr (und der Kaiser)."""
+    return ist_kanzler(user) if schluessel in dg.NUR_KANZLER else ist_landesherr(user)
+
+
 def aktueller_rang(member: discord.Member, schluessel: str):
     """Index des höchsten Dienstgrads dieser Institution, den die Person trägt (oder None)."""
     ids = {r.id for r in member.roles}
@@ -36,11 +46,13 @@ def aktueller_rang(member: discord.Member, schluessel: str):
 
 
 def andere_institution(member: discord.Member, schluessel: str):
-    """Name einer anderen Institution, zu der die Person gehört (Institutionsrolle oder ausschließlich dort vergebener Dienstgrad)."""
+    """Name einer anderen uniformierten Institution, zu der die Person gehört (Institutionsrolle oder ausschließlich dort vergebener Dienstgrad)."""
+    if schluessel in dg.ZIVIL:
+        return None   # Beamte können zugleich Dienst in einer uniformierten Institution tun
     ids = {r.id for r in member.roles}
     eigene = {rid for _, _, rid in dg.RAENGE[schluessel]}
     for k, (name, rid) in dg.INSTITUTIONEN.items():
-        if k == schluessel:
+        if k == schluessel or k in dg.ZIVIL:
             continue
         if rid in ids and rid != dg.INSTITUTIONEN[schluessel][1]:
             return name
@@ -66,8 +78,9 @@ async def anwenden(guild: discord.Guild, ziel: discord.Member, schluessel: str, 
     ids = {r.id for r in neu}
     for k, raenge in dg.RAENGE.items():
         gruppen |= {dg.gruppe(s) for s, _, r in raenge if r in ids}
+    gruppen.discard(None)
     neu += [guild.get_role(dg.GRUPPENROLLEN[g]) for g in gruppen if guild.get_role(dg.GRUPPENROLLEN[g])]
-    for rid_ in (dg.INSTITUTIONEN[schluessel][1], dg.SAMMELROLLE_ABTEILUNGEN):
+    for rid_ in (dg.INSTITUTIONEN[schluessel][1],) + (() if schluessel in dg.ZIVIL else (dg.SAMMELROLLE_ABTEILUNGEN,)):
         r = guild.get_role(rid_)
         if r and r not in neu:
             neu.append(r)
@@ -103,10 +116,11 @@ class Einstellen(commands.Cog):
     @app_commands.describe(person="Die Person", institution="Institution (bestimmt die Dienstgradstruktur)", dienstgrad="Dienstgrad nach der Tabelle der Institution")
     @app_commands.choices(institution=[app_commands.Choice(name=n, value=k) for k, (n, _) in dg.INSTITUTIONEN.items()])
     async def einstellen(self, inter: discord.Interaction, person: discord.Member, institution: app_commands.Choice[str], dienstgrad: str):
-        if not ist_landesherr(inter.user):
-            await inter.response.send_message("Einstellen und Befördern dürfen nur Landesherren.", ephemeral=True)
-            return
         schluessel = institution.value
+        if not darf_einstellen(inter.user, schluessel):
+            await inter.response.send_message("In die Reichsverwaltung stellen nur der Kanzler und der Kaiser ein." if schluessel in dg.NUR_KANZLER
+                                              else "Einstellen und Befördern dürfen nur Landesherren.", ephemeral=True)
+            return
         index = self.rang_index(schluessel, dienstgrad)
         if index is None:
             await inter.response.send_message("Diesen Dienstgrad gibt es bei der Institution nicht. Bitte aus der Liste wählen.", ephemeral=True)
