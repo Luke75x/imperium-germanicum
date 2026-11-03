@@ -543,14 +543,13 @@
   function regentHtml(s, r) {
     if (!r) return esc(T.noFaction);
     var names = r.personen.map(function (p) {
-      var n = esc(p.name);
       var t = (p.titel || []).concat(p.aemter || []);
-      return "<strong>" + n + "</strong>" + (t.length ? " <span class=\"karte-titel\">" + esc(t.join(" · ")) + "</span>" : "");
-    }).join(r.art === "reich" ? " " + esc(T.und) + " " : "<br>");
-    if (r.art === "reich") return names;
-    if (r.art === "kanzler") return (names || esc(T.noKanzler)) + (names ? '<span class="karte-hinweis">' + esc(T.kanzlerNote) + "</span>" : "");
+      return "<strong>" + esc(p.name) + "</strong>" + (t.length ? " <span class=\"karte-titel\">" + esc(t.join(" · ")) + "</span>" : "");
+    }).join("<br>");
     if (r.art === "landesherr") return names || esc(T.vacant.replace("{f}", r.fraktion || s.name));
-    return esc(T.noFaction);
+    // kein eigener Regent: der Souverän, vertreten durch den Kanzler
+    var v = (r.vertreter || []).map(function (p) { return "<strong>" + esc(p.name) + "</strong>"; }).join(" " + esc(T.und) + " ");
+    return (names || esc(T.noKanzler)) + (v ? '<br><span class="karte-hinweis">' + esc(T.vertreten) + " " + v + "</span>" : "");
   }
   function openInfo(id) {
     if (!infoDlg) return;

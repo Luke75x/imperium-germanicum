@@ -65,7 +65,7 @@ T = {
            "resetName": "Heutigen Namen wiederherstellen", "save": "Speichern", "saved": "Gespeichert.", "saveError": "Speichern fehlgeschlagen.",
            "send": "Antrag senden", "setName": "Namen festlegen", "shareArea": "Anteil an der Fläche des Reiches",
            "sharePop": "Anteil an der Bevölkerung des Reiches", "sheetClose": "Zur Karte",
-           "source": "Einwohner: Eurostat, Stand {j}. Grenzen: © EuroGeographics (NUTS 2021).", "state": "Teilstaat", "reich": "Reichsgebiete", "und": "und",
+           "source": "Einwohner: Eurostat, Stand {j}. Grenzen: © EuroGeographics (NUTS 2021).", "state": "Teilstaat", "reich": "Reichsgebiete", "und": "und", "vertreten": "vertreten durch",
            "today": "heute", "todayName": "Heutiger Name", "toolPaint": "Malen", "toolPan": "Verschieben", "toolPick": "Pipette",
            "unassigned": "Kein Teilstaat", "undo": "Rückgängig", "vacant": "unbesetzt (kein Landesherr mit der Rolle „{f}“)",
            "pending": "Dein Antrag vom {d} auf „{n}“ liegt dem Kanzler vor.", "accepted": "Dein Antrag vom {d} auf „{n}“ wurde angenommen.",
@@ -90,7 +90,7 @@ T = {
            "resetName": "Restore today's name", "save": "Save", "saved": "Saved.", "saveError": "Saving failed.",
            "send": "Send request", "setName": "Set name", "shareArea": "Share of the Empire's area",
            "sharePop": "Share of the Empire's population", "sheetClose": "To the map",
-           "source": "Population: Eurostat, {j}. Boundaries: © EuroGeographics (NUTS 2021).", "state": "State", "reich": "Imperial territories", "und": "and",
+           "source": "Population: Eurostat, {j}. Boundaries: © EuroGeographics (NUTS 2021).", "state": "State", "reich": "Imperial territories", "und": "and", "vertreten": "represented by",
            "today": "today", "todayName": "Today's name", "toolPaint": "Paint", "toolPan": "Move", "toolPick": "Eyedropper",
            "unassigned": "No state", "undo": "Undo", "vacant": "vacant (no Landesherr with the role “{f}”)",
            "pending": "Your request of {d} for “{n}” is with the Chancellor.", "accepted": "Your request of {d} for “{n}” was accepted.",
@@ -353,20 +353,23 @@ async def info_json(request):
     def person(m, fraktion=None):
         # nur der höchste Titel; Zusatzämter nur zusammen mit der Fraktionsrolle
         titel = sorted((r for r in m["rollen"] if r in titel_rollen and r in rollen), key=lambda r: rang.get(r, 9999))[:1]
-        aemter = sorted((r for r in m["rollen"] if fraktion and r in ROLLEN_AEMTER and r != fraktion and r in rollen),
+        aemter = sorted((r for r in m["rollen"] if fraktion and r in ROLLEN_AEMTER and r in rollen),
                         key=lambda r: rang.get(r, 9999))
         return {"name": m["name"], "titel": [rollen[r] for r in titel], "aemter": [rollen[r] for r in aemter]}
     kanzler = [person(m) for m in mitglieder if ROLLE_KANZLER in m["rollen"]]
     souveraen = [{"name": m["name"], "titel": [], "aemter": []} for m in mitglieder if ROLLE_SOUVERAEN in m["rollen"]]
     regenten = {}
     for s in stand["staaten"]:
-        if s["name"] == REICHSGEBIETE:
-            regenten[s["id"]] = {"art": "reich", "personen": [{"name": p["name"], "titel": [], "aemter": []} for p in kanzler] + souveraen}
-        elif s["fraktion"]:
-            regenten[s["id"]] = {"art": "landesherr", "fraktion": rollen.get(s["fraktion"], ""),
-                                 "personen": [person(m, s["fraktion"]) for m in mitglieder if ROLLE_LANDESHERR in m["rollen"] and s["fraktion"] in m["rollen"]]}
-        else:
-            regenten[s["id"]] = {"art": "kanzler", "personen": kanzler}
+        art = "reich" if s["name"] == REICHSGEBIETE else "kanzler"
+        if art == "kanzler" and s["fraktion"]:
+            # Regent: Fraktionsrolle plus Landesherr oder eines der Zusatzämter (Gouverneur, Vizekönig …)
+            personen = [person(m, s["fraktion"]) for m in mitglieder
+                        if s["fraktion"] in m["rollen"] and (ROLLE_LANDESHERR in m["rollen"] or any(r in ROLLEN_AEMTER for r in m["rollen"]))]
+            if personen:
+                regenten[s["id"]] = {"art": "landesherr", "fraktion": rollen.get(s["fraktion"], ""), "personen": personen}
+                continue
+        # ohne eingesetzten Regenten: der Souverän, vertreten durch den Kanzler
+        regenten[s["id"]] = {"art": art, "personen": souveraen, "vertreter": [{"name": p["name"]} for p in kanzler]}
     ich = None
     if k:
         antraege = {}
