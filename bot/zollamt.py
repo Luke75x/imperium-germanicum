@@ -12,6 +12,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+import amt_api
 import config
 
 log = logging.getLogger("imperium-bot.zollamt")
@@ -105,6 +106,8 @@ class NameModal(discord.ui.Modal, title="Einbürgerung"):
         thread = self.cog.bot.get_channel(config.THREAD_EINBUERGERUNGEN) \
             or await self.cog.bot.fetch_channel(config.THREAD_EINBUERGERUNGEN)
         await thread.send(content=ziel.mention, embed=embed_einbuergerung(ziel))
+        await amt_api.melden("einbuergerung", {"konto_id": str(ziel.id), "name": ziel.name, "ic_name": name,
+                                               "beamter_id": str(inter.user.id), "beamter_name": inter.user.display_name})
 
         text = f"{ziel.mention} wurde als **{name}** eingebürgert."
         if hinweise:

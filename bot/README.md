@@ -11,9 +11,13 @@ Discord-Bot des Imperium Germanicum (discord.py). Wiederhergestellt am 02.11.202
 - `zollamt.py`: Kaiserliches Zollamt. Beitritt → Visum-Embed in Thread „Erteilte Aufenthaltsvisen“, Austritt → „Aufenthaltvisum
   abgelaufen“ in Thread „Abgelaufene Aufenthaltsvisen“, `/einbürgern @Person` (nur Rolle Zollverwaltung) → Modal mit IC-Name →
   6 Rollen, Umbenennung, Embed in Thread „Erfolgreiche Einbürgerungen“. IDs in `config.py`. Braucht den Members-Intent.
-- `ticket.py`: Ticketsystem der Einwanderungsbehörde. Das Panel (Nachricht 1565507299345436713, Auswahlmenü `einreise-panel`)
-  öffnet ein Modal (IC-Name, Geschichte, Vorstellung) → privater Thread `einreise-<name>` mit den Antworten, Antragsteller und
-  Zollverwaltung; Knopf „Ticket schließen“ archiviert und sperrt. Ein offenes Ticket pro Person, Bedienelemente persistent.
+- `ticket.py`: Einreise der Einwanderungsbehörde in zwei Phasen. Das Panel (Nachricht 1567291800350232667, Auswahlmenü `einreise-panel`)
+  öffnet das Modal **Phase I (OOC)**: Name, Geburtsdatum (mind. 16), Wie aufmerksam geworden, Vorstellung/Wunschposition, Rollenbeschreibung
+  → privater Thread `einreise-<name>`. Die Zollverwaltung drückt „Einreise – Phase II einleiten“, danach drückt der Antragsteller
+  „Einreise – Phase II starten“ (**Phase II, IC**): Auswahl Fraktion (Teilstaaten aus der Reichskarte `dienst.db` + „Imperium Germanicum“),
+  Gesellschaftsschicht, Berufliche Zugehörigkeit, dann Modal mit IC-Name, IC-Geburtsdatum, Vorgeschichte. Zustand je Thread in `einreise.db`
+  (gitignored; Phase 1/2/3). „Ticket schließen“ archiviert und sperrt. Ein offenes Ticket pro Person, Bedienelemente persistent.
+  Ältere Tickets ohne DB-Eintrag können nicht in Phase II geführt werden.
 - `audienz.py`: Betritt der Kaiser den Sprachkanal Audienzzimmer (1523025487847227402), kommt eine DM „Generalaudienz öffnen?“
   mit Ja/Nein. Ja → Embed „Generalaudienz“ (Bilder in `sicherung/`) in den News-Kanal 1522995542047723581.
 - `antrag.py`: `/antrag` (Reichstags-Rollen) → Modal (Betreff, Antragstext, Begründung) → Imperium-Dienst legt den Antrag an
@@ -45,3 +49,5 @@ Discord-Bot des Imperium Germanicum (discord.py). Wiederhergestellt am 02.11.202
 `sicherung/info_kanal_sicherung.json` enthält alle Nachrichten des Informationskanals (Stand 02.11.2026: Willkommen,
 Richtlinien, Rollenspiel, Informationen und Links, Server-Abonnements, Einladung) samt Link-Knöpfen,
 `sicherung/banner/` die Banner-Bilder dazu.
+- `amt_api.py` (03.11.2026): meldet Einreise-Phasen (`ticket.py`), Ticket-Schließen und `/einbürgern` (`zollamt.py`) an die Amtsseite des Dienstes
+  (`POST http://127.0.0.1:8090/intern-api/amt/…`). Fehler werden nur protokolliert, Einreise und Einbürgerung laufen auch ohne Dienst.

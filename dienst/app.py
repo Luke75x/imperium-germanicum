@@ -10,6 +10,7 @@ from aiohttp import web
 import anmeldung
 import config
 import db
+import amt
 import discord_api
 import karte
 import organigramme
@@ -26,6 +27,7 @@ def erstellen():
     organigramme.registrieren(app)
     karte.registrieren(app)
     reichstag.registrieren(app)
+    amt.registrieren(app)
     return app
 
 
