@@ -83,6 +83,8 @@ CREATE INDEX IF NOT EXISTS amt_verfahren_konto ON amt_verfahren (konto_id);
 def einrichten(con):
     con.executescript(SCHEMA)
     spalten = {r[1] for r in con.execute("PRAGMA table_info(amt_akten)")}
+    if "position" not in spalten:
+        con.execute("ALTER TABLE amt_akten ADD COLUMN position TEXT NOT NULL DEFAULT ''")
     if "geschlecht" not in spalten:
         con.execute("ALTER TABLE amt_akten ADD COLUMN geschlecht TEXT NOT NULL DEFAULT ''")
     if "verschluss" not in spalten:
@@ -554,6 +556,7 @@ def _stamm(z):
     return daten_tabelle([("Aktenzeichen", az_akte(z["id"])), ("Status", akte_marke(z["status"])), ("Name (IC)", esc(z["ic_name"] or "–")),
                            ("Geburtsdatum (IC)", esc(z["ic_geburt"] or "–")), ("Geschlecht", esc(z["geschlecht"] or "–")), ("Fraktion", esc(z["fraktion"] or "–")),
                            ("Gesellschaftsschicht", esc(z["schicht"] or "–")), ("Berufliche Zugehörigkeit", esc(z["beruf"] or "–")),
+                           ("Aktueller Beruf / Position", esc(z["position"] or "–")),
                            ("Discord-Name", esc(z["name"])), ("Discord-ID", esc(z["konto_id"])),
                            ("Angelegt", _zeit(z["angelegt"])), ("Zuletzt geändert", _zeit(z["aktualisiert"]))])
 
@@ -575,6 +578,7 @@ async def buerger_akte(request):
             f'<div><label for="f">Fraktion</label><input type="text" id="f" name="fraktion" value="{esc(z["fraktion"])}" maxlength="80"></div>'
             f'<div><label for="s">Schicht</label><select id="s" name="schicht">{_optionen(SCHICHTEN, z["schicht"])}</select></div>'
             f'<div><label for="b">Beruf</label><select id="b" name="beruf">{_optionen(BERUFE, z["beruf"])}</select></div>'
+            f'<div><label for="po">Aktueller Beruf / Position</label><input type="text" id="po" name="position" value="{esc(z["position"])}" maxlength="120"></div>'
             f'<button class="btn zweit" type="submit">{ic("pencil")}Stammdaten ändern</button></form>')
     vs = [_verfahren_zeile(v) for v in con.execute("SELECT * FROM amt_verfahren WHERE konto_id=? ORDER BY id DESC", (z["konto_id"],))]
     w = schreiben(request)
@@ -874,12 +878,12 @@ async def buerger_bearbeiten(request):
         raise web.HTTPForbidden(text="Diese Akte steht unter Verschluss.")
     neu = {"ic_name": _text(form, "ic_name", 80), "ic_geburt": _text(form, "ic_geburt", 40), "fraktion": _text(form, "fraktion", 80),
            "schicht": _text(form, "schicht", 40), "beruf": _text(form, "beruf", 40),
-           "geschlecht": _text(form, "geschlecht", 20)}
+           "geschlecht": _text(form, "geschlecht", 20), "position": _text(form, "position", 120)}
     aenderungen = [f"{f}: „{z[f]}“ → „{w}“" for f, w in neu.items() if z[f] != w]
     pfad = f"{BASIS}buerger/{i}/"
     if not aenderungen:
         _umleiten(pfad, "Keine Änderung.")
-    con.execute("UPDATE amt_akten SET ic_name=?, ic_geburt=?, fraktion=?, schicht=?, beruf=?, geschlecht=?, aktualisiert=? WHERE id=?",
+    con.execute("UPDATE amt_akten SET ic_name=?, ic_geburt=?, fraktion=?, schicht=?, beruf=?, geschlecht=?, position=?, aktualisiert=? WHERE id=?",
                 (*neu.values(), int(time.time()), i))
     eintrag(con, "akte", z["id"], "Stammdaten geändert", "\n".join(aenderungen), k["id"], k["name"])
     con.commit()
