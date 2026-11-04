@@ -216,7 +216,61 @@ td.bar{width:45%}
  table.liste td{border:0;border-bottom:1px solid #e0e0e0}
  table.liste td::before{content:attr(data-l) ": ";color:var(--grau);font-size:13px}
 }
+
+/* ---- Design-Modus „Minimalistisch“ (html.min): Symbolleiste links, fährt beim Darüberfahren aus; auf dem Handy Standard ---- */
+html.min body{color:#222;font-size:15px}
+html.min .kopf{border-bottom:0;padding:10px 16px 10px 72px;min-height:56px}
+html.min .kopf .logo img{height:40px}
+html.min .kopf input[type=search]{border:0;border-bottom:1px solid #ccc;padding:6px 4px;width:200px;background:transparent}
+html.min .kopf input[type=search]:focus{outline:0;border-bottom-color:#111}
+html.min .kopf button{background:transparent;border:0;color:#555;padding:6px}
+html.min .rahmen{display:block;min-height:0}
+html.min nav{position:fixed;top:0;bottom:0;left:0;width:56px;z-index:20;overflow:hidden;display:block;padding:12px 0;background:#fff;border:0;border-right:1px solid #eee;transition:width .18s ease,box-shadow .18s ease}
+html.min nav:hover,html.min nav:focus-within,html.min nav.offen{width:236px;box-shadow:4px 0 24px rgba(0,0,0,.08)}
+html.min nav a,html.min nav button.link{white-space:nowrap;gap:16px;padding:11px 19px;border-left:0;color:#444;border-bottom:0}
+html.min nav a:hover,html.min nav button.link:hover{background:#f4f4f4}
+html.min nav a.aktiv{background:transparent;color:#000;font-weight:600;box-shadow:inset 3px 0 0 #111}
+html.min nav span{opacity:0;transition:opacity .12s}
+html.min nav:hover span,html.min nav:focus-within span,html.min nav.offen span{opacity:1}
+html.min nav hr{display:block;border-top:1px solid #eee;margin:10px 16px}
+html.min nav .konto{display:block;padding:6px 19px;white-space:nowrap;opacity:0;transition:opacity .12s}
+html.min nav:hover .konto,html.min nav:focus-within .konto,html.min nav.offen .konto{opacity:1}
+html.min nav form{margin:0}
+html.min main{max-width:980px;margin:0 auto;padding:24px 20px 56px 72px}
+html.min h1{font-size:20px;font-weight:600}
+html.min h2{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--grau);border:0;margin:34px 0 6px;padding:0}
+html.min .az{color:#888}
+html.min table{border-collapse:collapse}
+html.min th,html.min td{border:0;border-bottom:1px solid #eee;padding:9px 10px 9px 0}
+html.min th{background:transparent;color:#888;font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+html.min table.daten th{text-transform:none;font-size:14px;letter-spacing:0}
+html.min .status{border:0;background:#f3f3f3;border-radius:10px;padding:1px 9px;font-size:12px}
+html.min .kennzahlen div{border:0;margin:0;padding:6px 32px 6px 0;min-width:0}
+html.min .kennzahlen b{font-size:28px;font-weight:500}
+html.min .btn,html.min button.btn{background:#111;border:1px solid #111;border-radius:6px;padding:7px 14px}
+html.min .btn.zweit{background:transparent;color:#111;border-color:#ddd}
+html.min .btn.gefahr{background:transparent;color:var(--rot);border-color:#e4c4c4}
+html.min input[type=text],html.min input[type=search],html.min select,html.min textarea{border:1px solid #ddd;border-radius:6px;padding:7px 9px}
+html.min .hinweis{border:0;border-radius:6px;background:#f6f6f6}
+html.min .warnung{border:0;border-radius:6px;background:#fbf1f1}
+html.min .balken{background:#111;border-radius:2px}
+@media (max-width:800px){
+ html.min .kopf{padding:8px 12px 8px 60px}
+ html.min .kopf .logo img.lang{display:none}html.min .kopf .logo img.kurz{display:block;height:38px}
+ html.min .kopf input[type=search]{width:120px}
+ html.min nav{width:48px}
+ html.min nav a,html.min nav button.link{padding:12px 15px}
+ html.min nav .konto{padding:6px 15px}
+ html.min main{padding:16px 14px 48px 60px}
+ html.min table.liste tr{border:0;border-bottom:1px solid #eee;margin:0;padding:6px 0}
+ html.min table.liste td{border:0;padding:3px 0}
+}
+.nur-min{display:none}
+html.min .nur-min{display:inline}html.min .nur-std{display:none}
 """
+
+
+ICONS["panel-left"] = '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>'
 
 
 def ic(name):
@@ -230,20 +284,25 @@ NAV = [("uebersicht", "layout-dashboard", "Übersicht", ""), ("buerger", "book-u
 
 def rahmen(titel, aktiv, inhalt, k, csrf, q=""):
     logo, logo_name = logo_von(k)
-    nav = "".join(f'<a href="{BASIS}{pfad}" class="{"aktiv" if schl == aktiv else ""}">{ic(sym)}<span>{esc(text)}</span></a>'
+    nav = "".join(f'<a href="{BASIS}{pfad}" title="{esc(text)}" class="{"aktiv" if schl == aktiv else ""}">{ic(sym)}<span>{esc(text)}</span></a>'
                   for schl, sym, text, pfad in NAV)
     return f"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>{esc(titel)} – {esc(logo_name)}, Amtsseite</title><style>{CSS}</style></head>
+<meta name="robots" content="noindex,nofollow"><title>{esc(titel)} – {esc(logo_name)}, Amtsseite</title><style>{CSS}</style>
+<script>(function(){{var m;try{{m=localStorage.getItem("amtModus")}}catch(e){{}}if(m!=="min"&&m!=="std")m=matchMedia("(max-width:800px)").matches?"min":"std";document.documentElement.className=m}})()</script></head>
 <body>
 <header class="kopf"><a class="logo" href="{BASIS}" title="{esc(logo_name)} – Amtsseite"><img class="lang" src="{BASIS}logo/{logo}-kopf.png" alt="{esc(logo_name)}"><img class="kurz" src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a><span class="raum"></span>
 <form action="{BASIS}buerger/" method="get" role="search"><input type="search" name="q" value="{esc(q)}" placeholder="Name, Aktenzeichen, ID" aria-label="Suche"><button type="submit" aria-label="Suchen">{ic("search")}</button></form></header>
 <div class="rahmen"><nav aria-label="Amtsseite">{nav}<hr>
-<a href="/informationen/die-reichsbehoerden/">{ic("house")}<span>Zur Website</span></a>
+<a href="/informationen/die-reichsbehoerden/" title="Zur Website">{ic("house")}<span>Zur Website</span></a>
 <div class="konto">{esc(k["name"])}</div>
+<button class="link" type="button" id="modus" title="Design-Modus wechseln">{ic("panel-left")}<span><span class="nur-std">Design: Minimalistisch</span><span class="nur-min">Design: Standard</span></span></button>
 <form method="post" action="/abmelden/"><input type="hidden" name="csrf" value="{esc(csrf)}"><input type="hidden" name="weiter" value="/">
-<button class="link" type="submit">{ic("log-out")}<span>Abmelden</span></button></form></nav>
-<main id="inhalt">{inhalt}</main></div></body></html>"""
+<button class="link" type="submit" title="Abmelden">{ic("log-out")}<span>Abmelden</span></button></form></nav>
+<main id="inhalt">{inhalt}</main></div>
+<script>document.getElementById("modus").addEventListener("click",function(){{var d=document.documentElement,m=d.className==="min"?"std":"min";d.className=m;try{{localStorage.setItem("amtModus",m)}}catch(e){{}}}});
+document.querySelector("nav").addEventListener("touchstart",function(e){{if(!this.classList.contains("offen")&&e.target.closest("a,button")===null)this.classList.add("offen")}},{{passive:true}});
+document.addEventListener("touchstart",function(e){{var n=document.querySelector("nav");if(!n.contains(e.target))n.classList.remove("offen")}},{{passive:true}});</script></body></html>"""
 
 
 def status_marke(klasse, text):
