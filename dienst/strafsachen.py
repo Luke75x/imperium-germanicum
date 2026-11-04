@@ -5,11 +5,15 @@ entsteht automatisch ein verknüpftes Strafverfahren (Beteiligte werden übernom
 Die Inquisition prüft, erhebt Anklage, setzt die Hauptverhandlung an, erfasst Urteil, Strafe und Haft und markiert die Rechtskraft.
 Alles wird in einem Aktenprotokoll festgehalten. Akten können als „Geheim“ eingestuft werden (nur Leitung, Bearbeiter, Ersteller,
 Kanzler/Admins/Kaiser). Es gibt Suche, Statistik und PDF-Export. Rechte siehe lesen_darf()/schreiben_darf().
-Tabellen: sa_akten, sa_beteiligte, sa_beweise, sa_eintraege. Seiten unter …/intern/sachen/<ermittlung|strafverfahren>/.
+Tabellen: sa_akten, sa_beteiligte, sa_beweise, sa_eintraege, sa_anhaenge (Dateien in daten/anhaenge, Zufallsnamen, nur Download). Seiten unter …/intern/sachen/<ermittlung|strafverfahren>/.
 Haft wird nur erfasst (Beginn/Ende/Ort); Discord-Rollen (z. B. KRS-Häftling) werden nicht automatisch gesetzt.
 """
+import hashlib
+import os
+import shutil
 import secrets
 import time
+from urllib.parse import quote
 from datetime import datetime
 
 from aiohttp import web
@@ -17,6 +21,7 @@ from aiohttp import web
 import amt
 import anmeldung
 import bereiche
+import config
 
 esc = amt.esc
 BASIS = amt.BASIS
@@ -37,6 +42,18 @@ BETEILIGTE = ["Beschuldigter", "Zeuge", "Geschädigter", "Hinweisgeber", "Vertei
 MARKE = {"eingegangen": "offen", "ermittlung": "offen", "pruefung": "offen", "angeklagt": "offen", "verhandlung": "offen", "urteil": "offen",
          "abgegeben": "ok", "abgeschlossen": "ok", "rechtskraeftig": "ok", "eingestellt": "neutral"}
 SEITE = 40
+ANHANG_ORDNER = os.path.join(config.HIER, "daten", "anhaenge")   # nicht im Repo (daten/ ist ausgenommen), Dateien unter Zufallsnamen
+ANHANG_MAX = 10 * 1024 * 1024
+ANHANG_PRO_AKTE = 30
+# Endung -> (Content-Type, Prüfung der Dateikennung); angeboten wird immer nur der Download (attachment, nosniff)
+ANHANG_TYPEN = {
+    "pdf": ("application/pdf", lambda b: b.startswith(b"%PDF")), "png": ("image/png", lambda b: b.startswith(b"\x89PNG")),
+    "jpg": ("image/jpeg", lambda b: b.startswith(b"\xff\xd8\xff")), "jpeg": ("image/jpeg", lambda b: b.startswith(b"\xff\xd8\xff")),
+    "gif": ("image/gif", lambda b: b.startswith(b"GIF8")), "webp": ("image/webp", lambda b: b[:4] == b"RIFF" and b[8:12] == b"WEBP"),
+    "txt": ("text/plain; charset=utf-8", lambda b: b"\x00" not in b),
+    "docx": ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", lambda b: b.startswith(b"PK\x03\x04")),
+    "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", lambda b: b.startswith(b"PK\x03\x04")),
+}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sa_akten (
@@ -57,6 +74,11 @@ CREATE TABLE IF NOT EXISTS sa_beweise (
 CREATE TABLE IF NOT EXISTS sa_eintraege (
     id INTEGER PRIMARY KEY AUTOINCREMENT, akte_id INTEGER NOT NULL REFERENCES sa_akten(id) ON DELETE CASCADE, zeit INTEGER NOT NULL,
     art TEXT NOT NULL, text TEXT NOT NULL, autor_id TEXT, autor_name TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS sa_anhaenge (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, akte_id INTEGER NOT NULL REFERENCES sa_akten(id) ON DELETE CASCADE, beweis_id INTEGER,
+    dateiname TEXT NOT NULL, typ TEXT NOT NULL, groesse INTEGER NOT NULL, sha256 TEXT NOT NULL, speicher TEXT NOT NULL,
+    zeit INTEGER NOT NULL, autor_id TEXT NOT NULL, autor_name TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS sa_anh_akte ON sa_anhaenge (akte_id);
 CREATE INDEX IF NOT EXISTS sa_akten_art ON sa_akten (art, status);
 CREATE INDEX IF NOT EXISTS sa_bet_akte ON sa_beteiligte (akte_id);
 CREATE INDEX IF NOT EXISTS sa_bew_akte ON sa_beweise (akte_id);
@@ -339,6 +361,20 @@ def _ansicht(request, k, a, con):
                   f'<div><label>Fundort / Quelle</label><input type="text" name="fundort" maxlength="160"></div>'
                   f'<div style="flex:1;min-width:240px"><label>Beschreibung</label><input type="text" name="beschreibung" maxlength="1000" style="width:100%"></div>'
                   f'<button class="btn zweit" type="submit">{amt.ic("plus")}Erfassen</button></form>')
+    # Dateianhänge
+    an = con.execute("SELECT * FROM sa_anhaenge WHERE akte_id=? ORDER BY id", (a["id"],)).fetchall()
+    zeilen = [(f'AN-{x["id"]}', f'<a href="{pfad}anhang/{x["id"]}">{esc(x["dateiname"])}</a>', f'{_groesse(x["groesse"])}',
+               f'<small title="{x["sha256"]}">{x["sha256"][:16]}…</small>', f'BM-{x["beweis_id"]}' if x["beweis_id"] else "–",
+               amt._zeit(x["zeit"], False) + "<br>" + esc(x["autor_name"]),
+               (f'<form method="post" action="{pfad}anhang/{x["id"]}/loeschen" style="margin:0">{csrf}<button class="btn zweit gefahr" type="submit" aria-label="Löschen">{amt.ic("trash-2")}</button></form>'
+                if w and (_leitung(k, art) or x["autor_id"] == k["id"]) else "")) for x in an]
+    html_ += "<h2>Dateianhänge</h2>" + amt.tabelle(["Nr.", "Datei", "Größe", "SHA-256", "Zu", "Hochgeladen", ""], zeilen, "Keine Anhänge.")
+    if w:
+        bm_opt = '<option value="">(Akte allgemein)</option>' + "".join(f'<option value="{b["id"]}">BM-{b["id"]} {esc(b["bezeichnung"])}</option>' for b in be)
+        html_ += (f'<form class="zeile" method="post" action="{pfad}anhang" enctype="multipart/form-data">{csrf}'
+                  f'<div><label>Datei (höchstens {ANHANG_MAX // 1048576} MB; {", ".join(ANHANG_TYPEN)})</label><input type="file" name="datei" required></div>'
+                  f'<div><label>Zuordnen zu</label><select name="beweis">{bm_opt}</select></div>'
+                  f'<button class="btn zweit" type="submit">{amt.ic("plus")}Hochladen</button></form>')
     # Protokoll
     es = con.execute("SELECT * FROM sa_eintraege WHERE akte_id=? ORDER BY id DESC", (a["id"],)).fetchall()
     html_ += "<h2>Aktenprotokoll</h2>" + amt.tabelle(["Zeit", "Art", "Eintrag", "Von"], [
@@ -378,6 +414,10 @@ def _ansicht(request, k, a, con):
             html_ += f'<div class="aktionen">{akt}</div>'
     html_ += f'<div class="aktionen"><a class="btn zweit" href="{pfad}pdf">{amt.ic("file-down")}PDF</a><a class="btn zweit" href="{ROOT}{v["pfad"]}/">{amt.ic("arrow-left")}Zur Liste</a></div>'
     return html_
+
+
+def _groesse(n):
+    return f"{n / 1048576:.1f} MB" if n >= 1048576 else f"{max(1, round(n / 1024))} kB"
 
 
 def _personen(con):
@@ -552,6 +592,13 @@ async def abgeben(request):
     for b in con.execute("SELECT * FROM sa_beteiligte WHERE akte_id=?", (a["id"],)).fetchall():
         con.execute("INSERT INTO sa_beteiligte (akte_id, rolle, name, konto_id, notiz) VALUES (?,?,?,?,?)", (vid, b["rolle"], b["name"], b["konto_id"], b["notiz"]))
     v = con.execute("SELECT * FROM sa_akten WHERE id=?", (vid,)).fetchone()
+    for x in con.execute("SELECT * FROM sa_anhaenge WHERE akte_id=?", (a["id"],)).fetchall():
+        quelle = os.path.join(ANHANG_ORDNER, x["speicher"])
+        if os.path.isfile(quelle):
+            neu_name = secrets.token_hex(16)
+            shutil.copyfile(quelle, os.path.join(ANHANG_ORDNER, neu_name))
+            con.execute("INSERT INTO sa_anhaenge (akte_id, beweis_id, dateiname, typ, groesse, sha256, speicher, zeit, autor_id, autor_name) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        (vid, None, x["dateiname"], x["typ"], x["groesse"], x["sha256"], neu_name, x["zeit"], x["autor_id"], x["autor_name"]))
     con.execute("UPDATE sa_akten SET status='abgegeben', verknuepft_id=?, aktualisiert=? WHERE id=?", (vid, int(time.time()), a["id"]))
     _eintrag(con, a["id"], "Abgabe", f"An die Inquisition abgegeben; Strafverfahren {az(v)} eröffnet.", k)
     _eintrag(con, vid, "Eröffnet", f"Aus Ermittlungsakte {az(a)} des KRS übernommen (Beteiligte übernommen; Beweismittel in der Ermittlungsakte).", k)
@@ -559,6 +606,109 @@ async def abgeben(request):
                 (k["id"], "System (KRS-Abgabe)", f"Neue Abgabe: {az(a)} → {az(v)}", f'Das KRS hat „{a["titel"]}“ an die Inquisition abgegeben. Strafverfahren {az(v)} wurde eröffnet.', int(time.time())))
     con.commit()
     amt._umleiten(f'{ROOT}strafverfahren/{vid}/', f"Abgegeben, Strafverfahren {az(v)} eröffnet.")
+
+
+def _dateiname(roh):
+    name = os.path.basename(str(roh or "").replace("\\", "/"))
+    name = "".join(c for c in name if c.isprintable() and c not in '<>:"|?*\x7f')
+    return name.strip(". ")[:120] or "datei"
+
+
+async def anhang_hoch(request):
+    art = _kontext(request)
+    k, a = await _konto(request, art, True, request.match_info["id"])
+    con = request.app["db"]
+    ziel = f'{ROOT}{ARTEN[art]["pfad"]}/{a["id"]}/'
+    if con.execute("SELECT COUNT(*) FROM sa_anhaenge WHERE akte_id=?", (a["id"],)).fetchone()[0] >= ANHANG_PRO_AKTE:
+        amt._umleiten(ziel, f"Höchstens {ANHANG_PRO_AKTE} Anhänge je Akte.", True)
+    os.makedirs(ANHANG_ORDNER, exist_ok=True)
+    felder, tmp, groesse, sha, kopf, name = {}, None, 0, hashlib.sha256(), b"", ""
+    try:
+        reader = await request.multipart()
+        while True:
+            teil = await reader.next()
+            if teil is None:
+                break
+            if teil.name in ("csrf", "beweis"):
+                felder[teil.name] = (await teil.text())[:60]
+            elif teil.name == "datei" and teil.filename:
+                if not secrets.compare_digest(felder.get("csrf", ""), request["csrf"]):
+                    raise web.HTTPForbidden(text="Ungültige Anfrage.")
+                name = _dateiname(teil.filename)
+                tmp = os.path.join(ANHANG_ORDNER, "tmp-" + secrets.token_hex(8))
+                with open(tmp, "wb") as fh:
+                    while True:
+                        stueck = await teil.read_chunk(65536)
+                        if not stueck:
+                            break
+                        groesse += len(stueck)
+                        if groesse > ANHANG_MAX:
+                            raise ValueError(f"Die Datei ist größer als {ANHANG_MAX // 1048576} MB.")
+                        if len(kopf) < 4096:
+                            kopf += stueck[:4096 - len(kopf)]
+                        sha.update(stueck)
+                        fh.write(stueck)
+        if not tmp or not groesse:
+            raise ValueError("Keine Datei übermittelt.")
+        endung = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+        typ = ANHANG_TYPEN.get(endung)
+        if not typ or not typ[1](kopf):
+            raise ValueError("Dateityp nicht erlaubt oder Inhalt passt nicht zur Endung (erlaubt: " + ", ".join(ANHANG_TYPEN) + ").")
+        beweis = felder.get("beweis", "")
+        bid = int(beweis) if beweis.isdigit() and con.execute("SELECT 1 FROM sa_beweise WHERE id=? AND akte_id=?", (beweis, a["id"])).fetchone() else None
+        speicher = secrets.token_hex(16)
+        os.replace(tmp, os.path.join(ANHANG_ORDNER, speicher))
+        tmp = None
+        cur = con.execute("INSERT INTO sa_anhaenge (akte_id, beweis_id, dateiname, typ, groesse, sha256, speicher, zeit, autor_id, autor_name) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                          (a["id"], bid, name, endung, groesse, sha.hexdigest(), speicher, int(time.time()), k["id"], k["name"]))
+        _eintrag(con, a["id"], "Anhang", f"AN-{cur.lastrowid}: {name} ({_groesse(groesse)}, SHA-256 {sha.hexdigest()[:16]}…)" + (f", zu BM-{bid}" if bid else ""), k)
+        _beruehren(con, a)
+        con.commit()
+    except ValueError as e:
+        amt._umleiten(ziel, str(e), True)
+    finally:
+        if tmp and os.path.exists(tmp):
+            os.remove(tmp)
+    amt._umleiten(ziel, "Anhang hochgeladen.")
+
+
+def _anhang(con, a, aid):
+    x = con.execute("SELECT * FROM sa_anhaenge WHERE id=? AND akte_id=?", (aid, a["id"])).fetchone() if str(aid).isdigit() else None
+    if not x:
+        raise web.HTTPNotFound(text="Anhang nicht gefunden.")
+    return x
+
+
+async def anhang_laden(request):
+    art = _kontext(request)
+    k, a = await _konto(request, art, False, request.match_info["id"])
+    x = _anhang(request.app["db"], a, request.match_info["aid"])
+    pfad = os.path.join(ANHANG_ORDNER, x["speicher"])
+    if not os.path.isfile(pfad):
+        raise web.HTTPNotFound(text="Die Datei fehlt auf dem Server.")
+    return web.FileResponse(pfad, headers={
+        "Content-Type": ANHANG_TYPEN.get(x["typ"], ("application/octet-stream",))[0],
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(x['dateiname'])}",
+        "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store",
+        "Content-Security-Policy": "default-src 'none'; sandbox"})
+
+
+async def anhang_weg(request):
+    art, k, a, _form_ = await _aktion(request)
+    con = request.app["db"]
+    x = _anhang(con, a, request.match_info["aid"])
+    if not (_leitung(k, art) or x["autor_id"] == k["id"]):
+        raise web.HTTPForbidden(text="Nur der Hochladende oder die Leitung kann Anhänge löschen.")
+    con.execute("DELETE FROM sa_anhaenge WHERE id=?", (x["id"],))
+    if not con.execute("SELECT 1 FROM sa_anhaenge WHERE speicher=?", (x["speicher"],)).fetchone():
+        try:
+            os.remove(os.path.join(ANHANG_ORDNER, x["speicher"]))
+        except FileNotFoundError:
+            pass
+    _eintrag(con, a["id"], "Anhang gelöscht", f'AN-{x["id"]}: {x["dateiname"]} (SHA-256 {x["sha256"][:16]}…)', k)
+    _beruehren(con, a)
+    con.commit()
+    _fertig(request, a, "Anhang gelöscht.")
 
 
 def registrieren(app):
@@ -574,3 +724,6 @@ def registrieren(app):
                  ("beweis", beweis), ("vermerk", vermerk), ("geheim", geheim), ("abgeben", abgeben)):
         r.add_post(p + "{id}/" + n, h)
     r.add_post(p + "{id}/beteiligte/{bid}/entfernen", beteiligte_weg)
+    r.add_post(p + "{id}/anhang", anhang_hoch)
+    r.add_get(p + "{id}/anhang/{aid}", anhang_laden)
+    r.add_post(p + "{id}/anhang/{aid}/loeschen", anhang_weg)
