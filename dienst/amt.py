@@ -53,6 +53,7 @@ ERGEBNIS = {"offen": "Offen", "eingebuergert": "Eingebürgert", "abgelehnt": "Ab
 PHASE = {1: "Phase I (OOC) – Prüfung", 2: "Phase II eingeleitet – wartet auf Antragsteller", 3: "Phase II ausgefüllt – Entscheidung offen"}
 SCHICHTEN = ["Bürgerstand", "Adelsstand", "Klerus", "Bauernstand", "Sonstiges"]
 BERUFE = ["Militärischer Natur", "Beamter", "Sonstiges"]
+GESCHLECHTER = ["Männlich", "Weiblich", "Divers"]
 PHASE1_FELDER = [("name", "Name (OOC)"), ("geburtsdatum", "Geburtsdatum"), ("aufmerksam", "Aufmerksam geworden durch"),
                  ("wunsch", "Vorstellung / Wunschposition"), ("rolle", "Beschreibung der Rolle")]
 PHASE2_FELDER = [("name", "Name (IC)"), ("geburtsdatum", "Geburtsdatum (IC)"), ("fraktion", "Fraktion"),
@@ -82,6 +83,8 @@ CREATE INDEX IF NOT EXISTS amt_verfahren_konto ON amt_verfahren (konto_id);
 def einrichten(con):
     con.executescript(SCHEMA)
     spalten = {r[1] for r in con.execute("PRAGMA table_info(amt_akten)")}
+    if "geschlecht" not in spalten:
+        con.execute("ALTER TABLE amt_akten ADD COLUMN geschlecht TEXT NOT NULL DEFAULT ''")
     if "verschluss" not in spalten:
         con.execute("ALTER TABLE amt_akten ADD COLUMN verschluss INTEGER NOT NULL DEFAULT 0")
     con.commit()
@@ -549,7 +552,7 @@ def _optionen(liste, aktuell, leer="–"):
 
 def _stamm(z):
     return daten_tabelle([("Aktenzeichen", az_akte(z["id"])), ("Status", akte_marke(z["status"])), ("Name (IC)", esc(z["ic_name"] or "–")),
-                           ("Geburtsdatum (IC)", esc(z["ic_geburt"] or "–")), ("Fraktion", esc(z["fraktion"] or "–")),
+                           ("Geburtsdatum (IC)", esc(z["ic_geburt"] or "–")), ("Geschlecht", esc(z["geschlecht"] or "–")), ("Fraktion", esc(z["fraktion"] or "–")),
                            ("Gesellschaftsschicht", esc(z["schicht"] or "–")), ("Berufliche Zugehörigkeit", esc(z["beruf"] or "–")),
                            ("Discord-Name", esc(z["name"])), ("Discord-ID", esc(z["konto_id"])),
                            ("Angelegt", _zeit(z["angelegt"])), ("Zuletzt geändert", _zeit(z["aktualisiert"]))])
@@ -568,6 +571,7 @@ async def buerger_akte(request):
     form = (f'<form class="zeile" method="post" action="{pfad}bearbeiten">{csrf_feld(request)}'
             f'<div><label for="n">Name (IC)</label><input type="text" id="n" name="ic_name" value="{esc(z["ic_name"])}" maxlength="80"></div>'
             f'<div><label for="g">Geburtsdatum (IC)</label><input type="text" id="g" name="ic_geburt" value="{esc(z["ic_geburt"])}" maxlength="40"></div>'
+            f'<div><label for="ge">Geschlecht</label><select id="ge" name="geschlecht">{_optionen(GESCHLECHTER, z["geschlecht"])}</select></div>'
             f'<div><label for="f">Fraktion</label><input type="text" id="f" name="fraktion" value="{esc(z["fraktion"])}" maxlength="80"></div>'
             f'<div><label for="s">Schicht</label><select id="s" name="schicht">{_optionen(SCHICHTEN, z["schicht"])}</select></div>'
             f'<div><label for="b">Beruf</label><select id="b" name="beruf">{_optionen(BERUFE, z["beruf"])}</select></div>'
@@ -683,6 +687,7 @@ def statistik_inhalt(con, drucken=False):
             f'<h2>Staatsbürger nach Fraktion</h2>{_balken(gruppe("fraktion"))}'
             f'<h2>Staatsbürger nach Gesellschaftsschicht</h2>{_balken(gruppe("schicht"))}'
             f'<h2>Staatsbürger nach beruflicher Zugehörigkeit</h2>{_balken(gruppe("beruf"))}'
+            f'<h2>Staatsbürger nach Geschlecht</h2>{_balken(gruppe("geschlecht"))}'
             f'<h2>Einbürgerungsverfahren nach Ergebnis</h2>{_balken(erg)}'
             f'<h2>Offene Verfahren nach Stand</h2>{_balken(phasen, "Keine offenen Verfahren.")}'
             f'<h2>Einbürgerungen je Monat (letzte 12 Monate mit Einbürgerungen)</h2>{_balken(monatsliste)}'
@@ -868,12 +873,13 @@ async def buerger_bearbeiten(request):
     if z["verschluss"] and not darf_verschluss(k):
         raise web.HTTPForbidden(text="Diese Akte steht unter Verschluss.")
     neu = {"ic_name": _text(form, "ic_name", 80), "ic_geburt": _text(form, "ic_geburt", 40), "fraktion": _text(form, "fraktion", 80),
-           "schicht": _text(form, "schicht", 40), "beruf": _text(form, "beruf", 40)}
+           "schicht": _text(form, "schicht", 40), "beruf": _text(form, "beruf", 40),
+           "geschlecht": _text(form, "geschlecht", 20)}
     aenderungen = [f"{f}: „{z[f]}“ → „{w}“" for f, w in neu.items() if z[f] != w]
     pfad = f"{BASIS}buerger/{i}/"
     if not aenderungen:
         _umleiten(pfad, "Keine Änderung.")
-    con.execute("UPDATE amt_akten SET ic_name=?, ic_geburt=?, fraktion=?, schicht=?, beruf=?, aktualisiert=? WHERE id=?",
+    con.execute("UPDATE amt_akten SET ic_name=?, ic_geburt=?, fraktion=?, schicht=?, beruf=?, geschlecht=?, aktualisiert=? WHERE id=?",
                 (*neu.values(), int(time.time()), i))
     eintrag(con, "akte", z["id"], "Stammdaten geändert", "\n".join(aenderungen), k["id"], k["name"])
     con.commit()
