@@ -311,13 +311,14 @@ NAV_ALLE = [("post", "mail", "Postfach", "postfach/"), ("einstellungen", "slider
 def rahmen(titel, aktiv, inhalt, k, csrf, q=""):
     import post
     import bereiche
+    import strafsachen
     leser = ist_leser(k)
     ungel = post.ungelesen(k)
     logo, logo_name = logo_von(k)
     punkt = lambda schl: f'<i class="punkt" title="{ungel} ungelesen">{ungel}</i>' if schl == "post" and ungel else ""
     nav = "".join(f'<a href="{BASIS}{pfad}" title="{esc(text)}" class="{"aktiv" if schl == aktiv else ""}">{ic(sym)}{punkt(schl)}<span>{esc(text)}</span></a>'
                   for schl, sym, text, pfad in (NAV if leser else [])
-                  + [("b-" + b["schl"], b["icon"], b["kurz"], "bereich/" + b["schl"] + "/") for b in bereiche.sichtbar(k)] + NAV_ALLE)
+                  + [("b-" + b["schl"], b["icon"], b["kurz"], "bereich/" + b["schl"] + "/") for b in bereiche.sichtbar(k)] + strafsachen.nav(k) + NAV_ALLE)
     return f"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>{esc(titel)} – {esc(logo_name)}, Amtsseite</title><style>{CSS}</style>

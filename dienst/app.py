@@ -16,6 +16,7 @@ import discord_api
 import karte
 import organigramme
 import post
+import strafsachen
 import reichstag
 
 
@@ -32,6 +33,7 @@ def erstellen():
     amt.registrieren(app)
     post.registrieren(app)
     bereiche.registrieren(app)
+    strafsachen.registrieren(app)
     return app
 
 
