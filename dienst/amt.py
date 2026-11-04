@@ -158,6 +158,11 @@ a{color:var(--akzent)}
 .kopf input[type=search]{border:1px solid #777;background:#fff;color:#111;padding:6px 8px;font:inherit;width:220px;border-radius:0}
 .kopf button{border:1px solid var(--kopf);background:var(--kopf);color:#fff;padding:6px 10px;font:inherit;cursor:pointer;border-radius:0}
 .kopf .logo img.kurz{display:none}
+nav a{position:relative}
+nav .punkt{position:absolute;left:27px;top:4px;background:var(--rot);color:#fff;font:bold 10px/15px Arial,sans-serif;min-width:15px;padding:0 3px;border-radius:8px;text-align:center;font-style:normal}
+.reiter{display:flex;gap:16px;margin:12px 0;border-bottom:1px solid var(--linie)}
+.reiter a{padding:6px 2px;color:var(--grau);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.reiter a.aktiv{color:var(--ink);border-bottom-color:var(--ink);font-weight:bold}
 .rahmen{display:flex;min-height:calc(100vh - 81px)}
 nav{width:220px;flex:none;border-right:1px solid var(--linie);background:var(--hell);padding:12px 0}
 nav a{display:flex;align-items:center;gap:10px;padding:9px 16px;color:var(--ink);text-decoration:none;border-left:4px solid transparent}
@@ -282,17 +287,24 @@ NAV = [("uebersicht", "layout-dashboard", "Übersicht", ""), ("buerger", "book-u
        ("protokoll", "scroll-text", "Löschprotokoll", "protokoll/")]
 
 
+NAV_ALLE = [("post", "mail", "Postfach", "postfach/"), ("einstellungen", "sliders-horizontal", "Einstellungen", "einstellungen/")]
+
+
 def rahmen(titel, aktiv, inhalt, k, csrf, q=""):
+    import post
+    leser = ist_leser(k)
+    ungel = post.ungelesen(k)
     logo, logo_name = logo_von(k)
-    nav = "".join(f'<a href="{BASIS}{pfad}" title="{esc(text)}" class="{"aktiv" if schl == aktiv else ""}">{ic(sym)}<span>{esc(text)}</span></a>'
-                  for schl, sym, text, pfad in NAV)
+    punkt = lambda schl: f'<i class="punkt" title="{ungel} ungelesen">{ungel}</i>' if schl == "post" and ungel else ""
+    nav = "".join(f'<a href="{BASIS}{pfad}" title="{esc(text)}" class="{"aktiv" if schl == aktiv else ""}">{ic(sym)}{punkt(schl)}<span>{esc(text)}</span></a>'
+                  for schl, sym, text, pfad in (NAV if leser else []) + NAV_ALLE)
     return f"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>{esc(titel)} – {esc(logo_name)}, Amtsseite</title><style>{CSS}</style>
 <script>(function(){{var m;try{{m=localStorage.getItem("amtModus")}}catch(e){{}}if(m!=="min"&&m!=="std")m=matchMedia("(max-width:800px)").matches?"min":"std";document.documentElement.className=m}})()</script></head>
 <body>
 <header class="kopf"><a class="logo" href="{BASIS}" title="{esc(logo_name)} – Amtsseite"><img class="lang" src="{BASIS}logo/{logo}-kopf.png" alt="{esc(logo_name)}"><img class="kurz" src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a><span class="raum"></span>
-<form action="{BASIS}buerger/" method="get" role="search"><input type="search" name="q" value="{esc(q)}" placeholder="Name, Aktenzeichen, ID" aria-label="Suche"><button type="submit" aria-label="Suchen">{ic("search")}</button></form></header>
+{f'<form action="{BASIS}buerger/" method="get" role="search"><input type="search" name="q" value="{esc(q)}" placeholder="Name, Aktenzeichen, ID" aria-label="Suche"><button type="submit" aria-label="Suchen">{ic("search")}</button></form>' if leser else ""}</header>
 <div class="rahmen"><nav aria-label="Amtsseite">{nav}<hr>
 <a href="/informationen/die-reichsbehoerden/" title="Zur Website">{ic("house")}<span>Zur Website</span></a>
 <div class="konto">{esc(k["name"])}</div>
@@ -454,8 +466,17 @@ def _verfahren_zeile(v, sperr=frozenset()):
             esc(ERGEBNIS[v["ergebnis"]] if v["ergebnis"] != "offen" else PHASE.get(v["phase"], "")), _zeit(v["aktualisiert"]))
 
 
-@_beamter
 async def uebersicht(request):
+    k = await anmeldung.konto(request)
+    if k is None:
+        raise web.HTTPFound("/anmelden/?weiter=" + BASIS)
+    if not ist_leser(k):
+        raise web.HTTPFound(BASIS + "postfach/")
+    return await _uebersicht(request)
+
+
+@_beamter
+async def _uebersicht(request):
     con = request.app["db"]
     n = lambda sql, *a: con.execute(sql, a).fetchone()[0]
     kz = [("Bürgerakten", n("SELECT COUNT(*) FROM amt_akten")), ("Staatsbürger", n("SELECT COUNT(*) FROM amt_akten WHERE status='staatsbuerger'")),
