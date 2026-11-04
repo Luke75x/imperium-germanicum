@@ -177,6 +177,7 @@ a{color:var(--akzent)}
 .kopf button{border:1px solid var(--kopf);background:var(--kopf);color:#fff;padding:6px 10px;font:inherit;cursor:pointer;border-radius:0}
 .kopf .logo img.kurz{display:none}
 nav a{position:relative}
+nav a.unter{padding-left:34px;font-size:14px}
 nav .punkt{position:absolute;left:27px;top:4px;background:var(--rot);color:#fff;font:bold 10px/15px Arial,sans-serif;min-width:15px;padding:0 3px;border-radius:8px;text-align:center;font-style:normal}
 .reiter{display:flex;gap:16px;margin:12px 0;border-bottom:1px solid var(--linie)}
 .reiter a{padding:6px 2px;color:var(--grau);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
@@ -252,6 +253,8 @@ html.min nav{position:fixed;top:0;bottom:0;left:0;width:56px;z-index:20;overflow
 html.min nav:hover,html.min nav:focus-within,html.min nav.offen{width:236px;box-shadow:4px 0 24px rgba(0,0,0,.08)}
 html.min nav a,html.min nav button.link{white-space:nowrap;gap:16px;padding:11px 19px;border-left:0;color:#444;border-bottom:0}
 html.min nav a:hover,html.min nav button.link:hover{background:#f4f4f4}
+html.min nav a.unter{padding-left:19px;font-size:15px}
+html.min nav a.unter span{margin-left:14px}
 html.min nav a.aktiv{background:transparent;color:#000;font-weight:600;box-shadow:inset 3px 0 0 #111}
 html.min nav span{opacity:0;transition:opacity .12s}
 html.min nav:hover span,html.min nav:focus-within span,html.min nav.offen span{opacity:1}
@@ -316,9 +319,13 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q=""):
     ungel = post.ungelesen(k)
     logo, logo_name = logo_von(k)
     punkt = lambda schl: f'<i class="punkt" title="{ungel} ungelesen">{ungel}</i>' if schl == "post" and ungel else ""
-    nav = "".join(f'<a href="{BASIS}{pfad}" title="{esc(text)}" class="{"aktiv" if schl == aktiv else ""}">{ic(sym)}{punkt(schl)}<span>{esc(text)}</span></a>'
-                  for schl, sym, text, pfad in (NAV if leser else [])
-                  + [("b-" + b["schl"], b["icon"], b["kurz"], "bereich/" + b["schl"] + "/") for b in bereiche.sichtbar(k)] + strafsachen.nav(k) + NAV_ALLE)
+    eintraege = [(*e, False) for e in (NAV if leser else [])]
+    for b in bereiche.sichtbar(k):
+        eintraege.append(("b-" + b["schl"], b["icon"], b["kurz"], "bereich/" + b["schl"] + "/", False))
+        eintraege += [(*e, True) for e in strafsachen.nav_unter(k, b["schl"])]   # Ermittlungsakten unter KRS, Strafverfahren unter Inquisition
+    eintraege += [(*e, False) for e in NAV_ALLE]
+    nav = "".join(f'<a href="{BASIS}{pfad}" title="{esc(text)}" class="{"unter " if unter else ""}{"aktiv" if schl == aktiv else ""}">{ic(sym)}{punkt(schl)}<span>{esc(text)}</span></a>'
+                  for schl, sym, text, pfad, unter in eintraege)
     return f"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>{esc(titel)} – {esc(logo_name)}, Amtsseite</title><style>{CSS}</style>

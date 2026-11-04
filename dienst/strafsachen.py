@@ -134,9 +134,18 @@ def schreiben_darf(k, art):
     return bool(k) and k["mitglied"] and (bereiche._alle(k) or _mitglied_von(k, ARTEN[art]["behoerde"]))
 
 
-def nav(k):
-    """Navigationseinträge (Schlüssel, Symbol, Text, Pfad) der Strafsachen, die das Konto sehen darf."""
-    return [("s-" + a, v["icon"], v["titel"], f'sachen/{v["pfad"]}/') for a, v in ARTEN.items() if lesen_darf(k, a)]
+def nav_unter(k, schl):
+    """Untereinträge (Schlüssel, Symbol, Text, Pfad) der Strafsachen in der Tabkategorie der Behörde `schl`: Ermittlungsakten gehören zum KRS,
+    Strafverfahren zur Inquisition; Mitglieder der jeweils anderen Behörde sehen die lesbare Gegenseite mit Herkunft in Klammern."""
+    out = []
+    for art, v in ARTEN.items():
+        if not lesen_darf(k, art):
+            continue
+        if v["behoerde"] == schl:
+            out.append(("s-" + art, v["icon"], v["titel"], f'sachen/{v["pfad"]}/'))
+        elif _mitglied_von(k, schl):
+            out.append(("s-" + art, v["icon"], f'{v["titel"]} ({_behoerde(v["behoerde"])["kurz"]})', f'sachen/{v["pfad"]}/'))
+    return out
 
 
 # ---------------------------------------------------------------- Hilfen
