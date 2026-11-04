@@ -368,7 +368,7 @@ async def einstellungen(request):
     inhalt = (f'<h1>{amt.ic("sliders-horizontal")} Einstellungen</h1><p class="az">Persönliche Einstellungen</p>{amt.meldung(request)}'
               f'<h2>Konto</h2>{konto}'
               f'<p class="az">Die Adresse folgt deinem IC-Namen (sonst dem Discord-Namen) und deiner Institution: Initial des Vornamens, Nachname, @Institution.ig.</p>'
-              f'<h2>Darstellung</h2><div id="design"><style>#design label{font-size:15px;color:inherit;margin:6px 0}</style><label><input type="radio" name="modus" value="auto"> Automatisch (Handy: minimalistisch)</label>'
+              f'<h2>Darstellung</h2><div id="design"><style>#design label{{font-size:15px;color:inherit;margin:6px 0}}</style><label><input type="radio" name="modus" value="auto"> Automatisch (Handy: minimalistisch)</label>'
               f'<label><input type="radio" name="modus" value="std"> Standard</label>'
               f'<label><input type="radio" name="modus" value="min"> Minimalistisch</label></div>'
               f'<p class="az">Gilt für diesen Browser.</p>'
