@@ -402,7 +402,7 @@ async def abgleich(app):
         if not z:
             if con.execute("SELECT 1 FROM amt_loeschungen WHERE konto_id=?", (m["id"],)).fetchone():
                 continue   # bewusst gelöscht: nicht neu anlegen
-            akte_sichern(con, m["id"], m["name"], "staatsbuerger", m["name"], "Akte angelegt (Abgleich)")
+            akte_sichern(con, m["id"], m["name"], "staatsbuerger", "", "Akte angelegt (Abgleich)")   # IC-Name ≠ Discord-Name: leer lassen
             neu += 1
             continue
         if z["status"] != "staatsbuerger":
@@ -552,12 +552,17 @@ def _optionen(liste, aktuell, leer="–"):
     return o
 
 
+def anzeige_name(z):
+    """Name für Überschriften: der IC-Name; fehlt er, der Discord-Name mit Hinweis (beides sind verschiedene Namen)."""
+    return z["ic_name"] or f'{z["name"]} (Discord-Name, IC-Name fehlt)'
+
+
 def _stamm(z):
-    return daten_tabelle([("Aktenzeichen", az_akte(z["id"])), ("Status", akte_marke(z["status"])), ("Name (IC)", esc(z["ic_name"] or "–")),
+    return daten_tabelle([("Aktenzeichen", az_akte(z["id"])), ("Status", akte_marke(z["status"])), ("Name (IC)", esc(z["ic_name"] or "– (nicht erfasst)")),
                            ("Geburtsdatum (IC)", esc(z["ic_geburt"] or "–")), ("Geschlecht", esc(z["geschlecht"] or "–")), ("Fraktion", esc(z["fraktion"] or "–")),
                            ("Gesellschaftsschicht", esc(z["schicht"] or "–")), ("Berufliche Zugehörigkeit", esc(z["beruf"] or "–")),
                            ("Aktueller Beruf / Position", esc(z["position"] or "–")),
-                           ("Discord-Name", esc(z["name"])), ("Discord-ID", esc(z["konto_id"])),
+                           ("Discord-Name (von Discord, nicht bearbeitbar)", esc(z["name"])), ("Discord-ID", esc(z["konto_id"])),
                            ("Angelegt", _zeit(z["angelegt"])), ("Zuletzt geändert", _zeit(z["aktualisiert"]))])
 
 
@@ -588,7 +593,7 @@ async def buerger_akte(request):
                            f'<input type="hidden" name="wert" value="{0 if z["verschluss"] else 1}">'
                            f'<button class="btn zweit" type="submit">{ic("lock-open" if z["verschluss"] else "lock")}'
                            f'{"Verschluss aufheben" if z["verschluss"] else "Unter Verschluss setzen"}</button></form>')
-    inhalt = (f'<h1>{ic("book-user")} Bürgerakte {az_akte(z["id"])}</h1><p class="az">{esc(z["ic_name"] or z["name"])}</p>{meldung(request)}'
+    inhalt = (f'<h1>{ic("book-user")} Bürgerakte {az_akte(z["id"])}</h1><p class="az">{esc(anzeige_name(z))}</p>{meldung(request)}'
               + (f'<div class="warnung">{ic("lock")} Diese Akte steht unter Verschluss; nur Kaiser und Kanzler können sie einsehen.</div>' if z["verschluss"] else "")
               + (f'<div class="hinweis">Nur Lesezugriff: Änderungen sind mit deiner Berechtigung nicht möglich.</div>' if not w else "")
               + f'<div class="aktionen"><a class="btn zweit" href="{pfad}pdf">{ic("file-down")}Als PDF exportieren</a>'
@@ -721,7 +726,7 @@ async def buerger_loeschen_seite(request):
         return _gesperrt_seite(request, "Bürgerakte", "buerger", az_akte(z["id"]))
     nv = con.execute("SELECT COUNT(*) FROM amt_verfahren WHERE konto_id=?", (z["konto_id"],)).fetchone()[0]
     pfad = f"{BASIS}buerger/{i}/"
-    inhalt = (f'<h1>{ic("trash-2")} Bürgerakte {az_akte(z["id"])} löschen</h1><p class="az">{esc(z["ic_name"] or z["name"])}</p>{meldung(request)}'
+    inhalt = (f'<h1>{ic("trash-2")} Bürgerakte {az_akte(z["id"])} löschen</h1><p class="az">{esc(anzeige_name(z))}</p>{meldung(request)}'
               f'<div class="warnung">{ic("triangle-alert")} Die Akte mit allen Vorgängen und Vermerken wird endgültig gelöscht. Das kann nicht rückgängig gemacht werden. '
               'Die Löschung wird im Löschprotokoll festgehalten (ohne Akteninhalt). Gelöschte Staatsbürger werden vom Abgleich nicht erneut angelegt.</div>'
               f'{_stamm(z)}'
@@ -765,7 +770,7 @@ async def buerger_loeschen(request):
 @_beamter
 async def protokoll(request):
     con = request.app["db"]
-    zeilen = [(_zeit(r["zeit"]), esc(r["aktenzeichen"]), esc(r["ic_name"] or r["name"]), esc(r["konto_id"]), esc(STATUS_AKTE.get(r["status"], r["status"])),
+    zeilen = [(_zeit(r["zeit"]), esc(r["aktenzeichen"]), esc(r["ic_name"] or r["name"] + " (Discord)"), esc(r["konto_id"]), esc(STATUS_AKTE.get(r["status"], r["status"])),
                "ja" if r["verfahren_geloescht"] else "nein", esc(r["grund"]), esc(r["autor_name"]))
               for r in con.execute("SELECT * FROM amt_loeschungen ORDER BY id DESC LIMIT 500")]
     inhalt = (f'<h1>{ic("scroll-text")} Löschprotokoll</h1><p class="az">Gelöschte Bürgerakten</p>{meldung(request)}'
@@ -817,7 +822,7 @@ async def buerger_pdf(request):
     if z["verschluss"] and not darf_verschluss(request["konto"]):
         return _gesperrt_seite(request, "Bürgerakte", "buerger", az_akte(z["id"]))
     vs = [_verfahren_zeile(v) for v in con.execute("SELECT * FROM amt_verfahren WHERE konto_id=? ORDER BY id DESC", (z["konto_id"],))]
-    inhalt = (f'<h1>Bürgerakte {az_akte(z["id"])}</h1><p class="az">{esc(z["ic_name"] or z["name"])}</p>'
+    inhalt = (f'<h1>Bürgerakte {az_akte(z["id"])}</h1><p class="az">{esc(anzeige_name(z))}</p>'
               f'<h2>Stammdaten</h2>{_stamm(z)}'
               f'<h2>Einbürgerungsakten</h2>{tabelle(["Aktenzeichen", "Name", "Stand", "Zuletzt"], vs, "Kein Einreiseverfahren erfasst.")}'
               f'<h2>Vorgänge</h2>{eintraege_html(con, "akte", z["id"])}')
