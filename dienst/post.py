@@ -26,15 +26,9 @@ BASIS = amt.BASIS
 CON = None   # Datenbankverbindung (für das Zählzeichen in der Navigation)
 
 # Reihenfolge = Vorrang bei mehreren Rollen. (Rolle, Domain ohne „.ig“, Anzeigename)
-INSTITUTIONEN = [
-    (amt.ROLLE_KANZLER, "staatskanzlei", "Staatskanzlei"),
-    (amt.ROLLE_POLIZEI, "polizei", "Kaiserliche Polizeibehörde"),
-    (amt.ROLLE_ZOLL, "zoll", "Kaiserliche Zollverwaltung"),
-    (amt.ROLLE_KATASTROPHENSCHUTZ, "katastrophenschutz", "Kaiserlicher Katastrophenschutz"),
-    ("1522913765035606086", "krs", "Kaiserliches Reichssicherheitsamt"),
-    ("1522701497413144776", "reichstag", "Reichstag"),
-    ("1528931629819494454", "reichstag", "Reichstag"),
-]
+INSTITUTIONEN = ([(amt.ROLLE_KANZLER, "staatskanzlei", "Staatskanzlei")]
+                 + [(r, b["domain"], b["name"]) for b in amt.BEHOERDEN for r in b["rollen"]]
+                 + [("1522701497413144776", "reichstag", "Reichstag"), ("1528931629819494454", "reichstag", "Reichstag")])
 DEFAULT_INSTITUTION = ("reich", "Reich")
 MAX_EMPFAENGER = 10
 MAX_PRO_STUNDE = 30

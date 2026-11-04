@@ -38,9 +38,22 @@ ROLLE_ZOLL = "1557187375006875758"
 ROLLE_KANZLER = "1561856444913946664"
 ROLLE_POLIZEI = "1557800373861753002"
 ROLLE_KATASTROPHENSCHUTZ = "1557187293100515328"
-# Behördenlogo je Rolle (Reihenfolge = Vorrang bei mehreren Rollen); Bilder erzeugt werkzeuge/amt_logos.py, Texte in amt_logos_liste.py
-LOGOS = [(ROLLE_KANZLER, "kanzler", "Der Kanzler"), (ROLLE_POLIZEI, "polizei", "Kaiserliche Polizeibehörde"),
-         (ROLLE_ZOLL, "zoll", "Kaiserliche Zollverwaltung"), (ROLLE_KATASTROPHENSCHUTZ, "katastrophenschutz", "Kaiserlicher Katastrophenschutz")]
+# Reichsbehörden mit eigenem Untertab („Bereich“) und Logo. Wer eine der Rollen hat, gehört zur Behörde, sieht ihren Untertab
+# und bekommt ihr Logo (Reihenfolge = Vorrang). Kanzler, Admins und Kaiser sehen alle Bereiche. Logo-Texte: amt_logos_liste.py,
+# Bilder: werkzeuge/amt_logos.py. leitung = Rollen, die als Leitung der Behörde gelten (dürfen Mitteilungen anderer löschen).
+BEHOERDEN = [
+    {"schl": "polizei", "name": "Kaiserliche Polizeibehörde", "kurz": "Polizei", "icon": "siren", "domain": "polizei",
+     "rollen": [ROLLE_POLIZEI, "1557335971966750780"], "leitung": ["1557335971966750780"]},
+    {"schl": "zoll", "name": "Kaiserliche Zollverwaltung", "kurz": "Zoll", "icon": "stamp", "domain": "zoll",
+     "rollen": [ROLLE_ZOLL, "1557188989729906708"], "leitung": ["1557188989729906708"]},
+    {"schl": "katastrophenschutz", "name": "Kaiserlicher Katastrophenschutz", "kurz": "Katastrophenschutz", "icon": "life-buoy",
+     "domain": "katastrophenschutz", "rollen": [ROLLE_KATASTROPHENSCHUTZ], "leitung": []},
+    {"schl": "krs", "name": "Kaiserliches Reichssicherheitsamt", "kurz": "KRS", "icon": "shield-check", "domain": "krs",
+     "rollen": ["1526343577481904379", "1522913765035606086"], "leitung": ["1522913765035606086"]},
+    {"schl": "inquisition", "name": "Die Inquisition (Staatsanwaltschaft)", "kurz": "Inquisition", "icon": "scale", "domain": "inquisition",
+     "rollen": ["1522700028739584000", "1555987375287574609"], "leitung": ["1522700028739584000"]},
+]
+LOGOS = [(ROLLE_KANZLER, "kanzler", "Der Kanzler")] + [(r, b["schl"], b["name"]) for b in BEHOERDEN for r in b["rollen"]]
 LOGO_ORDNER = os.path.join(config.HIER, "amt_logos")
 ROLLE_STAATSBUERGER = "1522929940885143683"
 # Zugang: Rollen oder Nutzer-IDs (Kaiser, Rolle 1526348059984789504, Hand des Kaisers 1522693216053235903), dazu Server-Admins
@@ -297,12 +310,14 @@ NAV_ALLE = [("post", "mail", "Postfach", "postfach/"), ("einstellungen", "slider
 
 def rahmen(titel, aktiv, inhalt, k, csrf, q=""):
     import post
+    import bereiche
     leser = ist_leser(k)
     ungel = post.ungelesen(k)
     logo, logo_name = logo_von(k)
     punkt = lambda schl: f'<i class="punkt" title="{ungel} ungelesen">{ungel}</i>' if schl == "post" and ungel else ""
     nav = "".join(f'<a href="{BASIS}{pfad}" title="{esc(text)}" class="{"aktiv" if schl == aktiv else ""}">{ic(sym)}{punkt(schl)}<span>{esc(text)}</span></a>'
-                  for schl, sym, text, pfad in (NAV if leser else []) + NAV_ALLE)
+                  for schl, sym, text, pfad in (NAV if leser else [])
+                  + [("b-" + b["schl"], b["icon"], b["kurz"], "bereich/" + b["schl"] + "/") for b in bereiche.sichtbar(k)] + NAV_ALLE)
     return f"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>{esc(titel)} – {esc(logo_name)}, Amtsseite</title><style>{CSS}</style>
@@ -476,7 +491,9 @@ async def uebersicht(request):
     if k is None:
         raise web.HTTPFound("/anmelden/?weiter=" + BASIS)
     if not ist_leser(k):
-        raise web.HTTPFound(BASIS + "postfach/")
+        import bereiche
+        eigene = bereiche.sichtbar(k)
+        raise web.HTTPFound(BASIS + (f"bereich/{eigene[0]['schl']}/" if eigene else "postfach/"))
     return await _uebersicht(request)
 
 

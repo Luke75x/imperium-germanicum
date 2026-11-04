@@ -11,6 +11,7 @@ import anmeldung
 import config
 import db
 import amt
+import bereiche
 import discord_api
 import karte
 import organigramme
@@ -30,6 +31,7 @@ def erstellen():
     reichstag.registrieren(app)
     amt.registrieren(app)
     post.registrieren(app)
+    bereiche.registrieren(app)
     return app
 
 
