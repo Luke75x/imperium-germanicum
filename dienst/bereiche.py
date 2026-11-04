@@ -97,7 +97,8 @@ async def bereich(request, k, b):
         + (f'<form method="post" action="{pfad}mitteilung/{m["id"]}/loeschen">{amt.csrf_feld(request)}'
            f'<button class="btn zweit gefahr" type="submit">{amt.ic("trash-2")}Löschen</button></form>'
            if m["autor_id"] == k["id"] or leitung(k, b) else "") + "</div>" for m in msgs) or '<p class="leer">Keine Mitteilungen.</p>'
-    inhalt = (f'<h1>{amt.ic(b["icon"])} {esc(b["name"])}</h1>{amt.meldung(request)}'
+    import strafsachen
+    inhalt = (strafsachen.untertabs(k, b["schl"], "b-" + b["schl"]) + f'<h1>{amt.ic(b["icon"])} {esc(b["name"])}</h1>{amt.meldung(request)}'
               f'<h2>Pinnwand</h2>'
               f'<form method="post" action="{pfad}mitteilung">{amt.csrf_feld(request)}'
               f'<div><label for="t">Titel</label><input type="text" id="t" name="titel" maxlength="120" style="width:100%" required></div>'

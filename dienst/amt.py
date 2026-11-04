@@ -179,7 +179,7 @@ a{color:var(--akzent)}
 nav a{position:relative}
 nav a.unter{padding-left:34px;font-size:14px}
 nav .punkt{position:absolute;left:27px;top:4px;background:var(--rot);color:#fff;font:bold 10px/15px Arial,sans-serif;min-width:15px;padding:0 3px;border-radius:8px;text-align:center;font-style:normal}
-.reiter{display:flex;gap:16px;margin:12px 0;border-bottom:1px solid var(--linie)}
+.reiter{display:flex;flex-wrap:wrap;gap:4px 18px;margin:12px 0;border-bottom:1px solid var(--linie)}
 .reiter a{padding:6px 2px;color:var(--grau);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
 .reiter a.aktiv{color:var(--ink);border-bottom-color:var(--ink);font-weight:bold}
 .rahmen{display:flex;min-height:calc(100vh - 81px)}
@@ -314,7 +314,6 @@ NAV_ALLE = [("post", "mail", "Postfach", "postfach/"), ("einstellungen", "slider
 def rahmen(titel, aktiv, inhalt, k, csrf, q=""):
     import post
     import bereiche
-    import strafsachen
     leser = ist_leser(k)
     ungel = post.ungelesen(k)
     logo, logo_name = logo_von(k)
@@ -322,7 +321,6 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q=""):
     eintraege = [(*e, False) for e in (NAV if leser else [])]
     for b in bereiche.sichtbar(k):
         eintraege.append(("b-" + b["schl"], b["icon"], b["kurz"], "bereich/" + b["schl"] + "/", False))
-        eintraege += [(*e, True) for e in strafsachen.nav_unter(k, b["schl"])]   # Ermittlungsakten unter KRS, Strafverfahren unter Inquisition
     eintraege += [(*e, False) for e in NAV_ALLE]
     nav = "".join(f'<a href="{BASIS}{pfad}" title="{esc(text)}" class="{"unter " if unter else ""}{"aktiv" if schl == aktiv else ""}">{ic(sym)}{punkt(schl)}<span>{esc(text)}</span></a>'
                   for schl, sym, text, pfad, unter in eintraege)

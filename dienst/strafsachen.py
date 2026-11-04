@@ -135,17 +135,33 @@ def schreiben_darf(k, art):
 
 
 def nav_unter(k, schl):
-    """Untereinträge (Schlüssel, Symbol, Text, Pfad) der Strafsachen in der Tabkategorie der Behörde `schl`: Ermittlungsakten gehören zum KRS,
-    Strafverfahren zur Inquisition; Mitglieder der jeweils anderen Behörde sehen die lesbare Gegenseite mit Herkunft in Klammern."""
+    """Untertabs der Behörde `schl` aus den Strafsachen (Schlüssel, Text, Pfad): Ermittlungsakten gehören zum KRS, Strafverfahren zur
+    Inquisition; Mitglieder der jeweils anderen Behörde sehen die lesbare Gegenseite mit Herkunft in Klammern."""
     out = []
     for art, v in ARTEN.items():
         if not lesen_darf(k, art):
             continue
         if v["behoerde"] == schl:
-            out.append(("s-" + art, v["icon"], v["titel"], f'sachen/{v["pfad"]}/'))
+            out.append(("s-" + art, v["titel"], f'sachen/{v["pfad"]}/'))
         elif _mitglied_von(k, schl):
-            out.append(("s-" + art, v["icon"], f'{v["titel"]} ({_behoerde(v["behoerde"])["kurz"]})', f'sachen/{v["pfad"]}/'))
+            out.append(("s-" + art, f'{v["titel"]} ({_behoerde(v["behoerde"])["kurz"]})', f'sachen/{v["pfad"]}/'))
     return out
+
+
+def untertabs(k, schl, aktiv):
+    """Leiste der Untertabs im Inhalt eines Behörden-Tabs (die Navigationsleiste zeigt nur den Oberreiter)."""
+    tabs = [("b-" + schl, "Übersicht", f"bereich/{schl}/")] + nav_unter(k, schl)
+    if len(tabs) < 2:
+        return ""
+    return '<p class="reiter">' + " ".join(f'<a href="{BASIS}{u}" class="{"aktiv" if s == aktiv else ""}">{esc(t)}</a>' for s, t, u in tabs) + "</p>"
+
+
+def _gruppe(k, art):
+    """Behörden-Tab, unter dem die Akte angezeigt wird: die Heimatbehörde der Aktenart, sonst die eigene Behörde des Kontos."""
+    heim = ARTEN[art]["behoerde"]
+    if bereiche.darf(k, _behoerde(heim)):
+        return heim
+    return next((b["schl"] for b in amt.BEHOERDEN if bereiche.darf(k, b) and b["schl"] != heim), heim)
 
 
 # ---------------------------------------------------------------- Hilfen
@@ -207,8 +223,10 @@ def _block(form, feld, n):
 
 
 def _seite(request, titel, art, inhalt):
+    k = request["konto"]
+    g = _gruppe(k, art)
     return web.Response(content_type="text/html", headers={"Cache-Control": "no-store"},
-                        text=amt.rahmen(titel, "s-" + art, inhalt, request["konto"], request["csrf"]))
+                        text=amt.rahmen(titel, "b-" + g, untertabs(k, g, "s-" + art) + inhalt, k, request["csrf"]))
 
 
 def _marke(a):
