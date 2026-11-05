@@ -255,6 +255,29 @@ td.bar{width:45%}
 .aktionen{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0}
 .warnung{border:1px solid var(--rot);border-left:4px solid var(--rot);padding:10px 14px;margin:12px 0;border-radius:8px}
 
+/* ---- Bearbeitungsformulare ---- */
+.zurueck{margin:0 0 10px;font-size:14px}
+.zurueck a{color:var(--grau);text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.zurueck a:hover{color:var(--ink)}
+.zurueck .icon{width:16px;height:16px}
+.formular{max-width:760px}
+.formular fieldset{border:1px solid var(--linie);border-radius:var(--r);padding:18px 20px 20px;margin:18px 0}
+.formular legend{padding:0 6px;margin-left:-6px;font-weight:600;font-size:15px}
+.felder{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px}
+.feld.breit{grid-column:1/-1}
+.feld input,.feld select{width:100%}
+.feld small{display:block;color:var(--grau);font-size:12.5px;margin-top:4px}
+.formular-fuss{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+@media (max-width:800px){
+ .formular fieldset{padding:14px 14px 16px}
+ .felder{grid-template-columns:1fr}
+ .feld input,.feld select{font-size:16px}
+ .formular-fuss{position:sticky;bottom:calc(var(--tab) + env(safe-area-inset-bottom));background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  margin:18px -16px 0;padding:10px 16px;border-top:1px solid var(--linie)}
+ .formular-fuss .btn{flex:1;justify-content:center}
+}
+html.min .formular fieldset{border-color:#eceef0}
+
 /* ---- Verlauf (Vorgänge / Protokoll) als Zeitleiste ---- */
 .verlauf{list-style:none;margin:12px 0;padding:0}
 .verlauf>li{position:relative;padding:0 0 20px 46px;break-inside:avoid}
@@ -891,15 +914,6 @@ async def buerger_akte(request):
         return _gesperrt_seite(request, "Bürgerakte", "buerger", az_akte(z["id"]))
     stamm = _stamm(z)
     pfad = f"{BASIS}buerger/{z['id']}/"
-    form = (f'<form class="zeile" method="post" action="{pfad}bearbeiten">{csrf_feld(request)}'
-            f'<div><label for="n">Name (IC)</label><input type="text" id="n" name="ic_name" value="{esc(z["ic_name"])}" maxlength="80"></div>'
-            f'<div><label for="g">Geburtsdatum (IC)</label><input type="text" id="g" name="ic_geburt" value="{esc(z["ic_geburt"])}" maxlength="40"></div>'
-            f'<div><label for="ge">Geschlecht</label><select id="ge" name="geschlecht">{_optionen(GESCHLECHTER, z["geschlecht"])}</select></div>'
-            f'<div><label for="f">Fraktion</label><input type="text" id="f" name="fraktion" value="{esc(z["fraktion"])}" maxlength="80"></div>'
-            f'<div><label for="s">Schicht</label><select id="s" name="schicht">{_optionen(SCHICHTEN, z["schicht"])}</select></div>'
-            f'<div><label for="b">Beruf</label><select id="b" name="beruf">{_optionen(BERUFE, z["beruf"])}</select></div>'
-            f'<div><label for="po">Aktueller Beruf / Position</label><input type="text" id="po" name="position" value="{esc(z["position"])}" maxlength="120"></div>'
-            f'<button class="btn zweit" type="submit">{ic("pencil")}Stammdaten ändern</button></form>')
     vs = [_verfahren_zeile(v) for v in con.execute("SELECT * FROM amt_verfahren WHERE konto_id=? ORDER BY id DESC", (z["konto_id"],))]
     w = schreiben(request)
     verschluss_form = ""
@@ -911,12 +925,47 @@ async def buerger_akte(request):
     inhalt = (f'<h1>{ic("book-user")} Bürgerakte {az_akte(z["id"])}</h1><p class="az">{esc(anzeige_name(z))}</p>{meldung(request)}'
               + (f'<div class="warnung">{ic("lock")} Diese Akte steht unter Verschluss; nur Kaiser und Kanzler können sie einsehen.</div>' if z["verschluss"] else "")
               + (f'<div class="hinweis">Nur Lesezugriff: Änderungen sind mit deiner Berechtigung nicht möglich.</div>' if not w else "")
-              + f'<div class="aktionen"><a class="btn zweit" href="{pfad}pdf">{ic("file-down")}Als PDF exportieren</a>'
+              + f'<div class="aktionen">' + (f'<a class="btn" href="{pfad}bearbeiten/">{ic("pencil")}Akte bearbeiten</a>' if w else "")
+              + f'<a class="btn zweit" href="{pfad}pdf">{ic("file-down")}Als PDF exportieren</a>'
               + (f'<a class="btn gefahr" href="{pfad}loeschen/">{ic("trash-2")}Akte löschen</a>' if w else "") + verschluss_form + '</div>'
-              f'<h2>Stammdaten</h2>{stamm}{form if w else ""}'
+              f'<h2>Stammdaten</h2>{stamm}'
               f'<h2>Einbürgerungsakten</h2>{tabelle(["Aktenzeichen", "Name", "Stand", "Zuletzt"], vs, "Kein Einreiseverfahren erfasst.")}'
               f'<h2>Vorgänge</h2>{eintraege_html(con, "akte", z["id"])}' + (f'<h2>Vermerk</h2>{vermerk_formular(request, pfad)}' if w else ""))
     return _ant(request, f"Bürgerakte {az_akte(z['id'])}", "buerger", inhalt)
+
+
+def _feld(fid, label, eingabe, hilfe=""):
+    return f'<div class="feld"><label for="{fid}">{esc(label)}</label>{eingabe}' + (f'<small>{esc(hilfe)}</small>' if hilfe else "") + "</div>"
+
+
+@_beamter
+async def buerger_bearbeiten_seite(request):
+    con = request.app["db"]
+    z = con.execute("SELECT * FROM amt_akten WHERE id=?", (request.match_info["id"],)).fetchone() if request.match_info["id"].isdigit() else None
+    if not z:
+        raise web.HTTPNotFound(text="Akte nicht gefunden.")
+    if z["verschluss"] and not darf_verschluss(request["konto"]):
+        return _gesperrt_seite(request, "Bürgerakte", "buerger", az_akte(z["id"]))
+    pfad = f"{BASIS}buerger/{z['id']}/"
+    if not schreiben(request):
+        raise web.HTTPSeeOther(pfad)
+    t = lambda fid, name, n: f'<input type="text" id="{fid}" name="{name}" value="{esc(z[name])}" maxlength="{n}">'
+    inhalt = (f'<p class="zurueck"><a href="{pfad}">{ic("arrow-left")}Bürgerakte {az_akte(z["id"])}</a></p>'
+              f'<h1>Akte bearbeiten</h1><p class="az">{esc(anzeige_name(z))} · {az_akte(z["id"])}</p>{meldung(request)}'
+              f'<form class="formular" method="post" action="{pfad}bearbeiten">{csrf_feld(request)}'
+              '<fieldset><legend>Person (im Charakter)</legend><div class="felder">'
+              + _feld("n", "Name (IC)", t("n", "ic_name", 80), "Nicht der Discord-Name.")
+              + _feld("g", "Geburtsdatum (IC)", t("g", "ic_geburt", 40))
+              + _feld("ge", "Geschlecht", f'<select id="ge" name="geschlecht">{_optionen(GESCHLECHTER, z["geschlecht"])}</select>')
+              + _feld("f", "Fraktion", t("f", "fraktion", 80))
+              + '</div></fieldset><fieldset><legend>Stand und Beruf</legend><div class="felder">'
+              + _feld("s", "Gesellschaftsschicht", f'<select id="s" name="schicht">{_optionen(SCHICHTEN, z["schicht"])}</select>')
+              + _feld("b", "Berufliche Zugehörigkeit", f'<select id="b" name="beruf">{_optionen(BERUFE, z["beruf"])}</select>')
+              + _feld("po", "Aktueller Beruf / Position", t("po", "position", 120)).replace('class="feld"', 'class="feld breit"')
+              + '</div></fieldset>'
+              f'<p class="az">Discord-Name ({esc(z["name"])}) und Discord-ID kommen von Discord und lassen sich hier nicht ändern. Jede Änderung wird in den Vorgängen der Akte protokolliert.</p>'
+              f'<div class="formular-fuss"><a class="btn zweit" href="{pfad}">Abbrechen</a><button class="btn" type="submit">{ic("check")}Speichern</button></div></form>')
+    return _ant(request, f"Akte bearbeiten – {az_akte(z['id'])}", "buerger", inhalt)
 
 
 @_beamter
@@ -1372,6 +1421,7 @@ def registrieren(app):
     app.router.add_get(BASIS + "buerger/{id}/loeschen/", buerger_loeschen_seite)
     app.router.add_post(BASIS + "buerger/{id}/loeschen", buerger_loeschen)
     app.router.add_get(BASIS + "verfahren/{id}/pdf", verfahren_pdf)
+    app.router.add_get(BASIS + "buerger/{id}/bearbeiten/", buerger_bearbeiten_seite)
     app.router.add_post(BASIS + "buerger/{id}/bearbeiten", buerger_bearbeiten)
     app.router.add_post(BASIS + "buerger/{id}/vermerk", vermerk)
     app.router.add_post(BASIS + "buerger/{id}/verschluss", verschluss_setzen)
