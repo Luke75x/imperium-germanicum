@@ -383,6 +383,39 @@ body.laedt .ladebalken{opacity:1}
  form.zeile>div{flex:1 1 100%}
  form.zeile>div select,form.zeile>div input{width:100%}
 }
+/* Bürgerakten-Liste am Handy: eine kompakte, ganz antippbare Zeile je Akte */
+.nur-klein{display:none}
+@media (max-width:800px){
+ .nur-gross{display:none}.nur-klein{display:inline}
+ form.filter{flex-wrap:nowrap;gap:8px;align-items:flex-end}
+ form.filter>div{flex:1 1 auto;min-width:0}
+ form.filter>div.f-suche{flex:1 1 60%}
+ form.filter label{font-size:12px}
+ form.filter .btn{flex:none;padding:8px 12px;height:42px}
+ table.liste.akten tr{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:1px 8px;padding:9px 28px 9px 0;margin:0;line-height:1.35;
+  border:0;border-bottom:1px solid #eef0f2;border-radius:0}
+ table.liste.akten tr::after{content:"";order:2;flex-basis:100%;height:0}
+ table.liste.akten tr::before{content:"";position:absolute;right:6px;top:50%;width:7px;height:7px;margin-top:-4px;border:solid #b5b8be;border-width:2px 2px 0 0;transform:rotate(45deg)}
+ table.liste.akten td{display:block;width:auto;border:0;padding:0;font-size:13px;color:var(--grau);min-width:0}
+ table.liste.akten td::before{display:none}
+ table.liste.akten td:nth-child(2){order:0;flex:1 1 0;font-size:15.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ table.liste.akten td:nth-child(2) .leerwert{font-size:12.5px}
+ table.liste.akten td:nth-child(5){order:1;flex:none;font-size:12px}
+ table.liste.akten td:nth-child(1){order:3}
+ table.liste.akten td:nth-child(3){order:4;max-width:45%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ table.liste.akten td:nth-child(4){order:5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%}
+ table.liste.akten td:nth-child(3)::before,table.liste.akten td:nth-child(4)::before{content:"· ";display:inline;font-size:inherit;color:#b5b8be}
+ table.liste.akten td:nth-child(1) a{color:var(--grau);text-decoration:none;font-variant-numeric:tabular-nums}
+ table.liste.akten td:nth-child(1) a::after{content:"";position:absolute;inset:0}
+ table.liste.akten tr:active{background:var(--hell)}
+ table.liste.akten tr:has(td:nth-child(2) .nur-klein) td:nth-child(3),table.liste.akten tr:has(.leer-f) td:nth-child(4){display:none}
+ table.liste.akten td:nth-child(5) .status{padding:1px 8px;font-size:11.5px}
+ table.liste.akten td:nth-child(5) .s-ok{display:none}
+ form.filter>div:not(.f-suche){flex:0 0 34%}
+ form.filter input,form.filter select{height:42px;padding-top:0;padding-bottom:0}
+ form.filter label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+ html.min table.liste.akten tr{padding:9px 28px 9px 0}
+}
 @media (max-width:380px){.seite .gruppen{grid-template-columns:1fr}}
 
 /* ---- Design-Modus „Minimalistisch“ (html.min, Standard): ruhiger, flacher ---- */
@@ -670,12 +703,12 @@ def ergebnis_marke(e):
     return status_marke({"eingebuergert": "ok", "abgelehnt": "nein", "offen": "offen"}.get(e, "neutral"), ERGEBNIS.get(e, e))
 
 
-def tabelle(kopf, zeilen, leer="Keine Einträge."):
+def tabelle(kopf, zeilen, leer="Keine Einträge.", klasse=""):
     if not zeilen:
         return f'<p class="leer">{esc(leer)}</p>'
     th = "".join(f"<th>{esc(h)}</th>" for h in kopf)
     tr = "".join("<tr>" + "".join(f'<td data-l="{esc(kopf[i])}">{c}</td>' for i, c in enumerate(z)) + "</tr>" for z in zeilen)
-    return f'<table class="liste"><thead><tr>{th}</tr></thead><tbody>{tr}</tbody></table>'
+    return f'<table class="liste{" " + klasse if klasse else ""}"><thead><tr>{th}</tr></thead><tbody>{tr}</tbody></table>'
 
 
 def daten_tabelle(paare):
@@ -864,7 +897,9 @@ async def buerger_liste(request):
                        par + [SEITE_GROESSE, (seite_nr - 1) * SEITE_GROESSE]).fetchall()
     sa, _sk = sperren(con, request["konto"])
     zeilen = [(f'<a href="{BASIS}buerger/{r["id"]}/">{az_akte(r["id"])}</a>', "–", "–", "–", _verschluss_marke()) if r["id"] in sa else
-              (f'<a href="{BASIS}buerger/{r["id"]}/">{az_akte(r["id"])}</a>', esc(r["ic_name"] or "–"), esc(r["name"]), esc(r["fraktion"] or "–"),
+              (f'<a href="{BASIS}buerger/{r["id"]}/">{az_akte(r["id"])}</a>',
+               esc(r["ic_name"]) if r["ic_name"] else f'<span class="nur-gross">–</span><span class="nur-klein">{esc(r["name"])} <i class="leerwert">(Discord)</i></span>',
+               esc(r["name"]), esc(r["fraktion"]) if r["fraktion"] else '<span class="nur-gross leer-f">–</span>',
                akte_marke(r["status"]) + (" " + _verschluss_marke() if r["verschluss"] else ""))
               for r in rows]
     opt = "".join(f'<option value="{k}"{" selected" if k == status else ""}>{esc(v)}</option>' for k, v in STATUS_AKTE.items())
@@ -875,10 +910,10 @@ async def buerger_liste(request):
     if seite_nr * SEITE_GROESSE < gesamt:
         nav += f'<a href="{basis}&amp;seite={seite_nr + 1}">Weiter →</a>'
     inhalt = (f'<h1>{ic("book-user")} Bürgerakten</h1><p class="az">{gesamt} Akten</p>{meldung(request)}'
-              f'<form class="zeile" method="get"><div><label for="q">Suche</label><input type="search" id="q" name="q" value="{esc(q)}"></div>'
+              f'<form class="zeile filter" method="get"><div class="f-suche"><label for="q">Suche</label><input type="search" id="q" name="q" value="{esc(q)}" placeholder="Name, Aktenzeichen, ID"></div>'
               f'<div><label for="st">Status</label><select id="st" name="status"><option value="">Alle</option>{opt}</select></div>'
-              f'<button class="btn" type="submit">{ic("search")}Suchen</button></form>'
-              f'{tabelle(["Aktenzeichen", "Name (IC)", "Discord-Name", "Fraktion", "Status"], zeilen, "Keine Akten gefunden.")}'
+              f'<button class="btn" type="submit" aria-label="Suchen">{ic("search")}<span class="nur-gross">Suchen</span></button></form>'
+              f'{tabelle(["Aktenzeichen", "Name (IC)", "Discord-Name", "Fraktion", "Status"], zeilen, "Keine Akten gefunden.", "akten")}'
               f'<div class="seiten">{nav}</div>')
     return _ant(request, "Bürgerakten", "buerger", inhalt, q)
 
