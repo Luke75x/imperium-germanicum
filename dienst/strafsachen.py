@@ -404,8 +404,7 @@ def _ansicht(request, k, a, con):
                   f'<button class="btn zweit" type="submit">{amt.ic("plus")}Hochladen</button></form>')
     # Protokoll
     es = con.execute("SELECT * FROM sa_eintraege WHERE akte_id=? ORDER BY id DESC", (a["id"],)).fetchall()
-    html_ += "<h2>Aktenprotokoll</h2>" + amt.tabelle(["Zeit", "Art", "Eintrag", "Von"], [
-        (amt._zeit(e["zeit"]), esc(e["art"]), f'<span style="white-space:pre-wrap">{esc(e["text"])}</span>', esc(e["autor_name"] or "System")) for e in es], "Keine Einträge.")
+    html_ += "<h2>Aktenprotokoll</h2>" + amt.verlauf_html(es, "Keine Einträge.")
     if w:
         html_ += (f'<form method="post" action="{pfad}vermerk">{csrf}<label for="vm">Vermerk hinzufügen</label><textarea id="vm" name="text" maxlength="4000" required></textarea>'
                   f'<div class="aktionen"><button class="btn zweit" type="submit">{amt.ic("pencil")}Vermerk speichern</button></div></form>')

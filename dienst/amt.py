@@ -162,133 +162,241 @@ def _zeit(ts, uhr=True):
 # ---------------------------------------------------------------- Darstellung
 
 CSS = """
-:root{--ink:#111;--grau:#5a5a5a;--linie:#b9b9b9;--hell:#f1f1f1;--kopf:#1f2f45;--akzent:#1f4e8c;--warn:#8a5a00;--ok:#1d6b34;--rot:#9b1c1c}
+:root{--ink:#16171a;--grau:#6b6f76;--linie:#e3e4e8;--hell:#f5f6f8;--flaeche:#f5f6f8;--kopf:#1f2f45;--akzent:#1f4e8c;--warn:#8a5a00;--ok:#1d6b34;--rot:#9b1c1c;
+ --r:10px;--seite:252px;--tab:64px;--schrift:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
 *{box-sizing:border-box}
-html{font-size:16px}
-body{margin:0;font:15px/1.5 Arial,Helvetica,sans-serif;color:var(--ink);background:#fff}
+html{font-size:16px;-webkit-text-size-adjust:100%}
+body{margin:0;font:15px/1.55 var(--schrift);color:var(--ink);background:#fff;-webkit-font-smoothing:antialiased}
 a{color:var(--akzent)}
 .icon{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;flex:none}
-.kopf{background:#fff;color:var(--ink);display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--linie)}
-.kopf .logo{display:block;line-height:0}
-.kopf .logo img{height:64px;width:auto;display:block}
+
+/* ---- Grundgerüst: Seitenleiste links, Inhalt rechts ---- */
+.app{display:flex;min-height:100vh}
+.seite{width:var(--seite);flex:none;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;
+ background:#fff;border-right:1px solid var(--linie);padding:18px 12px 14px;scrollbar-width:thin}
+.seite .logo{display:block;line-height:0;padding:2px 8px 14px}
+.seite .logo img{width:100%;height:auto;max-height:56px;object-fit:contain;object-position:left center}
+.gruppe{margin:6px 0 10px}
+.gruppe-titel{margin:0;padding:8px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#9a9da4}
+.seite a.ein{position:relative;display:flex;align-items:center;gap:12px;padding:8px 10px;margin:1px 0;border-radius:8px;color:#33363c;text-decoration:none;font-size:14.5px}
+.seite a.ein:hover{background:var(--hell);color:var(--ink)}
+.seite a.ein.aktiv{background:#eef2f8;color:var(--akzent);font-weight:600}
+.seite a.ein.aktiv .icon{color:var(--akzent)}
+.seite a.ein .icon{color:#7c8088}
+.seite a.ein span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zahl{margin-left:auto;background:var(--rot);color:#fff;font:600 11px/18px var(--schrift);min-width:18px;padding:0 5px;border-radius:9px;text-align:center;font-style:normal}
+.seite .fuss{margin-top:auto;padding-top:12px;border-top:1px solid var(--linie)}
+.seite .fuss a.ein{font-size:13.5px;color:var(--grau)}
+.konto-box{display:flex;align-items:center;gap:10px;padding:10px 6px 2px 10px}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--kopf);color:#fff;display:grid;place-items:center;font:600 13px/1 var(--schrift);flex:none;letter-spacing:.02em}
+.konto-text{min-width:0;flex:1;line-height:1.25}
+.konto-text b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.konto-text small{display:block;font-size:12px;color:var(--grau);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.konto-box form{margin:0}
+.knopf-rund{all:unset;box-sizing:border-box;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:var(--grau);cursor:pointer}
+.knopf-rund:hover,.knopf-rund:focus-visible{background:var(--hell);color:var(--ink)}
+.knopf-rund:focus-visible{outline:2px solid var(--akzent);outline-offset:1px}
+.blatt-kopf{display:none}
+
+.spalte{flex:1;min-width:0;display:flex;flex-direction:column}
+.kopf{position:sticky;top:0;z-index:15;display:flex;align-items:center;gap:10px;padding:12px 28px;min-height:64px;
+ background:rgba(255,255,255,.88);-webkit-backdrop-filter:saturate(1.6) blur(12px);backdrop-filter:saturate(1.6) blur(12px);border-bottom:1px solid var(--linie)}
+.kopf .logo{display:none;line-height:0}
+.kopf .logo img{height:36px;width:auto}
 .kopf .raum{flex:1}
-.kopf form{margin:0;display:flex}
-.kopf input[type=search]{border:1px solid #777;background:#fff;color:#111;padding:6px 8px;font:inherit;width:220px;border-radius:0}
-.kopf button{border:1px solid var(--kopf);background:var(--kopf);color:#fff;padding:6px 10px;font:inherit;cursor:pointer;border-radius:0}
-.kopf .logo img.kurz{display:none}
-nav a{position:relative}
-nav a.unter{padding-left:34px;font-size:14px}
-nav .punkt{position:absolute;left:27px;top:4px;background:var(--rot);color:#fff;font:bold 10px/15px Arial,sans-serif;min-width:15px;padding:0 3px;border-radius:8px;text-align:center;font-style:normal}
-.reiter{display:flex;flex-wrap:wrap;gap:4px 18px;margin:12px 0;border-bottom:1px solid var(--linie)}
-.reiter a{padding:6px 2px;color:var(--grau);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
-.reiter a.aktiv{color:var(--ink);border-bottom-color:var(--ink);font-weight:bold}
-.rahmen{display:flex;min-height:calc(100vh - 81px)}
-nav{width:220px;flex:none;border-right:1px solid var(--linie);background:var(--hell);padding:12px 0}
-nav a{display:flex;align-items:center;gap:10px;padding:9px 16px;color:var(--ink);text-decoration:none;border-left:4px solid transparent}
-nav a:hover{background:#e4e4e4}
-nav a.aktiv{border-left-color:var(--akzent);background:#fff;font-weight:bold}
-nav hr{border:0;border-top:1px solid var(--linie);margin:10px 0}
-nav .konto{padding:6px 16px;color:var(--grau);font-size:13px}
-nav form{margin:0}
-nav button.link{all:unset;display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;width:100%;box-sizing:border-box}
-nav button.link:hover{background:#e4e4e4}
-main{flex:1;min-width:0;padding:20px 24px 48px;max-width:1100px}
-h1{font-size:22px;margin:0 0 4px}
-h2{font-size:17px;margin:28px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--ink)}
+.kopf form.suche{margin:0;display:flex;align-items:center;position:relative}
+.kopf form.suche .icon{position:absolute;left:11px;color:#8b8f96;pointer-events:none}
+.kopf input[type=search]{border:1px solid var(--linie);background:var(--hell);color:var(--ink);padding:8px 12px 8px 36px;font:inherit;font-size:14px;width:300px;border-radius:999px;transition:border-color .15s,background .15s,box-shadow .15s}
+.kopf input[type=search]:focus{outline:0;background:#fff;border-color:#b9c3d3;box-shadow:0 0 0 3px rgba(31,78,140,.12)}
+.kopf .knopf-rund.such-auf{display:none}
+main{flex:1;width:100%;max-width:1120px;padding:28px 32px 64px;animation:rein .28s ease both}
+@keyframes rein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.tableiste,.schleier{display:none}
+
+/* ---- Inhalt ---- */
+.reiter{display:flex;flex-wrap:wrap;gap:4px 18px;margin:0 0 16px;border-bottom:1px solid var(--linie)}
+.reiter a{padding:8px 2px;color:var(--grau);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+.reiter a.aktiv{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
+h1{font-size:24px;line-height:1.25;margin:0 0 4px;font-weight:650;letter-spacing:-.01em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+h1 .icon{width:22px;height:22px;color:var(--grau)}
+h2{font-size:17px;margin:32px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--ink)}
 .az{color:var(--grau);margin:0 0 16px;font-size:14px}
 table{border-collapse:collapse;width:100%;margin:8px 0}
-th,td{border:1px solid var(--linie);padding:6px 8px;text-align:left;vertical-align:top}
-th{background:var(--hell);font-weight:bold;white-space:nowrap}
+th,td{border:1px solid var(--linie);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:var(--hell);font-weight:600;white-space:nowrap}
 table.daten th{width:240px}
 td.text{white-space:pre-wrap;word-break:break-word}
-.status{display:inline-block;border:1px solid currentColor;padding:0 6px;font-size:13px;white-space:nowrap}
+.status{display:inline-flex;align-items:center;gap:4px;border:1px solid currentColor;padding:0 8px;font-size:13px;white-space:nowrap;border-radius:999px}
+.status .icon{width:13px;height:13px}
 .s-offen{color:var(--warn)}.s-ok{color:var(--ok)}.s-nein{color:var(--rot)}.s-neutral{color:var(--grau)}
-form.zeile{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:8px 0}
-label{display:block;font-size:13px;color:var(--grau);margin-bottom:2px}
-input[type=text],input[type=search],select,textarea{font:inherit;padding:6px 8px;border:1px solid #777;border-radius:0;background:#fff;color:var(--ink);max-width:100%}
+form.zeile{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:10px 0}
+label{display:block;font-size:13px;color:var(--grau);margin-bottom:3px}
+input[type=text],input[type=search],input[type=number],input[type=date],input[type=file],select,textarea{font:inherit;padding:8px 10px;border:1px solid #c9ccd2;border-radius:8px;background:#fff;color:var(--ink);max-width:100%}
+input:focus,select:focus,textarea:focus{outline:0;border-color:#8aa3c7;box-shadow:0 0 0 3px rgba(31,78,140,.12)}
 textarea{width:100%;min-height:90px}
-.btn,button.btn{font:inherit;border:1px solid var(--kopf);background:var(--kopf);color:#fff;padding:7px 14px;cursor:pointer;text-decoration:none;display:inline-flex;gap:6px;align-items:center;border-radius:0}
-.btn.zweit{background:#fff;color:var(--kopf)}
-.btn.gefahr{background:#fff;color:var(--rot);border-color:var(--rot)}
-.hinweis{border:1px solid var(--linie);border-left:4px solid var(--akzent);background:var(--hell);padding:8px 12px;margin:12px 0}
+.btn,button.btn{font:inherit;font-size:14.5px;font-weight:500;border:1px solid var(--kopf);background:var(--kopf);color:#fff;padding:8px 15px;cursor:pointer;text-decoration:none;display:inline-flex;gap:7px;align-items:center;border-radius:8px;transition:filter .15s,background .15s}
+.btn:hover{filter:brightness(1.12)}
+.btn.zweit{background:#fff;color:var(--kopf);border-color:#c9ccd2}
+.btn.zweit:hover{background:var(--hell);filter:none}
+.btn.gefahr{background:#fff;color:var(--rot);border-color:#e3c3c3}
+.btn.arbeitet{pointer-events:none;opacity:.75}
+.btn.arbeitet .icon{display:none}
+.btn.arbeitet::before{content:"";width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:dreh .7s linear infinite}
+@keyframes dreh{to{transform:rotate(360deg)}}
+.hinweis{border:1px solid var(--linie);border-left:4px solid var(--akzent);background:var(--hell);padding:10px 14px;margin:12px 0;border-radius:8px}
 .hinweis.fehler{border-left-color:var(--rot)}
-.kennzahlen{display:flex;gap:0;flex-wrap:wrap;margin:8px 0}
-.kennzahlen div{border:1px solid var(--linie);margin:0 -1px -1px 0;padding:10px 18px;min-width:150px}
-.kennzahlen b{display:block;font-size:24px}
+.kennzahlen{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:12px 0}
+.kennzahlen div{border:1px solid var(--linie);border-radius:var(--r);padding:12px 16px;color:var(--grau);font-size:13.5px}
+.kennzahlen b{display:block;font-size:26px;font-weight:600;color:var(--ink);line-height:1.2}
 .leer{color:var(--grau);padding:8px 0}
 .seiten{display:flex;gap:12px;margin:10px 0}
-.balken{display:block;height:12px;background:var(--kopf);min-width:1px}
+.balken{display:block;height:10px;background:var(--kopf);min-width:1px;border-radius:5px}
 td.bar{width:45%}
-.aktionen{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0}
-.warnung{border:1px solid var(--rot);border-left:4px solid var(--rot);padding:8px 12px;margin:12px 0}
-@media print{nav,.kopf,.aktionen,form{display:none}.rahmen{display:block}}
+.aktionen{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0}
+.warnung{border:1px solid var(--rot);border-left:4px solid var(--rot);padding:10px 14px;margin:12px 0;border-radius:8px}
+
+/* ---- Verlauf (Vorgänge / Protokoll) als Zeitleiste ---- */
+.verlauf{list-style:none;margin:12px 0;padding:0}
+.verlauf>li{position:relative;padding:0 0 20px 46px;break-inside:avoid}
+.verlauf>li::before{content:"";position:absolute;left:16px;top:36px;bottom:4px;width:2px;border-radius:1px;background:var(--linie)}
+.verlauf>li:last-child{padding-bottom:4px}
+.verlauf>li:last-child::before{display:none}
+.v-ic{position:absolute;left:0;top:0;width:34px;height:34px;border-radius:50%;background:var(--hell);border:1px solid var(--linie);display:grid;place-items:center;color:#5f636b}
+.v-ic .icon{width:16px;height:16px}
+.v-ic.t-ok{background:#eaf4ed;border-color:#cfe5d6;color:var(--ok)}
+.v-ic.t-warn{background:#fbf3e6;border-color:#f0dfc0;color:var(--warn)}
+.v-ic.t-rot{background:#fbeeee;border-color:#efd2d2;color:var(--rot)}
+.v-ic.t-blau{background:#eef2f8;border-color:#d6e0ee;color:var(--akzent)}
+.v-kopf{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 10px;padding-top:6px}
+.v-art{font-weight:600}
+.v-meta{color:var(--grau);font-size:13px}
+.v-text{margin-top:4px;white-space:pre-wrap;word-break:break-word;color:#2a2c31}
+.v-text.notiz{background:var(--hell);border-radius:8px;padding:10px 12px;margin-top:8px}
+.aend{margin:8px 0 0;display:grid;grid-template-columns:minmax(120px,max-content) 1fr;gap:0;border:1px solid var(--linie);border-radius:8px;overflow:hidden;font-size:14px}
+.aend dt,.aend dd{margin:0;padding:7px 12px;border-top:1px solid var(--linie)}
+.aend dt:first-of-type,.aend dt:first-of-type+dd{border-top:0}
+.aend dt{color:var(--grau);background:var(--hell)}
+.aend dd{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;word-break:break-word}
+.aend .alt{color:var(--grau);text-decoration:line-through;text-decoration-color:#b5b8be}
+.aend .neu{font-weight:600}
+.aend .pfeil{color:#a3a7ae;width:14px;height:14px}
+.leerwert{color:#9a9da4;font-style:italic;font-weight:400}
+.v-link{font-size:13px}
+
+/* ---- Skeleton beim Laden ---- */
+.sk{display:block;border-radius:6px;background:linear-gradient(90deg,#eceef1 0,#f6f7f9 40%,#eceef1 80%);background-size:300% 100%;animation:schimmer 1.3s ease-in-out infinite}
+@keyframes schimmer{from{background-position:100% 0}to{background-position:0 0}}
+.skelett{display:none}
+body.laedt main>*:not(.skelett){display:none}
+body.laedt main>.skelett{display:block;animation:rein .2s ease both}
+.sk-h1{height:28px;width:min(340px,70%);margin:2px 0 12px}
+.sk-az{height:14px;width:min(200px,45%);margin-bottom:26px}
+.sk-kz{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:30px}
+.sk-kz .sk{height:76px;border-radius:var(--r)}
+.sk-h2{height:16px;width:160px;margin:26px 0 14px}
+.sk-zeile{display:flex;gap:16px;align-items:center;padding:13px 0;border-bottom:1px solid #f0f1f3}
+.sk-zeile .sk{height:13px}
+.sk-dt{display:grid;grid-template-columns:200px 1fr;gap:14px 20px;margin-bottom:8px}
+.sk-dt .sk{height:13px}
+.ladebalken{position:fixed;top:0;left:0;right:0;height:2px;z-index:60;overflow:hidden;opacity:0;transition:opacity .2s;pointer-events:none}
+.ladebalken::before{content:"";position:absolute;top:0;bottom:0;width:40%;background:var(--akzent);animation:balken 1s ease-in-out infinite}
+body.laedt .ladebalken{opacity:1}
+@keyframes balken{from{left:-40%}to{left:100%}}
+@media (prefers-reduced-motion:reduce){*,*::before{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}}
+
+@media print{.seite,.kopf,.tableiste,.aktionen,form,.ladebalken{display:none}.app{display:block}main{animation:none}}
+
+/* ---- Handy und schmale Fenster: Kopfleiste oben, Tab-Leiste unten, Menü als Blatt ---- */
 @media (max-width:800px){
- .kopf input[type=search]{width:130px}
- .kopf .logo img{height:48px}
- .kopf .logo img.lang{display:none}.kopf .logo img.kurz{display:block}
- .rahmen{display:block}
- nav{width:auto;border-right:0;border-bottom:1px solid var(--linie);display:flex;flex-wrap:wrap;padding:0}
- nav a{border-left:0;border-bottom:3px solid transparent;padding:10px 12px}
- nav a.aktiv{border-bottom-color:var(--akzent)}
- nav hr,nav .konto{display:none}
- nav form{margin-left:auto}
- main{padding:16px 14px 40px}
+ body{padding-bottom:calc(var(--tab) + env(safe-area-inset-bottom))}
+ .app{display:block;min-height:0}
+ .kopf{padding:8px 8px 8px 14px;min-height:56px;padding-top:calc(8px + env(safe-area-inset-top))}
+ .kopf .logo{display:block}
+ .kopf form.suche{display:none}
+ .kopf .knopf-rund.such-auf{display:grid;width:42px;height:42px}
+ .kopf.suche-offen form.suche{display:flex;position:absolute;left:8px;right:8px;top:calc(100% + 0px);padding:8px 6px 10px;background:#fff;border-bottom:1px solid var(--linie)}
+ .kopf.suche-offen form.suche .icon{left:19px}
+ .kopf.suche-offen input[type=search]{width:100%;font-size:16px}
+ main{padding:18px 16px 32px}
+ h1{font-size:21px}
+ .seite{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;height:auto;max-height:82vh;z-index:40;border:0;border-radius:18px 18px 0 0;
+  box-shadow:0 -10px 40px rgba(0,0,0,.18);padding:6px 14px calc(14px + env(safe-area-inset-bottom));transform:translateY(105%);visibility:hidden;
+  transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s linear .28s;overscroll-behavior:contain}
+ body.menue-offen .seite{transform:none;visibility:visible;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+ .seite .logo{display:none}
+ .blatt-kopf{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 2px 10px;position:sticky;top:-6px;background:#fff;z-index:1}
+ .blatt-kopf::before{content:"";position:absolute;top:2px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:#d6d8dc}
+ .blatt-kopf b{font-size:17px;padding-top:12px}
+ .seite .gruppen{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+ .seite .gruppe{margin:4px 0}
+ .seite a.ein{padding:11px 10px;font-size:15px}
+ .schleier{display:block;position:fixed;inset:0;z-index:35;background:rgba(15,17,21,.38);opacity:0;visibility:hidden;transition:opacity .25s,visibility 0s linear .25s}
+ body.menue-offen .schleier{opacity:1;visibility:visible;transition:opacity .25s}
+ body.menue-offen{overflow:hidden}
+ .tableiste{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:30;height:calc(var(--tab) + env(safe-area-inset-bottom));padding:0 4px env(safe-area-inset-bottom);
+  background:rgba(255,255,255,.94);-webkit-backdrop-filter:saturate(1.6) blur(14px);backdrop-filter:saturate(1.6) blur(14px);border-top:1px solid var(--linie)}
+ .tableiste a,.tableiste button{all:unset;box-sizing:border-box;flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:#80848c;font:500 11px/1.1 var(--schrift);cursor:pointer;position:relative;-webkit-tap-highlight-color:transparent}
+ .tableiste span{max-width:100%;padding:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .tableiste .icon{width:22px;height:22px;transition:transform .15s}
+ .tableiste .aktiv{color:var(--akzent)}
+ .tableiste .aktiv .icon{stroke-width:2.3}
+ .tableiste a:active .icon,.tableiste button:active .icon{transform:scale(.9)}
+ .tableiste .zahl{position:absolute;top:7px;left:50%;margin-left:6px;font-size:10px;line-height:16px;min-width:16px;padding:0 4px}
  table.daten th{width:auto;white-space:normal}
  table.liste,table.liste tbody,table.liste tr,table.liste td{display:block;width:100%}
  table.liste thead{display:none}
- table.liste tr{border:1px solid var(--linie);margin-bottom:8px}
- table.liste td{border:0;border-bottom:1px solid #e0e0e0}
- table.liste td::before{content:attr(data-l) ": ";color:var(--grau);font-size:13px}
+ table.liste tr{border:1px solid var(--linie);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+ table.liste td{border:0;border-bottom:1px solid #eef0f2}
+ table.liste td:last-child{border-bottom:0}
+ table.liste td::before{content:attr(data-l);display:block;color:var(--grau);font-size:12px}
+ .aend{grid-template-columns:1fr}
+ .aend dt{padding-bottom:2px;background:none;font-size:12.5px}
+ .aend dd{border-top:0;padding-top:0}
+ .aend dt:not(:first-of-type){border-top:1px solid var(--linie);padding-top:9px}
+ .verlauf>li{padding-left:42px}
+ .kennzahlen{grid-template-columns:repeat(2,1fr)}
+ .sk-dt{grid-template-columns:110px 1fr}
+ form.zeile>div{flex:1 1 100%}
+ form.zeile>div select,form.zeile>div input{width:100%}
 }
+@media (max-width:380px){.seite .gruppen{grid-template-columns:1fr}}
 
-/* ---- Design-Modus „Minimalistisch“ (html.min): Symbolleiste links, fährt beim Darüberfahren aus; auf dem Handy Standard ---- */
-html.min body{color:#222;font-size:15px}
-html.min .kopf{border-bottom:0;padding:10px 16px 10px 72px;min-height:56px}
-html.min .kopf .logo img{height:40px}
-html.min .kopf input[type=search]{border:0;border-bottom:1px solid #ccc;padding:6px 4px;width:200px;background:transparent}
-html.min .kopf input[type=search]:focus{outline:0;border-bottom-color:#111}
-html.min .kopf button{background:transparent;border:0;color:#555;padding:6px}
-html.min .rahmen{display:block;min-height:0}
-html.min nav{position:fixed;top:0;bottom:0;left:0;width:56px;z-index:20;overflow:hidden;display:block;padding:12px 0;background:#fff;border:0;border-right:1px solid #eee;transition:width .18s ease,box-shadow .18s ease}
-html.min nav:hover,html.min nav:focus-within,html.min nav.offen{width:236px;box-shadow:4px 0 24px rgba(0,0,0,.08)}
-html.min nav a,html.min nav button.link{white-space:nowrap;gap:16px;padding:11px 19px;border-left:0;color:#444;border-bottom:0}
-html.min nav a:hover,html.min nav button.link:hover{background:#f4f4f4}
-html.min nav a.unter{padding-left:19px;font-size:15px}
-html.min nav a.unter span{margin-left:14px}
-html.min nav a.aktiv{background:transparent;color:#000;font-weight:600;box-shadow:inset 3px 0 0 #111}
-html.min nav span{opacity:0;transition:opacity .12s}
-html.min nav:hover span,html.min nav:focus-within span,html.min nav.offen span{opacity:1}
-html.min nav hr{display:block;border-top:1px solid #eee;margin:10px 16px}
-html.min nav .konto{display:block;padding:6px 19px;white-space:nowrap;opacity:0;transition:opacity .12s}
-html.min nav:hover .konto,html.min nav:focus-within .konto,html.min nav.offen .konto{opacity:1}
-html.min nav form{margin:0}
-html.min main{max-width:980px;margin:0 auto;padding:24px 20px 56px 72px}
-html.min h1{font-size:20px;font-weight:600}
-html.min h2{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--grau);border:0;margin:34px 0 6px;padding:0}
-html.min .az{color:#888}
-html.min table{border-collapse:collapse}
-html.min th,html.min td{border:0;border-bottom:1px solid #eee;padding:9px 10px 9px 0}
-html.min th{background:transparent;color:#888;font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
-html.min table.daten th{text-transform:none;font-size:14px;letter-spacing:0}
-html.min .status{border:0;background:#f3f3f3;border-radius:10px;padding:1px 9px;font-size:12px}
-html.min .kennzahlen div{border:0;margin:0;padding:6px 32px 6px 0;min-width:0}
-html.min .kennzahlen b{font-size:28px;font-weight:500}
-html.min .btn,html.min button.btn{background:#111;border:1px solid #111;border-radius:6px;padding:7px 14px}
-html.min .btn.zweit{background:transparent;color:#111;border-color:#ddd}
-html.min .btn.gefahr{background:transparent;color:var(--rot);border-color:#e4c4c4}
-html.min input[type=text],html.min input[type=search],html.min select,html.min textarea{border:1px solid #ddd;border-radius:6px;padding:7px 9px}
-html.min .hinweis{border:0;border-radius:6px;background:#f6f6f6}
-html.min .warnung{border:0;border-radius:6px;background:#fbf1f1}
-html.min .balken{background:#111;border-radius:2px}
+/* ---- Design-Modus „Minimalistisch“ (html.min, Standard): ruhiger, flacher ---- */
+html.min body{color:#1d1f23}
+html.min .seite{background:#fafafa;border-right-color:#eceef0}
+html.min .seite a.ein.aktiv{background:#fff;color:#111;box-shadow:0 1px 2px rgba(0,0,0,.06),0 0 0 1px #eceef0}
+html.min .seite a.ein.aktiv .icon{color:#111}
+html.min .avatar{background:#111}
+html.min .kopf{border-bottom-color:transparent}
+html.min main{max-width:1040px}
+html.min h1{font-size:24px;font-weight:650}
+html.min h1 .icon{display:none}
+html.min h2{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#8b8f96;border:0;margin:36px 0 10px;padding:0}
+html.min .az{color:#8b8f96}
+html.min th,html.min td{border:0;border-bottom:1px solid #eef0f2;padding:10px 12px 10px 0}
+html.min th{background:transparent;color:#8b8f96;font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+html.min table.daten th{text-transform:none;font-size:14px;letter-spacing:0;font-weight:400}
+html.min .status{border:0;background:#f1f2f4;padding:2px 10px;font-size:12.5px}
+html.min .s-ok.status{background:#eaf4ed}html.min .s-offen.status{background:#fbf3e6}html.min .s-nein.status{background:#fbeeee}
+html.min .kennzahlen div{border:0;background:#f7f8f9}
+html.min .kennzahlen b{font-size:28px;font-weight:550}
+html.min .btn,html.min button.btn{background:#111;border-color:#111}
+html.min .btn.zweit{background:#fff;color:#111;border-color:#dcdee2}
+html.min .btn.zweit:hover{background:#f6f7f8}
+html.min .btn.gefahr{background:#fff;color:var(--rot);border-color:#ecd0d0}
+html.min input[type=text],html.min input[type=search],html.min select,html.min textarea{border-color:#dcdee2}
+html.min .hinweis{border:0;background:#f5f6f8}
+html.min .warnung{border:0;background:#fbf1f1}
+html.min .balken{background:#111}
+html.min .reiter a.aktiv{border-bottom-color:#111}
+html.min .seite a.ein .zahl,html.min .tableiste .zahl{background:var(--rot)}
+html.min .tableiste .aktiv{color:#111}
+html.min .v-ic.t-blau{background:#f1f2f4;border-color:#e3e4e8;color:#111}
 @media (max-width:800px){
- html.min .kopf{padding:8px 12px 8px 60px}
- html.min .kopf .logo img.lang{display:none}html.min .kopf .logo img.kurz{display:block;height:38px}
- html.min .kopf input[type=search]{width:120px}
- html.min nav{width:48px}
- html.min nav a,html.min nav button.link{padding:12px 15px}
- html.min nav .konto{padding:6px 15px}
- html.min main{padding:16px 14px 48px 60px}
- html.min table.liste tr{border:0;border-bottom:1px solid #eee;margin:0;padding:6px 0}
+ html.min .seite{background:#fff}
+ html.min .kopf{border-bottom-color:#eef0f2}
+ html.min table.liste tr{border:0;border-bottom:1px solid #eef0f2;border-radius:0;margin:0;padding:8px 0}
  html.min table.liste td{border:0;padding:3px 0}
 }
 .nur-min{display:none}
@@ -297,6 +405,14 @@ html.min .nur-min{display:inline}html.min .nur-std{display:none}
 
 
 ICONS["panel-left"] = '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>'
+ICONS["menu"] = '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>'
+ICONS["layout-grid"] = ('<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/>'
+                        '<rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>')
+ICONS["flag"] = '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>'
+ICONS["file-plus"] = ('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>'
+                      '<path d="M9 15h6"/><path d="M12 18v-6"/>')
+ICONS["arrow-right"] = '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'
+ICONS["paperclip"] = ('<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>')
 
 
 def ic(name):
@@ -310,37 +426,213 @@ NAV = [("uebersicht", "layout-dashboard", "Übersicht", ""), ("buerger", "book-u
 
 NAV_ALLE = [("post", "mail", "Postfach", "postfach/"), ("einstellungen", "sliders-horizontal", "Einstellungen", "einstellungen/")]
 
+# Kurze Beschriftungen für die Tab-Leiste am Handy
+TAB_KURZ = {"uebersicht": "Übersicht", "buerger": "Bürger", "verfahren": "Verfahren", "post": "Postfach", "einstellungen": "Einstellungen"}
+
+
+def nav_gruppen(k):
+    """Navigation in sinnvollen Gruppen: [(Titel, [(schl, icon, text, pfad)])]."""
+    import bereiche
+    leser = ist_leser(k)
+    gruppen = []
+    if leser:
+        gruppen.append(("Akten", NAV[:3]))
+    behoerden = [("b-" + b["schl"], b["icon"], b["kurz"], "bereich/" + b["schl"] + "/") for b in bereiche.sichtbar(k)]
+    if behoerden:
+        gruppen.append(("Behörden", behoerden))
+    if leser:
+        gruppen.append(("Auswertung", NAV[3:]))
+    gruppen.append(("Persönlich", NAV_ALLE))
+    return gruppen
+
+
+def _initialen(name):
+    teile = [t for t in "".join(c if c.isalnum() else " " for c in name).split() if t]
+    namen = [t for t in teile if not (t.isupper() and len(t) > 1)]   # Titel/Ordnungszahlen wie „SKKM“ oder „IX“ überspringen
+    teile = namen or teile
+    return ((teile[0][0] + (teile[-1][0] if len(teile) > 1 else "")) if teile else "?").upper()
+
+
+# Ladeanzeige: Skeleton im Inhalt beim Wechsel auf eine andere Amtsseite, Ladekreis an Knöpfen, Menü-Blatt am Handy
+JS = """(function(){
+var B=document.body,M=document.getElementById("inhalt"),BASIS=%s,uhr=null,warte=null;
+function z(w,h){return '<span class="sk" style="width:'+w+';'+(h?'height:'+h:'')+'"></span>'}
+function zeilen(n,sp){var s="";for(var i=0;i<n;i++){s+='<div class="sk-zeile">';for(var j=0;j<sp.length;j++)s+=z(sp[j]);s+='</div>'}return s}
+function skelett(u){var p=u.pathname,s='<div class="skelett" aria-hidden="true"><span class="sk sk-h1"></span><span class="sk sk-az"></span>';
+ if(/\\/\\d+\\/$/.test(p)){s+='<span class="sk sk-h2"></span><div class="sk-dt">';for(var i=0;i<7;i++)s+=z((25+(i*37%%30))+'%%')+z((35+(i*53%%45))+'%%');
+  s+='</div><span class="sk sk-h2"></span>'+zeilen(4,['22%%','48%%','14%%'])}
+ else if(p===BASIS||/statistik\\/$/.test(p)){s+='<div class="sk-kz">';for(var i=0;i<5;i++)s+='<span class="sk"></span>';s+='</div><span class="sk sk-h2"></span>'+zeilen(5,['16%%','30%%','26%%','12%%'])}
+ else s+=zeilen(9,['14%%','28%%','22%%','16%%']);
+ return s+'</div>'}
+function laden(u){fertig();warte=setTimeout(function(){var alt=M.querySelector(".skelett");if(alt)alt.remove();M.insertAdjacentHTML("afterbegin",skelett(u));B.classList.add("laedt");window.scrollTo(0,0)},90);
+ uhr=setTimeout(fertig,15000)}
+function fertig(){clearTimeout(warte);clearTimeout(uhr);B.classList.remove("laedt");var s=M.querySelector(".skelett");if(s)s.remove();
+ document.querySelectorAll(".btn.arbeitet").forEach(function(b){b.classList.remove("arbeitet");b.disabled=false})}
+function intern(u){return u.origin===location.origin&&u.pathname.indexOf(BASIS)===0&&!/(\\/pdf$|\\/logo\\/|\\/anhang\\/)/.test(u.pathname)}
+document.addEventListener("click",function(e){if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+ var a=e.target.closest("a[href]");if(!a||a.target||a.hasAttribute("download"))return;var u=new URL(a.href,location.href);
+ if(!intern(u))return;if(u.pathname===location.pathname&&u.search===location.search&&u.hash)return;menue(false);markieren(u);laden(u)});
+function markieren(u){var z=[].filter.call(document.querySelectorAll(".seite a.ein,.tableiste a"),function(a){return a.pathname===u.pathname});if(!z.length)return;
+ document.querySelectorAll(".seite a.ein.aktiv,.tableiste .aktiv").forEach(function(a){a.classList.remove("aktiv")});z.forEach(function(a){a.classList.add("aktiv")})}
+document.addEventListener("submit",function(e){if(e.defaultPrevented)return;var f=e.target,b=e.submitter||f.querySelector("[type=submit]");
+ if(b&&b.classList.contains("btn")){b.classList.add("arbeitet");setTimeout(function(){b.disabled=true},0)}
+ if((f.getAttribute("method")||"get").toLowerCase()==="get"){var u=new URL(f.action||location.href,location.href);if(intern(u))laden(u)}});
+addEventListener("pageshow",fertig);
+function menue(auf){B.classList.toggle("menue-offen",auf);var k=document.getElementById("menue-auf");if(k)k.setAttribute("aria-expanded",auf?"true":"false");
+ if(auf){var x=document.getElementById("menue-zu");if(x)x.focus()}}
+var mk=document.getElementById("menue-auf");if(mk)mk.addEventListener("click",function(){menue(!B.classList.contains("menue-offen"))});
+document.getElementById("menue-zu").addEventListener("click",function(){menue(false)});
+document.getElementById("schleier").addEventListener("click",function(){menue(false)});
+addEventListener("keydown",function(e){if(e.key==="Escape"){menue(false);var k=document.querySelector(".kopf");if(k)k.classList.remove("suche-offen")}});
+var sa=document.querySelector(".such-auf");if(sa)sa.addEventListener("click",function(){var k=document.querySelector(".kopf"),o=k.classList.toggle("suche-offen");
+ sa.setAttribute("aria-expanded",o?"true":"false");if(o)k.querySelector("input[type=search]").focus()});
+var st=0,blatt=document.getElementById("menue");blatt.addEventListener("touchstart",function(e){st=e.touches[0].clientY},{passive:true});
+blatt.addEventListener("touchend",function(e){if(blatt.scrollTop<=0&&e.changedTouches[0].clientY-st>70)menue(false)},{passive:true});
+})();"""
+
 
 def rahmen(titel, aktiv, inhalt, k, csrf, q=""):
     import post
-    import bereiche
     leser = ist_leser(k)
     ungel = post.ungelesen(k)
     logo, logo_name = logo_von(k)
-    punkt = lambda schl: f'<i class="punkt" title="{ungel} ungelesen">{ungel}</i>' if schl == "post" and ungel else ""
-    eintraege = [(*e, False) for e in (NAV if leser else [])]
-    for b in bereiche.sichtbar(k):
-        eintraege.append(("b-" + b["schl"], b["icon"], b["kurz"], "bereich/" + b["schl"] + "/", False))
-    eintraege += [(*e, False) for e in NAV_ALLE]
-    nav = "".join(f'<a href="{BASIS}{pfad}" title="{esc(text)}" class="{"unter " if unter else ""}{"aktiv" if schl == aktiv else ""}">{ic(sym)}{punkt(schl)}<span>{esc(text)}</span></a>'
-                  for schl, sym, text, pfad, unter in eintraege)
+    zahl = lambda schl: f'<i class="zahl" title="{ungel} ungelesen">{ungel}</i>' if schl == "post" and ungel else ""
+    gruppen = nav_gruppen(k)
+
+    def ein(schl, sym, text, pfad):
+        cur = ' aria-current="page"' if schl == aktiv else ""
+        return f'<a class="ein{" aktiv" if schl == aktiv else ""}" href="{BASIS}{pfad}"{cur}>{ic(sym)}<span>{esc(text)}</span>{zahl(schl)}</a>'
+
+    nav = "".join(f'<div class="gruppe"><p class="gruppe-titel">{esc(t)}</p>{"".join(ein(*e) for e in es)}</div>' for t, es in gruppen)
+    # Tab-Leiste (Handy): die wichtigsten Ziele, dazu „Menü“ für alles Übrige
+    alle = [e for _, es in gruppen for e in es]
+    behoerden = [e for e in alle if e[0].startswith("b-")]
+    haupt = (NAV[:3] if leser else behoerden[:2]) + [NAV_ALLE[0]]
+    if not leser:
+        haupt.append(NAV_ALLE[1])
+    haupt = haupt[:4]
+    im_menue = aktiv not in {e[0] for e in haupt}
+    tabs = "".join(f'<a href="{BASIS}{pfad}" class="{"aktiv" if schl == aktiv else ""}"{" aria-current=page" if schl == aktiv else ""}>'
+                   f'{ic(sym)}{zahl(schl)}<span>{esc(TAB_KURZ.get(schl, text))}</span></a>' for schl, sym, text, pfad in haupt)
+    tabs += (f'<button type="button" id="menue-auf" class="{"aktiv" if im_menue else ""}" aria-controls="menue" aria-expanded="false">'
+             f'{ic("layout-grid")}<span>Menü</span></button>')
+    suche = (f'<form class="suche" action="{BASIS}buerger/" method="get" role="search">{ic("search")}'
+             f'<input type="search" name="q" value="{esc(q)}" placeholder="Suchen: Name, Aktenzeichen, ID" aria-label="Akten suchen"></form>'
+             f'<button class="knopf-rund such-auf" type="button" aria-label="Suche öffnen" aria-expanded="false">{ic("search")}</button>') if leser else ""
+    js = JS % json.dumps(BASIS)
     return f"""<!doctype html>
-<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>{esc(titel)} – {esc(logo_name)}, Amtsseite</title><style>{CSS}</style>
-<script>(function(){{var m;try{{m=localStorage.getItem("amtModus")}}catch(e){{}}if(m!=="min"&&m!=="std")m=matchMedia("(max-width:800px)").matches?"min":"std";document.documentElement.className=m}})()</script></head>
-<body>
-<header class="kopf"><a class="logo" href="{BASIS}" title="{esc(logo_name)} – Amtsseite"><img class="lang" src="{BASIS}logo/{logo}-kopf.png" alt="{esc(logo_name)}"><img class="kurz" src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a><span class="raum"></span>
-{f'<form action="{BASIS}buerger/" method="get" role="search"><input type="search" name="q" value="{esc(q)}" placeholder="Name, Aktenzeichen, ID" aria-label="Suche"><button type="submit" aria-label="Suchen">{ic("search")}</button></form>' if leser else ""}</header>
-<div class="rahmen"><nav aria-label="Amtsseite">{nav}<hr>
-<a href="/informationen/die-reichsbehoerden/" title="Zur Website">{ic("house")}<span>Zur Website</span></a>
-<div class="konto">{esc(k["name"])}</div>
-<button class="link" type="button" id="modus" title="Design-Modus wechseln">{ic("panel-left")}<span><span class="nur-std">Design: Minimalistisch</span><span class="nur-min">Design: Standard</span></span></button>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff"><meta name="robots" content="noindex,nofollow"><title>{esc(titel)} – {esc(logo_name)}, Amtsseite</title><style>{CSS}</style>
+<script>(function(){{var m;try{{m=localStorage.getItem("amtModus")}}catch(e){{}}document.documentElement.className=m==="std"?"std":"min"}})()</script></head>
+<body><div class="ladebalken" aria-hidden="true"></div>
+<div class="app">
+<aside class="seite" id="menue" aria-label="Navigation">
+<div class="blatt-kopf"><b>Menü</b><button class="knopf-rund" type="button" id="menue-zu" aria-label="Menü schließen">{ic("x")}</button></div>
+<a class="logo" href="{BASIS}" title="{esc(logo_name)} – Amtsseite"><img src="{BASIS}logo/{logo}-kopf.png" alt="{esc(logo_name)}"></a>
+<div class="gruppen">{nav}</div>
+<div class="fuss"><a class="ein" href="/informationen/die-reichsbehoerden/">{ic("house")}<span>Zur Website</span></a>
+<div class="konto-box"><span class="avatar" aria-hidden="true">{esc(_initialen(k["name"]))}</span><span class="konto-text"><b>{esc(k["name"])}</b><small>{esc(logo_name)}</small></span>
 <form method="post" action="/abmelden/"><input type="hidden" name="csrf" value="{esc(csrf)}"><input type="hidden" name="weiter" value="/">
-<button class="link" type="submit" title="Abmelden">{ic("log-out")}<span>Abmelden</span></button></form></nav>
-<main id="inhalt">{inhalt}</main></div>
-<script>document.getElementById("modus").addEventListener("click",function(){{var d=document.documentElement,m=d.className==="min"?"std":"min";d.className=m;try{{localStorage.setItem("amtModus",m)}}catch(e){{}}}});
-document.querySelector("nav").addEventListener("touchstart",function(e){{if(!this.classList.contains("offen")&&e.target.closest("a,button")===null)this.classList.add("offen")}},{{passive:true}});
-document.addEventListener("touchstart",function(e){{var n=document.querySelector("nav");if(!n.contains(e.target))n.classList.remove("offen")}},{{passive:true}});</script></body></html>"""
+<button class="knopf-rund" type="submit" title="Abmelden" aria-label="Abmelden">{ic("log-out")}</button></form></div></div>
+</aside>
+<div class="spalte">
+<header class="kopf"><a class="logo" href="{BASIS}" title="{esc(logo_name)} – Amtsseite"><img src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a><span class="raum"></span>{suche}</header>
+<main id="inhalt">{inhalt}</main>
+</div></div>
+<div class="schleier" id="schleier"></div>
+<nav class="tableiste" aria-label="Schnellzugriff">{tabs}</nav>
+<script>{js}</script></body></html>"""
+
+
+# ---------------------------------------------------------------- Verlauf (Vorgänge, Aktenprotokoll)
+
+import re as _re
+_AEND = _re.compile(r"^(?:(?P<feld>[^:„“\n]{1,40}): )?„(?P<alt>.*)“ → „(?P<neu>.*)“$")
+# Lesbare Namen der Datenbankfelder in Änderungsprotokollen
+FELDNAMEN = {"ic_name": "Name (IC)", "ic_geburt": "Geburtsdatum (IC)", "fraktion": "Fraktion", "schicht": "Gesellschaftsschicht",
+             "beruf": "Berufliche Zugehörigkeit", "geschlecht": "Geschlecht", "position": "Beruf / Position", "titel": "Titel",
+             "tatbestand": "Tatbestand", "tatzeit": "Tatzeit (IC)", "tatort": "Tatort", "gericht": "Gericht", "termin": "Termin",
+             "strafe": "Strafe", "haft_von": "Haft von", "haft_bis": "Haft bis", "haft_ort": "Haftort", "urteil": "Urteil"}
+_PFEIL = ic("arrow-right").replace('class="icon"', 'class="icon pfeil"')
+_ART_ICON = [("vermerk", "notebook-pen", "blau"), ("stammdaten", "pencil", ""), ("verfahrensdaten", "pencil", ""), ("geändert", "pencil", ""),
+             ("verschluss", "lock", "rot"), ("gelöscht", "trash-2", "rot"), ("abgelehnt", "file-x", "rot"), ("eingebürgert", "user-check", "ok"),
+             ("angelegt", "file-plus", "ok"), ("eröffnet", "file-plus", "ok"), ("abgabe", "arrow-right", "warn"), ("abgegeben", "arrow-right", "warn"),
+             ("anhang", "paperclip", ""), ("beweis", "paperclip", ""), ("status", "flag", "warn"), ("stand", "flag", "warn"),
+             ("phase", "flag", "warn"), ("einreise", "stamp", "blau"), ("ticket", "stamp", ""), ("geschlossen", "archive", "")]
+
+
+def _art_icon(art):
+    a = art.lower()
+    for stichwort, sym, ton in _ART_ICON:
+        if stichwort in a:
+            return sym, ton
+    return "clock", ""
+
+
+def zeit_lesbar(ts):
+    """„Heute, 14:32“, „Gestern, 09:10“, sonst Datum mit Uhrzeit."""
+    if not ts:
+        return "–"
+    d = datetime.fromtimestamp(ts, BERLIN)
+    tage = (datetime.now(BERLIN).date() - d.date()).days
+    if tage == 0:
+        return "Heute, " + d.strftime("%H:%M")
+    if tage == 1:
+        return "Gestern, " + d.strftime("%H:%M")
+    return d.strftime("%d.%m.%Y, %H:%M")
+
+
+def _wert(w, klasse):
+    return f'<span class="{klasse}">{esc(w)}</span>' if w.strip() else '<span class="leerwert">leer</span>'
+
+
+def aenderungen_teilen(text):
+    """Zerlegt einen Protokolltext in Änderungen [(Feld, alt, neu)] und übrige Zeilen."""
+    aend, rest = [], []
+    for zeile in (text or "").split("\n"):
+        m = _AEND.match(zeile.strip())
+        if m:
+            aend.append((m["feld"], m["alt"], m["neu"]))
+        else:
+            rest.append(zeile)
+    return aend, "\n".join(rest).strip()
+
+
+def kurztext(text, n=160):
+    """Einzeilige Zusammenfassung eines Protokolleintrags (für Übersichten)."""
+    aend, rest = aenderungen_teilen(text)
+    teile = [f"{FELDNAMEN.get(f, f) + ': ' if f else ''}{n_ or 'leer'}" for f, _a, n_ in aend]
+    s = " · ".join(([rest] if rest else []) + teile)
+    return s if len(s) <= n else s[:n - 1] + "…"
+
+
+def verlauf_html(eintraege, leer="Noch keine Vorgänge.", link=None):
+    """Einträge (Zeilen mit zeit, art, text, autor_name) als Zeitleiste. link(e) → optional (href, Beschriftung)."""
+    if not eintraege:
+        return f'<p class="leer">{esc(leer)}</p>'
+    out = []
+    for e in eintraege:
+        sym, ton = _art_icon(e["art"])
+        aend, rest = aenderungen_teilen(e["text"])
+        dl = ""
+        if aend:
+            dl = '<dl class="aend">' + "".join(
+                f'<dt>{esc(FELDNAMEN.get(f, f) if f else e["art"])}</dt><dd>'
+                + (f'{_wert(a, "alt")}{_PFEIL}' if a.strip() else "")
+                + (_wert(n, "neu") if n.strip() else '<span class="leerwert">entfernt</span>') + "</dd>"
+                for f, a, n in aend) + "</dl>"
+        notiz = " notiz" if e["art"] == "Vermerk" else ""
+        text = f'<div class="v-text{notiz}">{esc(rest)}</div>' if rest else ""
+        verweis = ""
+        if link:
+            l = link(e)
+            if l:
+                verweis = f' · <a class="v-link" href="{l[0]}">{esc(l[1])}</a>'
+        out.append(f'<li><span class="v-ic{" t-" + ton if ton else ""}">{ic(sym)}</span>'
+                   f'<div class="v-kopf"><span class="v-art">{esc(e["art"])}</span>'
+                   f'<span class="v-meta"><time title="{_zeit(e["zeit"])}">{zeit_lesbar(e["zeit"])}</time> · {esc(e["autor_name"] or "System")}{verweis}</span></div>'
+                   f'{text}{dl}</li>')
+    return '<ol class="verlauf">' + "".join(out) + "</ol>"
 
 
 def status_marke(klasse, text):
@@ -379,9 +671,7 @@ def meldung(request):
 
 
 def eintraege_html(con, ziel, ziel_id):
-    zeilen = [(_zeit(e["zeit"]), esc(e["art"]), f'<span style="white-space:pre-wrap">{esc(e["text"])}</span>', esc(e["autor_name"] or "System"))
-              for e in con.execute("SELECT * FROM amt_eintraege WHERE ziel=? AND ziel_id=? ORDER BY zeit DESC, id DESC", (ziel, ziel_id))]
-    return tabelle(["Zeit", "Art", "Inhalt", "Bearbeiter"], zeilen, "Noch keine Vorgänge.")
+    return verlauf_html(con.execute("SELECT * FROM amt_eintraege WHERE ziel=? AND ziel_id=? ORDER BY zeit DESC, id DESC", (ziel, ziel_id)).fetchall())
 
 
 def vermerk_formular(request, pfad):
@@ -516,15 +806,17 @@ async def _uebersicht(request):
     sa, sk = sperren(con, request["konto"])
     zeilen = [_verfahren_zeile(v, sk) for v in offen]
     verf_gesperrt = {r["id"] for r in con.execute("SELECT id, konto_id FROM amt_verfahren") if r["konto_id"] in sk}
-    letzte = [(_zeit(e["zeit"]), esc(e["art"]) if not ((e["ziel"] == "akte" and e["ziel_id"] in sa) or (e["ziel"] == "verfahren" and e["ziel_id"] in verf_gesperrt)) else "–",
-               esc(e["text"][:160]) if not ((e["ziel"] == "akte" and e["ziel_id"] in sa) or (e["ziel"] == "verfahren" and e["ziel_id"] in verf_gesperrt)) else _verschluss_marke(),
-               f'<a href="{BASIS}{"buerger" if e["ziel"] == "akte" else "verfahren"}/{e["ziel_id"]}/">'
-               f'{az_akte(e["ziel_id"]) if e["ziel"] == "akte" else "Verfahren " + str(e["ziel_id"])}</a>')
-              for e in con.execute("SELECT * FROM amt_eintraege ORDER BY id DESC LIMIT 12")]
+    def _letzte(e):
+        gesperrt = (e["ziel"] == "akte" and e["ziel_id"] in sa) or (e["ziel"] == "verfahren" and e["ziel_id"] in verf_gesperrt)
+        return {"zeit": e["zeit"], "art": "Unter Verschluss" if gesperrt else e["art"], "text": "" if gesperrt else kurztext(e["text"], 220),
+                "autor_name": "–" if gesperrt else e["autor_name"], "ziel": e["ziel"], "ziel_id": e["ziel_id"]}
+    letzte = [_letzte(e) for e in con.execute("SELECT * FROM amt_eintraege ORDER BY id DESC LIMIT 12")]
+    link = lambda e: (f'{BASIS}{"buerger" if e["ziel"] == "akte" else "verfahren"}/{e["ziel_id"]}/',
+                      az_akte(e["ziel_id"]) if e["ziel"] == "akte" else "Verfahren " + str(e["ziel_id"]))
     inhalt = (f'<h1>{ic("layout-dashboard")} Übersicht</h1><p class="az">Reichsbehörden · Kaiserliche Zollverwaltung</p>{meldung(request)}'
               f'<div class="kennzahlen">{zahlen}</div>'
               f'<h2>Zur Bearbeitung</h2>{tabelle(["Aktenzeichen", "Name", "Stand", "Zuletzt"], zeilen, "Keine offenen Verfahren.")}'
-              f'<h2>Letzte Vorgänge</h2>{tabelle(["Zeit", "Art", "Inhalt", "Akte"], letzte, "Noch keine Vorgänge.")}'
+              f'<h2>Letzte Vorgänge</h2>{verlauf_html(letzte, link=link)}'
               '<p class="az">Phase II einleiten und einbürgern erfolgt im Ticket auf dem Discord-Server (Kanal Einwanderungsbehörde, Befehl /einbürgern).</p>')
     return _ant(request, "Übersicht", "uebersicht", inhalt)
 

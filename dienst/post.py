@@ -362,7 +362,7 @@ async def einstellungen(request):
     inhalt = (f'<h1>{amt.ic("sliders-horizontal")} Einstellungen</h1><p class="az">Persönliche Einstellungen</p>{amt.meldung(request)}'
               f'<h2>Konto</h2>{konto}'
               f'<p class="az">Die Adresse folgt deinem IC-Namen (sonst dem Discord-Namen) und deiner Institution: Initial des Vornamens, Nachname, @Institution.ig.</p>'
-              f'<h2>Darstellung</h2><div id="design"><style>#design label{{font-size:15px;color:inherit;margin:6px 0}}</style><label><input type="radio" name="modus" value="auto"> Automatisch (Handy: minimalistisch)</label>'
+              f'<h2>Darstellung</h2><div id="design"><style>#design label{{font-size:15px;color:inherit;margin:6px 0}}</style><label><input type="radio" name="modus" value="auto"> Automatisch (Minimalistisch)</label>'
               f'<label><input type="radio" name="modus" value="std"> Standard</label>'
               f'<label><input type="radio" name="modus" value="min"> Minimalistisch</label></div>'
               f'<p class="az">Gilt für diesen Browser.</p>'
@@ -375,7 +375,7 @@ async def einstellungen(request):
               '<script>(function(){var m;try{m=localStorage.getItem("amtModus")}catch(e){}if(m!=="min"&&m!=="std")m="auto";'
               'document.querySelectorAll("#design input").forEach(function(i){i.checked=i.value===m;i.addEventListener("change",function(){'
               'var v=i.value;try{if(v==="auto")localStorage.removeItem("amtModus");else localStorage.setItem("amtModus",v)}catch(e){}'
-              'document.documentElement.className=v==="auto"?(matchMedia("(max-width:800px)").matches?"min":"std"):v})})})()</script>')
+              'document.documentElement.className=v==="std"?"std":"min"})})})()</script>')
     return _ant(request, "Einstellungen", "einstellungen", inhalt)
 
 
