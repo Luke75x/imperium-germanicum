@@ -22,6 +22,7 @@ from aiohttp import web
 import amt
 import meldewesen
 import qr
+import zollwesen
 
 esc = amt.esc
 PFAD = meldewesen.PFAD
@@ -310,7 +311,8 @@ def heft_seiten(d):
         return (f'<div class="seite {seite} innen" style="background:{ton}">{guilloche(125, 88, linie, 30, 2.4, 3.4, 0.1, nr)}'
                 f'<div class="rosette" style="width:60mm;left:32.5mm;top:14mm">{rosette(30, linie)}</div>'
                 f'<div class="visa-kopf"><span>Sichtvermerke · Visas</span><span>Imperium Germanicum</span></div>'
-                f'<span class="seitenzahl">{nr}</span></div>')
+                f'<span class="seitenzahl">{nr}</span>'
+                + zollwesen.stempel_auf_seite(d.get("stempel", []), nr, bild("stempel_adler.png")) + '</div>')
 
     def visa(nr_l, nr_r):
         return visa_seite("l", nr_l) + visa_seite("r", nr_r)
@@ -405,7 +407,8 @@ def daten(con, p, mit_foto):
             "geschlecht": geschlecht, "geschlecht_kurz": {"Männlich": "M", "Weiblich": "W", "Divers": "D"}.get(geschlecht, "–"),
             "wohnsitz": wohnsitz, "anschrift": (ws["anschrift"] if ws and ws["art"] != "abmeldung" else "") or "",
             "schicht": (akte["schicht"] if akte else "") or "", "foto": foto,
-            "ausgestellt": amt._zeit(p["ausgestellt"], False), "erstellt": amt._zeit(int(time.time())), "qr": qr.kurzlink(p["nummer"])}
+            "ausgestellt": amt._zeit(p["ausgestellt"], False), "erstellt": amt._zeit(int(time.time())), "qr": qr.kurzlink(p["nummer"]),
+            "stempel": zollwesen.stempel_fuer(con, p["id"]) if p["art"] in zollwesen.HEFTE else []}
 
 
 @amt._beamter

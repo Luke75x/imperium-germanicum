@@ -21,6 +21,7 @@ import passdruck
 import passdigital
 import personenseite
 import webseite
+import zollwesen
 import organigramme
 import post
 import strafsachen
@@ -48,6 +49,7 @@ def erstellen():
     passdigital.registrieren(app)
     personenseite.registrieren(app)
     webseite.registrieren(app)
+    zollwesen.registrieren(app)
     return app
 
 

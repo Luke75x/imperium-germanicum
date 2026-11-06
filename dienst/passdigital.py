@@ -196,7 +196,7 @@ if (D.daten) { schritt = einzel ? 2 * N - 2 : N - 1; zeigen(false); }
 
 def _bilder_url(text):
     """Für die Web-Ansicht: Wappen als URL statt data-URI, Lichtbild-Platzhalter ohne Druckhinweis."""
-    for name in ("wappen_gold.png", "wappen.png"):
+    for name in ("wappen_gold.png", "wappen.png", "stempel_adler.png"):
         text = text.replace(passdruck.bild(name), f"{BASIS}pass-bild/{name}")
     for alt in ("Lichtbild<br>hier einkleben<br>(30 × 38,5 mm)", "Lichtbild<br>einkleben<br>(22 × 28,5 mm)"):
         text = text.replace(alt, "Kein Lichtbild<br>hinterlegt")
@@ -296,7 +296,7 @@ async def mein_pass(request):
 
 async def bild(request):
     name = request.match_info["name"]
-    if name not in ("wappen.png", "wappen_gold.png"):
+    if name not in ("wappen.png", "wappen_gold.png", "stempel_adler.png"):
         raise web.HTTPNotFound()
     return web.FileResponse(os.path.join(BILDER, name), headers={"Cache-Control": "public, max-age=86400"})
 

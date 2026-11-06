@@ -31,6 +31,7 @@ import strafsachen
 esc = amt.esc
 BASIS = amt.BASIS
 PRUEF = meldewesen.PRUEF
+PASS_ABSCHNITT = []   # fn(request, konto, pass, status) -> HTML unter dem Dokument (zollwesen.py: Sichtvermerke)
 _FOTOS = {}   # (konto_id, avatar-hash) -> (zeit, bytes)
 
 URTEIL = {"gueltig": ("✓", "Dokument gültig"), "abgelaufen": ("!", "Dokument abgelaufen"), "ungueltig": ("✕", "Dokument ungültig"),
@@ -193,7 +194,7 @@ def _protokoll(con, ps):
 def _rahmen(request, k, titel, inhalt):
     schrift = f'<style>@font-face{{font-family:SS3;src:url(data:font/woff2;base64,{amt._PDF_SCHRIFT});font-weight:200 900}}</style>'
     return web.Response(content_type="text/html", headers={"Cache-Control": "no-store"},
-                        text=amt.rahmen(titel, "passpruefung", schrift + meldewesen.CSS + CSS + inhalt + DOK_JS, k, request["csrf"]))
+                        text=amt.rahmen(titel, "b-zoll" if request.query.get("von") == "zoll" else "passpruefung", schrift + meldewesen.CSS + CSS + inhalt + DOK_JS, k, request["csrf"]))
 
 
 def _protokollieren(con, k, nummer, pass_id, ergebnis):
@@ -202,10 +203,12 @@ def _protokollieren(con, k, nummer, pass_id, ergebnis):
     con.commit()
 
 
-def _seite(con, k, z, p, status):
+def _seite(con, k, z, p, status, request=None):
     """Gesamte Prüfseite. z = Bürgerakte oder None, p = gescannter Pass oder None, status = Schlüssel aus URTEIL oder None."""
-    teile = [f'<h1>{amt.ic("scan-search")} Passprüfung</h1>'
-             f'<p class="az"><a href="{PRUEF}">← Neue Prüfung</a></p>']
+    zoll = request is not None and request.query.get("von") == "zoll"
+    zurueck = f'<a href="{BASIS}bereich/zoll/">← Zur Grenzkontrolle</a>' if zoll else f'<a href="{PRUEF}">← Neue Prüfung</a>'
+    teile = [f'<h1>{amt.ic("stamp" if zoll else "scan-search")} {"Grenzkontrolle" if zoll else "Passprüfung"}</h1>'
+             f'<p class="az">{zurueck}</p>' + (amt.meldung(request) if request is not None else "")]
     if status:
         sym, text = URTEIL[status]
         zusatz = f' ({esc(p["grund"])})' if p is not None and status == "ungueltig" and p["grund"] else ""
@@ -232,6 +235,8 @@ def _seite(con, k, z, p, status):
                   + f'<p class="ps-klein">Gültig bis {meldewesen._datum(p["gueltig_bis"])} · ausgestellt {amt._zeit(p["ausgestellt"], False)} · '
                   f'<a href="{BASIS}pass/{p["id"]}/">zum Durchblättern öffnen</a></p>')
     teile.append(f'<div class="ps-kopf"><div>{links}</div><div>{rechts}</div></div>')
+    if request is not None:
+        teile.extend(fn(request, k, p, status) for fn in PASS_ABSCHNITT)
     if gesperrt:
         teile.append('<div class="warnung">Die Akte des Inhabers steht unter Verschluss. Weitere Angaben nur für Kanzler und Kaiser.</div>')
         return "".join(teile)
@@ -281,7 +286,7 @@ async def pass_pruefen(request):
     if not z and s == "gueltig":
         s, t = "ungueltig", "Ungültig (Inhaberakte gelöscht)"
     _protokollieren(con, k, nr, p["id"], t)
-    return _rahmen(request, k, f"Passprüfung {nr}", _seite(con, k, z, p, s))
+    return _rahmen(request, k, f"Passprüfung {nr}", _seite(con, k, z, p, s, request))
 
 
 async def person(request):
@@ -297,16 +302,16 @@ async def person(request):
     if not z:
         raise web.HTTPNotFound(text="Person nicht gefunden.")
     _protokollieren(con, k, amt.az_akte(z["id"]), None, "Personenseite")
-    return _rahmen(request, k, f"Person {amt.az_akte(z['id'])}", _seite(con, k, z, None, None))
+    return _rahmen(request, k, f"Person {amt.az_akte(z['id'])}", _seite(con, k, z, None, None, request))
 
 
 async def kurzlink(request):
     code = request.match_info["code"].upper().strip("/")
     m = re.fullmatch(r"BA-?0*(\d+)", code)
     if m:
-        raise web.HTTPFound(f"{PRUEF}person/{m.group(1)}/")
+        raise web.HTTPFound(f"{PRUEF}person/{m.group(1)}/" + (f"?{request.query_string}" if request.query_string else ""))
     nr = "".join(c for c in code if c.isalnum())[:12]
-    raise web.HTTPFound(f"{PRUEF}{nr}/")
+    raise web.HTTPFound(f"{PRUEF}{nr}/" + (f"?{request.query_string}" if request.query_string else ""))
 
 
 async def foto(request):
@@ -352,7 +357,7 @@ function schleife(){
   cv.width=w;cv.height=h;ctx.drawImage(video,0,0,w,h);var d=ctx.getImageData(0,0,w,h),r=jsQR(d.data,w,h,{inversionAttempts:"dontInvert"});return r?r.data:null})());
  p.catch(function(){return null}).then(function(wert){
   if(wert){var ziel=auswerten(wert);
-   if(ziel){stop();box.classList.add("treffer");txt.textContent="Erkannt – Prüfseite wird geöffnet …";location.href=ziel;return}
+   if(ziel){if(start.dataset.von)ziel+=(ziel.indexOf("?")<0?"?":"&")+"von="+encodeURIComponent(start.dataset.von);stop();box.classList.add("treffer");txt.textContent="Erkannt – Prüfseite wird geöffnet …";location.href=ziel;return}
    txt.textContent="Kein Dokument des Reiches erkannt."}
   setTimeout(schleife,det?150:220)})}
 function laden(){return new Promise(function(ok,f){if(window.jsQR)return ok();var s=document.createElement("script");s.src=B+"statisch/jsQR.js";s.onload=ok;s.onerror=f;document.head.appendChild(s)})}
@@ -377,9 +382,9 @@ SCANNER_CSS = """<style>.qr-scan{margin:6px 0 18px}
 #qr-box p{margin:10px 0}</style>"""
 
 
-def scanner(request, k):
+def scanner(request, k, von=""):
     """Scanner-Block für den Tab „Passprüfung“ (Hook meldewesen.PRUEF_ZUSATZ)."""
-    return (SCANNER_CSS + f'<div class="qr-scan"><button class="btn" id="qr-start" type="button">{amt.ic("camera")}QR-Code scannen</button>'
+    return (SCANNER_CSS + f'<div class="qr-scan"><button class="btn" id="qr-start" type="button" data-von="{esc(von)}">{amt.ic("camera")}QR-Code scannen</button>'
             '<div id="qr-box" hidden><div class="rahmen-v"><video id="qr-video" playsinline muted></video><span class="ziel"></span></div>'
             '<p class="az" id="qr-text"></p><button class="btn zweit" id="qr-stop" type="button">Abbrechen</button></div></div>'
             + SCANNER_JS % json.dumps(BASIS))
