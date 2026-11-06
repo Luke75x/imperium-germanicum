@@ -124,6 +124,22 @@ def mark(pf, vorzeichen=False, einheit=True):
     return ("−" if neg else "+" if vorzeichen and pf > 0 else "") + t
 
 
+def mark_kurz(pf):
+    """Kompakt für Kennzahlen: ab 10.000 M ohne Pfennige, ab 1 Mio. als „2,82 Mio. M“."""
+    m = int(pf or 0) / 100
+    a = abs(m)
+    if a >= 1e9:
+        zahl, zusatz = f"{m / 1e9:.2f}", " Mrd."
+    elif a >= 1e6:
+        zahl, zusatz = f"{m / 1e6:.2f}", " Mio."
+    elif a >= 1e4:
+        zahl, zusatz = f"{round(m):,}".replace(",", "."), ""
+        return ("−" if m < 0 else "") + zahl.lstrip("-") + " M"
+    else:
+        return mark(pf)
+    return ("−" if m < 0 else "") + zahl.lstrip("-").replace(".", ",") + zusatz + " M"
+
+
 def betrag_lesen(s, null_erlaubt=False):
     """'1.234,56', '1234.56', '1234' … → Pfennig (None bei Unsinn oder ≤ 0)."""
     s = re.sub(r"[\sℳM]|Mark", "", str(s or ""))

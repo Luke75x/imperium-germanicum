@@ -9,6 +9,7 @@ Geldpolitik (Geldschöpfung/-vernichtung, Leitzins), Gewerberegister (Anträge),
 """
 import asyncio
 import functools
+import re
 import secrets
 import time
 from datetime import date, datetime
@@ -43,7 +44,8 @@ amt.ICONS.update({
 })
 
 CSS = """<style>
-.kennzahlen b{white-space:nowrap;font-size:22px}
+.kennzahlen b{white-space:nowrap;font-size:22px;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:520px){.kennzahlen{grid-template-columns:repeat(2,minmax(0,1fr))}html .kennzahlen b{font-size:19px!important;letter-spacing:-.01em}}
 .sa-saldo{font-size:34px;font-weight:700;letter-spacing:-.01em;line-height:1.1;margin:4px 0}
 .sa-plus{color:var(--ok)}.sa-minus{color:var(--rot)}
 .sa-nr{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em}
@@ -92,9 +94,20 @@ def nav(k):
     return {"basis": PFAD, "gruppen": gruppen, "haupt": mein[:4], "logo": geld.STELLE, "name": "Schatzamt"}
 
 
+_KZ = re.compile(r'<div><b>(−?)([\d.]+),(\d\d) M</b>')
+
+
+def _kennzahlen_kurz(html_):
+    """Beträge in Kennzahl-Kacheln kürzen (sonst ragen große Summen über den Rand); voller Betrag als Tooltip."""
+    def ersetzen(m):
+        pf = int(m.group(2).replace(".", "") + m.group(3)) * (-1 if m.group(1) else 1)
+        return f'<div title="{mark(pf)}"><b>{geld.mark_kurz(pf)}</b>'
+    return _KZ.sub(ersetzen, html_)
+
+
 def ant(request, k, titel, aktiv, inhalt, status=200):
     return web.Response(status=status, content_type="text/html", headers={"Cache-Control": "no-store"},
-                        text=amt.rahmen(titel, aktiv, CSS + inhalt, k, request["csrf"], portal=nav(k)))
+                        text=amt.rahmen(titel, aktiv, CSS + _kennzahlen_kurz(inhalt), k, request["csrf"], portal=nav(k)))
 
 
 def seite(recht=None):
