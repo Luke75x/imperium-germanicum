@@ -849,3 +849,35 @@ a.zoom:hover .zoom-hint, a.zoom:focus-visible .zoom-hint { opacity: 1; }
 .rank-matrix .is-lead td { font-weight: 600; background: var(--ivory); }
 .rank-matrix .is-band th { background: var(--ivory); color: var(--muted); font: 600 .7rem/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; padding: 10px; }
 .rank-note { margin: 12px 0 0; font-size: .875rem; color: var(--muted); }
+
+/* ---------- Anmeldung & Profilmenü (Kopfleiste) ---------- */
+
+.konto { position: relative; z-index: 80; display: inline-flex; }
+.konto-anmelden .lbl { white-space: nowrap; }
+.konto-knopf {
+  display: inline-flex; align-items: center; gap: 8px; padding: 2px 4px 2px 2px; cursor: pointer;
+  background: none; border: 0; color: rgba(255,255,255,.88); font: inherit;
+}
+.konto-knopf:hover, .konto-knopf[aria-expanded="true"] { color: var(--gold-300); }
+.konto-initialen {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--gold-500); color: var(--navy-950); font: 600 .625rem/1 var(--sans); letter-spacing: .02em;
+}
+.konto-name { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.konto-knopf .pfeil { width: 12px; height: 12px; opacity: .7; }
+.konto-menue {
+  position: absolute; right: 0; top: calc(100% + 8px); min-width: 220px;
+  background: var(--white); color: var(--ink); border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 6px 0; font-size: .9375rem;
+}
+.konto-menue[hidden] { display: none; }
+.konto-menue-kopf { padding: 8px 16px 10px; border-bottom: 1px solid var(--rule); margin-bottom: 6px; }
+.konto-menue-kopf small { display: block; color: var(--muted); font-size: .6875rem; letter-spacing: .14em; text-transform: uppercase; }
+.konto-menue-kopf strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar .konto-menue a, .konto-menue button {
+  display: block; width: 100%; text-align: left; padding: 8px 16px; color: var(--ink); background: none; border: 0;
+  font: inherit; cursor: pointer; text-decoration: none;
+}
+.topbar .konto-menue a:hover, .konto-menue button:hover { background: var(--paper); color: var(--ink); }
+.konto-menue form { border-top: 1px solid var(--rule); margin-top: 6px; padding-top: 6px; }
+@media (max-width: 520px) { .konto-name, .konto-anmelden .lbl { display: none; } }

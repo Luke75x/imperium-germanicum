@@ -16,14 +16,16 @@
           failed: "Die Nachricht konnte nicht gesendet werden. Bitte schreibe uns direkt per E-Mail.",
           conn: "Die Verbindung ist fehlgeschlagen. Bitte versuche es erneut oder schreibe uns direkt per E-Mail.",
           errq: "Die Nachricht konnte nicht gesendet werden. Bitte prüfe deine Eingaben oder schreibe uns direkt per E-Mail.",
-          toLight: "Zum hellen Design wechseln", toDark: "Zum dunklen Design wechseln" },
+          toLight: "Zum hellen Design wechseln", toDark: "Zum dunklen Design wechseln",
+          login: "Anmelden", profile: "Mein Profil", docs: "Meine Dokumente", amt: "Amtsseite", logout: "Abmelden", account: "Konto" },
     en: { menu: "Menu", close: "Close", image: "Image view", prev: "Previous image", next: "Next image", orig: "Open original",
           missing: "Please fill in this field.", mismatch: "Please enter a valid email address.",
           sent: "Thank you! Your message has been sent.",
           failed: "The message could not be sent. Please write to us directly by email.",
           conn: "The connection failed. Please try again or write to us directly by email.",
           errq: "The message could not be sent. Please check your entries or write to us directly by email.",
-          toLight: "Switch to light design", toDark: "Switch to dark design" }
+          toLight: "Switch to light design", toDark: "Switch to dark design",
+          login: "Sign in", profile: "My profile", docs: "My documents", amt: "Official portal", logout: "Sign out", account: "Account" }
   }[lang];
 
   /* ---------- Farbschema ---------- */
@@ -40,6 +42,66 @@
       try { localStorage.setItem("ig-theme", next); } catch (e) {}
       applyThemeLabel();
     });
+  }
+
+  /* ---------- Anmeldung & Profilmenü (Status kommt vom Dienst unter /anmelden/status) ---------- */
+
+  var tools = $(".topbar-tools");
+  if (tools && window.fetch) {
+    var konto = document.createElement("div");
+    konto.className = "konto";
+    tools.insertBefore(konto, tools.firstChild);
+    var el = function (tag, attrs, text) {
+      var e = document.createElement(tag);
+      for (var k in attrs) { if (Object.prototype.hasOwnProperty.call(attrs, k)) e.setAttribute(k, attrs[k]); }
+      if (text) e.textContent = text;
+      return e;
+    };
+    var USER_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.5 14c.6-2.9 2.9-4.5 5.5-4.5s4.9 1.6 5.5 4.5"/></svg>';
+    fetch("/anmelden/status", { credentials: "same-origin", headers: { Accept: "application/json" } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) return;
+        if (!d.angemeldet) {
+          var a = el("a", { href: "/anmelden/?weiter=" + encodeURIComponent(location.pathname), "class": "konto-anmelden" });
+          a.innerHTML = USER_SVG;
+          a.appendChild(el("span", { "class": "lbl" }, TX.login));
+          konto.appendChild(a);
+          return;
+        }
+        var btn = el("button", { type: "button", "class": "konto-knopf", "aria-expanded": "false", "aria-haspopup": "true", "aria-controls": "konto-menue" });
+        var teile = String(d.name || "?").trim().split(/\s+/);
+        btn.appendChild(el("span", { "class": "konto-initialen", "aria-hidden": "true" },
+          (teile[0].charAt(0) + (teile.length > 1 ? teile[teile.length - 1].charAt(0) : "")).toUpperCase()));
+        btn.appendChild(el("span", { "class": "konto-name" }, d.name));
+        btn.insertAdjacentHTML("beforeend", '<svg class="pfeil" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>');
+        var menue = el("div", { "class": "konto-menue", id: "konto-menue", hidden: "" });
+        var kopf = el("div", { "class": "konto-menue-kopf" });
+        kopf.appendChild(el("small", {}, TX.account));
+        kopf.appendChild(el("strong", {}, d.name));
+        menue.appendChild(kopf);
+        var eintrag = function (href, text) { menue.appendChild(el("a", { href: href }, text)); };
+        eintrag("/profil/", TX.profile);
+        eintrag("/profil/dokumente/", TX.docs);
+        if (d.amt) eintrag("/informationen/die-reichsbehoerden/intern/", TX.amt);
+        var f = el("form", { method: "post", action: "/abmelden/" });
+        f.appendChild(el("input", { type: "hidden", name: "csrf", value: d.csrf }));
+        f.appendChild(el("input", { type: "hidden", name: "weiter", value: location.pathname.indexOf("/profil/") === 0 ? "/" : location.pathname }));
+        f.appendChild(el("button", { type: "submit" }, TX.logout));
+        menue.appendChild(f);
+        konto.appendChild(btn);
+        konto.appendChild(menue);
+        var zu = function () { menue.hidden = true; btn.setAttribute("aria-expanded", "false"); };
+        btn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var auf = menue.hidden;
+          menue.hidden = !auf;
+          btn.setAttribute("aria-expanded", String(auf));
+        });
+        document.addEventListener("click", function (e) { if (!konto.contains(e.target)) zu(); });
+        document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !menue.hidden) { zu(); btn.focus(); } });
+      })
+      .catch(function () {});
   }
 
   var header = $(".site-header");

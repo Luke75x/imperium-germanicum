@@ -11,9 +11,16 @@ import anmeldung
 import config
 import db
 import amt
+import amtshilfe
 import bereiche
 import discord_api
 import karte
+import landespolizei
+import meldewesen
+import passdruck
+import passdigital
+import personenseite
+import webseite
 import organigramme
 import post
 import strafsachen
@@ -34,6 +41,13 @@ def erstellen():
     post.registrieren(app)
     bereiche.registrieren(app)
     strafsachen.registrieren(app)
+    landespolizei.registrieren(app)
+    amtshilfe.registrieren(app)
+    meldewesen.registrieren(app)
+    passdruck.registrieren(app)
+    passdigital.registrieren(app)
+    personenseite.registrieren(app)
+    webseite.registrieren(app)
     return app
 
 

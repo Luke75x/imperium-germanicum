@@ -135,13 +135,22 @@ async def abmelden(request):
     raise resp
 
 
+def _amt_zugang(k):
+    """Hat das Konto auf der Amtsseite mehr als nur das Persönliche (Akten, Behörden, Dienste)? Für das Profilmenü der Website."""
+    try:
+        import amt
+        return k["mitglied"] and any(t != "Persönlich" and es for t, es in amt.nav_gruppen(k))
+    except Exception:
+        return False
+
+
 @routes.get("/anmelden/status")
 async def status(request):
     k = await konto(request)
     daten = {"angemeldet": bool(k), "anmelden": "/anmelden/"}
     if k:
         daten.update({"id": k["id"], "name": k["name"], "avatar": k["avatar"], "rollen": k["rollen"],
-                      "admin": k["admin"], "csrf": request["csrf"]})
+                      "admin": k["admin"], "csrf": request["csrf"], "amt": _amt_zugang(k)})
     return web.json_response(daten, headers={"Cache-Control": "no-store"})
 
 

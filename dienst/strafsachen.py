@@ -4,7 +4,8 @@ Ablauf: KRS legt eine Ermittlungsakte an (Beteiligte, Beweismittel, Vermerke), e
 entsteht automatisch ein verknüpftes Strafverfahren (Beteiligte werden übernommen, Mitteilung auf der Pinnwand der Inquisition).
 Die Inquisition prüft, erhebt Anklage, setzt die Hauptverhandlung an, erfasst Urteil, Strafe und Haft und markiert die Rechtskraft.
 Alles wird in einem Aktenprotokoll festgehalten. Akten können als „Geheim“ eingestuft werden (nur Leitung, Bearbeiter, Ersteller,
-Kanzler/Admins/Kaiser). Es gibt Suche, Statistik und PDF-Export. Rechte siehe lesen_darf()/schreiben_darf().
+Kanzler/Kaiser). Es gibt Suche, Statistik und PDF-Export. Rechte siehe lesen_darf()/schreiben_darf(): jede Behörde nur ihre eigenen Akten; die Abgabe ist eine Übergabe in eine Richtung
+(das KRS sieht das entstandene Strafverfahren danach nicht).
 Tabellen: sa_akten, sa_beteiligte, sa_beweise, sa_eintraege, sa_anhaenge (Dateien in daten/anhaenge, Zufallsnamen, nur Download). Seiten unter …/intern/sachen/<ermittlung|strafverfahren>/.
 Haft wird nur erfasst (Beginn/Ende/Ort); Discord-Rollen (z. B. KRS-Häftling) werden nicht automatisch gesetzt.
 """
@@ -120,13 +121,10 @@ def lesen_darf(k, a):
     if not k or not k["mitglied"]:
         return False
     art = a if isinstance(a, str) else a["art"]
-    krs, inq, alle = _mitglied_von(k, "krs"), _mitglied_von(k, "inquisition"), bereiche._alle(k)
-    if art == "ermittlung":
-        ok = alle or krs or (inq and (isinstance(a, str) or a["status"] == "abgegeben" or a["verknuepft_id"]))
-    else:
-        ok = alle or krs or inq
+    # Jede Behörde sieht nur ihre eigenen Akten (KRS: Ermittlungsakten, Inquisition: Strafverfahren); dazu Kanzler/Kaiser.
+    ok = bereiche._alle(k) or _mitglied_von(k, ARTEN[art]["behoerde"])
     if ok and not isinstance(a, str) and a["geheim"]:
-        ok = alle or _leitung(k, art) or k["id"] in (a["bearbeiter_id"], a["ersteller_id"])
+        ok = bereiche._alle(k) or _leitung(k, art) or k["id"] in (a["bearbeiter_id"], a["ersteller_id"])
     return bool(ok)
 
 
@@ -135,22 +133,15 @@ def schreiben_darf(k, art):
 
 
 def nav_unter(k, schl):
-    """Untertabs der Behörde `schl` aus den Strafsachen (Schlüssel, Text, Pfad): Ermittlungsakten gehören zum KRS, Strafverfahren zur
-    Inquisition; Mitglieder der jeweils anderen Behörde sehen die lesbare Gegenseite mit Herkunft in Klammern."""
-    out = []
-    for art, v in ARTEN.items():
-        if not lesen_darf(k, art):
-            continue
-        if v["behoerde"] == schl:
-            out.append(("s-" + art, v["titel"], f'sachen/{v["pfad"]}/'))
-        elif _mitglied_von(k, schl):
-            out.append(("s-" + art, f'{v["titel"]} ({_behoerde(v["behoerde"])["kurz"]})', f'sachen/{v["pfad"]}/'))
-    return out
+    """Untertabs der Behörde `schl` aus den Strafsachen (Schlüssel, Text, Pfad): nur die eigene Aktenart der Behörde
+    (Ermittlungsakten beim KRS, Strafverfahren bei der Inquisition). Keine Behörde sieht Akten einer anderen."""
+    return [("s-" + art, v["titel"], f'sachen/{v["pfad"]}/') for art, v in ARTEN.items() if v["behoerde"] == schl and lesen_darf(k, art)]
 
 
 def untertabs(k, schl, aktiv):
     """Leiste der Untertabs im Inhalt eines Behörden-Tabs (die Navigationsleiste zeigt nur den Oberreiter)."""
-    tabs = [("b-" + schl, "Übersicht", f"bereich/{schl}/")] + nav_unter(k, schl)
+    import landespolizei
+    tabs = [("b-" + schl, "Übersicht", f"bereich/{schl}/")] + nav_unter(k, schl) + landespolizei.nav_unter(k, schl)
     if len(tabs) < 2:
         return ""
     return '<p class="reiter">' + " ".join(f'<a href="{BASIS}{u}" class="{"aktiv" if s == aktiv else ""}">{esc(t)}</a>' for s, t, u in tabs) + "</p>"
@@ -477,7 +468,9 @@ async def akte_pdf(request):
     inhalt = re.sub(r"<form.*?</form>", "", inhalt, flags=re.S)
     inhalt = re.sub(r'<div class="aktionen">.*?</div>', "", inhalt, flags=re.S)
     inhalt = re.sub(r"<datalist.*?</datalist>", "", inhalt, flags=re.S)
-    return await amt._pdf_antwort(request, az(a), f"{ARTEN[art]['einzel']} {az(a)}", inhalt)
+    return await amt._pdf_antwort(request, az(a), f"{ARTEN[art]['einzel']} {az(a)}", inhalt, stelle=amt.stelle_behoerde(ARTEN[art]["behoerde"]),
+                                  az=az(a), doktyp="Aktenauszug · " + ARTEN[art]["einzel"],
+                                  einstufung=amt.EINSTUFUNG_GEHEIM if a["geheim"] else amt.EINSTUFUNG_NFD)
 
 
 # ---------------------------------------------------------------- Aktionen
@@ -617,6 +610,9 @@ async def abgeben(request):
                      beschreibung=a["beschreibung"], geheim=a["geheim"], verknuepft_id=a["id"], bearbeiter_id="", bearbeiter_name="")
     for b in con.execute("SELECT * FROM sa_beteiligte WHERE akte_id=?", (a["id"],)).fetchall():
         con.execute("INSERT INTO sa_beteiligte (akte_id, rolle, name, konto_id, notiz) VALUES (?,?,?,?,?)", (vid, b["rolle"], b["name"], b["konto_id"], b["notiz"]))
+    for b in con.execute("SELECT * FROM sa_beweise WHERE akte_id=?", (a["id"],)).fetchall():   # Inquisition sieht die Ermittlungsakte nicht: Beweise mitgeben
+        con.execute("INSERT INTO sa_beweise (akte_id, bezeichnung, beschreibung, fundort, zeit, autor_name) VALUES (?,?,?,?,?,?)",
+                    (vid, b["bezeichnung"], b["beschreibung"], b["fundort"], b["zeit"], b["autor_name"]))
     v = con.execute("SELECT * FROM sa_akten WHERE id=?", (vid,)).fetchone()
     for x in con.execute("SELECT * FROM sa_anhaenge WHERE akte_id=?", (a["id"],)).fetchall():
         quelle = os.path.join(ANHANG_ORDNER, x["speicher"])
@@ -627,11 +623,11 @@ async def abgeben(request):
                         (vid, None, x["dateiname"], x["typ"], x["groesse"], x["sha256"], neu_name, x["zeit"], x["autor_id"], x["autor_name"]))
     con.execute("UPDATE sa_akten SET status='abgegeben', verknuepft_id=?, aktualisiert=? WHERE id=?", (vid, int(time.time()), a["id"]))
     _eintrag(con, a["id"], "Abgabe", f"An die Inquisition abgegeben; Strafverfahren {az(v)} eröffnet.", k)
-    _eintrag(con, vid, "Eröffnet", f"Aus Ermittlungsakte {az(a)} des KRS übernommen (Beteiligte übernommen; Beweismittel in der Ermittlungsakte).", k)
+    _eintrag(con, vid, "Eröffnet", f"Aus Ermittlungsakte {az(a)} des KRS übernommen (Beteiligte, Beweismittel und Anhänge als Kopie übernommen).", k)
     con.execute("INSERT INTO bereich_mitteilungen (bereich, autor_id, autor_name, titel, text, zeit) VALUES ('inquisition',?,?,?,?,?)",
                 (k["id"], "System (KRS-Abgabe)", f"Neue Abgabe: {az(a)} → {az(v)}", f'Das KRS hat „{a["titel"]}“ an die Inquisition abgegeben. Strafverfahren {az(v)} wurde eröffnet.', int(time.time())))
     con.commit()
-    amt._umleiten(f'{ROOT}strafverfahren/{vid}/', f"Abgegeben, Strafverfahren {az(v)} eröffnet.")
+    amt._umleiten(f'{ROOT}ermittlung/{a["id"]}/', f"An die Inquisition übergeben (Strafverfahren {az(v)}). Das Verfahren ist nur für die Inquisition sichtbar.")
 
 
 def _dateiname(roh):

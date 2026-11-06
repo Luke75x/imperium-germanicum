@@ -1,7 +1,7 @@
 """Untertabs der Reichsbehörden (amt.BEHOERDEN): je Behörde ein Bereich mit Pinnwand (Mitteilungen) und Mitarbeiterliste.
 
-Wer den Untertab sieht, bestimmen die Discord-Rollen der Behörde (amt.BEHOERDEN[..]["rollen"]); Kanzler, Admins und Kaiser
-sehen alle. Löschen fremder Mitteilungen: Leitung (Rollen in "leitung"), Kanzler, Admins, Kaiser. Tabelle bereich_mitteilungen.
+Wer den Untertab sieht, bestimmen die Discord-Rollen der Behörde (amt.BEHOERDEN[..]["rollen"]); Kanzler und Kaiser
+sehen alle. Löschen fremder Mitteilungen: Leitung (Rollen in "leitung"), Kanzler, Kaiser. Tabelle bereich_mitteilungen.
 Neue Behörde: Eintrag in amt.BEHOERDEN, Logo-Text in amt_logos_liste.py, Logos mit werkzeuge/amt_logos.py erzeugen.
 """
 import secrets
@@ -16,6 +16,7 @@ import post
 esc = amt.esc
 BASIS = amt.BASIS
 MAX_PRO_STUNDE = 20
+ZUSATZ = {}   # schl -> async fn(request, konto) -> HTML, wird unter der Überschrift der Behörde eingefügt (z. B. Landespolizeien)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS bereich_mitteilungen (
@@ -40,7 +41,8 @@ def einrichten(con):
 
 
 def _alle(k):
-    return bool(k) and (k["admin"] or k["id"] == amt.config.KAISER_ID or amt.ROLLE_KANZLER in k["rollen"])
+    """Sieht alles: Kaiser und Kanzler, dazu die Serveradministratoren – diese nur OOC (Hinweis auf jeder Seite, amt.ist_ooc_admin)."""
+    return bool(k) and (k["id"] == amt.config.KAISER_ID or amt.ROLLE_KANZLER in k["rollen"] or amt.ist_ooc_admin(k))
 
 
 def darf(k, b):
@@ -99,7 +101,8 @@ async def bereich(request, k, b):
            if m["autor_id"] == k["id"] or leitung(k, b) else "") + "</div>" for m in msgs) or '<p class="leer">Keine Mitteilungen.</p>'
     import strafsachen
     inhalt = (strafsachen.untertabs(k, b["schl"], "b-" + b["schl"]) + f'<h1>{amt.ic(b["icon"])} {esc(b["name"])}</h1>{amt.meldung(request)}'
-              f'<h2>Pinnwand</h2>'
+              + (await ZUSATZ[b["schl"]](request, k) if b["schl"] in ZUSATZ else "")
+              + f'<h2>Pinnwand</h2>'
               f'<form method="post" action="{pfad}mitteilung">{amt.csrf_feld(request)}'
               f'<div><label for="t">Titel</label><input type="text" id="t" name="titel" maxlength="120" style="width:100%" required></div>'
               f'<div style="margin-top:8px"><label for="x">Mitteilung an die Behörde</label><textarea id="x" name="text" maxlength="4000" required></textarea></div>'

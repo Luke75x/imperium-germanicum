@@ -11,7 +11,7 @@
 
 Jeder Staatsbürger hat eine Bürgerakte (Aktenzeichen BA-nnnnn). Sie wird beim Start und alle 15 Minuten aus den Discord-Rollen angelegt
 (Rolle Staatsbürger); Bewerber erhalten sie mit dem Einreiseantrag. Jedes Einreiseverfahren ist eine Einbürgerungsakte (EB-jjjj-nnnn),
-die der Bot (Modul ticket.py / zollamt.py) befüllt. Zugang: Kaiserliche Zollverwaltung, Kanzler, Server-Admins.
+die der Bot (Modul ticket.py / zollamt.py) befüllt. Zugang: Kaiserliche Zollverwaltung, Kanzler (Admins nicht).
 """
 import asyncio
 import html
@@ -39,7 +39,7 @@ ROLLE_KANZLER = "1561856444913946664"
 ROLLE_POLIZEI = "1557800373861753002"
 ROLLE_KATASTROPHENSCHUTZ = "1557187293100515328"
 # Reichsbehörden mit eigenem Untertab („Bereich“) und Logo. Wer eine der Rollen hat, gehört zur Behörde, sieht ihren Untertab
-# und bekommt ihr Logo (Reihenfolge = Vorrang). Kanzler, Admins und Kaiser sehen alle Bereiche. Logo-Texte: amt_logos_liste.py,
+# und bekommt ihr Logo (Reihenfolge = Vorrang). Kanzler und Kaiser sehen alle Bereiche. Logo-Texte: amt_logos_liste.py,
 # Bilder: werkzeuge/amt_logos.py. leitung = Rollen, die als Leitung der Behörde gelten (dürfen Mitteilungen anderer löschen).
 BEHOERDEN = [
     {"schl": "polizei", "name": "Kaiserliche Polizeibehörde", "kurz": "Polizei", "icon": "siren", "domain": "polizei",
@@ -56,9 +56,14 @@ BEHOERDEN = [
 LOGOS = [(ROLLE_KANZLER, "kanzler", "Der Kanzler")] + [(r, b["schl"], b["name"]) for b in BEHOERDEN for r in b["rollen"]]
 LOGO_ORDNER = os.path.join(config.HIER, "amt_logos")
 ROLLE_STAATSBUERGER = "1522929940885143683"
-# Zugang: Rollen oder Nutzer-IDs (Kaiser, Rolle 1526348059984789504, Hand des Kaisers 1522693216053235903), dazu Server-Admins
-ZUGANG_IDS = {"463089934765391872", "1526348059984789504", "1522693216053235903"}
-ROLLEN_ZUGANG = {ROLLE_ZOLL, ROLLE_KANZLER} | ZUGANG_IDS
+# Zugang: Rollen oder Nutzer-IDs (Kaiser, Rolle 1526348059984789504, Hand des Kaisers 1522693216053235903); Server-Admins nicht
+# Kategorie „Akten“ (Bürger-/Einbürgerungsakten, Statistik, Löschprotokoll): NUR Rolle „Reichsverwaltung“ (Trenner 1561686761778716762),
+# aber nie zusammen mit einer Amtsrolle der Teilstaaten (Bürgermeister, Magistrat, Gouverneur, Generalgouverneur, Vizekönig).
+# Daneben sehen Kaiser und Kanzler wie überall alles. Server-Admins, Zoll-Rolle u. a. allein reichen nicht.
+ROLLE_AKTEN = "1561686761778716762"
+ROLLEN_AKTEN_NIE = {"1525948431267532860", "1555971841888223242", "1525947612639793253", "1525947448776986665", "1525947356049309788"}
+ZUGANG_IDS = {config.KAISER_ID}
+ROLLEN_ZUGANG = {ROLLE_KANZLER}
 SEITE_GROESSE = 50
 
 STATUS_AKTE = {"staatsbuerger": "Staatsbürger", "einwanderer": "Einwanderer", "nicht_mehr": "Nicht mehr Staatsbürger"}
@@ -122,12 +127,23 @@ def logo_von(k):
     return "reichsbehoerden", "Die Reichsbehörden"
 
 
+def ist_ooc_admin(k):
+    """Serveradministrator (Discord-Berechtigung „Administrator“) ohne Kaiser-/Kanzleramt: darf alles wie Kaiser und Kanzler,
+    aber ausdrücklich nur OOC – jede Seite der Amtsseite zeigt dann den OOC-Hinweis."""
+    return bool(k) and bool(k["admin"]) and bool(k["mitglied"]) and not (k["id"] == config.KAISER_ID or ROLLE_KANZLER in k["rollen"])
+
+
 def ist_beamter(k):
-    return bool(k) and (k["admin"] or k["id"] in ZUGANG_IDS or bool(ROLLEN_ZUGANG & set(k["rollen"])))
+    if not k:
+        return False
+    rollen = set(k["rollen"])
+    if k["id"] in ZUGANG_IDS or ROLLEN_ZUGANG & rollen or ist_ooc_admin(k):
+        return True
+    return ROLLE_AKTEN in rollen and not (ROLLEN_AKTEN_NIE & rollen)
 
 
-# Nur Lesezugriff (kein Schreibrecht): Kaiserliches Reichssicherheitsamt
-LESE_IDS = {"1522913765035606086"}
+# Nur Lesezugriff (kein Schreibrecht). Leer: Unterbehörden (KRS, Polizei, Inquisition …) sehen keine Bürger-/Einbürgerungsakten.
+LESE_IDS = set()
 
 
 def ist_leser(k):
@@ -136,8 +152,8 @@ def ist_leser(k):
 
 
 def darf_verschluss(k):
-    """Kaiser und Kanzler: Akten unter Verschluss setzen und solche Akten einsehen."""
-    return bool(k) and (k["id"] == config.KAISER_ID or ROLLE_KANZLER in k["rollen"])
+    """Kaiser und Kanzler (und OOC die Serveradministratoren): Akten unter Verschluss setzen und solche Akten einsehen."""
+    return bool(k) and (k["id"] == config.KAISER_ID or ROLLE_KANZLER in k["rollen"] or ist_ooc_admin(k))
 
 
 def sperren(con, k):
@@ -253,6 +269,8 @@ textarea{width:100%;min-height:90px}
 .balken{display:block;height:10px;background:var(--kopf);min-width:1px;border-radius:5px}
 td.bar{width:45%}
 .aktionen{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0}
+.ooc-hinweis{display:flex;gap:10px;align-items:baseline;border:1px dashed currentColor;border-radius:8px;padding:8px 12px;margin:0 0 14px;font-size:13px}
+.ooc-hinweis b{font-size:11px;letter-spacing:.12em;border:1px solid currentColor;border-radius:4px;padding:1px 6px;flex:none}
 .warnung{border:1px solid var(--rot);border-left:4px solid var(--rot);padding:10px 14px;margin:12px 0;border-radius:8px}
 
 /* ---- Bearbeitungsformulare ---- */
@@ -480,6 +498,9 @@ NAV = [("uebersicht", "layout-dashboard", "Übersicht", ""), ("buerger", "book-u
        ("protokoll", "scroll-text", "Löschprotokoll", "protokoll/")]
 
 
+NAV_EXTRA = []    # [(Gruppentitel, fn(konto) -> [(schl, icon, text, pfad)])], von anderen Modulen gefüllt
+AKTE_ZUSATZ = []  # [fn(request, con, akte, schreiben) -> HTML], unter den Stammdaten der Bürgerakte
+
 NAV_ALLE = [("post", "mail", "Postfach", "postfach/"), ("einstellungen", "sliders-horizontal", "Einstellungen", "einstellungen/")]
 
 # Kurze Beschriftungen für die Tab-Leiste am Handy
@@ -492,13 +513,26 @@ def nav_gruppen(k):
     leser = ist_leser(k)
     gruppen = []
     if leser:
-        gruppen.append(("Akten", NAV[:3]))
+        gruppen.append(("Akten", list(NAV[:3])))
     behoerden = [("b-" + b["schl"], b["icon"], b["kurz"], "bereich/" + b["schl"] + "/") for b in bereiche.sichtbar(k)]
     if behoerden:
         gruppen.append(("Behörden", behoerden))
     if leser:
         gruppen.append(("Auswertung", NAV[3:]))
-    gruppen.append(("Persönlich", NAV_ALLE))
+    for titel, fn in NAV_EXTRA:   # weitere Module (Amtshilfe, Meldewesen …): Einträge in bestehende oder neue Gruppe
+        es = fn(k)
+        if not es:
+            continue
+        g = next((g for g in gruppen if g[0] == titel), None)
+        if g:
+            g[1].extend(es)
+        else:
+            gruppen.append((titel, es))
+    gruppen = [(t, list(es)) for t, es in gruppen]
+    pers = next((g for g in gruppen if g[0] == "Persönlich"), None)   # Module können „Persönlich“ ergänzen (z. B. Mein Pass)
+    if pers:
+        gruppen.remove(pers)
+    gruppen.append(("Persönlich", (pers[1] if pers else []) + list(NAV_ALLE)))
     return gruppen
 
 
@@ -593,11 +627,15 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q=""):
 </aside>
 <div class="spalte">
 <header class="kopf"><a class="logo" href="{BASIS}" title="{esc(logo_name)} – Amtsseite"><img src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a><span class="raum"></span>{suche}</header>
-<main id="inhalt">{inhalt}</main>
+<main id="inhalt">{OOC_HINWEIS if ist_ooc_admin(k) else ""}{inhalt}</main>
 </div></div>
 <div class="schleier" id="schleier"></div>
 <nav class="tableiste" aria-label="Schnellzugriff">{tabs}</nav>
 <script>{js}</script></body></html>"""
+
+
+OOC_HINWEIS = ('<div class="ooc-hinweis" role="note"><b>OOC</b><span>Du siehst diese Seite als Serveradministrator mit vollem Zugriff. '
+               'Dieser Zugriff ist rein OOC und verleiht kein Amt im Spiel.</span></div>')
 
 
 # ---------------------------------------------------------------- Verlauf (Vorgänge, Aktenprotokoll)
@@ -808,7 +846,7 @@ async def _stop(app):
 
 def _beamter(handler):
     """Lesezugriff (Beamte und Leseberechtigte); Änderungen prüft _post() auf Schreibrecht."""
-    return anmeldung.angemeldet(ist_leser, "Die Amtsseite ist den Beamten der Kaiserlichen Zollverwaltung, dem Kanzler und weiteren Berechtigten vorbehalten.")(handler)
+    return anmeldung.angemeldet(ist_leser, "Die Akten sind der Reichsverwaltung vorbehalten.")(handler)
 
 
 def schreiben(request):
@@ -845,7 +883,8 @@ async def uebersicht(request):
     if not ist_leser(k):
         import bereiche
         eigene = bereiche.sichtbar(k)
-        raise web.HTTPFound(BASIS + (f"bereich/{eigene[0]['schl']}/" if eigene else "postfach/"))
+        extra = [e for _, fn in NAV_EXTRA for e in fn(k)]
+        raise web.HTTPFound(BASIS + (f"bereich/{eigene[0]['schl']}/" if eigene else extra[0][3] if extra else "postfach/"))
     return await _uebersicht(request)
 
 
@@ -963,7 +1002,7 @@ async def buerger_akte(request):
               + f'<div class="aktionen">' + (f'<a class="btn" href="{pfad}bearbeiten/">{ic("pencil")}Akte bearbeiten</a>' if w else "")
               + f'<a class="btn zweit" href="{pfad}pdf">{ic("file-down")}Als PDF exportieren</a>'
               + (f'<a class="btn gefahr" href="{pfad}loeschen/">{ic("trash-2")}Akte löschen</a>' if w else "") + verschluss_form + '</div>'
-              f'<h2>Stammdaten</h2>{stamm}'
+              f'<h2>Stammdaten</h2>{stamm}' + "".join(f(request, con, z, w) for f in AKTE_ZUSATZ) +
               f'<h2>Einbürgerungsakten</h2>{tabelle(["Aktenzeichen", "Name", "Stand", "Zuletzt"], vs, "Kein Einreiseverfahren erfasst.")}'
               f'<h2>Vorgänge</h2>{eintraege_html(con, "akte", z["id"])}' + (f'<h2>Vermerk</h2>{vermerk_formular(request, pfad)}' if w else ""))
     return _ant(request, f"Bürgerakte {az_akte(z['id'])}", "buerger", inhalt)
@@ -1179,33 +1218,181 @@ async def protokoll(request):
 
 # ---------------------------------------------------------------- PDF-Export
 
-PDF_CSS = CSS + """
-body{font-size:11pt}.kopf,nav{display:none}.rahmen{display:block;min-height:0}main{padding:0;max-width:none}
-h2{break-after:avoid}table,tr{break-inside:avoid}.kennzahlen div{min-width:110px}
-.pdf-kopf{border-bottom:2px solid #000;margin-bottom:14px;padding-bottom:6px}.pdf-kopf b{font-size:14pt}.pdf-kopf span{display:block;color:#444;font-size:9pt}
-"""
+# Amtliches Layout: Briefkopf mit Behördenlogo und Kennblock (Az., Datum, Bearbeiter), VS-Einstufung und Seitenzählung auf
+# jeder Seite, nummerierte Abschnitte, schwacher Adler als Wasserzeichen, am Ende Dienstsiegel und Schlussvermerk.
+import base64 as _b64
+_GRUND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "werkzeuge", "logo_grundlage")
+
+
+def _datei_b64(pfad):
+    with open(pfad, "rb") as f:
+        return _b64.b64encode(f.read()).decode()
+
+
+_PDF_SCHRIFT = _datei_b64(os.path.join(_GRUND, "source-sans-3.woff2"))
+_PDF_ADLER = _datei_b64(os.path.join(_GRUND, "adler.png"))
+_PDF_LOGOS = {}
+
+EINSTUFUNG_NFD = "VS – Nur für den Dienstgebrauch"
+EINSTUFUNG_VERTRAULICH = "VS – Vertraulich"
+EINSTUFUNG_GEHEIM = "VS – Geheim"
+
+
+def stelle_behoerde(schl):
+    """(Logo-Schlüssel, Name) einer Behörde aus BEHOERDEN, für den PDF-Briefkopf."""
+    b = next((b for b in BEHOERDEN if b["schl"] == schl), None)
+    return (b["schl"], b["name"]) if b else ("reichsbehoerden", "Die Reichsbehörden")
+
+
+STELLE_KANZLER = ("kanzler", "Der Kanzler")
+STELLE_REICHSBEHOERDEN = ("reichsbehoerden", "Die Reichsbehörden")
+
+
+def _pdf_logo(schl):
+    if schl not in _PDF_LOGOS:
+        pfad = os.path.join(os.path.dirname(os.path.abspath(__file__)), "amt_logos", schl + ".png")
+        _PDF_LOGOS[schl] = _datei_b64(pfad if os.path.exists(pfad) else pfad.replace(schl + ".png", "reichsbehoerden.png"))
+    return _PDF_LOGOS[schl]
+
+
+def _ohne_mobil(css):
+    """Entfernt die @media(max-width…)-Blöcke: die A4-Seite ist schmaler als 800 px, sonst griffe im PDF die Handy-Ansicht."""
+    out, i = [], 0
+    while True:
+        j = css.find("@media (max-width", i)
+        if j < 0:
+            return "".join(out) + css[i:]
+        out.append(css[i:j])
+        tiefe, n = 0, css.index("{", j)
+        while True:
+            tiefe += {"{": 1, "}": -1}.get(css[n], 0)
+            n += 1
+            if tiefe == 0:
+                break
+        i = n
+
+
+PDF_CSS = _ohne_mobil(CSS) + """
+@font-face{font-family:SS3;src:url(data:font/woff2;base64,%s);font-weight:200 900}
+html,body{background:#fff}
+body{font:10.5pt/1.45 SS3,"Liberation Sans",Arial,sans-serif;color:#000;counter-reset:abschnitt}
+.kopf,nav{display:none}.rahmen{display:block;min-height:0}main{padding:0;max-width:none}
+.wz{position:fixed;left:50%%;top:50%%;width:120mm;transform:translate(-50%%,-50%%);opacity:.045;z-index:-1}
+.bk{display:flex;justify-content:space-between;align-items:flex-start;gap:10mm;margin:0 0 9mm}
+.bk-logo img{width:64mm;height:auto;display:block}
+.bk-logo .unter{margin:1.5mm 0 0 21.3mm;font-size:9pt;color:#333}
+.bk-rechts{display:flex;gap:3.5mm;align-items:flex-start}
+.bk-qr{width:19mm;text-align:center;font-size:5.6pt;color:#444;letter-spacing:.04em}.bk-qr span{display:block;margin-top:.4mm}
+.bk-block{width:52mm;font-size:8.5pt;line-height:1.35;border-left:.6pt solid #000;padding-left:3.5mm}
+.bk-block dt{color:#555;text-transform:uppercase;letter-spacing:.06em;font-size:6.8pt;margin-top:1.6mm}
+.bk-block dt:first-child{margin-top:0}.bk-block dd{margin:0;font-weight:600}
+.vs{display:inline-block;border:1pt solid #000;padding:.6mm 2.4mm;font-size:8pt;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin:0 0 4mm}
+.vs.rot{color:#a00;border-color:#a00}
+.doktyp{font-size:8pt;letter-spacing:.14em;text-transform:uppercase;color:#555;margin:0 0 1mm}
+main>h1:first-of-type{font-size:17pt;font-weight:700;margin:0 0 1mm;letter-spacing:0;display:block}
+h1 .icon,h2 .icon{display:none}
+main>p.az:first-of-type{font-size:10pt;color:#333;margin:0 0 6mm;padding-bottom:3mm;border-bottom:.6pt solid #000}
+h2{counter-increment:abschnitt;font-size:11.5pt;font-weight:700;margin:7mm 0 2.5mm;padding:0 0 1.2mm;border-bottom:.6pt solid #000;break-after:avoid}
+h2::before{content:counter(abschnitt) ".\\00a0\\00a0"}
+h3{font-size:10.5pt;break-after:avoid}
+table{font-size:9.5pt;margin:2mm 0}table,tr{break-inside:avoid}
+table.daten th,table.daten td,table.liste th,table.liste td{border:0;border-bottom:.4pt solid #999;padding:1.4mm 2mm;background:none;vertical-align:top}
+table.daten th{width:58mm;font-weight:600;color:#333}
+table.liste thead th{border-bottom:.8pt solid #000;font-size:7.5pt;text-transform:uppercase;letter-spacing:.06em;color:#000;font-weight:700}
+table.liste td a,a{color:#000;text-decoration:none}
+.status{border-radius:0;border:.6pt solid #000;color:#000!important;background:none!important;font-size:7.5pt;text-transform:uppercase;letter-spacing:.06em;padding:0 1.6mm}
+.kennzahlen{grid-template-columns:repeat(4,1fr);gap:2mm}.kennzahlen div{border:.6pt solid #000;border-radius:0;padding:2mm 3mm;min-width:0;color:#333}
+.kennzahlen b{font-size:16pt}
+.verlauf>li{padding:0 0 3mm 9mm}.verlauf>li::before{left:3mm;top:7mm;background:#999;width:.6pt}
+.v-ic{width:6mm!important;height:6mm!important;border-color:#000!important;color:#000!important;background:#fff!important}
+.v-ic .icon{width:3.4mm!important;height:3.4mm!important}
+.leer{color:#555;font-style:italic}
+.btn,button,form,.aktionen,.meldung,.ooc-hinweis{display:none!important}
+.schluss{margin-top:10mm;display:flex;gap:8mm;align-items:center;break-inside:avoid;border-top:.6pt solid #000;padding-top:5mm}
+.siegel{width:32mm;height:32mm;flex:none}
+.schluss-text{font-size:9pt;line-height:1.5}
+.schluss-text .ia{margin:0 0 7mm}.schluss-text .linie{border-top:.4pt solid #000;width:60mm;padding-top:1mm}
+.schluss-text .s-hinweis{margin-top:3mm;font-size:7.5pt;color:#444}
+.ooc-export{margin-top:4mm;border:1pt dashed #000;padding:2mm 3mm;font-size:8.5pt}
+""" % _PDF_SCHRIFT
 _pdf_sperre = asyncio.Semaphore(1)
 
 
-def _pdf_html(titel, inhalt, k):
-    kopf = (f'<div class="pdf-kopf"><b>Reichsbehörden – {esc(logo_von(k)[1])}</b>'
-            f'<span>Amtsseite · {esc(titel)} · Vertraulich, nur für den Dienstgebrauch</span></div>')
-    fuss = f'<p class="az">Erstellt am {_zeit(int(time.time()))} von {esc(k["name"])}. Imperium Germanicum, imperiumgermanicum.de</p>'
+def _siegel(name):
+    """Rundes Dienstsiegel: Adler in der Mitte, Behördenname und „Imperium Germanicum“ als Umschrift."""
+    oben, unten = esc(name.upper()), "IMPERIUM GERMANICUM"
+    return (f'<svg class="siegel" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">'
+            f'<defs><path id="so" d="M 30 100 A 70 70 0 0 1 170 100"/><path id="su" d="M 24 100 A 76 76 0 0 0 176 100"/></defs>'
+            f'<circle cx="100" cy="100" r="96" fill="none" stroke="#000" stroke-width="3"/><circle cx="100" cy="100" r="90" fill="none" stroke="#000" stroke-width="1"/>'
+            f'<circle cx="100" cy="100" r="54" fill="none" stroke="#000" stroke-width="1"/>'
+            f'<text font-family="SS3,Arial" font-size="{13 if len(oben) < 26 else 11}" font-weight="700" letter-spacing="1.5" text-anchor="middle">'
+            f'<textPath href="#so" startOffset="50%">{oben}</textPath></text>'
+            f'<text font-family="SS3,Arial" font-size="12" font-weight="600" letter-spacing="2.5" text-anchor="middle">'
+            f'<textPath href="#su" startOffset="50%">{unten}</textPath></text>'
+            f'<text x="22" y="105" font-size="12" text-anchor="middle">★</text><text x="178" y="105" font-size="12" text-anchor="middle">★</text>'
+            f'<image href="data:image/png;base64,{_PDF_ADLER}" x="62" y="64" width="76" height="70" preserveAspectRatio="xMidYMid meet"/></svg>')
+
+
+def _pdf_html(titel, inhalt, k, stelle=None, az="", einstufung=EINSTUFUNG_NFD, doktyp="", unterzeile="", schluss="", qr_url=""):
+    schl, name = stelle or logo_von(k)
+    jetzt = _zeit(int(time.time()))
+    block = "".join(f"<dt>{esc(a)}</dt><dd>{esc(b)}</dd>" for a, b in
+                    [("Dienststelle", unterzeile or name), ("Aktenzeichen", az), ("Datum", jetzt.split(" ")[0]),
+                     ("Erstellt", jetzt + " Uhr"), ("Bearbeitet von", k["name"])] if b)
+    kopf = (f'<img class="wz" src="data:image/png;base64,{_PDF_ADLER}" alt="">'
+            f'<div class="bk"><div class="bk-logo"><img src="data:image/png;base64,{_pdf_logo(schl)}" alt="{esc(name)}">'
+            f'{f"<div class=unter>{esc(unterzeile)}</div>" if unterzeile else ""}</div>'
+            f'<div class="bk-rechts">{_pdf_qr(qr_url)}<dl class="bk-block">{block}</dl></div></div>'
+            + (f'<div class="vs{" rot" if einstufung != EINSTUFUNG_NFD else ""}">{esc(einstufung)}</div>' if einstufung else "")
+            + (f'<p class="doktyp">{esc(doktyp)}</p>' if doktyp else ""))
+    ooc = ('<div class="ooc-export"><b>OOC</b> – Erstellt durch einen Serveradministrator mit OOC-Zugriff. '
+           'Dieses Dokument ist kein amtliches Schriftstück im Spiel.</div>') if ist_ooc_admin(k) else ""
+    fuss = (f'<div class="schluss">{_siegel(name)}<div class="schluss-text">'
+            f'{schluss or "<p class=ia>Im Auftrag</p>"}'
+            f'<div class="linie">{esc(k["name"])}<br>{esc(unterzeile or name)}</div>'
+            f'<p class="s-hinweis">Dieses Schriftstück wurde maschinell erstellt und ist ohne Unterschrift gültig. '
+            f'Auszug aus den Akten der Reichsbehörden des Imperium Germanicum, Stand {jetzt} Uhr.</p></div></div>{ooc}')
     return (f'<!doctype html><html lang="de"><head><meta charset="utf-8"><title>{esc(titel)}</title><style>{PDF_CSS}</style></head>'
             f'<body><main>{kopf}{inhalt}{fuss}</main></body></html>')
 
 
-async def _pdf_antwort(request, dateiname, titel, inhalt):
+def _pdf_qr(url):
+    if not url:
+        return ""
+    import qr
+    return f'<div class="bk-qr">{qr.svg(url, 19)}<span>Echtheit prüfen</span></div>'
+
+
+def _pdf_rand(text, name, einstufung):
+    """Kopf- und Fußzeile auf jeder Seite (Playwright-Vorlagen: eigene Inline-Stile, keine eingebetteten Schriften)."""
+    st = "font-family:'Liberation Sans',Arial,sans-serif;font-size:7.5pt;color:#333;width:100%;margin:0 20mm 0 20mm;display:flex;justify-content:space-between"
+    vs = f'<b style="letter-spacing:.08em;text-transform:uppercase;color:{"#000" if einstufung == EINSTUFUNG_NFD else "#a00"}">{esc(einstufung)}</b>' if einstufung else "<span></span>"
+    kopf = f'<div style="{st}"><span>{esc(name)}</span>{vs}</div>'
+    fuss = (f'<div style="{st};border-top:.5pt solid #999;padding-top:1.5mm"><span>Imperium Germanicum · {esc(name)} · {esc(text)}</span>'
+            '<span>Seite <span class="pageNumber"></span> von <span class="totalPages"></span></span></div>')
+    return kopf, fuss
+
+
+async def _pdf_antwort(request, dateiname, titel, inhalt, stelle=None, az="", einstufung=EINSTUFUNG_NFD, doktyp="", unterzeile="", schluss="", qr_url=None):
+    """PDF im amtlichen Layout. stelle = (Logo-Schlüssel, Behördenname) der ausstellenden Stelle (sonst die des Kontos),
+    az = Aktenzeichen im Kennblock, einstufung = VS-Vermerk („“ = keiner, z. B. Bescheinigungen für Bürger)."""
     from playwright.async_api import async_playwright
     import bild  # setzt PLAYWRIGHT_BROWSERS_PATH
-    text = _pdf_html(titel, inhalt, request["konto"])
+    k = request["konto"]
+    stelle = stelle or logo_von(k)
+    if qr_url is None:   # Standard: Seite des Dokuments in der Amtsseite (Pfad ohne letztes Segment, z. B. …/buerger/13/pdf → …/buerger/13/)
+        qr_url = config.SITE_URL + request.path.rsplit("/", 1)[0] + "/"
+    text = _pdf_html(titel, inhalt, k, stelle, az, einstufung, doktyp, unterzeile, schluss, qr_url)
+    kopf, fuss = _pdf_rand(az or titel, unterzeile or stelle[1], einstufung)
     async with _pdf_sperre:
         async with async_playwright() as p:
             browser = await p.chromium.launch()
             try:
                 pg = await browser.new_page()
                 await pg.set_content(text)
-                pdf = await pg.pdf(format="A4", print_background=True, margin={"top": "18mm", "bottom": "18mm", "left": "16mm", "right": "16mm"})
+                await pg.evaluate("document.fonts.ready")
+                pdf = await pg.pdf(format="A4", print_background=True, display_header_footer=True, header_template=kopf, footer_template=fuss,
+                                   margin={"top": "17mm", "bottom": "20mm", "left": "20mm", "right": "18mm"})
             finally:
                 await browser.close()
     return web.Response(body=pdf, content_type="application/pdf",
@@ -1225,7 +1412,8 @@ async def buerger_pdf(request):
               f'<h2>Stammdaten</h2>{_stamm(z)}'
               f'<h2>Einbürgerungsakten</h2>{tabelle(["Aktenzeichen", "Name", "Stand", "Zuletzt"], vs, "Kein Einreiseverfahren erfasst.")}'
               f'<h2>Vorgänge</h2>{eintraege_html(con, "akte", z["id"])}')
-    return await _pdf_antwort(request, az_akte(z["id"]), f"Bürgerakte {az_akte(z['id'])}", inhalt)
+    return await _pdf_antwort(request, az_akte(z["id"]), f"Bürgerakte {az_akte(z['id'])}", inhalt, az=az_akte(z["id"]),
+                              doktyp="Aktenauszug · Bürgerakte", einstufung=EINSTUFUNG_VERTRAULICH if z["verschluss"] else EINSTUFUNG_NFD)
 
 
 @_beamter
@@ -1241,13 +1429,13 @@ async def verfahren_pdf(request):
               f'<h2>Phase I – außerhalb des Charakters</h2>{_felder(v["phase1"], PHASE1_FELDER)}'
               f'<h2>Phase II – im Charakter</h2>{_felder(v["phase2"], PHASE2_FELDER)}'
               f'<h2>Vorgänge</h2>{eintraege_html(con, "verfahren", v["id"])}')
-    return await _pdf_antwort(request, az, f"Einbürgerungsakte {az}", inhalt)
+    return await _pdf_antwort(request, az, f"Einbürgerungsakte {az}", inhalt, az=az, doktyp="Aktenauszug · Einbürgerungsakte")
 
 
 @_beamter
 async def statistik_pdf(request):
     inhalt = f'<h1>Statistiken</h1><p class="az">Stand {_zeit(int(time.time()))}</p>{statistik_inhalt(request.app["db"])}'
-    return await _pdf_antwort(request, "statistik-" + datetime.now(BERLIN).strftime("%Y-%m-%d"), "Statistiken", inhalt)
+    return await _pdf_antwort(request, "statistik-" + datetime.now(BERLIN).strftime("%Y-%m-%d"), "Statistiken", inhalt, doktyp="Statistischer Bericht")
 
 # ---------------------------------------------------------------- Aktionen
 
