@@ -89,11 +89,16 @@ def einrichten(con):
     con.commit()
 
 
+REICHSGEBIETE = {"s2"}   # Freie Reichsgebiete: verwaltet das Reich direkt (Reichskasse), keine eigene Staatskasse
+
+
 def teilstaaten_sichern(con):
-    """Staatskassen für alle Teilstaaten mit Fraktionsrolle (Reichskarte)."""
+    """Staatskassen für alle Teilstaaten der aktuellen Reichskarte (außer den unmittelbar vom Reich verwalteten Gebieten)."""
+    import karte
     import landespolizei
-    for s in landespolizei.staaten(con):
-        _anlegen(con, "teilstaat", "Staatskasse " + s["kurz"], stelle="ts-" + s["id"])
+    for s in karte.aktuell(con)["stand"]["staaten"]:
+        if s["id"] not in REICHSGEBIETE:
+            _anlegen(con, "teilstaat", "Staatskasse " + landespolizei._kurzname(s["name"]), stelle="ts-" + s["id"])
     con.commit()
 
 
