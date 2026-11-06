@@ -131,6 +131,10 @@ async def profil(request):
     import anmeldung as _a
     links = [(f"{PROFIL}dokumente/", "Meine Dokumente", f"{n_doks} gültig" if n_doks else "")]
     if k["mitglied"]:
+        import geld
+        gk = geld.privatkonto(con, k["id"], anlegen=False)
+        links.append(("/schatzamt/", "Konto & Geld", geld.mark(gk["saldo"]) if gk else "Schatzamt"))
+    if k["mitglied"]:
         links.append((f"{amt.BASIS}postfach/", "Postfach", ""))
     if _a._amt_zugang(k):
         links.append((amt.BASIS, "Amtsseite", ""))

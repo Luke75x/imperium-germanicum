@@ -22,6 +22,9 @@ import passdigital
 import personenseite
 import webseite
 import zollwesen
+import schatzamt
+import steuern
+import besoldung
 import organigramme
 import post
 import strafsachen
@@ -50,6 +53,9 @@ def erstellen():
     personenseite.registrieren(app)
     webseite.registrieren(app)
     zollwesen.registrieren(app)
+    schatzamt.registrieren(app)
+    steuern.registrieren(app)
+    besoldung.registrieren(app)
     return app
 
 

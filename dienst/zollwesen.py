@@ -42,6 +42,7 @@ CREATE INDEX IF NOT EXISTS zv_stempel_p ON zv_stempel (pass_id);
 ARTEN = {"einreise": ("EINREISE", "Einreise", "#1d4f9c"), "ausreise": ("AUSREISE", "Ausreise", "#a3141f"),
          "durchreise": ("DURCHREISE", "Durchreise", "#1f6b3a"), "visum": ("VISUM", "Visum", "#5b2d86")}
 ZWECKE = ["Tourismus", "Besuch", "Geschäftsreise", "Arbeit", "Studium", "Diplomatisch", "Durchreise", "Sonstiges"]
+GESTEMPELT = []   # fn(request, con, pass, stempel, konto) nach dem Stempeln (steuern.py: Visagebühr)
 HEFTE = ("reisepass", "dienstpass", "vorlaeufig", "fremdenpass")
 PRO_SEITE, SEITEN = 4, 4
 # Mittelpunkte der Stempelfelder auf einer Sichtvermerkseite (mm, Seite 125 × 88)
@@ -260,11 +261,14 @@ async def stempeln(request):
         _zurueck(nr, von, "Bitte Art, Grenzübergangsstelle und ein Datum (TT.MM.JJJJ) angeben.", True)
     if art == "visum" and (not _datum_ok(bis) or zweck not in ZWECKE):
         _zurueck(nr, von, "Für ein Visum bitte Gültigkeit (TT.MM.JJJJ) und Zweck angeben.", True)
-    con.execute("INSERT INTO zv_stempel (pass_id, art, ort, datum, gueltig_bis, zweck, bemerkung, beamter_id, beamter_name, zeit) "
+    cur = con.execute("INSERT INTO zv_stempel (pass_id, art, ort, datum, gueltig_bis, zweck, bemerkung, beamter_id, beamter_name, zeit) "
                 "VALUES (?,?,?,?,?,?,?,?,?,?)", (p["id"], art, ort, datum, bis, zweck, bem, k["id"], k["name"], int(time.time())))
     text = f"{ARTEN[art][1]} am {datum} · {ort}" + (f" · {zweck}, gültig bis {bis}" if art == "visum" else "")
     meldewesen._eintrag(con, p["id"], "Sichtvermerk", text, k)
     con.commit()
+    s = con.execute("SELECT * FROM zv_stempel WHERE id=?", (cur.lastrowid,)).fetchone()
+    for fn in GESTEMPELT:
+        fn(request, con, p, s, k)
     _zurueck(nr, von, f"Stempel gesetzt: {text}.")
 
 

@@ -52,6 +52,9 @@ BEHOERDEN = [
      "rollen": ["1526343577481904379", "1522913765035606086"], "leitung": ["1522913765035606086"]},
     {"schl": "inquisition", "name": "Die Inquisition (Staatsanwaltschaft)", "kurz": "Inquisition", "icon": "scale", "domain": "inquisition",
      "rollen": ["1522700028739584000", "1555987375287574609"], "leitung": ["1522700028739584000"]},
+    # Zentralbank und Finanzverwaltung (schatzamt.py). Discord-Rollen folgen noch – bis dahin verwalten Kanzler/Kaiser (Admins OOC).
+    {"schl": "schatzamt", "name": "Kaiserliches Schatz- und Währungsamt", "kurz": "Schatzamt", "icon": "landmark", "domain": "schatzamt",
+     "rollen": [], "leitung": []},
 ]
 LOGOS = [(ROLLE_KANZLER, "kanzler", "Der Kanzler")] + [(r, b["schl"], b["name"]) for b in BEHOERDEN for r in b["rollen"]]
 LOGO_ORDNER = os.path.join(config.HIER, "amt_logos")
@@ -581,17 +584,22 @@ blatt.addEventListener("touchend",function(e){if(blatt.scrollTop<=0&&e.changedTo
 })();"""
 
 
-def rahmen(titel, aktiv, inhalt, k, csrf, q=""):
+def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
+    """Seitenrahmen der Amtsseite. portal = {"basis", "gruppen", "haupt", "logo": (schl, name), "name"} für eigene Portale im selben
+    Stil (z. B. schatzamt.py): eigene Navigation, eigenes Logo, eigener Basispfad, keine Aktensuche."""
     import post
-    leser = ist_leser(k)
+    basis = portal["basis"] if portal else BASIS
+    leser = ist_leser(k) and not portal
     ungel = post.ungelesen(k)
-    logo, logo_name = logo_von(k)
+    logo, logo_name = portal["logo"] if portal else logo_von(k)
+    seitenname = portal["name"] if portal else "Amtsseite"
     zahl = lambda schl: f'<i class="zahl" title="{ungel} ungelesen">{ungel}</i>' if schl == "post" and ungel else ""
-    gruppen = nav_gruppen(k)
+    gruppen = portal["gruppen"] if portal else nav_gruppen(k)
 
     def ein(schl, sym, text, pfad):
         cur = ' aria-current="page"' if schl == aktiv else ""
-        return f'<a class="ein{" aktiv" if schl == aktiv else ""}" href="{BASIS}{pfad}"{cur}>{ic(sym)}<span>{esc(text)}</span>{zahl(schl)}</a>'
+        ziel = pfad if pfad.startswith("/") else basis + pfad
+        return f'<a class="ein{" aktiv" if schl == aktiv else ""}" href="{ziel}"{cur}>{ic(sym)}<span>{esc(text)}</span>{zahl(schl)}</a>'
 
     nav = "".join(f'<div class="gruppe"><p class="gruppe-titel">{esc(t)}</p>{"".join(ein(*e) for e in es)}</div>' for t, es in gruppen)
     # Tab-Leiste (Handy): die wichtigsten Ziele, dazu „Menü“ für alles Übrige
@@ -600,33 +608,33 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q=""):
     haupt = (NAV[:3] if leser else behoerden[:2]) + [NAV_ALLE[0]]
     if not leser:
         haupt.append(NAV_ALLE[1])
-    haupt = haupt[:4]
+    haupt = (portal["haupt"] if portal else haupt)[:4]
     im_menue = aktiv not in {e[0] for e in haupt}
-    tabs = "".join(f'<a href="{BASIS}{pfad}" class="{"aktiv" if schl == aktiv else ""}"{" aria-current=page" if schl == aktiv else ""}>'
+    tabs = "".join(f'<a href="{pfad if pfad.startswith("/") else basis + pfad}" class="{"aktiv" if schl == aktiv else ""}"{" aria-current=page" if schl == aktiv else ""}>'
                    f'{ic(sym)}{zahl(schl)}<span>{esc(TAB_KURZ.get(schl, text))}</span></a>' for schl, sym, text, pfad in haupt)
     tabs += (f'<button type="button" id="menue-auf" class="{"aktiv" if im_menue else ""}" aria-controls="menue" aria-expanded="false">'
              f'{ic("layout-grid")}<span>Menü</span></button>')
     suche = (f'<form class="suche" action="{BASIS}buerger/" method="get" role="search">{ic("search")}'
              f'<input type="search" name="q" value="{esc(q)}" placeholder="Suchen: Name, Aktenzeichen, ID" aria-label="Akten suchen"></form>'
              f'<button class="knopf-rund such-auf" type="button" aria-label="Suche öffnen" aria-expanded="false">{ic("search")}</button>') if leser else ""
-    js = JS % json.dumps(BASIS)
+    js = JS % json.dumps(basis)
     return f"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#ffffff"><meta name="robots" content="noindex,nofollow"><title>{esc(titel)} – {esc(logo_name)}, Amtsseite</title><style>{CSS}</style>
+<meta name="theme-color" content="#ffffff"><meta name="robots" content="noindex,nofollow"><title>{esc(titel)} – {esc(logo_name)}, {esc(seitenname)}</title><style>{CSS}</style>
 <script>(function(){{var m;try{{m=localStorage.getItem("amtModus")}}catch(e){{}}document.documentElement.className=m==="std"?"std":"min"}})()</script></head>
 <body><div class="ladebalken" aria-hidden="true"></div>
 <div class="app">
 <aside class="seite" id="menue" aria-label="Navigation">
 <div class="blatt-kopf"><b>Menü</b><button class="knopf-rund" type="button" id="menue-zu" aria-label="Menü schließen">{ic("x")}</button></div>
-<a class="logo" href="{BASIS}" title="{esc(logo_name)} – Amtsseite"><img src="{BASIS}logo/{logo}-kopf.png" alt="{esc(logo_name)}"></a>
+<a class="logo" href="{basis}" title="{esc(logo_name)} – {esc(seitenname)}"><img src="{BASIS}logo/{logo}-kopf.png" alt="{esc(logo_name)}"></a>
 <div class="gruppen">{nav}</div>
-<div class="fuss"><a class="ein" href="/informationen/die-reichsbehoerden/">{ic("house")}<span>Zur Website</span></a>
+<div class="fuss"><a class="ein" href="{"/" if portal else "/informationen/die-reichsbehoerden/"}">{ic("house")}<span>Zur Website</span></a>
 <div class="konto-box"><span class="avatar" aria-hidden="true">{esc(_initialen(k["name"]))}</span><span class="konto-text"><b>{esc(k["name"])}</b><small>{esc(logo_name)}</small></span>
 <form method="post" action="/abmelden/"><input type="hidden" name="csrf" value="{esc(csrf)}"><input type="hidden" name="weiter" value="/">
 <button class="knopf-rund" type="submit" title="Abmelden" aria-label="Abmelden">{ic("log-out")}</button></form></div></div>
 </aside>
 <div class="spalte">
-<header class="kopf"><a class="logo" href="{BASIS}" title="{esc(logo_name)} – Amtsseite"><img src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a><span class="raum"></span>{suche}</header>
+<header class="kopf"><a class="logo" href="{basis}" title="{esc(logo_name)} – {esc(seitenname)}"><img src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a><span class="raum"></span>{suche}</header>
 <main id="inhalt">{OOC_HINWEIS if ist_ooc_admin(k) else ""}{inhalt}</main>
 </div></div>
 <div class="schleier" id="schleier"></div>
@@ -1618,7 +1626,7 @@ async def api_ticket_geschlossen(request):
 async def logo_datei(request):
     name = request.match_info["name"]
     schl = name[:-4] if name.endswith(".png") else ""
-    erlaubt = {l[1] for l in LOGOS} | {"reichsbehoerden"}
+    erlaubt = {l[1] for l in LOGOS} | {"reichsbehoerden"} | {b["schl"] for b in BEHOERDEN}
     if schl.rsplit("-", 1)[0] not in erlaubt and schl not in erlaubt:
         raise web.HTTPNotFound()
     pfad = os.path.join(LOGO_ORDNER, name)

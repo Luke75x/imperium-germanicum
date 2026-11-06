@@ -17,7 +17,7 @@
           conn: "Die Verbindung ist fehlgeschlagen. Bitte versuche es erneut oder schreibe uns direkt per E-Mail.",
           errq: "Die Nachricht konnte nicht gesendet werden. Bitte prüfe deine Eingaben oder schreibe uns direkt per E-Mail.",
           toLight: "Zum hellen Design wechseln", toDark: "Zum dunklen Design wechseln",
-          login: "Anmelden", profile: "Mein Profil", docs: "Meine Dokumente", amt: "Amtsseite", logout: "Abmelden", account: "Konto" },
+          login: "Anmelden", profile: "Mein Profil", docs: "Meine Dokumente", geld: "Konto & Geld", amt: "Amtsseite", logout: "Abmelden", account: "Konto" },
     en: { menu: "Menu", close: "Close", image: "Image view", prev: "Previous image", next: "Next image", orig: "Open original",
           missing: "Please fill in this field.", mismatch: "Please enter a valid email address.",
           sent: "Thank you! Your message has been sent.",
@@ -25,7 +25,7 @@
           conn: "The connection failed. Please try again or write to us directly by email.",
           errq: "The message could not be sent. Please check your entries or write to us directly by email.",
           toLight: "Switch to light design", toDark: "Switch to dark design",
-          login: "Sign in", profile: "My profile", docs: "My documents", amt: "Official portal", logout: "Sign out", account: "Account" }
+          login: "Sign in", profile: "My profile", docs: "My documents", geld: "Account & money", amt: "Official portal", logout: "Sign out", account: "Account" }
   }[lang];
 
   /* ---------- Farbschema ---------- */
@@ -83,6 +83,7 @@
         var eintrag = function (href, text) { menue.appendChild(el("a", { href: href }, text)); };
         eintrag("/profil/", TX.profile);
         eintrag("/profil/dokumente/", TX.docs);
+        eintrag("/schatzamt/", TX.geld);
         if (d.amt) eintrag("/informationen/die-reichsbehoerden/intern/", TX.amt);
         var f = el("form", { method: "post", action: "/abmelden/" });
         f.appendChild(el("input", { type: "hidden", name: "csrf", value: d.csrf }));

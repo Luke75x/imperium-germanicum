@@ -7,4 +7,5 @@ ZEILEN = {
     "krs": ["Kaiserliches", "Reichssicherheitsamt"],
     "inquisition": ["Die Inquisition", "Staatsanwaltschaft"],
     "reichsbehoerden": ["Die", "Reichsbehörden"],
+    "schatzamt": ["Kaiserliches Schatz-", "und Währungsamt"],
 }

@@ -36,6 +36,7 @@ GRUENDE = ["Verlust gemeldet", "Diebstahl gemeldet (Fahndung)", "Eingezogen", "V
 ERSETZT = "Durch neuen Pass ersetzt"
 ZEICHEN = "CFGHJKLMNPRTVWXYZ0123456789"
 SEITE = 50
+AUSGESTELLT = []    # fn(request, con, akte, art, passnummer, konto) nach Ausstellung eines Passes (steuern.py: Gebühr)
 PRUEF_ZUSATZ = []   # fn(request, konto) -> HTML über dem Eingabefeld der Passprüfung (personenseite.py: QR-Scanner)
 DM_ZUSATZ = []      # fn(passnummer) -> Text, wird an die DM bei Ausstellung angehängt (passdigital.py: Link)
 PASS_KNOEPFE = []   # fn(pass) -> HTML, weitere Knöpfe in der Pass-Ansicht (passdruck.py: Druckvorlagen)
@@ -341,6 +342,8 @@ async def pass_ausstellen(request):
                                                    f"Inhaber: {z['ic_name']}\nGültig bis: {bis.strftime('%d.%m.%Y')}\n"
                                                    "Bitte bewahre die Nummer gut auf; bei Verlust oder Diebstahl melde dich bei der Reichsverwaltung."
                                                    + "".join(fn(nr) for fn in DM_ZUSATZ))
+    for fn in AUSGESTELLT:
+        fn(request, con, z, art, nr, k)
     amt._umleiten(ziel, f"{name} {nr} ausgestellt.")
 
 
