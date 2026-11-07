@@ -44,6 +44,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS ep_plaene (schl TEXT NOT NULL, kategorie TEXT NOT NULL, anteil REAL NOT NULL, PRIMARY KEY (schl, kategorie));
 CREATE TABLE IF NOT EXISTS ep_log (id INTEGER PRIMARY KEY AUTOINCREMENT, zeit INTEGER NOT NULL, schl TEXT NOT NULL, autor_id TEXT NOT NULL DEFAULT '',
     autor_name TEXT NOT NULL, text TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS ep_zufriedenheit (lauf INTEGER NOT NULL, schl TEXT NOT NULL, wert REAL NOT NULL, ziel REAL NOT NULL,
+    PRIMARY KEY (lauf, schl));
 CREATE TABLE IF NOT EXISTS ep_verteilung (lauf INTEGER NOT NULL, schl TEXT NOT NULL, kategorie TEXT NOT NULL, betrag INTEGER NOT NULL,
     PRIMARY KEY (lauf, schl, kategorie));
 """
@@ -237,6 +239,92 @@ def bereitschaft_wirkung(con):
         if not x["reichsgebiet"] and x.get("wirkung_land"):
             out["vt-" + x["staat"]] = x["wirkung_land"]["summe"]["bereitschaft"]
     return out
+
+
+# ---------------------------------------------------------------- Bevölkerungszufriedenheit (Index 0–100)
+# Je Politikfeld eine Teilnote 0–100 aus der Erfüllung e (Anteil ÷ Richtwert): 100 × (1 − exp(−1,6 e)) – abnehmender Grenznutzen,
+# Vorgabe-Verteilung (e = 1) ≈ 80. Index = gewichteter Schnitt nach ZUF_GEWICHTE (was die Bevölkerung im Alltag spürt).
+# Trägheit: Die Stimmung bewegt sich je gebuchtem Monat nur um ZUF_TRAEGHEIT des Abstands zum Zielwert (ep_zufriedenheit je Haushaltsmonat).
+# Wirkung auf das Steueraufkommen (zusätzlich zu den Boni/Mali der Felder): ab 85 Bonus, unter 55 Malus (bis −4 %).
+ZUF_GEWICHTE = {"soziales": 24, "gesundheit": 20, "bildung": 12, "innere_sicherheit": 12, "kultur": 8, "umwelt": 8, "transport": 6,
+                "landwirtschaft": 5, "industrie": 3, "forschung": 2, "verteidigung": 0}
+ZUF_TRAEGHEIT = 0.5
+ZUF_STUFEN = [(85, "Sehr zufrieden"), (70, "Zufrieden"), (55, "Gespalten"), (40, "Unzufrieden"), (0, "Unruhen")]
+ZUF_WIRKUNG = {"bonus_ab": 85, "bonus": 0.5, "malus_ab": 55, "malus_je_punkt": 0.15, "malus_max": 4.0}
+
+
+def zuf_teilnote(e):
+    return 100.0 * (1 - math.exp(-1.6 * max(0.0, e)))
+
+
+def zuf_ziel(anteile, richt):
+    """(Zielwert, [(Kategorie, Teilnote, Gewicht)]) der Zufriedenheit für eine Verteilung."""
+    teile, summe, gew = [], 0.0, 0.0
+    for kat, _ in KATEGORIEN:
+        g = ZUF_GEWICHTE.get(kat, 0)
+        r = float(richt.get(kat, 0))
+        if not g or r < 0.05:
+            continue
+        note = zuf_teilnote(float(anteile.get(kat, 0)) / r)
+        teile.append((kat, note, g))
+        summe += note * g
+        gew += g
+    return (summe / gew if gew else 0.0), teile
+
+
+def zuf_stufe(wert):
+    return next(n for grenze, n in ZUF_STUFEN if wert >= grenze)
+
+
+def zuf_effekt(wert):
+    """Wirkung des Index auf das Steueraufkommen in %."""
+    w = ZUF_WIRKUNG
+    if wert >= w["bonus_ab"]:
+        return w["bonus"]
+    if wert < w["malus_ab"]:
+        return -min(w["malus_max"], (w["malus_ab"] - wert) * w["malus_je_punkt"])
+    return 0.0
+
+
+def zuf_letzte(con, schl):
+    r = con.execute("SELECT wert FROM ep_zufriedenheit WHERE schl=? ORDER BY lauf DESC LIMIT 1", (schl,)).fetchone()
+    return float(r["wert"]) if r else None
+
+
+def zuf_verlauf(con, schl, n=12):
+    return [(r["periode"], float(r["wert"])) for r in con.execute(
+        "SELECT l.periode, z.wert FROM ep_zufriedenheit z JOIN ak_laeufe l ON l.id=z.lauf WHERE z.schl=? ORDER BY z.lauf DESC LIMIT ?", (schl, n))][::-1]
+
+
+def zufriedenheit(con, schl, anteile, richt):
+    """{"ziel", "alt", "neu", "stufe", "effekt", "teile"}: neu = Wert des nächsten gebuchten Monats (Trägheit gegenüber dem letzten Monat)."""
+    ziel, teile = zuf_ziel(anteile, richt)
+    alt = zuf_letzte(con, schl)
+    neu = ziel if alt is None else alt + (ziel - alt) * ZUF_TRAEGHEIT
+    return {"ziel": round(ziel, 1), "alt": None if alt is None else round(alt, 1), "neu": round(neu, 1), "stufe": zuf_stufe(neu),
+            "effekt": round(zuf_effekt(neu), 3), "teile": teile}
+
+
+def zuf_speichern(con, lauf, liste):
+    """Hält die Zufriedenheit eines gebuchten Monats fest (aus aufkommen.berechnen)."""
+    z = liste[0]["zufriedenheit_reich"] if liste else None
+    if z:
+        con.execute("INSERT OR REPLACE INTO ep_zufriedenheit (lauf, schl, wert, ziel) VALUES (?,?,?,?)", (lauf, "reich", z["neu"], z["ziel"]))
+    for x in liste:
+        if x.get("zufriedenheit_land"):
+            z = x["zufriedenheit_land"]
+            con.execute("INSERT OR REPLACE INTO ep_zufriedenheit (lauf, schl, wert, ziel) VALUES (?,?,?,?)", (lauf, "ts-" + x["staat"], z["neu"], z["ziel"]))
+
+
+def zuf_reichsweit(liste):
+    """Nach Einwohnern gewichteter Index des ganzen Reiches (Freie Reichsgebiete: Zufriedenheit des Reichsetats)."""
+    s = ew = 0
+    for x in liste:
+        z = x["zufriedenheit_reich"] if x["reichsgebiet"] else x.get("zufriedenheit_land")
+        if z:
+            s += z["neu"] * x["ew"]
+            ew += x["ew"]
+    return s / ew if ew else 0.0
 
 
 # ---------------------------------------------------------------- Rechte
@@ -509,6 +597,114 @@ def wirkung_html(bew, basis_ein, basis_rl, reich=False):
             f'<th class="num">Erfüllung</th><th>Stand</th><th>Wirkung</th></tr></thead><tbody>{"".join(zeilen)}</tbody></table></div></section>')
 
 
+ZUF_CSS = """<style>
+.zf{margin:22px 0 8px}
+.zf h2{display:flex;align-items:center;gap:8px}
+.zf-kopf{display:flex;flex-wrap:wrap;gap:18px;align-items:center;padding:16px 18px;border:1px solid var(--linie);border-radius:12px;background:var(--hell)}
+.zf-wert{font-size:44px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.zf-wert small{font-size:16px;color:var(--grau);font-weight:600}
+.zf-stufe{font-weight:700;font-size:16px}
+.zf-meta{color:var(--grau);font-size:13px;line-height:1.6}
+.zf-balken{position:relative;height:10px;border-radius:999px;background:#e6e8eb;overflow:hidden;min-width:80px}
+.zf-balken>i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--zf,#1baf7a)}
+.zf-gross{flex:1 1 220px}
+.zf-gross .zf-balken{height:14px}
+.zf-skala{position:relative;height:14px;font-size:11px;color:var(--grau);margin-top:4px}
+.zf-skala span{position:absolute;transform:translateX(-50%)}.zf-skala span:first-child{transform:none}.zf-skala span:last-child{transform:translateX(-100%)}
+.zf-tab tr.fokus td{background:var(--hell);font-weight:600}
+.zf-tab{width:100%;border-collapse:collapse;font-size:14px;margin-top:10px}
+.zf-tab td,.zf-tab th{padding:6px 8px;border-bottom:1px solid #eef0f2;text-align:left}
+.zf-tab th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--grau);font-weight:600}
+.zf-tab td.num,.zf-tab th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.zf-tab td.bar{width:40%}
+.zf-s5{--zf:#13873f}.zf-s4{--zf:#1baf7a}.zf-s3{--zf:#eda100}.zf-s2{--zf:#eb6834}.zf-s1{--zf:#d13b3b}
+.zf-s5 .zf-stufe,.zf-s4 .zf-stufe{color:#13663d}.zf-s3 .zf-stufe{color:#8a5d00}.zf-s2 .zf-stufe,.zf-s1 .zf-stufe{color:#a32020}
+.zf-verlauf{display:flex;align-items:flex-end;gap:3px;height:40px}
+.zf-verlauf i{display:block;width:10px;background:var(--grau);opacity:.55;border-radius:2px 2px 0 0}
+@media (max-width:800px){.zf-wert{font-size:36px}.zf-tab td.bar{width:30%}.zf-tab th:nth-child(4),.zf-tab td:nth-child(4){display:none}}
+</style>"""
+
+ZUF_JS = r"""
+(function(){
+var D=JSON.parse(document.getElementById("ep-daten").textContent),Z=D.zuf;if(!Z||!D.wk)return;
+function zahl(v,s){return v.toLocaleString("de-DE",{minimumFractionDigits:s||0,maximumFractionDigits:s||0})}
+function stufe(w){for(var i=0;i<Z.stufen.length;i++)if(w>=Z.stufen[i][0])return [Z.stufen[i][1],Z.stufen.length-i];return ["",1]}
+function effekt(w){var x=Z.wirkung;if(w>=x.bonus_ab)return x.bonus;if(w<x.malus_ab)return -Math.min(x.malus_max,(x.malus_ab-w)*x.malus_je_punkt);return 0}
+function rechnen(){
+ var a={};[].forEach.call(document.querySelectorAll("input[type=number][data-kat]"),function(f){a[f.dataset.kat]=parseFloat(String(f.value).replace(",","."))||0});
+ D.kategorien.forEach(function(k){if(!(k.id in a))a[k.id]=k.anteil});
+ var s=0,g=0;Object.keys(Z.gewichte).forEach(function(k){var gw=Z.gewichte[k],r=D.wk.richt[k]||0;if(!gw||r<0.05)return;
+  var n=100*(1-Math.exp(-1.6*Math.max(0,a[k]/r)));s+=n*gw;g+=gw;
+  var z=document.querySelector('[data-zf="'+k+'"]');if(z){z.querySelector("i").style.width=n.toFixed(1)+"%";z.querySelector(".zf-note").textContent=zahl(n)}});
+ var ziel=g?s/g:0,neu=Z.alt===null?ziel:Z.alt+(ziel-Z.alt)*Z.traegheit,st=stufe(neu),e=effekt(neu);
+ var k=document.getElementById("zf-kopf");k.className="zf-kopf zf-s"+st[1];
+ document.getElementById("zf-wert").innerHTML=zahl(neu)+" <small>/ 100</small>";document.getElementById("zf-stufe").textContent=st[0];
+ document.getElementById("zf-bar").style.width=neu.toFixed(1)+"%";document.getElementById("zf-ziel").textContent=zahl(ziel);
+ document.getElementById("zf-eff").textContent=Math.abs(e)<0.0005?"keine":(e>0?"+":"−")+Math.abs(e).toLocaleString("de-DE",{maximumFractionDigits:2})+" %";
+}
+[].forEach.call(document.querySelectorAll("input[data-kat]"),function(f){f.addEventListener("input",rechnen)});
+var n=document.getElementById("ep-normieren");if(n)n.addEventListener("click",rechnen);
+rechnen()})();
+"""
+
+
+def _zf_klasse(wert):
+    return "zf-s" + str(len(ZUF_STUFEN) - next(i for i, (g, _) in enumerate(ZUF_STUFEN) if wert >= g))
+
+
+def zuf_balken(wert):
+    return f'<div class="zf-balken {_zf_klasse(wert)}" role="img" aria-label="{_de(wert, 0)} von 100"><i style="width:{min(100, max(0, wert)):.1f}%"></i></div>'
+
+
+def zuf_daten(z):
+    return {"gewichte": ZUF_GEWICHTE, "alt": z["alt"], "stufen": ZUF_STUFEN, "wirkung": ZUF_WIRKUNG, "traegheit": ZUF_TRAEGHEIT}
+
+
+def zuf_html(z, verlauf, reich=False, interaktiv=True):
+    """Abschnitt „Bevölkerungszufriedenheit“ (ZUF_JS aktualisiert Wert, Stufe und Teilnoten live)."""
+    e = z["effekt"]
+    eff = "keine" if abs(e) < 0.0005 else _vz(e, "%")
+    hist = ""
+    if verlauf:
+        hist = ('<div><div class="zf-meta">Verlauf</div><div class="zf-verlauf" title="Gebuchte Monate">'
+                + "".join(f'<i style="height:{max(4, w * 0.4):.0f}px" title="{esc(sa._monatsname(p))}: {_de(w, 0)}"></i>' for p, w in verlauf) + '</div></div>')
+    kopf = (f'<div class="zf-kopf {_zf_klasse(z["neu"])}" id="zf-kopf"><div><div class="zf-wert" id="zf-wert">{_de(z["neu"], 0)} <small>/ 100</small></div>'
+            f'<div class="zf-stufe" id="zf-stufe">{esc(z["stufe"])}</div></div>'
+            f'<div class="zf-gross"><div class="zf-balken"><i id="zf-bar" style="width:{z["neu"]:.1f}%"></i></div>'
+            '<div class="zf-skala"><span style="left:0%">0</span><span style="left:40%">40</span><span style="left:55%">55</span><span style="left:70%">70</span><span style="left:85%">85</span><span style="left:100%">100</span></div>'
+            f'<div class="zf-meta">Zielwert bei dieser Verteilung: <b id="zf-ziel">{_de(z["ziel"], 0)}</b> · '
+            f'letzter Monat: <b>{"–" if z["alt"] is None else _de(z["alt"], 0)}</b> · Wirkung auf das Steueraufkommen: <b id="zf-eff">{eff}</b></div></div>{hist}</div>')
+    teile = "".join(f'<tr data-zf="{kat}"><td>{esc(NAMEN[kat])}</td><td class="bar">{zuf_balken(n)}</td><td class="num zf-note">{_de(n, 0)}</td>'
+                    f'<td class="num">{g} %</td></tr>' for kat, n, g in sorted(z["teile"], key=lambda t: -t[2]))
+    w = ZUF_WIRKUNG
+    return (ZUF_CSS + f'<section class="zf" id="zf"><h2>{amt.ic("users")} Bevölkerungszufriedenheit</h2>'
+            f'<p class="az">Wie zufrieden ist die Bevölkerung {"der Freien Reichsgebiete mit dem Reich" if reich else "mit ihrer Regierung"}? '
+            'Der Index (0–100) ergibt sich aus den Investitionen in die Politikfelder, die die Menschen im Alltag spüren – vor allem Arbeit und Soziales, '
+            'Gesundheit, Bildung und Innere Sicherheit. Die Stimmung ändert sich nicht sofort: je gebuchtem Monat legt sie die Hälfte des Weges zum Zielwert zurück. '
+            f'Ab {w["bonus_ab"]} Punkten steigt das Steueraufkommen um {_de(w["bonus"])} %, unter {w["malus_ab"]} Punkten sinkt es '
+            f'(je Punkt {_de(w["malus_je_punkt"], 2)} %, höchstens {_de(w["malus_max"])} %).</p>' + kopf
+            + f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Zusammensetzung des Index</summary>'
+              '<table class="zf-tab"><thead><tr><th>Politikfeld</th><th>Teilnote</th><th class="num">Note</th><th class="num">Gewicht</th></tr></thead>'
+              f'<tbody>{teile}</tbody></table><p class="zf-meta">Teilnote: 80 bei genau dem Richtwert, mehr Geld bringt immer weniger zusätzliche Zufriedenheit. '
+              'Verteidigung zählt nicht.</p></details></section>')
+
+
+def zuf_tabelle(liste, ziel_liste, pfad, markiert=""):
+    """Zufriedenheit aller Haushalte (öffentlich)."""
+    zeilen = []
+    for s, n in ziel_liste:
+        if s == "reich":
+            z, n = liste[0]["zufriedenheit_reich"], "Freie Reichsgebiete (Reich)"
+        else:
+            z = next(x for x in liste if "ts-" + x["staat"] == s)["zufriedenheit_land"]
+        zeilen.append((z["neu"], f'<tr{" class=fokus" if s == markiert else ""}><td><a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td><td class="bar">{zuf_balken(z["neu"])}</td>'
+                                 f'<td class="num">{_de(z["neu"], 0)}</td><td class="num">{esc(z["stufe"])}</td></tr>'))
+    reichsweit = zuf_reichsweit(liste)
+    return (f'<p class="zf-meta">Im ganzen Reich (nach Einwohnern gewichtet): <b>{_de(reichsweit, 0)} / 100 – {esc(zuf_stufe(reichsweit))}</b></p>'
+            '<table class="zf-tab"><thead><tr><th>Haushalt</th><th>Zufriedenheit</th><th class="num">Index</th><th class="num">Stimmung</th></tr></thead><tbody>'
+            + "".join(z for _, z in sorted(zeilen, key=lambda t: -t[0])) + '</tbody></table>')
+
+
 def regeln_html():
     """Übersicht aller Boni und Mali (öffentlich)."""
     g = GRENZEN
@@ -542,7 +738,7 @@ async def seite(request, k):
         fest_vorn = []
         vt_stelle = "verteidigung"
         vt_ih = 0
-        bew, richt = liste[0]["wirkung_reich"], liste[0]["richt_reich"]
+        bew, richt, zuf = liste[0]["wirkung_reich"], liste[0]["richt_reich"], liste[0]["zufriedenheit_reich"]
         basis_ein, basis_rl = sum(x["summe_basis"] for x in liste if x["reichsgebiet"]), gesamt
     else:
         x = next(x for x in liste if "ts-" + x["staat"] == ziel)
@@ -552,6 +748,7 @@ async def seite(request, k):
         vt_stelle = "vt-" + x["staat"]
         vt_ih = verteidigung.kennzahlen(con, vt_stelle)["instandhaltung"]
         bew, richt, basis_ein, basis_rl = x["wirkung_land"], x["richt_land"], x["summe_basis"], x["land"]
+        zuf = x["zufriedenheit_land"]
     anteile = aktuelle(con, ziel, liste)
     anteile = runden100(anteile)
     darf = darf_aendern(con, k, ziel)
@@ -562,7 +759,7 @@ async def seite(request, k):
     fest_hinten = [{"id": "ruecklage", "name": "Rücklage der Staatskasse" if ziel != "reich" else "Rücklage der Reichskasse",
                     "betrag": ruecklage, "farbe": "#c4c6cb", "schraffur": False}]
     daten = {"gesamt": gesamt, "pool": pool, "vt_min": vt_min, "kategorien": kat_daten, "fest_vorn": fest_vorn, "fest_hinten": fest_hinten, "farben": PALETTE,
-             "wk": wirkung_daten(richt, basis_ein, basis_rl)}
+             "wk": wirkung_daten(richt, basis_ein, basis_rl), "zuf": zuf_daten(zuf)}
     c = amt.csrf_feld(request)
     zeilen = []
     for f in fest_vorn:
@@ -626,7 +823,8 @@ async def seite(request, k):
             ver, pl = x2["verteilung_land"], x2["pool_land"]
         bw = liste[0]["wirkung_reich"] if s == "reich" else x2["wirkung_land"]
         vz.append(f'<tr><td><a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a></td>' + "".join(f'<td>{_de(ver[kat] / pl * 100 if pl else 0)}</td>' for kat, _ in KATEGORIEN)
-                  + f'<td>{bw["boni"]} / {bw["mali"]}</td><td>{_vz(bw["summe"]["einnahmen"], "%")}</td></tr>')
+                  + f'<td>{bw["boni"]} / {bw["mali"]}</td><td>{_vz(bw["summe"]["einnahmen"], "%")}</td>'
+                  + f'<td>{_de((liste[0]["zufriedenheit_reich"] if s == "reich" else x2["zufriedenheit_land"])["neu"], 0)}</td></tr>')
     verlauf = con.execute("SELECT * FROM ep_log WHERE schl=? ORDER BY id DESC LIMIT 15", (ziel,)).fetchall()
     inhalt = (CSS + f'<h1>{amt.ic("chart-pie")} Etatverteilung · {esc(name)}</h1>{amt.meldung(request)}'
               '<p class="az">Wie viel vom Ausgabenbudget fließt in welches Politikfeld? Das Tortendiagramm zeigt den gesamten Monatsetat.</p>'
@@ -636,10 +834,11 @@ async def seite(request, k):
               + rechte + erkl
               + f'<div class="ep-raster"><div class="ep-torte" id="ep-torte"><svg viewBox="0 0 200 200" role="img" aria-label="Tortendiagramm des Etats {esc(name)}"></svg>'
                 '<div class="ep-tipp" id="ep-tipp"></div></div><div>' + form_in + '</div></div>'
+              + zuf_html(zuf, zuf_verlauf(con, ziel), ziel == "reich")
               + wirkung_html(bew, basis_ein, basis_rl, ziel == "reich")
-              + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script>'
+              + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script><script>{ZUF_JS}</script>'
               + f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Vergleich aller Haushalte (Anteile am Ausgabenbudget in %)</summary><div class="ep-scroll">'
-                f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>'
+                f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>'
               + f'<details class="sa-auf"><summary>{amt.ic("clock")}Änderungen ({len(verlauf)})</summary>'
               + amt.tabelle(["Zeit", "Durch", "Änderung"], [(amt._zeit(v["zeit"]), esc(v["autor_name"]), esc(v["text"])) for v in verlauf], "Noch keine Änderungen.") + '</details>')
     return sa.ant(request, k, "Etatverteilung", "sa-etatverteilung", inhalt)
@@ -682,6 +881,7 @@ async def oeffentlich(request, k):
     x = None if ziel == "reich" else next(y for y in liste if "ts-" + y["staat"] == ziel)
     d = _torte_daten(x, liste, ziel)
     bew = liste[0]["wirkung_reich"] if ziel == "reich" else x["wirkung_land"]
+    zuf = liste[0]["zufriedenheit_reich"] if ziel == "reich" else x["zufriedenheit_land"]
     zeilen = []
     for f in d["fest_vorn"]:
         zeilen.append(f'<tr class="ep-fest" data-zeile="{f["id"]}"><td><span class="ep-farbe" style="background:{f["farbe"]}"></span>{esc(f["name"])}</td>'
@@ -700,10 +900,14 @@ async def oeffentlich(request, k):
     e = bew["summe"]["einnahmen"]
     lage = (f'<div class="wk-ausg{" ja" if bew["ausgewogen"] else ""}"><b>{"Ausgewogener Etat" if bew["ausgewogen"] else "Etat mit Schwerpunkten"}</b> · '
             f'{bew["boni"]} Boni · {bew["mali"]} Mali · Wirkung auf das Steueraufkommen: '
-            f'<b class="{"wk-plus" if e > 0 else "wk-minus" if e < 0 else ""}">{_vz(e, "%")}</b></div>')
+            f'<b class="{"wk-plus" if e > 0 else "wk-minus" if e < 0 else ""}">{_vz(e, "%")}</b></div>'
+            f'<div class="zf-kopf {_zf_klasse(zuf["neu"])}" style="margin:10px 0"><div><div class="zf-wert">{_de(zuf["neu"], 0)} <small>/ 100</small></div>'
+            f'<div class="zf-stufe">{esc(zuf["stufe"])}</div></div><div class="zf-gross"><div class="zf-meta">Bevölkerungszufriedenheit'
+            f'{" der Freien Reichsgebiete" if ziel == "reich" else ""}</div>{zuf_balken(zuf["neu"])}'
+            '<div class="zf-skala"><span style="left:0%">0</span><span style="left:40%">40</span><span style="left:55%">55</span><span style="left:70%">70</span><span style="left:85%">85</span><span style="left:100%">100</span></div></div></div>')
     staatl = (f'<p class="sa-hinweis"><a href="{PFAD}?ziel={esc(ziel)}">Zur Etatverteilung mit Beträgen und Einstellungen</a></p>'
               if sa.hat_kassen(con, k) else "")
-    inhalt = (CSS + WK_CSS + f'<h1>{amt.ic("chart-pie")} Etatübersicht</h1>'
+    inhalt = (CSS + WK_CSS + ZUF_CSS + f'<h1>{amt.ic("chart-pie")} Etatübersicht</h1>'
               '<p class="az">Wofür geben Reich und Teilstaaten ihr Geld aus? Anteile am monatlichen Etat.</p>'
               f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{auswahl}</select></div>'
               '<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>' + lage
@@ -712,7 +916,12 @@ async def oeffentlich(request, k):
                 f'<table class="ep-tab"><thead><tr><th>Posten</th><th class="num">Anteil am Etat</th></tr></thead><tbody>{"".join(zeilen)}</tbody></table></div></div>'
               + f'<script type="application/json" id="ep-daten">{json.dumps(d, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script>'
               + staatl
-              + f'<details class="sa-auf"><summary>{amt.ic("scale")}Wie wirkt sich die Verteilung aus?</summary>{regeln_html()}</details>')
+              + f'<h2>{amt.ic("users")} Bevölkerungszufriedenheit im Reich</h2>' + zuf_tabelle(liste, ziel_liste, PFAD_OEFF, ziel)
+              + f'<details class="sa-auf"><summary>{amt.ic("scale")}Wie wirkt sich die Verteilung aus?</summary>{regeln_html()}'
+                '<p class="az"><b>Bevölkerungszufriedenheit:</b> Index 0–100 aus den Investitionen (Gewichte: '
+              + ", ".join(f'{NAMEN[k]} {g} %' for k, g in sorted(ZUF_GEWICHTE.items(), key=lambda t: -t[1]) if g)
+              + f'). Ab {ZUF_WIRKUNG["bonus_ab"]} Punkten +{_de(ZUF_WIRKUNG["bonus"])} % Steueraufkommen, unter {ZUF_WIRKUNG["malus_ab"]} Punkten bis zu '
+                f'−{_de(ZUF_WIRKUNG["malus_max"])} %. Die Stimmung folgt einer neuen Verteilung nur allmählich.</p></details>')
     return sa.ant(request, k, "Etatübersicht", "sa-etatuebersicht", inhalt)
 
 

@@ -149,16 +149,18 @@ def berechnen(con, p=None):
     plan_reich, richt_reich = etatplan.plan(con, "reich", vv_reich), etatplan.richtwerte(vv_reich)
     w_reich = etatplan.bewerten(plan_reich, richt_reich)   # Boni/Mali des Reichsetats: Freie Reichsgebiete + Rücklage der Reichskasse
     aq_r = min(1.05, max(0.0, aq - w_reich["summe"]["ruecklage"] / 100))
+    z_reich = etatplan.zufriedenheit(con, "reich", plan_reich, richt_reich)   # Bevölkerungszufriedenheit (Freie Reichsgebiete)
     out = []
     for b in basis:
         s = b["s"]
-        plan_l = richt_l = w_l = None
+        plan_l = richt_l = w_l = z_l = None
         if not b["rd"]:
             vv = b["vl0"] / b["aus_l"] * 100 if b["aus_l"] else 0
             plan_l, richt_l = etatplan.plan(con, "ts-" + s["id"], vv), etatplan.richtwerte(vv)
             w_l = etatplan.bewerten(plan_l, richt_l)
-        # Wirkung auf das Steueraufkommen: im Teilstaat dessen eigener Etat, in den Freien Reichsgebieten der Reichsetat
-        f_ein = 1 + (w_reich if b["rd"] else w_l)["summe"]["einnahmen"] / 100
+            z_l = etatplan.zufriedenheit(con, "ts-" + s["id"], plan_l, richt_l)
+        # Wirkung auf das Steueraufkommen: im Teilstaat dessen eigener Etat, in den Freien Reichsgebieten der Reichsetat; dazu die Zufriedenheit
+        f_ein = 1 + ((w_reich if b["rd"] else w_l)["summe"]["einnahmen"] + (z_reich if b["rd"] else z_l)["effekt"]) / 100
         summe = int(round(b["summe"] * f_ein))
         reich = summe if b["rd"] else int(round(summe * b["q"] / 100))
         land = summe - reich
@@ -172,7 +174,7 @@ def berechnen(con, p=None):
                     "ausgaben_reich": aus_r - vr, "ausgaben_land": aus_l - vl, "vert_reich": vr, "vert_land": vl,
                     "pool_reich": aus_r, "pool_land": aus_l, "verteilung_reich": ver_r, "verteilung_land": ver_l,
                     "plan_land": plan_l, "richt_land": richt_l, "wirkung_land": w_l, "plan_reich": plan_reich, "richt_reich": richt_reich,
-                    "wirkung_reich": w_reich, "kasse": None if b["rd"] else geld.stellenkonto(con, "ts-" + s["id"])})
+                    "wirkung_reich": w_reich, "zufriedenheit_land": z_l, "zufriedenheit_reich": z_reich, "kasse": None if b["rd"] else geld.stellenkonto(con, "ts-" + s["id"])})
     return sorted(out, key=lambda x: -x["summe"])
 
 
@@ -239,6 +241,7 @@ def ausfuehren(con, periode, k):
     for x in liste:   # Verteilung auf die Politikfelder des Monats festhalten (Reich aufsummiert über alle Posten)
         if x["reichsgebiet"] or x["verteilung_land"]:
             etatplan.verteilung_speichern(con, lauf, {"staat": x["staat"], "verteilung_land": x["verteilung_land"]})
+    etatplan.zuf_speichern(con, lauf, liste)   # Bevölkerungszufriedenheit des Monats
     for kat, _ in etatplan.KATEGORIEN:
         con.execute("INSERT OR REPLACE INTO ep_verteilung (lauf, schl, kategorie, betrag) VALUES (?,?,?,?)",
                     (lauf, "reich", kat, sum(x["verteilung_reich"].get(kat, 0) for x in liste)))
