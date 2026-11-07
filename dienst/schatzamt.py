@@ -3,7 +3,7 @@ erreichbar für alle angemeldeten Nutzer.
 
 Für alle (Mitglieder): Übersicht, Konto & Umsätze (Kontoauszug, PDF), Überweisen (mit Prüfschritt, Empfängersuche, Umsatz- und
 Überweisungssteuer), Steuern & Gebühren (eigene Bescheide, bezahlen, PDF), Gehalt (Abrechnungen, PDF), Gewerbe (Anmeldung,
-Gewerbekonto), Tarife & Sätze, Reichsfinanzen (Transparenz).
+Gewerbekonto), Tarife & Sätze. Nur mit staatlichem Zugriff (Umschalter „Staatl.“): Reichsfinanzen, Goldreserven.
 Für das Schatzamt (geld.ist_beamter / ist_leitung): Verwaltung (Kennzahlen), Konten (Suche, Sperre, Korrekturbuchung),
 Geldpolitik (Geldschöpfung/-vernichtung, Leitzins), Gewerberegister (Anträge), Protokoll; Steuern → steuern.py, Besoldung → besoldung.py.
 """
@@ -81,6 +81,7 @@ table.liste td.sa-betrag,table.liste th.sa-betrag{text-align:right}
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe")     # Seiten, die nur die Privatperson betreffen
+NUR_STAAT = ("sa-finanzen", "sa-gold")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_staat(con, k):
@@ -104,7 +105,7 @@ def konten_im_modus(con, k, m):
 def _umschalter(m, aktiv):
     def a(wert, text):
         ziel = PFAD + "modus/" + wert
-        if aktiv and aktiv not in ("sa-start", "sa-konto", "sa-ueberweisen", "sa-tarife", "sa-finanzen", "sa-gold"):
+        if aktiv and aktiv not in ("sa-start", "sa-konto", "sa-ueberweisen", "sa-tarife"):
             ziel += "?weiter=" + quote(PFAD)
         return f'<a href="{ziel}" class="{"aktiv" if m == wert else ""}"{" aria-current=true" if m == wert else ""}>{text}</a>'
     return f'<nav class="sa-modus" aria-label="Ansicht">{a("staat", "Staatl.")}{a("privat", "Privat")}</nav>'
@@ -123,9 +124,9 @@ async def modus_setzen(request):
 
 
 def nav(k, m="privat", schalter=False, aktiv=""):
-    info = ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/"), ("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"),
-                            ("sa-gold", "coins", "Goldreserven", "gold/")])
     if m == "staat":
+        info = ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/"), ("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"),
+                                ("sa-gold", "coins", "Goldreserven", "gold/")])
         mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Kassen & Umsätze", "konto/"),
                 ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/")]
         gruppen = [("Staatliche Kassen", mein), info]
@@ -133,7 +134,7 @@ def nav(k, m="privat", schalter=False, aktiv=""):
         mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Konto & Umsätze", "konto/"),
                 ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/"), ("sa-steuern", "receipt", "Steuern & Gebühren", "steuern/"),
                 ("sa-gehalt", "banknote", "Gehalt", "gehalt/"), ("sa-gewerbe", "store", "Gewerbe", "gewerbe/")]
-        gruppen = [("Mein Geld", mein), info]
+        gruppen = [("Mein Geld", mein), ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
     if m == "staat" and geld.ist_beamter(k):
         amtl = [("sa-amt", "landmark", "Verwaltung", "amt/"), ("sa-amt-konten", "wallet", "Konten", "amt/konten/"),
                 ("sa-amt-steuern", "receipt", "Steuerverwaltung", "amt/steuern/"), ("sa-amt-gewerbe", "store", "Gewerberegister", "amt/gewerbe/")]
@@ -170,7 +171,7 @@ def _kennzahlen_kurz(html_):
 def ant(request, k, titel, aktiv, inhalt, status=200):
     schalter = hat_staat(request.app["db"], k)
     m = modus(request, k)
-    if schalter and aktiv.startswith("sa-amt"):
+    if schalter and (aktiv.startswith("sa-amt") or aktiv in NUR_STAAT):
         m = "staat"          # Verwaltungsseiten gehören immer zur staatlichen Ansicht
     elif aktiv in NUR_PRIVAT:
         m = "privat"
@@ -179,7 +180,8 @@ def ant(request, k, titel, aktiv, inhalt, status=200):
 
 
 def seite(recht=None):
-    """Dekorator: Anmeldung nötig; recht = 'mitglied' | 'beamter' | 'leitung'. Handler bekommt (request, konto)."""
+    """Dekorator: Anmeldung nötig; recht = 'mitglied' | 'staat' (staatlicher Zugriff, hat_staat) | 'beamter' | 'leitung'.
+    Handler bekommt (request, konto)."""
     def deko(h):
         @functools.wraps(h)
         async def inner(request):
@@ -187,8 +189,11 @@ def seite(recht=None):
             if not k:
                 raise web.HTTPFound("/anmelden/?weiter=" + quote(request.path_qs))
             ok = {"mitglied": k["mitglied"], "beamter": geld.ist_beamter(k), "leitung": geld.ist_leitung(k)}.get(recht, True)
+            if recht == "staat":
+                ok = hat_staat(request.app["db"], k)
             if not ok:
                 text = {"mitglied": "Diese Funktion steht nur Mitgliedern unseres Discord-Servers zur Verfügung.",
+                        "staat": "Dieser Bereich ist staatlich und nur für Amtsträger mit Verfügung über eine staatliche Kasse einsehbar.",
                         "beamter": "Dieser Bereich ist dem Kaiserlichen Schatz- und Währungsamt vorbehalten.",
                         "leitung": "Dieser Bereich ist der Leitung des Schatz- und Währungsamts vorbehalten."}[recht]
                 return ant(request, k, "Kein Zugang", "", f'<h1>Kein Zugang</h1><div class="warnung">{esc(text)}</div>', 403)
@@ -651,7 +656,7 @@ async def tarife(request, k):
     return ant(request, k, "Tarife & Sätze", "sa-tarife", inhalt)
 
 
-@seite()
+@seite("staat")
 async def finanzen(request, k):
     import aufkommen
     import gold
@@ -665,7 +670,7 @@ async def finanzen(request, k):
     kz = [("Geldmenge im Umlauf", mark(geld.geldmenge(con))), ("Reichskasse", mark(kasse["saldo"])),
           ("Reichsversicherung", mark(geld.sonder(con, "sozialkasse")["saldo"])), ("Leitzins", f'{geld.einstellung(con, "leitzins")} %'),
           ("Wechselkurs", f'1 Kr = {geld.einstellung(con, "wechselkurs")} €')]
-    inhalt = (f'<h1>{amt.ic("chart-column")} Reichsfinanzen</h1><p class="az">Öffentliche Übersicht über Geldmenge und Reichskasse '
+    inhalt = (f'<h1>{amt.ic("chart-column")} Reichsfinanzen</h1><p class="az">Staatliche Übersicht über Geldmenge und Reichskasse '
               '(Einnahmen und Ausgaben der letzten 30 Tage).</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
               '<h2>Einnahmen der Reichskasse</h2>' + amt.tabelle(["Art", "Summe"], [(esc(geld.BUCHUNGSART.get(r["art"], r["art"])), mark(r["s"])) for r in ein], "Keine Einnahmen.")

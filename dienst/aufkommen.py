@@ -266,7 +266,7 @@ async def buchen(request):
 
 
 def finanzen_html(con):
-    """Für die öffentliche Seite „Reichsfinanzen“: letzter gebuchter Monat je Teilstaat."""
+    """Für die staatliche Seite „Reichsfinanzen“: letzter gebuchter Monat je Teilstaat."""
     l = con.execute("SELECT * FROM ak_laeufe ORDER BY id DESC LIMIT 1").fetchone()
     if not l:
         return ""

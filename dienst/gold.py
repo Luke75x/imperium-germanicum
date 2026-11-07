@@ -9,7 +9,7 @@ Handel nur mit der Zentralbank: Verkauf → Zentralbank zahlt den Gegenwert in K
 Kauf → Staatskasse zahlt an die Zentralbank (Geld verlässt den Umlauf). Ankaufsabschlag/Verkaufsaufschlag je 1 % (Einstellung).
 Berechtigt: Landesherr für die eigene Staatskasse (geld.regierte_staatskassen), Leitung des Schatzamts für alle und die Reichskasse;
 Goldpreis setzt die Leitung.
-Seite /schatzamt/gold/ (öffentlich: Bestände, Wert, Golddeckung der Krone).
+Seite /schatzamt/gold/ (staatlich – nur mit staatlichem Zugriff, sa.hat_staat: Bestände, Wert, Golddeckung der Krone).
 """
 import time
 
@@ -104,7 +104,7 @@ def _t(x):
     return f"{x / 1000:,.2f} t".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-@sa.seite()
+@sa.seite("staat")
 async def seite(request, k):
     con = request.app["db"]
     rows = con.execute("SELECT * FROM gr_bestand ORDER BY kg DESC").fetchall()
@@ -112,7 +112,7 @@ async def seite(request, k):
     menge = geld.geldmenge(con)
     gw = wert(con, gesamt)
     g = geld.einstellung(con, "gold")
-    eigene = handelbar(con, k) if sa.modus(request, k) == "staat" else {}   # Handel nur in der staatlichen Ansicht
+    eigene = handelbar(con, k)   # Seite ist ohnehin nur staatlich (sa.seite("staat"))
     kz = [("Goldreserven gesamt", _t(gesamt)), ("Wert", mark(gw)), ("Golddeckung der Krone", f"{gw / menge * 100:.1f} %".replace(".", ",") if menge else "–"),
           ("Goldpreis", f"{preis(con):,.0f} € je kg".replace(",", "."))]
     zeilen = [(esc(r["name"]), _t(r["kg"]), mark(wert(con, r["kg"])), f"{r['kg'] / gesamt * 100:.1f} %".replace(".", ",") if gesamt else "–") for r in rows]
@@ -128,7 +128,7 @@ async def seite(request, k):
                   f'{g["abschlag"]} % Aufschlag. Ein Verkauf bringt neues, goldgedecktes Geld in die Kasse.</p>'
                   f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Ausführen</button></div></form>')
     preisform = ""
-    if geld.ist_leitung(k) and sa.modus(request, k) == "staat":
+    if geld.ist_leitung(k):
         preisform = (f'<h2>Goldpreis festsetzen</h2><form class="sa-leiste" method="post" action="{PFAD}gold/preis">{amt.csrf_feld(request)}'
                      f'<div><label for="p">€ je kg</label><input type="text" id="p" name="preis" value="{preis(con):.0f}"></div>'
                      f'<div><label for="a">Ab-/Aufschlag %</label><input type="text" id="a" name="abschlag" value="{esc(str(g["abschlag"]))}"></div>'
