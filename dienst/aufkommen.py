@@ -345,7 +345,7 @@ def lage(con, liste, besoldung_reich=0):
     import etat
     s = summen(liste)
     frei_reich = s["reich"] - s["aus_reich"] - s["vert_reich"]
-    etats = sum(etat.etats(con).values()) // 12
+    etats = sum(etat.etats(con).values())
     return {"ein": s["ein"], "reich": s["reich"], "frei_reich": frei_reich, "etats": etats, "besoldung": besoldung_reich,
             "saldo": frei_reich - etats - besoldung_reich, "frei_land": s["land"] - s["aus_land"] - s["vert_land"],
             "verteidigung": s["vert_reich"] + s["vert_land"]}
@@ -354,7 +354,7 @@ def lage(con, liste, besoldung_reich=0):
 def prognose_html(con, liste, besoldung_reich=0):
     l = lage(con, liste, besoldung_reich)
     kz = [("Steuereinnahmen im Monat", l["ein"]), ("davon an das Reich", l["reich"]), ("Reich frei verfügbar¹", l["frei_reich"]),
-          ("Etats der Behörden (1/12)", l["etats"]), ("Besoldung über die Reichskasse", l["besoldung"]),
+          ("Etats der Behörden (Monat)", l["etats"]), ("Besoldung über die Reichskasse", l["besoldung"]),
           ("Überschuss des Reiches" if l["saldo"] >= 0 else "Defizit des Reiches", l["saldo"]),
           ("Teilstaaten frei verfügbar¹", l["frei_land"]), ("Verteidigungsetat (Reich + Teilstaaten)", l["verteidigung"]),
           ("Reichskasse heute", geld.sonder(con, "reichskasse")["saldo"])]

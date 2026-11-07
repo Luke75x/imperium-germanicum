@@ -4,7 +4,7 @@
 Teilstaaten) und behoerde (Behörden, Reichskanzlei). Die Reichskasse selbst ist ausgenommen.
 
 Dispo: Diese Kassen dürfen für Beschaffungen, Zuführungen und Überweisungen (DISPO_ARTEN) bis zu „dispo_monate“ Monatsreferenzen ins Minus
-(Staatskasse: Landesanteil des Monats, Verteidigungskasse: Verteidigungsetat des Monats, Behörde: Jahresetat ÷ 12). Alle anderen Zahlungen
+(Staatskasse: Landesanteil des Monats, Verteidigungskasse: Verteidigungsetat des Monats, Behörde: Monatsetat). Alle anderen Zahlungen
 brauchen Deckung. Ein Lohnlauf zahlt nur aus gedeckten Zahlstellen (besoldung.lohnlauf_buchen) – Gehälter einer Kasse im Minus werden
 einbehalten (bs_rueckstaende) und automatisch nachgezahlt, sobald die Zahlstelle wieder im Plus ist und den Betrag deckt (besoldung.nachzahlen).
 
@@ -109,7 +109,7 @@ def monatsreferenz(con, r, liste=None):
     import etat
     st = r["stelle"]
     if r["art"] == "behoerde":
-        return etat.etats(con).get(st, 0) // 12
+        return etat.etats(con).get(st, 0)
     liste = liste if liste is not None else aufkommen.berechnen(con)
     if st == "verteidigung":
         return sum(x["vert_reich"] for x in liste)

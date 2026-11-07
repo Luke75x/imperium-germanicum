@@ -463,7 +463,7 @@ def _uebersicht_militaer(request, k, con):
 
 
 def _kassen_zusatz(con, konten):
-    """{Konto-ID: kurze Zusatzzeile} – Jahresetat bei Behörden, Reichsabgabe bei Staatskassen."""
+    """{Konto-ID: kurze Zusatzzeile} – Monatsetat bei Behörden, Reichsabgabe bei Staatskassen."""
     import aufkommen
     import etat
     out = {}
@@ -471,7 +471,7 @@ def _kassen_zusatz(con, konten):
         e = etat.etats(con)
         for r in konten:
             if r["art"] == "behoerde" and e.get(r["stelle"]):
-                out[r["id"]] = f'Jahresetat {geld.mark_kurz(e[r["stelle"]])}'
+                out[r["id"]] = f'Etat / Monat {geld.mark_kurz(e[r["stelle"]])}'
     if any(r["art"] == "teilstaat" for r in konten):
         import notlage
         q = aufkommen.abgabequoten(aufkommen.staaten_bip(con), geld.einstellung(con, "aufkommen"), zuschlag=notlage.zuschlaege(con))
