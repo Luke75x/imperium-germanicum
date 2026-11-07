@@ -81,7 +81,7 @@ def staaten_bip(con):
     return [(s, *summe.get(s["id"], [0, 0, 0])) for s in a["stand"]["staaten"]]
 
 
-def abgabequoten(daten, p, summen_heller=None):
+def abgabequoten(daten, p, summen_heller=None, zuschlag=None):
     """{Teilstaat-ID: Reichsabgabe in %} – Index aus Bevölkerung, Einkommen pro Kopf und Fläche (Wurzel des Verhältnisses zum
     Durchschnitt der Teilstaaten bzw. zum BIP/Kopf des ganzen Reiches), gewichtet; normiert auf den Reichsanteil als nach Einnahmen
     gewichteten Durchschnitt; begrenzt auf quote_min…quote_max. Freie Reichsgebiete: 100 %."""
@@ -110,6 +110,9 @@ def abgabequoten(daten, p, summen_heller=None):
             break
         faktor *= basis / schnitt
     out = {i: round(v, 1) for i, v in q.items()}
+    for sid, plus in (zuschlag or {}).items():   # Haushaltsnotlage (Stufe 3): Zuschlag auf die Reichsabgabe
+        if sid in out:
+            out[sid] = min(100.0, round(out[sid] + float(plus), 1))
     out.update({s["id"]: 100.0 for s, *_ in daten if geld.ist_reichsgebiet(s)})
     return out
 
@@ -123,7 +126,9 @@ def berechnen(con, p=None):
     quote, aq = float(p["steuerquote"]) / 100, float(p.get("ausgabenquote", 97)) / 100
     kr = kronen_je_mio_euro(con)
     daten = staaten_bip(con)
-    quoten = abgabequoten(daten, p)
+    import notlage
+    zusch = notlage.zuschlaege(con)
+    quoten = abgabequoten(daten, p, zuschlag=zusch)
     out = []
     for s, bip, ew, km in daten:
         summe = int(round(bip / 12 * quote * kr * 100))
@@ -135,7 +140,7 @@ def berechnen(con, p=None):
         vert = int(round(bip / 12 * float(v["quote_bip"]) / 100 * kr * 100))
         vr = min(aus_r, int(round(vert * float(v["anteil_reich"]) / 100)))
         vl = 0 if reich_direkt else min(aus_l, vert - int(round(vert * float(v["anteil_reich"]) / 100)))
-        out.append({"staat": s["id"], "name": s["name"], "reichsgebiet": reich_direkt, "bip": bip, "ew": ew, "km2": km, "quote": q,
+        out.append({"staat": s["id"], "name": s["name"], "reichsgebiet": reich_direkt, "bip": bip, "ew": ew, "km2": km, "quote": q, "zuschlag": zusch.get(s["id"], 0),
                     "summe": summe, "reich": reich, "land": land, "ausgaben_reich": aus_r - vr, "ausgaben_land": aus_l - vl,
                     "vert_reich": vr, "vert_land": vl,
                     "kasse": None if reich_direkt else geld.stellenkonto(con, "ts-" + s["id"])})
@@ -319,7 +324,8 @@ def tabelle_html(liste):
     zeilen = []
     for x in sorted(liste, key=lambda x: (not x["reichsgebiet"], -x["summe"])):
         kopf = x["bip"] * 1e6 / x["ew"] if x["ew"] else 0
-        quote = ('<b>100 %</b> <span class="az">Reich</span>' if x["reichsgebiet"] else f'<b>{_pz(x["quote"])}</b>')
+        quote = ('<b>100 %</b> <span class="az">Reich</span>' if x["reichsgebiet"] else f'<b>{_pz(x["quote"])}</b>'
+                 + (f' <span class="sa-minus" title="Zuschlag wegen Haushaltsnotlage">⚠ +{x["zuschlag"]:g}</span>' if x.get("zuschlag") else ""))
         zeilen.append((esc(_gebiet(x["staat"], x["name"])), _ew(x["ew"]), f"{_zahl(kopf)} €", f'{_zahl(x["km2"])} km²', quote,
                        geld.mark_kurz(x["summe"]), geld.mark_kurz(x["reich"]), geld.mark_kurz(x["land"]) if x["land"] else "–",
                        geld.mark_kurz(x["land"] - x["ausgaben_land"] - x["vert_land"]) if x["land"] else "–"))

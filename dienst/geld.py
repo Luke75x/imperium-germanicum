@@ -281,11 +281,16 @@ def buchen(con, von, an, betrag, art, zweck="", k=None, bezug="", minus=False, c
         raise Fehler("Konto nicht gefunden.")
     if von and an and von == an:
         raise Fehler("Auftraggeber- und Empfängerkonto sind gleich.")
+    if kv and ka and kv["stelle"] in ("reichskasse", "zentralbank"):
+        import notlage
+        notlage.hilfe_pruefen(con, kv, ka, art)   # das Reich zahlt nicht für das Minus eines Teilstaats
     if kv:
         if kv["gesperrt"] and art in ("ueberweisung", "steuer", "gebuehr"):
             raise Fehler(f'Das Konto {nummer_anzeige(kv["nummer"])} ist gesperrt' + (f': {kv["sperrgrund"]}' if kv["sperrgrund"] else "."))
         if not minus and kv["stelle"] not in AUSSEN and kv["saldo"] < betrag:
-            raise Fehler(f'Keine ausreichende Deckung auf {kv["name"]} (verfügbar {mark(kv["saldo"])}).')
+            import notlage
+            if not notlage.dispo_erlaubt(con, kv, betrag, art):   # Dispo für Staats-, Verteidigungs- und Behördenkassen
+                raise Fehler(notlage.fehlertext(kv))
     if ka and ka["gesperrt"] and art == "ueberweisung":
         raise Fehler("Das Empfängerkonto ist gesperrt und kann keine Überweisungen empfangen.")
     if kv:
@@ -351,8 +356,9 @@ def verfuegbare_konten(con, k):
     if p:
         out.append(p)
     out += con.execute("SELECT * FROM gk_konten WHERE art='gewerbe' AND inhaber_id=? ORDER BY name", (k["id"],)).fetchall()
+    import notlage
     for b in amt.BEHOERDEN:
-        if bereiche.leitung(k, b) and (b["leitung"] or bereiche._alle(k)):
+        if bereiche.leitung(k, b) and (b["leitung"] or bereiche._alle(k)) and not notlage.verfuegung_gesperrt(con, k, b["schl"]):
             r = stellenkonto(con, b["schl"])
             if r:
                 out.append(r)
@@ -371,7 +377,7 @@ def verfuegbare_konten(con, k):
     return res
 
 
-def regierte_staatskassen(con, k):
+def regierte_staatskassen(con, k, mit_zwang=False):
     """Staatskassen der Teilstaaten, die das Konto regiert (wie auf der Reichskarte: Fraktionsrolle + Landesherr oder Amtsrolle;
     Teilstaaten ohne eigene Fraktion verwaltet der Kanzler)."""
     import karte
@@ -385,6 +391,13 @@ def regierte_staatskassen(con, k):
         if ist_reichsgebiet(s):
             continue
         f = s["fraktion"]
+        import notlage
+        if not mit_zwang and notlage.zwang(con, "ts-" + s["id"]):   # Zwangsverwaltung: nur Kanzler/Kaiser verfügen
+            if kanzler:
+                r = stellenkonto(con, "ts-" + s["id"])
+                if r:
+                    out.append(r)
+            continue
         if (f and f in eigene and (regent or f in karte.ROLLEN_AEMTER)) or (not f and kanzler):
             r = stellenkonto(con, "ts-" + s["id"])
             if r:

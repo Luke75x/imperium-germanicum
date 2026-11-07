@@ -76,6 +76,7 @@ table.liste td.sa-betrag,table.liste th.sa-betrag{text-align:right}
 .sa-werte{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:10px 0 0;font-size:13.5px}
 .sa-werte dt{color:var(--grau)}.sa-werte dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
 .sa-zusatz{margin:2px 0 0}
+.sa-rot{color:var(--rot);font-weight:600}
 .sa-inline{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0}
 .sa-inline input[type=number]{width:80px}
 .btn.klein{padding:5px 10px;font-size:13px}
@@ -112,7 +113,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe")     # Seiten, die nur die Privatperson betreffen
-NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
+NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_kassen(con, k):
@@ -179,6 +180,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
         haushalt = [e for e, ok in ((("sa-etats", "landmark", "Etats der Behörden", "etats/"), kassen),
                                     (("sa-verteidigung", "shield", "Verteidigung", "verteidigung/"), vt),
                                     (("sa-staatshaushalt", "chart-column", "Staatshaushalt", "haushalt/"), kassen),
+                                    (("sa-notlage", "triangle-alert", "Haushaltsnotlagen", "notlagen/"), kassen),
                                     (("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"), kassen),
                                     (("sa-gold", "coins", "Goldreserven", "gold/"), kassen)) if ok]
         gruppen = [("Staatliche Kassen" if kassen else "Dienstlich", mein), ("Haushalt", haushalt),
@@ -468,7 +470,8 @@ def _kassen_zusatz(con, konten):
             if r["art"] == "behoerde" and e.get(r["stelle"]):
                 out[r["id"]] = f'Jahresetat {geld.mark_kurz(e[r["stelle"]])}'
     if any(r["art"] == "teilstaat" for r in konten):
-        q = aufkommen.abgabequoten(aufkommen.staaten_bip(con), geld.einstellung(con, "aufkommen"))
+        import notlage
+        q = aufkommen.abgabequoten(aufkommen.staaten_bip(con), geld.einstellung(con, "aufkommen"), zuschlag=notlage.zuschlaege(con))
         for r in konten:
             if r["art"] == "teilstaat" and r["stelle"][3:] in q:
                 out[r["id"]] = f'Reichsabgabe {q[r["stelle"][3:]]:.1f} % der Steuereinnahmen'.replace(".", ",")
@@ -478,6 +481,10 @@ def _kassen_zusatz(con, konten):
         for r in konten:
             if r["art"] == "verteidigung":
                 out[r["id"]] = f'Verteidigungsetat {geld.mark_kurz(etat.get(r["stelle"], 0))} je Monat'
+    import notlage
+    for kid, f in notlage.offene(con).items():
+        if any(r["id"] == kid for r in konten):
+            out[kid] = f'⚠ Haushaltsnotlage seit {int((time.time() - f["seit"]) // 86400)} Tagen (Stufe {f["stufe"]})'
     return out
 
 
@@ -486,7 +493,7 @@ def _karten(konten, zusatz=None):
     return "".join(
         f'<div class="sa-karte"><small>{esc(geld.art_name(r))}</small><div class="sa-name">{esc(r["name"])}</div>'
         f'<div class="sa-nr az">{nummer_anzeige(r["nummer"])}</div><div class="sa-saldo">{betrag_html(r["saldo"], False, kurz=True)}</div>'
-        + (f'<p class="az sa-zusatz">{esc(zusatz[r["id"]])}</p>' if r["id"] in zusatz else "")
+        + (f'<p class="az sa-zusatz{" sa-rot" if zusatz[r["id"]].startswith("⚠") else ""}">{esc(zusatz[r["id"]])}</p>' if r["id"] in zusatz else "")
         + (f'<p class="az" style="color:var(--rot)">Gesperrt{": " + esc(r["sperrgrund"]) if r["sperrgrund"] else ""}</p>' if r["gesperrt"] else "")
         + f'<div class="sa-aktionen"><a class="btn" href="{PFAD}ueberweisen/?von={r["id"]}">{amt.ic("arrow-right-left")}Überweisen</a>'
         f'<a class="btn zweit" href="{PFAD}konto/?konto={r["id"]}">{amt.ic("wallet")}Umsätze</a></div></div>' for r in konten)
@@ -758,6 +765,10 @@ def tarife_html(con):
               ("Verteidigungsetat", (lambda vt: f'{float(vt["quote_bip"]):g}'.replace(".", ",") + f' % des BIP je Monat (aus den Pflichtausgaben), davon '
                                                   f'{vt["anteil_reich"]} % an das Reich (Führungsstab), der Rest an die Verteidigungskasse des Teilstaats '
                                                   '(Militär, Gerät)')(e("verteidigung"))),
+              ("Haushaltsnotlage", (lambda n: f'Kassen von Teilstaaten, Behörden und Verteidigung dürfen bis zu {n["dispo_monate"]:g} Monat(e) überziehen; im Minus entfallen die '
+                                              f'Gehälter der Kasse, es fallen Strafzinsen (Leitzins + {n["aufschlag"]:g} Punkte) an, nach {n["ausgleich_tage"]} Tagen gleichen Teilstaaten '
+                                              f'aus Gold aus (Reichsabgabe +{n["abgabe_plus"]:g} Punkte), nach {n["zwang_tage"]} Tagen Zwangsverwaltung')(
+                  __import__("notlage").einstellungen(con))),
               ("Sozialabgabe (Reichsversicherung)", f'{e("sozialabgabe")} % des Bruttogehalts'),
               ("Länderanteil", f'{e("laenderanteil")} % von Lohn- und Kopfsteuer an den Wohnsitz-Teilstaat'),
               ("Kopfsteuer", f'{mark(e("kopfsteuer"))} je Steuerlauf und Staatsbürger'),

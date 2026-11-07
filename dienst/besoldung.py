@@ -8,6 +8,7 @@ Netto an das Privatkonto, Sozialabgabe an die Reichsversicherungskasse, Lohnsteu
 des Wohnsitzes. Es zahlt die Dienststelle (Zahlstelle „auto“ = dienststelle(): Behörde der Rollen, Reichskanzlei für den Kanzler, sonst
 Reichskasse); die Behörden finanzieren das aus ihrem Etat (etat.py). Fehlbetrag der Reichskasse auf Wunsch durch Geldschöpfung. Abrechnungen (bs_abrechnungen) mit PDF, DM an jeden.
 """
+import json
 import re
 import time
 from datetime import date
@@ -81,6 +82,8 @@ RANG = re.compile(r"^(OR|OF)-(\d{1,2})\b")
 def einrichten(con):
     con.executescript(SCHEMA)
     con.execute("CREATE TABLE IF NOT EXISTS bs_meta (schl TEXT PRIMARY KEY, wert TEXT NOT NULL)")
+    if "uebersprungen" not in {r[1] for r in con.execute("PRAGMA table_info(bs_laeufe)")}:
+        con.execute("ALTER TABLE bs_laeufe ADD COLUMN uebersprungen TEXT NOT NULL DEFAULT '[]'")
     if not con.execute("SELECT 1 FROM bs_gruppen LIMIT 1").fetchone():
         for i, (s, n, l, g) in enumerate(GRUPPEN):
             con.execute("INSERT INTO bs_gruppen (schl, name, laufbahn, grundgehalt, rang) VALUES (?,?,?,?,?)", (s, n, l, g * M, i))
@@ -479,17 +482,23 @@ def lohnlauf_buchen(con, liste, periode, k, schoepfen=False):
     kasse = geld.sonder(con, "reichskasse")
     zb = geld.sonder(con, "zentralbank")
     geschoepft = 0
+    ungedeckt = {}
     for r, bedarf in _bedarf(con, liste).values():
         r = geld.konto(con, r["id"])
         if r["saldo"] < bedarf:
             if r["id"] == kasse["id"] and schoepfen:
                 geschoepft = bedarf - r["saldo"]
                 geld.buchen(con, zb["id"], kasse["id"], geschoepft, "geldschoepfung", f"Deckung Lohnlauf {_monat(periode)}", k)
-            else:
+            elif r["id"] == kasse["id"]:
                 raise geld.Fehler(f'Die Zahlstelle {r["name"]} ist nicht gedeckt (benötigt {mark(bedarf)}, vorhanden {mark(r["saldo"])}).')
-    cur = con.execute("INSERT INTO bs_laeufe (periode, anzahl, brutto, lohnsteuer, abgaben, netto, geschoepft, zeit, autor_name) VALUES (?,?,?,?,?,?,?,?,?)",
+            else:
+                ungedeckt[r["id"]] = r["name"]   # Haushaltsnotlage: Gehälter dieser Zahlstelle entfallen
+    uebersprungen = [{"konto_id": x["konto_id"], "name": x["name"], "zahlstelle": ungedeckt[(geld.stellenkonto(con, x["zahlstelle"]) or kasse)["id"]],
+                      "netto": x["netto"]} for x in liste if (geld.stellenkonto(con, x["zahlstelle"]) or kasse)["id"] in ungedeckt]
+    liste = [x for x in liste if (geld.stellenkonto(con, x["zahlstelle"]) or kasse)["id"] not in ungedeckt]
+    cur = con.execute("INSERT INTO bs_laeufe (periode, anzahl, brutto, lohnsteuer, abgaben, netto, geschoepft, zeit, autor_name, uebersprungen) VALUES (?,?,?,?,?,?,?,?,?,?)",
                       (periode, len(liste), sum(x["brutto"] for x in liste), sum(x["lohnsteuer"] for x in liste), sum(x["abgaben"] for x in liste),
-                       sum(x["netto"] for x in liste), geschoepft, int(time.time()), k["name"]))
+                       sum(x["netto"] for x in liste), geschoepft, int(time.time()), k["name"], json.dumps(uebersprungen, ensure_ascii=False)))
     lauf, bezug = cur.lastrowid, f"LL-{periode}"
     sozial = geld.sonder(con, "sozialkasse")
     zs = dict(zahlstellen(con))
@@ -508,7 +517,9 @@ def lohnlauf_buchen(con, liste, periode, k, schoepfen=False):
                     (lauf, periode, x["konto_id"], x["name"], x["gruppe"], x["gruppe_name"], x["quelle"], x["grundgehalt"], x["zulage"], x["zulage_text"],
                      x["brutto"], x["lohnsteuer"], x["abgaben"], x["netto"], zs.get(x["zahlstelle"], x["zahlstelle"]), staat["name"] if staat else "", anteil, int(time.time())))
     geld.protokoll(con, k, "Lohnlauf", f"{_monat(periode)}: {len(liste)} Abrechnungen, netto {mark(sum(x['netto'] for x in liste))}"
-                                       + (f", Geldschöpfung {mark(geschoepft)}" if geschoepft else ""))
+                                       + (f", Geldschöpfung {mark(geschoepft)}" if geschoepft else "")
+                                       + (f"; {len(uebersprungen)} Gehälter entfallen (Zahlstelle nicht gedeckt: {', '.join(sorted(set(u['zahlstelle'] for u in uebersprungen)))})"
+                                          if uebersprungen else ""))
     con.commit()
     return lauf
 
@@ -524,7 +535,8 @@ async def lohnlauf(request, k):
         zs = dict(zahlstellen(con))
         summen = {s: sum(x[s] for x in liste) for s in ("brutto", "lohnsteuer", "abgaben", "netto")}
         deckung = _bedarf(con, liste)
-        dz = [(esc(r["name"]), mark(b), mark(r["saldo"]), amt.status_marke("ok", "gedeckt") if r["saldo"] >= b else amt.status_marke("nein", f"fehlen {mark(b - r['saldo'])}"))
+        dz = [(esc(r["name"]), mark(b), mark(r["saldo"]), amt.status_marke("ok", "gedeckt") if r["saldo"] >= b else
+               amt.status_marke("nein", f"fehlen {mark(b - r['saldo'])}" + ("" if r["stelle"] == "reichskasse" else " – Gehälter entfallen")))
               for r, b in deckung.values()]
         knopf = ""
         if schon:
@@ -574,7 +586,12 @@ async def lohnlauf_ausfuehren(request):
         sa.dm(request, a["konto_id"], f"Gehaltsabrechnung {_monat(periode)} (Kaiserliches Schatz- und Währungsamt):\nBrutto {mark(a['brutto'])} · Lohnsteuer "
                                       f"{mark(a['lohnsteuer'])} · Sozialabgabe {mark(a['abgaben'])}\nAuszahlung: {mark(a['netto'])} auf dein Konto.\n"
                                       f"{config.SITE_URL}{PFAD}gehalt/{a['id']}/")
-    sa.weiter(f"{PFAD}amt/lohnlauf/{lauf}/", f"Lohnlauf {_monat(periode)} ausgeführt: {len(liste)} Abrechnungen.")
+    uebersprungen = json.loads(con.execute("SELECT uebersprungen FROM bs_laeufe WHERE id=?", (lauf,)).fetchone()[0] or "[]")
+    for u in uebersprungen:
+        sa.dm(request, u["konto_id"], f"Dein Gehalt für {_monat(periode)} konnte nicht ausgezahlt werden: Die Kasse „{u['zahlstelle']}“ ist nicht gedeckt "
+                                      f"(Haushaltsnotlage). Wende dich an die Verantwortlichen deines Teilstaats bzw. deiner Behörde.")
+    sa.weiter(f"{PFAD}amt/lohnlauf/{lauf}/", f"Lohnlauf {_monat(periode)} ausgeführt: {len(liste) - len(uebersprungen)} Abrechnungen"
+              + (f", {len(uebersprungen)} Gehälter entfallen (Zahlstelle nicht gedeckt)." if uebersprungen else "."))
 
 
 @sa.seite("leitung")
@@ -584,7 +601,10 @@ async def lauf_seite(request, k):
     if not l:
         raise web.HTTPNotFound()
     rows = con.execute("SELECT * FROM bs_abrechnungen WHERE lauf=? ORDER BY brutto DESC", (l["id"],)).fetchall()
-    inhalt = (f'<h1>{amt.ic("banknote")} Lohnlauf {esc(_monat(l["periode"]))}</h1><p class="az"><a href="{PFAD}amt/lohnlauf/">← Lohnlauf</a> · '
+    ue = json.loads(l["uebersprungen"] or "[]")
+    warn = ('<div class="warnung">' + amt.ic("triangle-alert") + f' <b>{len(ue)} Gehälter entfielen</b>, weil die Zahlstelle nicht gedeckt war (Haushaltsnotlage): '
+            + esc(", ".join(f'{u["name"]} ({u["zahlstelle"]})' for u in ue)) + '</div>') if ue else ""
+    inhalt = (warn + f'<h1>{amt.ic("banknote")} Lohnlauf {esc(_monat(l["periode"]))}</h1><p class="az"><a href="{PFAD}amt/lohnlauf/">← Lohnlauf</a> · '
               f'ausgeführt {amt._zeit(l["zeit"])} von {esc(l["autor_name"])}</p>{amt.meldung(request)}'
               f'<div class="kennzahlen"><div><b>{l["anzahl"]}</b>Empfänger</div><div><b>{mark(l["brutto"])}</b>Brutto</div><div><b>{mark(l["lohnsteuer"])}</b>Lohnsteuer</div>'
               f'<div><b>{mark(l["abgaben"])}</b>Sozialabgaben</div><div><b>{mark(l["netto"])}</b>Netto</div><div><b>{mark(l["geschoepft"])}</b>Geschöpft</div></div>'

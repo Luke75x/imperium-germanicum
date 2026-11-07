@@ -30,6 +30,7 @@ import aufkommen
 import gold
 import etat
 import verteidigung
+import notlage
 import organigramme
 import post
 import strafsachen
@@ -66,6 +67,7 @@ def erstellen():
     gold.registrieren(app)
     etat.registrieren(app)
     verteidigung.registrieren(app)
+    notlage.registrieren(app)
     return app
 
 

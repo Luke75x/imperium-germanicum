@@ -16,6 +16,7 @@ from aiohttp import web
 import amt
 import anmeldung
 import geld
+import notlage
 import schatzamt as sa
 from geld import mark
 
@@ -74,6 +75,8 @@ async def personalkosten(app, con):
 def _monate(saldo, kosten):
     if not kosten:
         return "–"
+    if saldo <= 0:
+        return "erschöpft"
     m = saldo / kosten
     if m >= 1200:
         return "über 100 Jahre"
@@ -103,6 +106,7 @@ async def seite(request, k):
         karten.append(
             f'<div class="sa-karte{" sa-mein" if ist_mein else ""}"><small>{"In Ihrer Verfügung" if ist_mein else "Behördenkasse"}</small>'
             f'<div class="sa-name">{esc(name)}</div><div class="sa-saldo">{sa.betrag_html(r["saldo"], False, kurz=True)}</div>'
+            + (f'<p class="az sa-zusatz sa-rot">⚠ Haushaltsnotlage seit {int((time.time() - f["seit"]) // 86400)} Tagen</p>' if (f := notlage.offener_fall(con, r["id"])) else "")
             + sa.werte_html(zeilen)
             + (f'<div class="sa-aktionen"><a class="btn zweit" href="{PFAD}konto/?konto={r["id"]}">{amt.ic("wallet")}Umsätze</a></div>' if ist_mein else "")
             + '</div>')

@@ -141,16 +141,23 @@ def regierte(con, k):
     return {r["stelle"][3:] for r in geld.regierte_staatskassen(con, k)}
 
 
-def darf_geraet(con, k, sid):
+def darf_geraet(con, k, sid, mit_zwang=False):
     """Gerät beschaffen und ausmustern: wer über die Kasse verfügt (Landesherr, Leitung) und der Generalstab des Teilstaats
     (Generalstab-Rolle, Militär im Sinne von ist_militaer, Fraktionsrolle des Teilstaats)."""
-    if darf_land(con, k, sid):
+    if darf_land(con, k, sid, mit_zwang):
         return True
+    import notlage
+    if not mit_zwang and notlage.verfuegung_gesperrt(con, k, "vt-" + sid):
+        return False
     return (bool(k) and k["mitglied"] and GENERALSTAB in k["rollen"] and ist_militaer(con, k)
             and sid in staaten_von(con, k["rollen"]))
 
 
-def darf_land(con, k, sid):
+def darf_land(con, k, sid, mit_zwang=False):
+    """Verfügung über die Verteidigungskasse; unter Zwangsverwaltung (Haushaltsnotlage) nur Kanzler, Kaiser und Schatzamt-Leitung."""
+    import notlage
+    if not mit_zwang and notlage.verfuegung_gesperrt(con, k, "vt-" + sid):
+        return False
     return bool(k) and k["mitglied"] and sid in regierte(con, k)
 
 
@@ -159,9 +166,10 @@ def verfuegbare(con, k):
     if not k or not k["mitglied"]:
         return []
     out = [reichskasse(con)] if darf_reich(k) else []
+    import notlage
     for sid in sorted({r["stelle"][3:] for r in geld.regierte_staatskassen(con, k)}):
         r = geld.stellenkonto(con, "vt-" + sid)
-        if r:
+        if r and not notlage.verfuegung_gesperrt(con, k, r["stelle"]):
             out.append(r)
     return [r for r in out if r]
 
@@ -210,7 +218,7 @@ def sicht(con, k):
         alle = ist_fuehrungsstab(k) or bereiche._alle(k) or geld.ist_leitung(k)
         mil = ist_stab(con, k)   # nur General- und Offiziersstab; Unteroffiziere und Mannschaften sehen den Etat nicht
         eigene = staaten_von(con, k["rollen"]) if mil else set()
-        sids = {r["stelle"][3:] for r in geld.regierte_staatskassen(con, k)} | eigene
+        sids = {r["stelle"][3:] for r in geld.regierte_staatskassen(con, k, mit_zwang=True)} | eigene
         reich = alle or (mil and not eigene)
         k["_vt_sicht"] = {"alle": alle, "sids": sids, "reich": reich, "irgendwas": alle or bool(sids) or reich}
     return k["_vt_sicht"]
@@ -285,8 +293,12 @@ def beschaffen(con, stelle, typ, anzahl, k):
         raise geld.Fehler("Bitte eine Anzahl zwischen 1 und 100.000 angeben.")
     kasse = geld.stellenkonto(con, stelle)
     preis = t["preis"] * anzahl
-    if kasse["saldo"] < preis:
-        raise geld.Fehler(f'Die {kasse["name"]} ist nicht gedeckt: benötigt {mark(preis)}, vorhanden {mark(kasse["saldo"])}.')
+    import notlage
+    if kasse["saldo"] < preis and not notlage.dispo_erlaubt(con, kasse, preis, "ruestung"):
+        if kasse["saldo"] < 0:
+            raise geld.Fehler(notlage.fehlertext(kasse))
+        raise geld.Fehler(f'Die {kasse["name"]} ist nicht gedeckt: benötigt {mark(preis)}, vorhanden {mark(kasse["saldo"])} '
+                          f'(Überziehungsrahmen {mark(notlage.dispo_limit(con, kasse))}).')
     vw = geld.sonder(con, "volkswirtschaft")
     geld.buchen(con, kasse["id"], vw["id"], preis, "ruestung", f'Beschaffung: {anzahl} × {t["name"]}', k, bezug="RUESTUNG")
     alt = con.execute("SELECT * FROM vt_bestand WHERE stelle=? AND typ=?", (stelle, typ)).fetchone()
@@ -519,7 +531,8 @@ async def land(request, k):
     vorg = con.execute("SELECT * FROM vt_vorgaenge WHERE stelle=? ORDER BY id DESC LIMIT 30", (stelle,)).fetchall()
     s = sicht(con, k)
     zurueck = (f'<p class="zurueck"><a href="{PFAD}">{amt.ic("arrow-left")}Verteidigung</a></p>' if s["alle"] or len(s["sids"]) > 1 or s["reich"] else "")
-    inhalt = (zurueck + f'<h1>{amt.ic("shield")} Verteidigung · {esc(name)}</h1>{amt.meldung(request)}'
+    import notlage
+    inhalt = (zurueck + f'<h1>{amt.ic("shield")} Verteidigung · {esc(name)}</h1>{amt.meldung(request)}' + notlage.banner(con, kasse)
               + ("" if darf else '<p class="sa-hinweis">Nur Ansicht – Beschaffungen veranlassen Landesherr und Generalstab des Teilstaats.</p>')
               + f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kzs)}</div>'
               + (f'<p class="sa-status{" ok" if frei >= 0 else ""}">{amt.ic("check" if frei >= 0 else "clock")}'
@@ -623,8 +636,10 @@ async def zufuehren_post(request):
         sa.weiter(f"{PFAD}{sid}/", "Bitte einen gültigen Betrag angeben.", True)
     ziel = geld.stellenkonto(con, "vt-" + sid)
     try:
-        if staatskasse["saldo"] < betrag:
-            raise geld.Fehler(f'Die Staatskasse ist nicht gedeckt (verfügbar {mark(staatskasse["saldo"])}).')
+        import notlage
+        if staatskasse["saldo"] < betrag and not notlage.dispo_erlaubt(con, staatskasse, betrag, "verteidigungsetat"):
+            raise geld.Fehler(notlage.fehlertext(staatskasse) if staatskasse["saldo"] < 0 else
+                              f'Die Staatskasse ist nicht gedeckt (verfügbar {mark(staatskasse["saldo"])}, Überziehungsrahmen {mark(notlage.dispo_limit(con, staatskasse))}).')
         geld.buchen(con, staatskasse["id"], ziel["id"], betrag, "verteidigungsetat", "Zuführung aus der Staatskasse", k, bezug="ZUFUEHRUNG")
         _vorgang(con, ziel["stelle"], "zufuehrung", k, "", 0, betrag, "Zuführung aus der Staatskasse")
         con.commit()
