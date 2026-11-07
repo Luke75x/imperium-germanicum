@@ -13,7 +13,9 @@ Bestand je Teilstaat (vt_bestand, mit Einsatzbereitschaft 0–100 %), Beschaffun
 Ausmusterung (Restwert zurück), monatliche Instandhaltung (vt_laeufe; reicht das Geld nicht, sinkt die Einsatzbereitschaft,
 bei voller Bezahlung steigt sie wieder). Vorgänge in vt_vorgaenge.
 Rechte: Reichsverteidigungskasse – Führungsstab, Kanzler/Kaiser, Leitung des Schatzamts; Teilstaat – Landesherr (wie Staatskasse),
-Leitung des Schatzamts. Katalog und Sätze: Leitung des Schatzamts und Führungsstab. Seiten unter /schatzamt/verteidigung/ (staatlich).
+Leitung des Schatzamts.
+Sehen (sicht): alles – Führungsstab, Kaiser, Kanzler (und Leitung des Schatzamts); Militär (Generalstab, Teilstreitkräfte, militärische
+Dienstgrade = Rollen mit Zahlstelle „vt-land“) und Landesherren nur ihren Teilstaat laut Fraktionsrolle; Militär ohne Fraktion das Reich. Katalog und Sätze: Leitung des Schatzamts und Führungsstab. Seiten unter /schatzamt/verteidigung/ (staatlich).
 """
 import json
 import time
@@ -35,6 +37,7 @@ SYSTEM = {"id": "", "name": "Kaiserliches Schatz- und Währungsamt (automatisch)
 ROLLE_OBERBEFEHLSHABER = "1522707672808292586"
 FUEHRUNGSSTAB = {ROLLE_OBERBEFEHLSHABER: "Oberbefehlshaber", "1522721092127555666": "Stabschef des Heeres",
                  "1522912530446684190": "Stabschef der Marine", "1522913031456034938": "Stabschef der Luftwaffe"}
+GENERALSTAB = "1522706926973096057"
 TEILSTREITKRAEFTE = {"1526343002966986882": "Kaiserliches Heer", "1526343128997695528": "Kaiserliche Luftwaffe",
                      "1526343421386690663": "Kaiserliche Marine"}
 
@@ -149,6 +152,59 @@ def verfuegbare(con, k):
         if r:
             out.append(r)
     return [r for r in out if r]
+
+
+def militaer_rollen(con):
+    """Discord-Rollen, die zum Militär gehören: Generalstab, Teilstreitkräfte und alle Rollen mit Zahlstelle „vt-land“ (Dienstgrade)."""
+    return {GENERALSTAB, *TEILSTREITKRAEFTE} | {r["rolle_id"] for r in con.execute("SELECT rolle_id FROM bs_rollen WHERE zahlstelle='vt-land'")}
+
+
+def ist_militaer(con, k):
+    """Militär: Teilstreitkraft oder militärischer Dienstgrad; der Generalstab zählt, außer bei Angehörigen einer zivilen
+    Sicherheitsbehörde (Polizei, Zoll, Katastrophenschutz), deren Ränge ebenfalls im Generalstab geführt werden."""
+    if not k:
+        return False
+    rollen = set(k["rollen"])
+    if rollen & (militaer_rollen(con) - {GENERALSTAB}):
+        return True
+    zivil = {r for b in amt.BEHOERDEN if b["schl"] in ("polizei", "zoll", "katastrophenschutz") for r in b["rollen"]}
+    return GENERALSTAB in rollen and not (rollen & zivil)
+
+
+def staaten_von(con, rollen):
+    """Teilstaat-IDs aller Fraktionsrollen unter den Rollen."""
+    import karte
+    rollen = set(rollen or ())
+    return {s["id"] for s in karte.aktuell(con)["stand"]["staaten"] if s.get("fraktion") and s["fraktion"] in rollen and not geld.ist_reichsgebiet(s)}
+
+
+def sicht(con, k):
+    """Was das Konto im Bereich Verteidigung sehen darf: {"alle", "sids", "reich", "irgendwas"} (je Anfrage zwischengespeichert)."""
+    if not k or not k["mitglied"]:
+        return {"alle": False, "sids": set(), "reich": False, "irgendwas": False}
+    if "_vt_sicht" not in k:
+        alle = ist_fuehrungsstab(k) or bereiche._alle(k) or geld.ist_leitung(k)
+        mil = ist_militaer(con, k)
+        eigene = staaten_von(con, k["rollen"]) if mil else set()
+        sids = {r["stelle"][3:] for r in geld.regierte_staatskassen(con, k)} | eigene
+        reich = alle or (mil and not eigene)
+        k["_vt_sicht"] = {"alle": alle, "sids": sids, "reich": reich, "irgendwas": alle or bool(sids) or reich}
+    return k["_vt_sicht"]
+
+
+def darf_sehen(con, k, sid):
+    s = sicht(con, k)
+    return s["alle"] or sid in s["sids"]
+
+
+def namen(con, sids):
+    """[(sid, Kurzname)] der Verteidigungskassen, nach Name sortiert."""
+    out = []
+    for sid in sids:
+        r = geld.stellenkonto(con, "vt-" + sid)
+        if r:
+            out.append((sid, r["name"].replace("Verteidigungskasse ", "")))
+    return sorted(out, key=lambda x: x[1])
 
 
 def staat_von(con, rollen):
@@ -306,7 +362,7 @@ def _etat_monat(con):
     return out
 
 
-@sa.seite("staat")
+@sa.seite("verteidigung")
 async def uebersicht(request, k):
     con = request.app["db"]
     kassen_sichern(con)
@@ -316,8 +372,13 @@ async def uebersicht(request, k):
     rk = reichskasse(con)
     zeilen, s_kasse, s_wert, s_ih, s_pk = [], 0, 0, 0, 0
     eigene = regierte(con, k)
+    s = sicht(con, k)
+    if not s["alle"] and len(s["sids"]) == 1 and not s["reich"]:
+        raise web.HTTPFound(f'{PFAD}{next(iter(s["sids"]))}/')   # nur ein Teilstaat sichtbar: direkt dorthin
     for r in con.execute("SELECT * FROM gk_konten WHERE art='verteidigung' AND stelle LIKE 'vt-%' ORDER BY name").fetchall():
         sid = r["stelle"][3:]
+        if not s["alle"] and sid not in s["sids"]:
+            continue
         kz = kennzahlen(con, r["stelle"])
         n, kosten = (pk or {}).get(r["stelle"], (0, 0))
         s_kasse += r["saldo"]; s_wert += kz["wert"]; s_ih += kz["instandhaltung"]; s_pk += kosten
@@ -328,9 +389,13 @@ async def uebersicht(request, k):
                        geld.mark_kurz(kz["instandhaltung"]) if kz["instandhaltung"] else "–", geld.mark_kurz(kz["wert"]) if kz["wert"] else "–",
                        _bereit_marke(kz["bereitschaft"])))
     n_r, pk_r = (pk or {}).get("verteidigung", (0, 0))
-    kzs = [("Verteidigungsetat / Monat", mark(sum(etat.values()))), ("Reichsverteidigungskasse", mark(rk["saldo"])),
-           ("Verteidigungskassen der Teilstaaten", mark(s_kasse)), ("Militärisches Personal / Monat", mark(s_pk + pk_r) if pk is not None else "–"),
-           ("Gerätewert gesamt", mark(s_wert)), ("Instandhaltung / Monat", mark(s_ih))]
+    if not s["reich"]:
+        pk_r = 0
+    sichtbar_etat = sum(v for st, v in etat.items() if s["alle"] or (st == "verteidigung" and s["reich"]) or st[3:] in s["sids"])
+    kzs = [("Verteidigungsetat / Monat", mark(sichtbar_etat))] + ([("Reichsverteidigungskasse", mark(rk["saldo"]))] if s["reich"] else []) + [
+           ("Verteidigungskassen der Teilstaaten" if s["alle"] else "Verteidigungskassen (sichtbar)", mark(s_kasse)),
+           ("Militärisches Personal / Monat", mark(s_pk + pk_r) if pk is not None else "–"),
+           ("Gerätewert", mark(s_wert)), ("Instandhaltung / Monat", mark(s_ih))]
     reich = ('<div class="sa-karte" style="max-width:560px"><small>Reich · Führungsstab</small><div class="sa-name">Reichsverteidigungskasse</div>'
              f'<div class="sa-saldo">{sa.betrag_html(rk["saldo"], False, kurz=True)}</div>'
              + sa.werte_html([("Etat / Monat", geld.mark_kurz(etat.get("verteidigung", 0))),
@@ -362,19 +427,24 @@ async def uebersicht(request, k):
               '<p class="az">Verteidigungsetats des Reiches und der Teilstaaten, militärisches Personal und Gerät.</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kzs)}</div>'
               f'<div class="sa-schnell"><a href="{PFAD}katalog/">{amt.ic("wrench")}<b>Gerätekatalog</b><span>Preise und Instandhaltung</span></a></div>'
-              + erkl + '<h2>Reich</h2>' + reich
-              + '<h2>Teilstaaten</h2>' + amt.tabelle(["Teilstaat", "Kasse", "Etat / Monat", "Personal / Monat", "Instandhaltung / Monat", "Gerätewert",
-                                                      "Einsatzbereitschaft"], zeilen, "Keine Teilstaaten.", klasse="sa-haushalt") + stell)
+              + erkl + ('<h2>Reich</h2>' + reich if s["reich"] else "")
+              + (f'<p class="sa-hinweis">Sie sehen {"nur Ihren Teilstaat" if len(s["sids"]) == 1 else "Ihre Teilstaaten"} (Zuordnung über die Fraktionsrolle).</p>'
+                 if not s["alle"] and s["sids"] else "")
+              + ('<h2>Teilstaaten</h2>' + amt.tabelle(["Teilstaat", "Kasse", "Etat / Monat", "Personal / Monat", "Instandhaltung / Monat", "Gerätewert",
+                                                      "Einsatzbereitschaft"], zeilen, "Keine Teilstaaten.", klasse="sa-haushalt") if zeilen else "") + stell)
     return sa.ant(request, k, "Verteidigung", "sa-verteidigung", inhalt)
 
 
-@sa.seite("staat")
+@sa.seite("verteidigung")
 async def land(request, k):
     con = request.app["db"]
     sid = request.match_info["sid"]
     kasse = geld.stellenkonto(con, "vt-" + sid)
     if not kasse or kasse["art"] != "verteidigung":
         raise web.HTTPNotFound(text="Teilstaat nicht gefunden.")
+    if not darf_sehen(con, k, sid):
+        return sa.ant(request, k, "Kein Zugang", "sa-verteidigung", '<h1>Kein Zugang</h1><div class="warnung">Sie sehen nur den Verteidigungsbereich '
+                      'Ihres eigenen Teilstaats (Zuordnung über die Fraktionsrolle).</div>', 403)
     stelle = kasse["stelle"]
     darf = darf_land(con, k, sid)
     kz = kennzahlen(con, stelle)
@@ -426,9 +496,11 @@ async def land(request, k):
                          f'<button class="btn zweit" type="submit">{amt.ic("arrow-right-left")}Zuführen</button></form>'
                          f'<p class="sa-hinweis">Staatskasse {esc(name)}: {mark(staatskasse["saldo"])}.</p>')
     vorg = con.execute("SELECT * FROM vt_vorgaenge WHERE stelle=? ORDER BY id DESC LIMIT 30", (stelle,)).fetchall()
-    inhalt = (f'<p class="zurueck"><a href="{PFAD}">{amt.ic("arrow-left")}Verteidigung</a></p>'
-              f'<h1>{amt.ic("shield")} Verteidigung · {esc(name)}</h1>{amt.meldung(request)}'
-              f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kzs)}</div>'
+    s = sicht(con, k)
+    zurueck = (f'<p class="zurueck"><a href="{PFAD}">{amt.ic("arrow-left")}Verteidigung</a></p>' if s["alle"] or len(s["sids"]) > 1 or s["reich"] else "")
+    inhalt = (zurueck + f'<h1>{amt.ic("shield")} Verteidigung · {esc(name)}</h1>{amt.meldung(request)}'
+              + ("" if darf else '<p class="sa-hinweis">Nur Ansicht – Beschaffungen und Zuführungen veranlasst der Landesherr.</p>')
+              + f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kzs)}</div>'
               + (f'<p class="sa-status{" ok" if frei >= 0 else ""}">{amt.ic("check" if frei >= 0 else "clock")}'
                  + (f"Nach Personal und Instandhaltung bleiben vom Monatsetat {mark(frei)} für Beschaffungen."
                     if frei >= 0 else f"Personal und Instandhaltung übersteigen den Monatsetat um {mark(-frei)}.") + '</p>')
@@ -443,7 +515,7 @@ async def land(request, k):
     return sa.ant(request, k, f"Verteidigung {name}", "sa-verteidigung", inhalt)
 
 
-@sa.seite("staat")
+@sa.seite("verteidigung")
 async def katalog_seite(request, k):
     con = request.app["db"]
     kat = katalog(con)

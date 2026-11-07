@@ -115,9 +115,24 @@ NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe")     # Seiten, die nur die
 NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
+def hat_kassen(con, k):
+    """Staatliche Kassen in eigener Verfügung oder Schatzamt: Zugang zu Kassen, Etats, Staatshaushalt, Reichsfinanzen, Gold."""
+    if not k or not k["mitglied"]:
+        return False
+    if "_sa_kassen" not in k:
+        k["_sa_kassen"] = geld.ist_beamter(k) or any(r["art"] not in PRIVATARTEN for r in geld.verfuegbare_konten(con, k))
+    return k["_sa_kassen"]
+
+
+def hat_verteidigung(con, k):
+    """Sieht etwas aus dem Bereich Verteidigung (Führungsstab/Kaiser/Kanzler alles, Militär und Landesherren ihren Teilstaat)."""
+    import verteidigung
+    return bool(k) and k["mitglied"] and verteidigung.sicht(con, k)["irgendwas"]
+
+
 def hat_staat(con, k):
-    """Hat das Konto staatlichen Zugriff (Kassen in eigener Verfügung oder Schatzamt)? Nur dann gibt es den Umschalter."""
-    return bool(k) and k["mitglied"] and (geld.ist_beamter(k) or any(r["art"] not in PRIVATARTEN for r in geld.verfuegbare_konten(con, k)))
+    """Staatlicher Zugriff irgendeiner Art – nur dann gibt es den Umschalter Staatl./Privat."""
+    return hat_kassen(con, k) or hat_verteidigung(con, k)
 
 
 def modus(request, k):
@@ -154,15 +169,22 @@ async def modus_setzen(request):
     raise r
 
 
-def nav(k, m="privat", schalter=False, aktiv=""):
+def nav(k, m="privat", schalter=False, aktiv="", con=None):
     if m == "staat":
-        mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Kassen & Umsätze", "konto/"),
-                ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/")]
-        haushalt = [("sa-etats", "landmark", "Etats der Behörden", "etats/"), ("sa-verteidigung", "shield", "Verteidigung", "verteidigung/"),
-                    ("sa-staatshaushalt", "chart-column", "Staatshaushalt", "haushalt/"),
-                    ("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"), ("sa-gold", "coins", "Goldreserven", "gold/")]
-        gruppen = [("Staatliche Kassen", mein), ("Haushalt", haushalt), ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
-        mein = mein + haushalt[:1]
+        kassen = con is None or hat_kassen(con, k)
+        vt = con is None or hat_verteidigung(con, k)
+        mein = [("sa-start", "layout-dashboard", "Übersicht", "")]
+        if kassen:
+            mein += [("sa-konto", "wallet", "Kassen & Umsätze", "konto/"), ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/")]
+        haushalt = [e for e, ok in ((("sa-etats", "landmark", "Etats der Behörden", "etats/"), kassen),
+                                    (("sa-verteidigung", "shield", "Verteidigung", "verteidigung/"), vt),
+                                    (("sa-staatshaushalt", "chart-column", "Staatshaushalt", "haushalt/"), kassen),
+                                    (("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"), kassen),
+                                    (("sa-gold", "coins", "Goldreserven", "gold/"), kassen)) if ok]
+        gruppen = [("Staatliche Kassen" if kassen else "Dienstlich", mein), ("Haushalt", haushalt),
+                   ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
+        gruppen = [g for g in gruppen if g[1]]
+        mein = mein + [e for e in haushalt if e[0] in ("sa-etats", "sa-verteidigung")][:4 - len(mein)]
     else:
         mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Konto & Umsätze", "konto/"),
                 ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/"), ("sa-steuern", "receipt", "Steuern & Gebühren", "steuern/"),
@@ -208,7 +230,8 @@ def ant(request, k, titel, aktiv, inhalt, status=200):
     elif aktiv in NUR_PRIVAT:
         m = "privat"
     return web.Response(status=status, content_type="text/html", headers={"Cache-Control": "no-store"},
-                        text=amt.rahmen(titel, aktiv, CSS + _kennzahlen_kurz(inhalt), k, request["csrf"], portal=nav(k, m, schalter, aktiv)))
+                        text=amt.rahmen(titel, aktiv, CSS + _kennzahlen_kurz(inhalt), k, request["csrf"],
+                                        portal=nav(k, m, schalter, aktiv, request.app["db"])))
 
 
 def seite(recht=None):
@@ -222,10 +245,14 @@ def seite(recht=None):
                 raise web.HTTPFound("/anmelden/?weiter=" + quote(request.path_qs))
             ok = {"mitglied": k["mitglied"], "beamter": geld.ist_beamter(k), "leitung": geld.ist_leitung(k)}.get(recht, True)
             if recht == "staat":
-                ok = hat_staat(request.app["db"], k)
+                ok = hat_kassen(request.app["db"], k)
+            elif recht == "verteidigung":
+                ok = hat_verteidigung(request.app["db"], k)
             if not ok:
                 text = {"mitglied": "Diese Funktion steht nur Mitgliedern unseres Discord-Servers zur Verfügung.",
                         "staat": "Dieser Bereich ist staatlich und nur für Amtsträger mit Verfügung über eine staatliche Kasse einsehbar.",
+                        "verteidigung": "Der Bereich Verteidigung ist dem Militär (für den eigenen Teilstaat), den Landesherren, dem Führungsstab, "
+                                        "dem Kanzler und dem Kaiser vorbehalten.",
                         "beamter": "Dieser Bereich ist dem Kaiserlichen Schatz- und Währungsamt vorbehalten.",
                         "leitung": "Dieser Bereich ist der Leitung des Schatz- und Währungsamts vorbehalten."}[recht]
                 return ant(request, k, "Kein Zugang", "", f'<h1>Kein Zugang</h1><div class="warnung">{esc(text)}</div>', 403)
@@ -381,7 +408,10 @@ async def uebersicht(request, k):
 
 
 def _uebersicht_staat(request, k, con):
-    """Staatliche Ansicht: nur die Kassen, über die die Person dienstlich verfügt (Behörden, Staatskassen, Reichskasse …)."""
+    """Staatliche Ansicht: nur die Kassen, über die die Person dienstlich verfügt (Behörden, Staatskassen, Reichskasse …);
+    Militär ohne eigene Kasse sieht hier den Verteidigungsbereich seines Teilstaats."""
+    if not hat_kassen(con, k):
+        return _uebersicht_militaer(request, k, con)
     konten = konten_im_modus(con, k, "staat")
     kz = [("Guthaben der Kassen", mark(sum(r["saldo"] for r in konten))), ("Kassen in Verfügung", str(len(konten))),
           ("Leitzins", f'{geld.einstellung(con, "leitzins")} %')]
@@ -400,14 +430,31 @@ def _uebersicht_staat(request, k, con):
                ("Teilstaaten", [r for r in konten if r["art"] == "teilstaat"]), ("Verteidigung", [r for r in konten if r["art"] == "verteidigung"])]
     kassen = "".join(f'<h2>{esc(t)}</h2><div class="sa-karten">{_karten(rs, zusatz)}</div>' for t, rs in gruppen if rs) or leer
     schnell = (f'<div class="sa-schnell"><a href="{PFAD}etats/">{amt.ic("landmark")}<b>Etats der Behörden</b><span>Kassenstand, Etat, Personalkosten</span></a>'
-               f'<a href="{PFAD}verteidigung/">{amt.ic("shield")}<b>Verteidigung</b><span>Etats, Militärgerät, Einsatzbereitschaft</span></a>'
-               f'<a href="{PFAD}haushalt/">{amt.ic("chart-column")}<b>Staatshaushalt</b><span>Steuern und Reichsabgabe der Teilstaaten</span></a>'
+               + (f'<a href="{PFAD}verteidigung/">{amt.ic("shield")}<b>Verteidigung</b><span>Etats, Militärgerät, Einsatzbereitschaft</span></a>'
+                  if hat_verteidigung(con, k) else "")
+               +                f'<a href="{PFAD}haushalt/">{amt.ic("chart-column")}<b>Staatshaushalt</b><span>Steuern und Reichsabgabe der Teilstaaten</span></a>'
                f'<a href="{PFAD}finanzen/">{amt.ic("chart-column")}<b>Reichsfinanzen</b><span>Geldmenge, Reichskasse, Staatskassen</span></a></div>')
     inhalt = (f'<h1>{amt.ic("landmark")} Staatliche Kassen</h1>'
               f'<p class="az">Dienstliche Ansicht für {esc(geld.anzeigename(con, k["id"], k["name"]))} – Ihr privates Konto sehen Sie unter „Privat“.</p>'
               f'{amt.meldung(request)}<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
               + schnell + kassen + letzte)
     return ant(request, k, "Staatliche Kassen", "sa-start", inhalt)
+
+
+def _uebersicht_militaer(request, k, con):
+    """Staatliche Übersicht für Militär ohne eigene Kasse: Verweis auf den Verteidigungsbereich des eigenen Teilstaats."""
+    import verteidigung
+    s = verteidigung.sicht(con, k)
+    karten = "".join(f'<a href="{PFAD}verteidigung/{esc(sid)}/">{amt.ic("shield")}<b>Verteidigung {esc(name)}</b>'
+                     '<span>Etat, Personal, Gerät, Einsatzbereitschaft</span></a>' for sid, name in verteidigung.namen(con, s["sids"]))
+    if s["reich"] and not s["sids"]:
+        karten += f'<a href="{PFAD}verteidigung/">{amt.ic("shield")}<b>Reichsverteidigung</b><span>Etat und Führungsstab</span></a>'
+    inhalt = (f'<h1>{amt.ic("shield")} Dienstliche Ansicht</h1>'
+              f'<p class="az">{esc(geld.anzeigename(con, k["id"], k["name"]))} – Sie sehen den Verteidigungsbereich '
+              + ("Ihres Teilstaats" if s["sids"] else "des Reiches") + '. Ihr privates Konto sehen Sie unter „Privat“.</p>'
+              f'{amt.meldung(request)}<div class="sa-schnell">{karten}'
+              f'<a href="{PFAD}verteidigung/katalog/">{amt.ic("wrench")}<b>Gerätekatalog</b><span>Preise und Instandhaltung</span></a></div>')
+    return ant(request, k, "Dienstliche Ansicht", "sa-start", inhalt)
 
 
 def _kassen_zusatz(con, konten):
