@@ -76,6 +76,9 @@ table.liste td.sa-betrag,table.liste th.sa-betrag{text-align:right}
 .sa-werte{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:10px 0 0;font-size:13.5px}
 .sa-werte dt{color:var(--grau)}.sa-werte dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
 .sa-zusatz{margin:2px 0 0}
+.sa-inline{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0}
+.sa-inline input[type=number]{width:80px}
+.btn.klein{padding:5px 10px;font-size:13px}
 .sa-schnell{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:14px 0 6px}
 .sa-schnell a{display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center;border:1px solid var(--linie);border-radius:12px;
  padding:12px 14px;color:var(--ink);text-decoration:none;background:#fff}
@@ -109,7 +112,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe")     # Seiten, die nur die Privatperson betreffen
-NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
+NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_staat(con, k):
@@ -155,7 +158,8 @@ def nav(k, m="privat", schalter=False, aktiv=""):
     if m == "staat":
         mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Kassen & Umsätze", "konto/"),
                 ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/")]
-        haushalt = [("sa-etats", "landmark", "Etats der Behörden", "etats/"), ("sa-staatshaushalt", "chart-column", "Staatshaushalt", "haushalt/"),
+        haushalt = [("sa-etats", "landmark", "Etats der Behörden", "etats/"), ("sa-verteidigung", "shield", "Verteidigung", "verteidigung/"),
+                    ("sa-staatshaushalt", "chart-column", "Staatshaushalt", "haushalt/"),
                     ("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"), ("sa-gold", "coins", "Goldreserven", "gold/")]
         gruppen = [("Staatliche Kassen", mein), ("Haushalt", haushalt), ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
         mein = mein + haushalt[:1]
@@ -393,9 +397,10 @@ def _uebersicht_staat(request, k, con):
             + (" Die Verwaltung des Schatzamts finden Sie in der Navigation." if geld.ist_beamter(k) else "") + "</div>")
     zusatz = _kassen_zusatz(con, konten)
     gruppen = [("Reich", [r for r in konten if r["art"] == "sonder"]), ("Behörden", [r for r in konten if r["art"] == "behoerde"]),
-               ("Teilstaaten", [r for r in konten if r["art"] == "teilstaat"])]
+               ("Teilstaaten", [r for r in konten if r["art"] == "teilstaat"]), ("Verteidigung", [r for r in konten if r["art"] == "verteidigung"])]
     kassen = "".join(f'<h2>{esc(t)}</h2><div class="sa-karten">{_karten(rs, zusatz)}</div>' for t, rs in gruppen if rs) or leer
     schnell = (f'<div class="sa-schnell"><a href="{PFAD}etats/">{amt.ic("landmark")}<b>Etats der Behörden</b><span>Kassenstand, Etat, Personalkosten</span></a>'
+               f'<a href="{PFAD}verteidigung/">{amt.ic("shield")}<b>Verteidigung</b><span>Etats, Militärgerät, Einsatzbereitschaft</span></a>'
                f'<a href="{PFAD}haushalt/">{amt.ic("chart-column")}<b>Staatshaushalt</b><span>Steuern und Reichsabgabe der Teilstaaten</span></a>'
                f'<a href="{PFAD}finanzen/">{amt.ic("chart-column")}<b>Reichsfinanzen</b><span>Geldmenge, Reichskasse, Staatskassen</span></a></div>')
     inhalt = (f'<h1>{amt.ic("landmark")} Staatliche Kassen</h1>'
@@ -420,6 +425,12 @@ def _kassen_zusatz(con, konten):
         for r in konten:
             if r["art"] == "teilstaat" and r["stelle"][3:] in q:
                 out[r["id"]] = f'Reichsabgabe {q[r["stelle"][3:]]:.1f} % der Steuereinnahmen'.replace(".", ",")
+    if any(r["art"] == "verteidigung" for r in konten):
+        import verteidigung
+        etat = verteidigung._etat_monat(con)
+        for r in konten:
+            if r["art"] == "verteidigung":
+                out[r["id"]] = f'Verteidigungsetat {geld.mark_kurz(etat.get(r["stelle"], 0))} je Monat'
     return out
 
 
@@ -697,6 +708,9 @@ def tarife_html(con):
               ("Staatshaushalt der Bevölkerung", f'Steuern {ak["steuerquote"]} % des BIP je Teilstaat (Echtmaßstab); Reichsabgabe je Teilstaat '
                                                  f'nach Bevölkerung, Einkommen pro Kopf und Fläche (im Schnitt {ak["reichsanteil"]} %, '
                                                  f'{ak.get("quote_min", 20)}–{ak.get("quote_max", 65)} %), Rest an den Teilstaat; Pflichtausgaben {ak.get("ausgabenquote", 97)} % der Einnahmen (monatlich)'),
+              ("Verteidigungsetat", (lambda vt: f'{float(vt["quote_bip"]):g}'.replace(".", ",") + f' % des BIP je Monat (aus den Pflichtausgaben), davon '
+                                                  f'{vt["anteil_reich"]} % an das Reich (Führungsstab), der Rest an die Verteidigungskasse des Teilstaats '
+                                                  '(Militär, Gerät)')(e("verteidigung"))),
               ("Sozialabgabe (Reichsversicherung)", f'{e("sozialabgabe")} % des Bruttogehalts'),
               ("Länderanteil", f'{e("laenderanteil")} % von Lohn- und Kopfsteuer an den Wohnsitz-Teilstaat'),
               ("Kopfsteuer", f'{mark(e("kopfsteuer"))} je Steuerlauf und Staatsbürger'),

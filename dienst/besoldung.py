@@ -90,6 +90,14 @@ def einrichten(con):
         # 07.11.2026: Die Behörden zahlen ihre Mitarbeiter selbst – bisherige Vorgabe „Reichskasse“ wird „nach Dienststelle“
         con.execute("UPDATE bs_rollen SET zahlstelle='auto' WHERE zahlstelle='reichskasse'")
         con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('zahlstelle_auto', '1')")
+    if not con.execute("SELECT 1 FROM bs_meta WHERE schl='militaer'").fetchone():
+        # 07.11.2026: Verteidigungsetat – Führungsstab aus der Reichsverteidigungskasse, Teilstreitkräfte aus der Kasse ihres Teilstaats
+        import verteidigung
+        for r in verteidigung.FUEHRUNGSSTAB:
+            con.execute("UPDATE bs_rollen SET zahlstelle='verteidigung' WHERE rolle_id=? AND zahlstelle='auto'", (r,))
+        for r in verteidigung.TEILSTREITKRAEFTE:
+            con.execute("UPDATE bs_rollen SET zahlstelle='vt-land' WHERE rolle_id=? AND zahlstelle='auto'", (r,))
+        con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('militaer', '1')")
     con.commit()
 
 
@@ -103,6 +111,20 @@ async def raenge_sichern(app, con):
         if m and f"{m.group(1)}-{int(m.group(2))}" in gruppen:
             con.execute("INSERT OR IGNORE INTO bs_rollen (rolle_id, gruppe) VALUES (?,?)", (r["id"], f"{m.group(1)}-{int(m.group(2))}"))
     con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('raenge', '1')")
+    con.commit()
+
+
+MILITAER_NICHT = re.compile(r"polizei|zoll|schutz|regierung", re.I)   # Ränge der Behörden, nicht des Militärs
+
+
+async def militaer_sichern(app, con):
+    """Einmalig: militärische Dienstgrade (OR-/OF-Rollen ohne Polizei/Zoll/Schutz/Regierung) zahlt die Verteidigungskasse ihres Teilstaats."""
+    if con.execute("SELECT 1 FROM bs_meta WHERE schl='militaer_raenge'").fetchone():
+        return
+    for r in await app["discord"].rollen_liste():
+        if RANG.match(r["name"]) and not MILITAER_NICHT.search(r["name"]):
+            con.execute("UPDATE bs_rollen SET zahlstelle='vt-land' WHERE rolle_id=? AND zahlstelle='auto'", (r["id"],))
+    con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('militaer_raenge', '1')")
     con.commit()
 
 
@@ -121,9 +143,27 @@ def dienststelle(rollen):
     return "reichskasse"
 
 
+def zahlstelle_auto(rolle, rollen, rollennamen=None):
+    """„Nach Dienststelle“: entscheidend ist die Rolle, die das Gehalt begründet – Behördenrolle → diese Behörde, Kanzler → Reichskanzlei,
+    Dienstgrad (OR/OF, z. B. Polizei- oder Zollrang) → Behörde der übrigen Rollen, sonst (Kaiser, Hof, Reichsverwaltung, Gerichte …) die
+    Reichskasse. Ohne Rolle (individuelle Einstufung, nur Zulage) oder ohne Rollennamen: nach den Rollen (dienststelle)."""
+    if rolle is None or rollennamen is None:
+        return dienststelle(rollen)
+    if rolle == amt.ROLLE_KANZLER:
+        return "kanzlei"
+    for b in amt.BEHOERDEN:
+        if rolle in b["rollen"]:
+            return b["schl"]
+    if RANG.match(rollennamen.get(rolle, "")):
+        return dienststelle(rollen)
+    return "reichskasse"
+
+
 def zahlstellen(con):
-    out = [("auto", "Nach Dienststelle (Behörde zahlt)"), ("reichskasse", "Reichskasse"), ("kanzlei", "Reichskanzlei")] + [(b["schl"], b["name"]) for b in amt.BEHOERDEN]
-    out += [(r["stelle"], r["name"]) for r in con.execute("SELECT stelle, name FROM gk_konten WHERE art='teilstaat' ORDER BY name")]
+    out = [("auto", "Nach Dienststelle (Behörde zahlt)"), ("vt-land", "Verteidigungskasse des Teilstaats (Militär, nach Fraktion)"),
+           ("verteidigung", "Reichsverteidigungskasse (Führungsstab)"), ("reichskasse", "Reichskasse"), ("kanzlei", "Reichskanzlei")] + [(b["schl"], b["name"]) for b in amt.BEHOERDEN]
+    out += [(r["stelle"], r["name"]) for r in con.execute("SELECT stelle, name FROM gk_konten WHERE art IN ('teilstaat','verteidigung') "
+                                                          "AND stelle!='verteidigung' ORDER BY art, name")]
     return out
 
 
@@ -134,6 +174,7 @@ def einstufung(con, konto_id, rollen, rollennamen=None):
     if p and p["gruppe"] == "-":
         return None
     zulage, ztext = (p["zulage"], p["zulage_text"]) if p else (0, "")
+    r = None
     if p and p["gruppe"] in gs:
         g, quelle, zahl = gs[p["gruppe"]], "Individuelle Einstufung", "auto"
     else:
@@ -149,12 +190,15 @@ def einstufung(con, konto_id, rollen, rollennamen=None):
                 return None
             g, quelle, zahl = None, "Nur Zulage", "auto"
         else:
-            g, r, zahl = max(kand, key=lambda x: (x[0]["grundgehalt"], x[0]["rang"]))
+            g, r, zahl = max(kand, key=lambda x: (x[0]["grundgehalt"], x[0]["rang"], x[2] == "verteidigung"))
             quelle = f"Rolle „{(rollennamen or {}).get(r, r)}“" if r else "Souverän"
     if p and p["zahlstelle"]:
         zahl = p["zahlstelle"]
     if zahl == "auto":
-        zahl = dienststelle(rollen)
+        zahl = zahlstelle_auto(r, rollen, rollennamen)
+    elif zahl == "vt-land":
+        import verteidigung
+        zahl = verteidigung.zahlstelle_land(con, rollen)
     return g, quelle, zahl, zulage, ztext
 
 
@@ -176,6 +220,7 @@ def berechnen_einzeln(con, konto_id, name, rollen, rollennamen=None):
 
 async def berechnen(app, con):
     await raenge_sichern(app, con)
+    await militaer_sichern(app, con)
     namen = {r["id"]: r["name"] for r in await app["discord"].rollen_liste()}
     out = []
     for m in await app["discord"].mitglieder():

@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS ak_posten (id INTEGER PRIMARY KEY AUTOINCREMENT, lauf
 def einrichten(con):
     con.executescript(SCHEMA)
     for tab, spalte, typ in (("ak_laeufe", "ausgaben", "INTEGER"), ("ak_posten", "ausgaben_reich", "INTEGER"), ("ak_posten", "ausgaben_land", "INTEGER"),
-                             ("ak_posten", "quote", "REAL")):
+                             ("ak_posten", "quote", "REAL"), ("ak_posten", "vert_reich", "INTEGER"), ("ak_posten", "vert_land", "INTEGER")):
         if spalte not in {r[1] for r in con.execute(f"PRAGMA table_info({tab})")}:
             con.execute(f"ALTER TABLE {tab} ADD COLUMN {spalte} {typ} NOT NULL DEFAULT 0")
     con.commit()
@@ -115,8 +115,11 @@ def abgabequoten(daten, p, summen_heller=None):
 
 
 def berechnen(con, p=None):
-    """Monatlicher Haushalt je Teilstaat (Heller): Einnahmen summe/reich/land und Pflichtausgaben ausgaben_reich/ausgaben_land."""
+    """Monatlicher Haushalt je Teilstaat (Heller): Einnahmen summe/reich/land, Pflichtausgaben ausgaben_reich/ausgaben_land und
+    Verteidigungsetat vert_reich/vert_land (wird aus den Pflichtausgaben abgezweigt: verteidigung.py)."""
+    import verteidigung
     p = p or geld.einstellung(con, "aufkommen")
+    v = verteidigung.einstellungen(con)
     quote, aq = float(p["steuerquote"]) / 100, float(p.get("ausgabenquote", 97)) / 100
     kr = kronen_je_mio_euro(con)
     daten = staaten_bip(con)
@@ -128,9 +131,13 @@ def berechnen(con, p=None):
         q = quoten.get(s["id"], float(p["reichsanteil"]))
         reich = summe if reich_direkt else int(round(summe * q / 100))
         land = summe - reich
+        aus_r, aus_l = int(round(reich * aq)), int(round(land * aq))
+        vert = int(round(bip / 12 * float(v["quote_bip"]) / 100 * kr * 100))
+        vr = min(aus_r, int(round(vert * float(v["anteil_reich"]) / 100)))
+        vl = 0 if reich_direkt else min(aus_l, vert - int(round(vert * float(v["anteil_reich"]) / 100)))
         out.append({"staat": s["id"], "name": s["name"], "reichsgebiet": reich_direkt, "bip": bip, "ew": ew, "km2": km, "quote": q,
-                    "summe": summe, "reich": reich, "land": land,
-                    "ausgaben_reich": int(round(reich * aq)), "ausgaben_land": int(round(land * aq)),
+                    "summe": summe, "reich": reich, "land": land, "ausgaben_reich": aus_r - vr, "ausgaben_land": aus_l - vl,
+                    "vert_reich": vr, "vert_land": vl,
                     "kasse": None if reich_direkt else geld.stellenkonto(con, "ts-" + s["id"])})
     return sorted(out, key=lambda x: -x["summe"])
 
@@ -147,6 +154,15 @@ def _buchen_posten(con, x, k, monat, bezug, faktor=1):
             if betrag > 0:
                 v, a = (von, an) if faktor > 0 else (an, von)
                 geld.buchen(con, v["id"], a["id"], betrag, art, text + ("" if faktor > 0 else " – Berichtigung"), k, bezug=bezug, minus=True)
+    # Verteidigungsetat: Reichsanteil an die Reichsverteidigungskasse, Landesanteil an die Verteidigungskasse des Teilstaats
+    vt = [(kasse, geld.stellenkonto(con, "verteidigung"), x.get("vert_reich", 0), "Reich")]
+    if x["kasse"]:
+        vt.append((x["kasse"], geld.stellenkonto(con, "vt-" + x["staat"]), x.get("vert_land", 0), "Teilstaat"))
+    for von, an, betrag, was in vt:
+        if betrag > 0 and an:
+            v, a = (von, an) if faktor > 0 else (an, von)
+            geld.buchen(con, v["id"], a["id"], betrag, "verteidigungsetat", f"Verteidigungsetat {monat}: {x['name']} ({was})"
+                        + ("" if faktor > 0 else " – Berichtigung"), k, bezug=bezug, minus=True)
 
 
 def ausfuehren(con, periode, k):
@@ -162,12 +178,45 @@ def ausfuehren(con, periode, k):
     lauf, monat = cur.lastrowid, sa._monatsname(periode)
     for x in liste:
         _buchen_posten(con, x, k, monat, f"AK-{periode}")
-        con.execute("INSERT INTO ak_posten (lauf, staat, name, bip, summe, reich, land, ausgaben_reich, ausgaben_land, quote) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    (lauf, x["staat"], x["name"], x["bip"], x["summe"], x["reich"], x["land"], x["ausgaben_reich"], x["ausgaben_land"], x["quote"]))
+        con.execute("INSERT INTO ak_posten (lauf, staat, name, bip, summe, reich, land, ausgaben_reich, ausgaben_land, quote, vert_reich, vert_land) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (lauf, x["staat"], x["name"], x["bip"], x["summe"], x["reich"], x["land"], x["ausgaben_reich"], x["ausgaben_land"], x["quote"],
+                     x["vert_reich"], x["vert_land"]))
     geld.protokoll(con, k, "Staatshaushalt", f"{monat}: Einnahmen {mark(sum(x['summe'] for x in liste))}, Pflichtausgaben "
-                                             f"{mark(sum(x['ausgaben_reich'] + x['ausgaben_land'] for x in liste))}")
+                                             f"{mark(sum(x['ausgaben_reich'] + x['ausgaben_land'] for x in liste))}, Verteidigung "
+                                             f"{mark(sum(x['vert_reich'] + x['vert_land'] for x in liste))}")
     con.commit()
+    import verteidigung
+    verteidigung.instandhaltung(con, periode, k)   # Instandhaltung des Militärgeräts im selben Monat
     return lauf
+
+
+def verteidigung_einbuchen(con, periode, k):
+    """Für einen schon gebuchten Monat ohne Verteidigungsetat: zweigt den Etat nachträglich aus den Pflichtausgaben ab
+    (Berichtigung der Pflichtausgaben, dann Kasse → Verteidigungskasse). Reich/Teilstaat-Aufteilung der Einnahmen bleibt unverändert."""
+    import verteidigung
+    l = con.execute("SELECT * FROM ak_laeufe WHERE periode=?", (periode,)).fetchone()
+    if not l:
+        return 0
+    v = verteidigung.einstellungen(con)
+    kr = kronen_je_mio_euro(con)
+    monat, summe = sa._monatsname(periode), 0
+    for a in con.execute("SELECT * FROM ak_posten WHERE lauf=? AND vert_reich=0 AND vert_land=0", (l["id"],)).fetchall():
+        rd = geld.ist_reichsgebiet({"id": a["staat"], "name": a["name"]})
+        vert = int(round(a["bip"] / 12 * float(v["quote_bip"]) / 100 * kr * 100))
+        vr = min(a["ausgaben_reich"], int(round(vert * float(v["anteil_reich"]) / 100)))
+        vl = 0 if rd else min(a["ausgaben_land"], vert - int(round(vert * float(v["anteil_reich"]) / 100)))
+        x = {"staat": a["staat"], "name": a["name"], "reichsgebiet": rd, "kasse": None if rd else geld.stellenkonto(con, "ts-" + a["staat"]),
+             "reich": 0, "land": 0, "ausgaben_reich": 0, "ausgaben_land": 0, "vert_reich": 0, "vert_land": 0}
+        _buchen_posten(con, dict(x, ausgaben_reich=vr, ausgaben_land=vl), k, monat, f"AK-{periode}", faktor=-1)
+        _buchen_posten(con, dict(x, vert_reich=vr, vert_land=vl), k, monat, f"AK-{periode}")
+        con.execute("UPDATE ak_posten SET ausgaben_reich=ausgaben_reich-?, ausgaben_land=ausgaben_land-?, vert_reich=?, vert_land=? WHERE id=?",
+                    (vr, vl, vr, vl, a["id"]))
+        summe += vr + vl
+    con.execute("UPDATE ak_laeufe SET ausgaben=ausgaben-? WHERE id=?", (summe, l["id"]))
+    geld.protokoll(con, k, "Verteidigungsetat nachgebucht", f"{monat}: {mark(summe)} aus den Pflichtausgaben an die Verteidigungskassen")
+    con.commit()
+    return summe
 
 
 def nachbuchen(con, periode, k):
@@ -182,19 +231,21 @@ def nachbuchen(con, periode, k):
     for x in liste:
         a = alt.get(x["staat"])
         d = dict(x)
-        for f in ("reich", "land", "ausgaben_reich", "ausgaben_land"):
+        for f in ("reich", "land", "ausgaben_reich", "ausgaben_land", "vert_reich", "vert_land"):
             d[f] = x[f] - (a[f] if a else 0)
-        plus = {f: max(0, d[f]) for f in ("reich", "land", "ausgaben_reich", "ausgaben_land")}
-        minus = {f: max(0, -d[f]) for f in ("reich", "land", "ausgaben_reich", "ausgaben_land")}
+        plus = {f: max(0, d[f]) for f in ("reich", "land", "ausgaben_reich", "ausgaben_land", "vert_reich", "vert_land")}
+        minus = {f: max(0, -d[f]) for f in ("reich", "land", "ausgaben_reich", "ausgaben_land", "vert_reich", "vert_land")}
         _buchen_posten(con, dict(x, **plus), k, monat, f"AK-{periode}")
         if any(minus.values()):
             _buchen_posten(con, dict(x, **minus), k, monat, f"AK-{periode}", faktor=-1)
         if a:
-            con.execute("UPDATE ak_posten SET bip=?, summe=?, reich=?, land=?, ausgaben_reich=?, ausgaben_land=?, quote=? WHERE id=?",
-                        (x["bip"], x["summe"], x["reich"], x["land"], x["ausgaben_reich"], x["ausgaben_land"], x["quote"], a["id"]))
+            con.execute("UPDATE ak_posten SET bip=?, summe=?, reich=?, land=?, ausgaben_reich=?, ausgaben_land=?, quote=?, vert_reich=?, vert_land=? WHERE id=?",
+                        (x["bip"], x["summe"], x["reich"], x["land"], x["ausgaben_reich"], x["ausgaben_land"], x["quote"], x["vert_reich"], x["vert_land"], a["id"]))
         else:
-            con.execute("INSERT INTO ak_posten (lauf, staat, name, bip, summe, reich, land, ausgaben_reich, ausgaben_land, quote) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                        (l["id"], x["staat"], x["name"], x["bip"], x["summe"], x["reich"], x["land"], x["ausgaben_reich"], x["ausgaben_land"], x["quote"]))
+            con.execute("INSERT INTO ak_posten (lauf, staat, name, bip, summe, reich, land, ausgaben_reich, ausgaben_land, quote, vert_reich, vert_land) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (l["id"], x["staat"], x["name"], x["bip"], x["summe"], x["reich"], x["land"], x["ausgaben_reich"], x["ausgaben_land"], x["quote"],
+                     x["vert_reich"], x["vert_land"]))
     con.execute("UPDATE ak_laeufe SET summe=?, reich=?, laender=?, ausgaben=?, parameter=? WHERE id=?",
                 (sum(x["summe"] for x in liste), sum(x["reich"] for x in liste), sum(x["land"] for x in liste),
                  sum(x["ausgaben_reich"] + x["ausgaben_land"] for x in liste), json.dumps(p), l["id"]))
@@ -226,7 +277,8 @@ def _gebiet(sid, name):
 
 def summen(liste):
     s = lambda f: sum(x[f] for x in liste)
-    return {"ein": s("summe"), "reich": s("reich"), "land": s("land"), "aus_reich": s("ausgaben_reich"), "aus_land": s("ausgaben_land")}
+    return {"ein": s("summe"), "reich": s("reich"), "land": s("land"), "aus_reich": s("ausgaben_reich"), "aus_land": s("ausgaben_land"),
+            "vert_reich": s("vert_reich"), "vert_land": s("vert_land")}
 
 
 def _zahl(x):
@@ -245,10 +297,11 @@ def lage(con, liste, besoldung_reich=0):
     """Monatliche Haushaltslage des Reiches (Heller): Einnahmen, Pflichtausgaben, Etats der Behörden, Besoldung über die Reichskasse."""
     import etat
     s = summen(liste)
-    frei_reich = s["reich"] - s["aus_reich"]
+    frei_reich = s["reich"] - s["aus_reich"] - s["vert_reich"]
     etats = sum(etat.etats(con).values()) // 12
     return {"ein": s["ein"], "reich": s["reich"], "frei_reich": frei_reich, "etats": etats, "besoldung": besoldung_reich,
-            "saldo": frei_reich - etats - besoldung_reich, "frei_land": s["land"] - s["aus_land"]}
+            "saldo": frei_reich - etats - besoldung_reich, "frei_land": s["land"] - s["aus_land"] - s["vert_land"],
+            "verteidigung": s["vert_reich"] + s["vert_land"]}
 
 
 def prognose_html(con, liste, besoldung_reich=0):
@@ -256,7 +309,8 @@ def prognose_html(con, liste, besoldung_reich=0):
     kz = [("Steuereinnahmen im Monat", l["ein"]), ("davon an das Reich", l["reich"]), ("Reich frei verfügbar¹", l["frei_reich"]),
           ("Etats der Behörden (1/12)", l["etats"]), ("Besoldung über die Reichskasse", l["besoldung"]),
           ("Überschuss des Reiches" if l["saldo"] >= 0 else "Defizit des Reiches", l["saldo"]),
-          ("Teilstaaten frei verfügbar¹", l["frei_land"]), ("Reichskasse heute", geld.sonder(con, "reichskasse")["saldo"])]
+          ("Teilstaaten frei verfügbar¹", l["frei_land"]), ("Verteidigungsetat (Reich + Teilstaaten)", l["verteidigung"]),
+          ("Reichskasse heute", geld.sonder(con, "reichskasse")["saldo"])]
     return '<div class="kennzahlen">' + "".join(f"<div><b>{mark(v)}</b>{esc(t)}</div>" for t, v in kz) + "</div>"
 
 
@@ -268,7 +322,7 @@ def tabelle_html(liste):
         quote = ('<b>100 %</b> <span class="az">Reich</span>' if x["reichsgebiet"] else f'<b>{_pz(x["quote"])}</b>')
         zeilen.append((esc(_gebiet(x["staat"], x["name"])), _ew(x["ew"]), f"{_zahl(kopf)} €", f'{_zahl(x["km2"])} km²', quote,
                        geld.mark_kurz(x["summe"]), geld.mark_kurz(x["reich"]), geld.mark_kurz(x["land"]) if x["land"] else "–",
-                       geld.mark_kurz(x["land"] - x["ausgaben_land"]) if x["land"] else "–"))
+                       geld.mark_kurz(x["land"] - x["ausgaben_land"] - x["vert_land"]) if x["land"] else "–"))
     return amt.tabelle(["Gebiet", "Einwohner", "BIP je Kopf", "Fläche", "Reichsabgabe", "Steuern / Monat", "an das Reich", "bleibt dem Teilstaat",
                         "davon frei¹"], zeilen, klasse="sa-haushalt")
 
@@ -282,7 +336,8 @@ def erklaerung_html(p):
             'große, reiche und weitläufige Teilstaaten zahlen einen höheren Satz.</li>'
             f'<li>Im Schnitt erhält das Reich <b>{esc(str(p["reichsanteil"]))} %</b>; kein Teilstaat zahlt weniger als '
             f'{esc(str(p.get("quote_min", 20)))} % oder mehr als {esc(str(p.get("quote_max", 65)))} %. Die Freien Reichsgebiete sind das Reich selbst.</li>'
-            f'<li>¹ Pflichtausgaben für die Bevölkerung ({esc(str(p.get("ausgabenquote", 97)))} %) sind abgezogen; der Rest steht Reich und Landesherren frei zur Verfügung. '
+            f'<li>¹ Pflichtausgaben für die Bevölkerung ({esc(str(p.get("ausgabenquote", 97)))} %) sind abgezogen – ein Teil davon ist als '
+            f'<a href="{PFAD}verteidigung/">Verteidigungsetat</a> zweckgebunden; der Rest steht Reich und Landesherren frei zur Verfügung. '
             'Aus dem Anteil des Reiches werden die Etats der Behörden bezahlt, die Behörden zahlen davon ihre Mitarbeiter.</li></ol></div>')
 
 

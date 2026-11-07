@@ -21,7 +21,7 @@ NAME = "Kaiserliches Schatz- und Währungsamt"
 STELLE = ("schatzamt", NAME)
 MAX_BETRAG = 10 ** 17   # Heller (1 Billiarde Kronen) – Echtmaßstab: Staatshaushalte in Milliarden
 KONTOART = {"privat": ("Privatkonto", 1000), "gewerbe": ("Gewerbekonto", 2000), "behoerde": ("Behördenkonto", 3000),
-            "teilstaat": ("Staatskasse", 4000), "sonder": ("Sonderkonto", 9000)}
+            "teilstaat": ("Staatskasse", 4000), "verteidigung": ("Verteidigungskasse", 5000), "sonder": ("Sonderkonto", 9000)}
 SONDER = {"zentralbank": "Zentralbank des Reiches", "reichskasse": "Reichskasse", "sozialkasse": "Reichsversicherungskasse",
           "volkswirtschaft": "Volkswirtschaft (simulierte Bevölkerung)"}
 AUSSEN = ("zentralbank", "volkswirtschaft")   # Gegenkonten außerhalb des Geldumlaufs, dürfen ins Minus
@@ -30,7 +30,8 @@ BUCHUNGSART = {"ueberweisung": "Überweisung", "gehalt": "Gehalt", "lohnsteuer":
                "ueberweisungssteuer": "Überweisungssteuer", "geldschoepfung": "Geldschöpfung", "geldvernichtung": "Geldvernichtung",
                "korrektur": "Korrekturbuchung", "pfaendung": "Pfändung", "startguthaben": "Startguthaben", "erstattung": "Erstattung",
                "zuweisung": "Haushaltszuweisung", "steueraufkommen": "Steueraufkommen der Bevölkerung",
-               "umbuchung": "Umbuchung"}
+               "umbuchung": "Umbuchung", "verteidigungsetat": "Verteidigungsetat", "ruestung": "Rüstungsbeschaffung",
+               "instandhaltung": "Instandhaltung (Militärgerät)", "ruestung_erloes": "Erlös aus Ausmusterung"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS gk_konten (
@@ -220,6 +221,10 @@ def stellenkonto(con, stelle):
     if r is None and stelle.startswith("ts-") and not ist_reichsgebiet(stelle[3:]):
         teilstaaten_sichern(con)
         r = con.execute("SELECT * FROM gk_konten WHERE stelle=?", (stelle,)).fetchone()
+    if r is None and (stelle == "verteidigung" or (stelle.startswith("vt-") and not ist_reichsgebiet(stelle[3:]))):
+        import verteidigung
+        verteidigung.kassen_sichern(con)
+        r = con.execute("SELECT * FROM gk_konten WHERE stelle=?", (stelle,)).fetchone()
     return r
 
 
@@ -354,6 +359,8 @@ def verfuegbare_konten(con, k):
     if amt.ROLLE_KANZLER in k["rollen"] or bereiche._alle(k):
         out.append(stellenkonto(con, "kanzlei"))
     out += regierte_staatskassen(con, k)
+    import verteidigung
+    out += verteidigung.verfuegbare(con, k)
     if ist_leitung(k):
         out += [sonder(con, "reichskasse"), sonder(con, "sozialkasse")]
     seen, res = set(), []
