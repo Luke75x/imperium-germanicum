@@ -117,8 +117,8 @@ def abgabequoten(daten, p, summen_heller=None, zuschlag=None):
     return out
 
 
-def berechnen(con, p=None):
-    """Monatlicher Haushalt je Teilstaat (Heller): Einnahmen summe/reich/land, Pflichtausgaben ausgaben_reich/ausgaben_land und
+def berechnen(con, p=None, periode=None):
+    """Monatlicher Haushalt je Teilstaat (Heller) im Monat periode (Etatverteilung dieses Monats; Vorgabe: nächster zu buchender Monat): Einnahmen summe/reich/land, Pflichtausgaben ausgaben_reich/ausgaben_land und
     Verteidigungsetat vert_reich/vert_land (wird aus den Pflichtausgaben abgezweigt: verteidigung.py)."""
     import etatplan
     import verteidigung
@@ -146,7 +146,7 @@ def berechnen(con, p=None):
                       "aus_r": aus_r, "aus_l": aus_l, "vr0": vr0, "vl0": vl0})
     tot_ar = sum(b["aus_r"] for b in basis)
     vv_reich = sum(b["vr0"] for b in basis) / tot_ar * 100 if tot_ar else 0
-    plan_reich, richt_reich = etatplan.plan(con, "reich", vv_reich), etatplan.richtwerte(vv_reich)
+    plan_reich, richt_reich = etatplan.plan(con, "reich", vv_reich, periode), etatplan.richtwerte(vv_reich)
     w_reich = etatplan.bewerten(plan_reich, richt_reich)   # Boni/Mali des Reichsetats: Freie Reichsgebiete + Rücklage der Reichskasse
     aq_r = min(1.05, max(0.0, aq - w_reich["summe"]["ruecklage"] / 100))
     z_reich = etatplan.zufriedenheit(con, "reich", plan_reich, richt_reich)   # Bevölkerungszufriedenheit (Freie Reichsgebiete)
@@ -156,7 +156,7 @@ def berechnen(con, p=None):
         plan_l = richt_l = w_l = z_l = None
         if not b["rd"]:
             vv = b["vl0"] / b["aus_l"] * 100 if b["aus_l"] else 0
-            plan_l, richt_l = etatplan.plan(con, "ts-" + s["id"], vv), etatplan.richtwerte(vv)
+            plan_l, richt_l = etatplan.plan(con, "ts-" + s["id"], vv, periode), etatplan.richtwerte(vv)
             w_l = etatplan.bewerten(plan_l, richt_l)
             z_l = etatplan.zufriedenheit(con, "ts-" + s["id"], plan_l, richt_l)
         # Wirkung auf das Steueraufkommen: im Teilstaat dessen eigener Etat, in den Freien Reichsgebieten der Reichsetat; dazu die Zufriedenheit
@@ -226,7 +226,7 @@ def ausfuehren(con, periode, k):
         return None
     geld.teilstaaten_sichern(con)
     p = dict(geld.einstellung(con, "aufkommen"), wechselkurs=geld.einstellung(con, "wechselkurs"))
-    liste = berechnen(con, p)
+    liste = berechnen(con, p, periode)
     cur = con.execute("INSERT INTO ak_laeufe (periode, summe, reich, laender, ausgaben, parameter, zeit, autor_name) VALUES (?,?,?,?,?,?,?,?)",
                       (periode, sum(x["summe"] for x in liste), sum(x["reich"] for x in liste), sum(x["land"] for x in liste),
                        sum(x["ausgaben_reich"] + x["ausgaben_land"] for x in liste), json.dumps(p), int(time.time()), k["name"]))
@@ -290,7 +290,7 @@ def nachbuchen(con, periode, k):
         return ausfuehren(con, periode, k)
     alt = {r["staat"]: r for r in con.execute("SELECT * FROM ak_posten WHERE lauf=?", (l["id"],))}
     p = dict(geld.einstellung(con, "aufkommen"), wechselkurs=geld.einstellung(con, "wechselkurs"))
-    liste = berechnen(con, p)
+    liste = berechnen(con, p, periode)
     monat = sa._monatsname(periode)
     for x in liste:
         a = alt.get(x["staat"])

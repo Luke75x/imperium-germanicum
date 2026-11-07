@@ -8,12 +8,16 @@ Wirkung: Der Anteil „Verteidigung“ ist echtes Geld – er fließt jeden Mona
 (aufkommen.berechnen, verteidigung.py). Die übrigen Kategorien sind simulierte Ausgaben der Bevölkerung (Gegenkonto „Volkswirtschaft“); sie werden je
 Haushaltsmonat in ep_verteilung festgehalten.
 Vorgabe, solange nichts gespeichert ist: Verteidigung aus der alten Regel (Einstellung „verteidigung“: Anteil am BIP), der Rest nach VORGABE_GEWICHT.
-Änderungen gelten ab dem nächsten gebuchten Monat. Rechte: Teilstaat – Landesherr (geld.regierte_staatskassen, nicht unter Zwangsverwaltung),
-Reich – Schatzamt-Leitung, Kanzler, Kaiser; ansehen darf jeder mit staatlichem Zugriff. Tabellen: ep_plaene, ep_log, ep_verteilung.
+Änderungen: einmal je Monat. Eine Änderung gilt ab dem folgenden Kalendermonat (Fassung in ep_fassungen mit „ab“) und sperrt den Haushalt bis zum
+selben Tag des Folgemonats (geändert am 08.11. → gilt ab Dezember, nächste Änderung ab 08.12.). Rechte: Teilstaat – Landesherr (geld.regierte_staatskassen, nicht unter Zwangsverwaltung),
+Reich – Schatzamt-Leitung, Kanzler, Kaiser; ansehen darf jeder mit staatlichem Zugriff. Tabellen: ep_fassungen, ep_log, ep_verteilung
+(ep_plaene = alte, ungenutzte Einzeltabelle, nur noch Quelle der Übernahme).
 """
+import calendar
 import json
 import math
 import time
+from datetime import date
 
 from aiohttp import web
 
@@ -42,6 +46,8 @@ amt.ICONS.setdefault("scale", '<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ep_plaene (schl TEXT NOT NULL, kategorie TEXT NOT NULL, anteil REAL NOT NULL, PRIMARY KEY (schl, kategorie));
+CREATE TABLE IF NOT EXISTS ep_fassungen (schl TEXT NOT NULL, ab TEXT NOT NULL, zeit INTEGER NOT NULL, vorgabe INTEGER NOT NULL DEFAULT 0,
+    anteile TEXT NOT NULL DEFAULT '{}', PRIMARY KEY (schl, ab));
 CREATE TABLE IF NOT EXISTS ep_log (id INTEGER PRIMARY KEY AUTOINCREMENT, zeit INTEGER NOT NULL, schl TEXT NOT NULL, autor_id TEXT NOT NULL DEFAULT '',
     autor_name TEXT NOT NULL, text TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS ep_zufriedenheit (lauf INTEGER NOT NULL, schl TEXT NOT NULL, wert REAL NOT NULL, ziel REAL NOT NULL,
@@ -53,7 +59,62 @@ CREATE TABLE IF NOT EXISTS ep_verteilung (lauf INTEGER NOT NULL, schl TEXT NOT N
 
 def einrichten(con):
     con.executescript(SCHEMA)
+    if not con.execute("SELECT 1 FROM ep_fassungen LIMIT 1").fetchone():
+        # Übernahme der bisherigen Pläne: gelten von Anfang an, sperren nicht (zeit 0)
+        alt = {}
+        for r in con.execute("SELECT schl, kategorie, anteil FROM ep_plaene"):
+            alt.setdefault(r["schl"], {})[r["kategorie"]] = float(r["anteil"])
+        for schl, w in alt.items():
+            if len(w) == len(KATEGORIEN):
+                con.execute("INSERT INTO ep_fassungen (schl, ab, zeit, vorgabe, anteile) VALUES (?,?,0,0,?)", (schl, "0000-00", json.dumps(w)))
     con.commit()
+
+
+# ---------------------------------------------------------------- Fassungen, Gültigkeit und Sperre
+
+def _folgemonat(periode):
+    j, m = (int(t) for t in periode.split("-"))
+    return f"{j + (m == 12)}-{m % 12 + 1:02d}"
+
+
+def monat_heute():
+    return date.today().strftime("%Y-%m")
+
+
+def monat_folgend():
+    """Monat, ab dem eine heute gespeicherte Änderung gilt."""
+    return _folgemonat(monat_heute())
+
+
+def naechster_lauf(con):
+    """Nächster zu buchender Haushaltsmonat: der laufende, solange er nicht gebucht ist, sonst der folgende."""
+    m = monat_heute()
+    return _folgemonat(m) if con.execute("SELECT 1 FROM ak_laeufe WHERE periode=?", (m,)).fetchone() else m
+
+
+def fassung(con, schl, periode=None):
+    """Für den Monat geltende Fassung (Row) oder None (= Vorgabe)."""
+    return con.execute("SELECT * FROM ep_fassungen WHERE schl=? AND ab<=? ORDER BY ab DESC LIMIT 1",
+                       (schl, periode or naechster_lauf(con))).fetchone()
+
+
+def vorgemerkt(con, schl):
+    """Fassung, die erst in einem künftigen Monat gilt (nach dem laufenden Kalendermonat), oder None."""
+    return con.execute("SELECT * FROM ep_fassungen WHERE schl=? AND ab>? ORDER BY ab DESC LIMIT 1", (schl, monat_heute())).fetchone()
+
+
+def _plus_monat(d):
+    j, m = d.year + (d.month == 12), d.month % 12 + 1
+    return date(j, m, min(d.day, calendar.monthrange(j, m)[1]))
+
+
+def gesperrt_bis(con, schl):
+    """Datum, ab dem wieder geändert werden darf (selber Tag im Folgemonat der letzten Änderung), oder None, wenn frei."""
+    r = con.execute("SELECT MAX(zeit) z FROM ep_fassungen WHERE schl=? AND zeit>0", (schl,)).fetchone()
+    if not r or not r["z"]:
+        return None
+    frei = _plus_monat(date.fromtimestamp(r["z"]))
+    return frei if date.today() < frei else None
 
 
 # ---------------------------------------------------------------- Verteilung
@@ -77,13 +138,15 @@ def runden100(anteile):
     return out
 
 
-def angepasst(con, schl):
-    return bool(con.execute("SELECT 1 FROM ep_plaene WHERE schl=?", (schl,)).fetchone())
+def angepasst(con, schl, periode=None):
+    f = fassung(con, schl, periode)
+    return bool(f and not f["vorgabe"])
 
 
-def plan(con, schl, vorgabe_verteidigung=0.0):
-    """Verteilung (Kategorie → Prozent des Ausgabenbudgets) für 'reich' oder 'ts-<sid>'; gespeichert oder Vorgabe."""
-    rows = {r["kategorie"]: float(r["anteil"]) for r in con.execute("SELECT kategorie, anteil FROM ep_plaene WHERE schl=?", (schl,))}
+def plan(con, schl, vorgabe_verteidigung=0.0, periode=None):
+    """Verteilung (Kategorie → Prozent des Ausgabenbudgets) für 'reich' oder 'ts-<sid>' im Monat periode (Vorgabe: nächster Lauf)."""
+    f = fassung(con, schl, periode)
+    rows = json.loads(f["anteile"]) if f and not f["vorgabe"] else {}
     if len(rows) == len(KATEGORIEN):
         return {k: rows[k] for k, _ in KATEGORIEN}
     return vorgabe(vorgabe_verteidigung)
@@ -99,10 +162,10 @@ def verteilung(pool, anteile):
     return out
 
 
-def aktuelle(con, schl, liste):
-    """Aktuell geltende Verteilung in Prozent (gespeichert oder Vorgabe, wie sie berechnet wird); liste = aufkommen.berechnen()."""
-    if angepasst(con, schl):
-        return plan(con, schl, 0.0)
+def aktuelle(con, schl, liste, periode=None):
+    """Verteilung in Prozent im Monat periode (gespeichert oder Vorgabe, wie sie berechnet wird); liste = aufkommen.berechnen(con, periode=periode)."""
+    if angepasst(con, schl, periode):
+        return plan(con, schl, 0.0, periode)
     if schl == "reich":
         pool = sum(x["pool_reich"] for x in liste)
         return {kat: (sum(x["verteilung_reich"].get(kat, 0) for x in liste) / pool * 100 if pool else 0) for kat, _ in KATEGORIEN}
@@ -110,19 +173,26 @@ def aktuelle(con, schl, liste):
     return {kat: (x["verteilung_land"].get(kat, 0) / x["pool_land"] * 100 if x and x["pool_land"] else 0) for kat, _ in KATEGORIEN}
 
 
+def _fassung_setzen(con, schl, vorgabe_, werte):
+    ab = monat_folgend()
+    con.execute("INSERT OR REPLACE INTO ep_fassungen (schl, ab, zeit, vorgabe, anteile) VALUES (?,?,?,?,?)",
+                (schl, ab, int(time.time()), 1 if vorgabe_ else 0, json.dumps(werte or {})))
+    return ab
+
+
 def speichern(con, schl, werte, k, alt=None):
-    """Speichert eine Verteilung (Prozent je Kategorie, Summe 100) und protokolliert die Änderung."""
+    """Merkt eine Verteilung (Prozent je Kategorie, Summe 100) für den Folgemonat vor und protokolliert die Änderung. Gibt den Monat „ab“ zurück."""
     alt = alt or plan(con, schl, 0.0)
-    con.execute("DELETE FROM ep_plaene WHERE schl=?", (schl,))
-    for kat, _ in KATEGORIEN:
-        con.execute("INSERT INTO ep_plaene (schl, kategorie, anteil) VALUES (?,?,?)", (schl, kat, round(float(werte[kat]), 2)))
+    ab = _fassung_setzen(con, schl, False, {kat: round(float(werte[kat]), 2) for kat, _ in KATEGORIEN})
     aend = [f'{NAMEN[kat]} {alt[kat]:.1f} % → {float(werte[kat]):.1f} %'.replace(".", ",") for kat, _ in KATEGORIEN if abs(alt[kat] - float(werte[kat])) >= 0.05]
-    _log(con, schl, k, "Verteilung geändert: " + ("; ".join(aend) if aend else "unverändert"))
+    _log(con, schl, k, f"Verteilung ab {sa._monatsname(ab)} geändert: " + ("; ".join(aend) if aend else "unverändert"))
+    return ab
 
 
 def zuruecksetzen(con, schl, k):
-    con.execute("DELETE FROM ep_plaene WHERE schl=?", (schl,))
-    _log(con, schl, k, "Verteilung auf die Vorgabe zurückgesetzt")
+    ab = _fassung_setzen(con, schl, True, {})
+    _log(con, schl, k, f"Verteilung ab {sa._monatsname(ab)} auf die Vorgabe zurückgesetzt")
+    return ab
 
 
 def _log(con, schl, k, text):
@@ -230,11 +300,11 @@ def hebel_text(effekt):
     return ", ".join(teile)
 
 
-def bereitschaft_wirkung(con):
-    """{Verteidigungskasse (Stelle): Punkte Einsatzbereitschaft je Monat} aus der aktuellen Etatverteilung (für verteidigung.instandhaltung)."""
+def bereitschaft_wirkung(con, periode=None):
+    """{Verteidigungskasse (Stelle): Punkte Einsatzbereitschaft je Monat} aus der Etatverteilung des Monats (für verteidigung.instandhaltung)."""
     import aufkommen
     out = {}
-    for x in aufkommen.berechnen(con):
+    for x in aufkommen.berechnen(con, periode=periode):
         out.setdefault("verteidigung", x["wirkung_reich"]["summe"]["bereitschaft"])
         if not x["reichsgebiet"] and x.get("wirkung_land"):
             out["vt-" + x["staat"]] = x["wirkung_land"]["summe"]["bereitschaft"]
@@ -721,7 +791,8 @@ async def seite(request, k):
     import aufkommen
     import verteidigung
     con = request.app["db"]
-    liste = aufkommen.berechnen(con)
+    ab = monat_folgend()
+    liste = aufkommen.berechnen(con, periode=ab)
     ziel_liste = ziele(con, liste)
     gueltig = {s for s, _ in ziel_liste}
     eigene = [r["stelle"] for r in geld.regierte_staatskassen(con, k)]
@@ -749,9 +820,10 @@ async def seite(request, k):
         vt_ih = verteidigung.kennzahlen(con, vt_stelle)["instandhaltung"]
         bew, richt, basis_ein, basis_rl = x["wirkung_land"], x["richt_land"], x["summe_basis"], x["land"]
         zuf = x["zufriedenheit_land"]
-    anteile = aktuelle(con, ziel, liste)
-    anteile = runden100(anteile)
-    darf = darf_aendern(con, k, ziel)
+    anteile = runden100(aktuelle(con, ziel, liste, ab))
+    berechtigt = darf_aendern(con, k, ziel)
+    sperre = gesperrt_bis(con, ziel)
+    darf = berechtigt and not sperre
     n_pers, kosten = (pk or {}).get(vt_stelle, (0, 0))
     vt_min = kosten + vt_ih if pk is not None else 0
     kat_daten = [{"id": kat, "name": NAMEN[kat], "anteil": anteile[kat], "farbe": PALETTE[i % len(PALETTE)], "schraffur": i >= len(PALETTE)}
@@ -792,12 +864,23 @@ async def seite(request, k):
                    f'<div class="aktionen"><button class="btn" type="submit" id="ep-speichern">{amt.ic("check")}Verteilung speichern</button>'
                    f'<button class="btn zweit" type="button" id="ep-normieren">Auf 100 % bringen</button></div></form>'
                    + (f'<form method="post" action="{PFAD}zuruecksetzen" onsubmit="return confirm(\'Auf die Vorgabe zurücksetzen?\')">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
-                      f'<div class="aktionen"><button class="btn zweit" type="submit">Auf Vorgabe zurücksetzen</button></div></form>' if angepasst(con, ziel) else ""))
-        rechte = '<p class="sa-hinweis">Sie dürfen die Verteilung dieses Haushalts ändern. Änderungen gelten ab dem nächsten gebuchten Monat.</p>'
+                      f'<div class="aktionen"><button class="btn zweit" type="submit">Auf Vorgabe zurücksetzen</button></div></form>' if angepasst(con, ziel, ab) else ""))
     else:
         form_in = tabelle
-        rechte = ('<p class="sa-hinweis">Nur Ansicht – ändern darf die Verteilung ' + ("das Reich (Kanzler, Kaiser, Schatzamt-Leitung)." if ziel == "reich" else
-                  "der Landesherr dieses Teilstaats.") + '</p>')
+    vm = vorgemerkt(con, ziel)
+    teile = []
+    if vm:
+        teile.append(f'Neue Verteilung vorgemerkt ({amt._zeit(vm["zeit"])}): sie gilt <b>ab {esc(sa._monatsname(vm["ab"]))}</b>; '
+                     f'bis dahin gilt die bisherige Verteilung. Die Tabelle zeigt den Etat ab {esc(sa._monatsname(ab))}.')
+    if darf:
+        teile.append(f'Sie dürfen die Verteilung dieses Haushalts ändern – <b>einmal im Monat</b>. Eine Änderung gilt ab <b>{esc(sa._monatsname(ab))}</b>; '
+                     f'danach ist der Etat bis zum {esc(_plus_monat(date.today()).strftime("%d.%m.%Y"))} gesperrt.')
+    elif berechtigt:
+        teile.append(f'{amt.ic("lock")} Der Etat wurde in diesem Monat schon geändert. <b>Nächste Änderung ab {esc(sperre.strftime("%d.%m.%Y"))}</b>.')
+    else:
+        teile.append('Nur Ansicht – ändern darf die Verteilung ' + ("das Reich (Kanzler, Kaiser, Schatzamt-Leitung)." if ziel == "reich" else
+                     "der Landesherr dieses Teilstaats.") + ' Geändert werden kann einmal im Monat, mit Wirkung ab dem Folgemonat.')
+    rechte = "".join(f'<p class="sa-hinweis">{t}</p>' for t in teile)
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}{" (Ihr Teilstaat)" if s in eigene else ""}</option>' for s, n in ziel_liste)
     erkl = ('<div class="sa-erkl"><b>Wie ist der Etat aufgebaut?</b><ol>'
             + ('<li>Der Etat des Reiches ist sein Anteil an allen Steuern: die <b>Abgaben der Teilstaaten</b> und das gesamte Aufkommen der Freien Reichsgebiete.</li>'
@@ -827,7 +910,7 @@ async def seite(request, k):
                   + f'<td>{_de((liste[0]["zufriedenheit_reich"] if s == "reich" else x2["zufriedenheit_land"])["neu"], 0)}</td></tr>')
     verlauf = con.execute("SELECT * FROM ep_log WHERE schl=? ORDER BY id DESC LIMIT 15", (ziel,)).fetchall()
     inhalt = (CSS + f'<h1>{amt.ic("chart-pie")} Etatverteilung · {esc(name)}</h1>{amt.meldung(request)}'
-              '<p class="az">Wie viel vom Ausgabenbudget fließt in welches Politikfeld? Das Tortendiagramm zeigt den gesamten Monatsetat.</p>'
+              f'<p class="az">Wie viel vom Ausgabenbudget fließt in welches Politikfeld? Das Tortendiagramm zeigt den gesamten Monatsetat ab {esc(sa._monatsname(ab))}.</p>'
               f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div>'
               f'<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
@@ -871,7 +954,7 @@ def _torte_daten(x, liste, ziel):
 async def oeffentlich(request, k):
     import aufkommen
     con = request.app["db"]
-    liste = aufkommen.berechnen(con)
+    liste = aufkommen.berechnen(con, periode=monat_heute())
     ziel_liste = ziele(con, liste)
     gueltig = dict(ziel_liste)
     ziel = request.query.get("ziel", "")
@@ -908,7 +991,7 @@ async def oeffentlich(request, k):
     staatl = (f'<p class="sa-hinweis"><a href="{PFAD}?ziel={esc(ziel)}">Zur Etatverteilung mit Beträgen und Einstellungen</a></p>'
               if sa.hat_kassen(con, k) else "")
     inhalt = (CSS + WK_CSS + ZUF_CSS + f'<h1>{amt.ic("chart-pie")} Etatübersicht</h1>'
-              '<p class="az">Wofür geben Reich und Teilstaaten ihr Geld aus? Anteile am monatlichen Etat.</p>'
+              f'<p class="az">Wofür geben Reich und Teilstaaten ihr Geld aus? Anteile am monatlichen Etat im {esc(sa._monatsname(monat_heute()))}.</p>'
               f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{auswahl}</select></div>'
               '<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>' + lage
               + f'<div class="ep-raster"><div class="ep-torte" id="ep-torte"><svg viewBox="0 0 200 200" role="img" aria-label="Tortendiagramm des Etats {esc(gueltig[ziel])}"></svg>'
@@ -939,6 +1022,12 @@ def _lesen(form):
     return werte if abs(sum(werte.values()) - 100.0) <= 0.05 else None
 
 
+def _sperre_pruefen(con, ziel):
+    bis = gesperrt_bis(con, ziel)
+    if bis:
+        sa.weiter(f"{PFAD}?ziel={ziel}", f"Der Etat wurde in diesem Monat schon geändert; die nächste Änderung ist ab {bis.strftime('%d.%m.%Y')} möglich.", True)
+
+
 async def speichern_post(request):
     k = await anmeldung.konto(request)
     if not k:
@@ -948,13 +1037,15 @@ async def speichern_post(request):
     ziel = str(form.get("ziel", ""))
     if not (ziel == "reich" or ziel.startswith("ts-")) or not darf_aendern(con, k, ziel):
         raise web.HTTPForbidden(text="Die Verteilung dieses Haushalts dürfen Sie nicht ändern.")
+    _sperre_pruefen(con, ziel)
     werte = _lesen(form)
     if werte is None:
         sa.weiter(f"{PFAD}?ziel={ziel}", "Bitte für alle elf Kategorien Prozentwerte angeben, die zusammen 100 % ergeben.", True)
     import aufkommen
-    speichern(con, ziel, werte, k, alt=runden100(aktuelle(con, ziel, aufkommen.berechnen(con))))
+    ab = monat_folgend()
+    ab = speichern(con, ziel, werte, k, alt=runden100(aktuelle(con, ziel, aufkommen.berechnen(con, periode=ab), ab)))
     con.commit()
-    sa.weiter(f"{PFAD}?ziel={ziel}", "Verteilung gespeichert; sie gilt ab dem nächsten gebuchten Monat.")
+    sa.weiter(f"{PFAD}?ziel={ziel}", f"Verteilung gespeichert; sie gilt ab {sa._monatsname(ab)}. Nächste Änderung ab {_plus_monat(date.today()).strftime('%d.%m.%Y')}.")
 
 
 async def zuruecksetzen_post(request):
@@ -966,9 +1057,10 @@ async def zuruecksetzen_post(request):
     ziel = str(form.get("ziel", ""))
     if not (ziel == "reich" or ziel.startswith("ts-")) or not darf_aendern(con, k, ziel):
         raise web.HTTPForbidden(text="Die Verteilung dieses Haushalts dürfen Sie nicht ändern.")
-    zuruecksetzen(con, ziel, k)
+    _sperre_pruefen(con, ziel)
+    ab = zuruecksetzen(con, ziel, k)
     con.commit()
-    sa.weiter(f"{PFAD}?ziel={ziel}", "Auf die Vorgabe zurückgesetzt.")
+    sa.weiter(f"{PFAD}?ziel={ziel}", f"Ab {sa._monatsname(ab)} gilt wieder die Vorgabe. Nächste Änderung ab {_plus_monat(date.today()).strftime('%d.%m.%Y')}.")
 
 
 def registrieren(app):

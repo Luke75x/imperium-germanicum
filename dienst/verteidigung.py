@@ -360,7 +360,7 @@ def instandhaltung(con, periode, k=None):
     # Etatverteilung: Bonus/Malus „Verteidigung“ verändert die Einsatzbereitschaft (Punkte je Monat)
     import etatplan
     try:
-        wirkung = etatplan.bereitschaft_wirkung(con)
+        wirkung = etatplan.bereitschaft_wirkung(con, periode)
     except Exception:
         logging.getLogger("verteidigung").exception("Etatwirkung auf die Einsatzbereitschaft nicht berechenbar")
         wirkung = {}
