@@ -23,14 +23,14 @@ MAX_BETRAG = 10 ** 17   # Heller (1 Billiarde Kronen) – Echtmaßstab: Staatsha
 KONTOART = {"privat": ("Privatkonto", 1000), "gewerbe": ("Gewerbekonto", 2000), "behoerde": ("Behördenkonto", 3000),
             "teilstaat": ("Staatskasse", 4000), "verteidigung": ("Verteidigungskasse", 5000), "sonder": ("Sonderkonto", 9000)}
 SONDER = {"zentralbank": "Zentralbank des Reiches", "reichskasse": "Reichskasse", "sozialkasse": "Reichsversicherungskasse",
-          "volkswirtschaft": "Volkswirtschaft (simulierte Bevölkerung)"}
+          "volkswirtschaft": "Volkswirtschaft (simulierte Bevölkerung)", "crown_estates": "Crown Estates des Kaisers"}
 AUSSEN = ("zentralbank", "volkswirtschaft")   # Gegenkonten außerhalb des Geldumlaufs, dürfen ins Minus
 BUCHUNGSART = {"ueberweisung": "Überweisung", "gehalt": "Gehalt", "lohnsteuer": "Lohnsteuer", "sozialabgabe": "Sozialabgabe",
                "steuer": "Steuerzahlung", "gebuehr": "Gebühr", "laenderanteil": "Länderanteil", "umsatzsteuer": "Umsatzsteuer",
                "ueberweisungssteuer": "Überweisungssteuer", "geldschoepfung": "Geldschöpfung", "geldvernichtung": "Geldvernichtung",
                "korrektur": "Korrekturbuchung", "pfaendung": "Pfändung", "startguthaben": "Startguthaben", "erstattung": "Erstattung",
                "zuweisung": "Haushaltszuweisung", "steueraufkommen": "Steueraufkommen der Bevölkerung",
-               "umbuchung": "Umbuchung", "verteidigungsetat": "Verteidigungsetat", "ruestung": "Rüstungsbeschaffung",
+               "umbuchung": "Umbuchung", "kronsteuer": "Kronsteuer", "verteidigungsetat": "Verteidigungsetat", "ruestung": "Rüstungsbeschaffung",
                "instandhaltung": "Instandhaltung (Militärgerät)", "ruestung_erloes": "Erlös aus Ausmusterung"}
 
 SCHEMA = """
@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS gk_gewerbe (
 VORGABEN = {
     "lohnsteuer": {"stufen": [[100000, 0], [300000, 10], [600000, 20], [None, 30]]},   # Grenzsteuersätze auf das Monatsbrutto
     "sozialabgabe": 5,              # % des Bruttos an die Reichsversicherungskasse
+    "kronsteuer": 2,                # % des Bruttos an die Crown Estates des Kaisers (Quellenabzug im Lohnlauf; Monarchen selbst ausgenommen)
+    "kronsteuer_bevoelkerung": 0.005,   # Kr je Einwohner und Monat der simulierten Bevölkerung an die Crown Estates (Staatshaushalt)
     "laenderanteil": 25,            # % von Lohn- und Kopfsteuer an die Staatskasse des Wohnsitz-Teilstaats
     "kopfsteuer": 2000,             # je Steuerlauf und Staatsbürger
     "vermoegensteuer": {"satz": 1, "freibetrag": 1000000},
@@ -364,6 +366,8 @@ def verfuegbare_konten(con, k):
                 out.append(r)
     if amt.ROLLE_KANZLER in k["rollen"] or bereiche._alle(k):
         out.append(stellenkonto(con, "kanzlei"))
+    if k["id"] == amt.config.KAISER_ID:   # Crown Estates: Kronvermögen des Kaisers
+        out.append(sonder(con, "crown_estates"))
     out += regierte_staatskassen(con, k)
     import verteidigung
     out += verteidigung.verfuegbare(con, k)

@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS ak_posten (id INTEGER PRIMARY KEY AUTOINCREMENT, lauf
 
 def einrichten(con):
     con.executescript(SCHEMA)
-    for tab, spalte, typ in (("ak_laeufe", "ausgaben", "INTEGER"), ("ak_posten", "ausgaben_reich", "INTEGER"), ("ak_posten", "ausgaben_land", "INTEGER"),
+    for tab, spalte, typ in (("ak_laeufe", "kronsteuer", "INTEGER"), ("ak_laeufe", "ausgaben", "INTEGER"), ("ak_posten", "ausgaben_reich", "INTEGER"), ("ak_posten", "ausgaben_land", "INTEGER"),
                              ("ak_posten", "quote", "REAL"), ("ak_posten", "vert_reich", "INTEGER"), ("ak_posten", "vert_land", "INTEGER")):
         if spalte not in {r[1] for r in con.execute(f"PRAGMA table_info({tab})")}:
             con.execute(f"ALTER TABLE {tab} ADD COLUMN {spalte} {typ} NOT NULL DEFAULT 0")
@@ -185,6 +185,25 @@ def _buchen_posten(con, x, k, monat, bezug, faktor=1):
                         + ("" if faktor > 0 else " – Berichtigung"), k, bezug=bezug, minus=True)
 
 
+def kronsteuer_buchen(con, periode, k):
+    """Kronsteuer der simulierten Bevölkerung (Einstellung „kronsteuer_bevoelkerung“, Kr je Einwohner und Monat) von der Volkswirtschaft an die
+    Crown Estates des Kaisers; einmal je Haushaltsmonat. Gibt den gebuchten Betrag (Heller) zurück (0, wenn schon gebucht oder kein Haushalt)."""
+    l = con.execute("SELECT * FROM ak_laeufe WHERE periode=?", (periode,)).fetchone()
+    if not l or l["kronsteuer"]:
+        return 0
+    import karte
+    ew = sum(e for _, _, e, _ in staaten_bip(con))
+    betrag = int(round(ew * float(geld.einstellung(con, "kronsteuer_bevoelkerung")) * 100))
+    if betrag <= 0:
+        return 0
+    geld.buchen(con, geld.sonder(con, "volkswirtschaft")["id"], geld.sonder(con, "crown_estates")["id"], betrag, "kronsteuer",
+                f"Kronsteuer der Bevölkerung {sa._monatsname(periode)} ({ew:,} Einwohner)".replace(",", "."), k, bezug=f"AK-{periode}", minus=True)
+    con.execute("UPDATE ak_laeufe SET kronsteuer=? WHERE id=?", (betrag, l["id"]))
+    geld.protokoll(con, k, "Kronsteuer", f"{sa._monatsname(periode)}: {mark(betrag)} an die Crown Estates des Kaisers")
+    con.commit()
+    return betrag
+
+
 def ausfuehren(con, periode, k):
     """Bucht Einnahmen und Pflichtausgaben eines Monats (einmalig je Monat). Gibt die Lauf-ID zurück oder None, wenn schon gebucht."""
     if con.execute("SELECT 1 FROM ak_laeufe WHERE periode=?", (periode,)).fetchone():
@@ -213,6 +232,7 @@ def ausfuehren(con, periode, k):
                                              f"{mark(sum(x['ausgaben_reich'] + x['ausgaben_land'] for x in liste))}, Verteidigung "
                                              f"{mark(sum(x['vert_reich'] + x['vert_land'] for x in liste))}")
     con.commit()
+    kronsteuer_buchen(con, periode, k)              # Kronsteuer der Bevölkerung an die Crown Estates
     import verteidigung
     verteidigung.instandhaltung(con, periode, k)   # Instandhaltung des Militärgeräts im selben Monat
     return lauf

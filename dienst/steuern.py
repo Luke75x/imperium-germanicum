@@ -571,6 +571,8 @@ async def tarife_bearbeiten(request, k):
               f'<textarea id="st" name="stufen" rows="5" class="sa-nr">{esc(stufen)}</textarea>'
               '<h2>Abgaben und Steuern</h2><div class="zeilen">'
               + feld("sozialabgabe", "Sozialabgabe (%)", e("sozialabgabe")) + feld("laenderanteil", "Länderanteil (%)", e("laenderanteil"))
+              + feld("kronsteuer", "Kronsteuer (% des Bruttos, an die Crown Estates)", e("kronsteuer"))
+              + feld("kronsteuer_bev", "Kronsteuer der Bevölkerung (Kr je Einwohner und Monat)", str(e("kronsteuer_bevoelkerung")).replace(".", ","))
               + feld("kopfsteuer", "Kopfsteuer je Lauf (Kr)", mark(e("kopfsteuer"), einheit=False))
               + feld("v_satz", "Vermögensteuer (%)", v["satz"]) + feld("v_frei", "Vermögensteuer Freibetrag (Kr)", mark(v["freibetrag"], einheit=False))
               + feld("g_grund", "Gewerbesteuer Grundbetrag (Kr)", mark(g["grund"], einheit=False)) + feld("g_satz", "Gewerbesteuer auf Eingänge (%)", g["satz"])
@@ -615,7 +617,14 @@ async def tarife_speichern(request):
         stufen.append([bis, satz if satz != int(satz) else int(satz)])
     if not stufen or stufen[-1][0] is not None or any(stufen[i][0] >= stufen[i + 1][0] for i in range(len(stufen) - 2)):
         fehler.append("stufen (aufsteigend, letzte Zeile *)")
+    try:
+        kb = float(str(form.get("kronsteuer_bev", "")).replace(",", "."))
+        assert 0 <= kb <= 1000
+    except (ValueError, AssertionError):
+        kb = None
+        fehler.append("kronsteuer_bev")
     werte = {"sozialabgabe": pz("sozialabgabe"), "laenderanteil": pz("laenderanteil"), "kopfsteuer": mk("kopfsteuer"),
+             "kronsteuer": pz("kronsteuer"), "kronsteuer_bevoelkerung": kb,
              "vermoegensteuer": {"satz": pz("v_satz"), "freibetrag": mk("v_frei")}, "gewerbesteuer": {"grund": mk("g_grund"), "satz": pz("g_satz")},
              "umsatzsteuer": pz("umsatzsteuer"), "ueberweisungssteuer": pz("ueberweisungssteuer"), "saeumnis": pz("saeumnis"),
              "startguthaben": mk("startguthaben"), "lohnsteuer": {"stufen": stufen},

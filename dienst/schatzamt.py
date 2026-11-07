@@ -771,6 +771,8 @@ def tarife_html(con):
                                               f'aus Gold aus (Reichsabgabe +{n["abgabe_plus"]:g} Punkte), nach {n["zwang_tage"]} Tagen Zwangsverwaltung')(
                   __import__("notlage").einstellungen(con))),
               ("Sozialabgabe (Reichsversicherung)", f'{e("sozialabgabe")} % des Bruttogehalts'),
+              ("Kronsteuer", f'{e("kronsteuer")} % des Bruttogehalts (Quellenabzug im Lohnlauf) an die Crown Estates des Kaisers, aus denen der Monarch bezahlt wird; '
+                             f'dazu {str(e("kronsteuer_bevoelkerung")).replace(".", ",")} Kr je Einwohner und Monat der Bevölkerung. Die Monarchen selbst zahlen keine Kronsteuer'),
               ("Länderanteil", f'{e("laenderanteil")} % von Lohn- und Kopfsteuer an den Wohnsitz-Teilstaat'),
               ("Kopfsteuer", f'{mark(e("kopfsteuer"))} je Steuerlauf und Staatsbürger'),
               ("Vermögensteuer", f'{v["satz"]} % des Guthabens über {mark(v["freibetrag"])} je Steuerlauf'),

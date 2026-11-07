@@ -91,6 +91,9 @@ def einrichten(con):
         con.execute("ALTER TABLE bs_laeufe ADD COLUMN uebersprungen TEXT NOT NULL DEFAULT '[]'")
     if "nachzahlung" not in {r[1] for r in con.execute("PRAGMA table_info(bs_abrechnungen)")}:
         con.execute("ALTER TABLE bs_abrechnungen ADD COLUMN nachzahlung INTEGER NOT NULL DEFAULT 0")
+    for tab in ("bs_abrechnungen", "bs_rueckstaende"):
+        if "kronsteuer" not in {r[1] for r in con.execute(f"PRAGMA table_info({tab})")}:
+            con.execute(f"ALTER TABLE {tab} ADD COLUMN kronsteuer INTEGER NOT NULL DEFAULT 0")
     if not con.execute("SELECT 1 FROM bs_gruppen LIMIT 1").fetchone():
         for i, (s, n, l, g) in enumerate(GRUPPEN):
             con.execute("INSERT INTO bs_gruppen (schl, name, laufbahn, grundgehalt, rang) VALUES (?,?,?,?,?)", (s, n, l, g * M, i))
@@ -100,6 +103,12 @@ def einrichten(con):
         # 07.11.2026: Die Behörden zahlen ihre Mitarbeiter selbst – bisherige Vorgabe „Reichskasse“ wird „nach Dienststelle“
         con.execute("UPDATE bs_rollen SET zahlstelle='auto' WHERE zahlstelle='reichskasse'")
         con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('zahlstelle_auto', '1')")
+    if not con.execute("SELECT 1 FROM bs_meta WHERE schl='crown'").fetchone():
+        # 07.11.2026: Der Monarch (Imperator Rex, Imperatrix Regina) wird aus den Crown Estates des Kaisers bezahlt
+        for r in ("1522685953054081054", "1535795611599638638"):
+            con.execute("INSERT INTO bs_rollen (rolle_id, gruppe, zahlstelle) VALUES (?, COALESCE((SELECT gruppe FROM bs_rollen WHERE rolle_id=?), 'KR'), 'crown_estates') "
+                        "ON CONFLICT(rolle_id) DO UPDATE SET zahlstelle='crown_estates'", (r, r))
+        con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('crown', '1')")
     if not con.execute("SELECT 1 FROM bs_meta WHERE schl='militaer'").fetchone():
         # 07.11.2026: Verteidigungsetat – Führungsstab aus der Reichsverteidigungskasse, Teilstreitkräfte aus der Kasse ihres Teilstaats
         import verteidigung
@@ -170,7 +179,7 @@ def zahlstelle_auto(rolle, rollen, rollennamen=None):
 
 
 def zahlstellen(con):
-    out = [("auto", "Nach Dienststelle (Behörde zahlt)"), ("vt-land", "Verteidigungskasse des Teilstaats (Militär, nach Fraktion)"),
+    out = [("auto", "Nach Dienststelle (Behörde zahlt)"), ("crown_estates", "Crown Estates des Kaisers (Monarch)"), ("vt-land", "Verteidigungskasse des Teilstaats (Militär, nach Fraktion)"),
            ("verteidigung", "Reichsverteidigungskasse (Führungsstab)"), ("reichskasse", "Reichskasse"), ("kanzlei", "Reichskanzlei")] + [(b["schl"], b["name"]) for b in amt.BEHOERDEN]
     out += [(r["stelle"], r["name"]) for r in con.execute("SELECT stelle, name FROM gk_konten WHERE art IN ('teilstaat','verteidigung') "
                                                           "AND stelle!='verteidigung' ORDER BY art, name")]
@@ -194,7 +203,7 @@ def einstufung(con, konto_id, rollen, rollennamen=None):
             if z and z["gruppe"] in gs:
                 kand.append((gs[z["gruppe"]], r, z["zahlstelle"]))
         if konto_id == config.KAISER_ID and "KR" in gs:
-            kand.append((gs["KR"], None, "reichskasse"))
+            kand.append((gs["KR"], None, "crown_estates"))
         if not kand:
             if not zulage:
                 return None
@@ -223,9 +232,10 @@ def berechnen_einzeln(con, konto_id, name, rollen, rollennamen=None):
         return None
     lst = steuern.lohnsteuer(con, brutto)
     abg = int(round(brutto * float(geld.einstellung(con, "sozialabgabe")) / 100))
+    kst = 0 if zahl == "crown_estates" else int(round(brutto * float(geld.einstellung(con, "kronsteuer")) / 100))   # Monarch zahlt keine Kronsteuer
     return {"konto_id": konto_id, "name": name, "gruppe": g["schl"] if g else "–", "gruppe_name": g["name"] if g else "Zulage",
             "quelle": quelle, "grundgehalt": grund, "zulage": zulage, "zulage_text": ztext, "brutto": brutto, "lohnsteuer": lst,
-            "abgaben": abg, "netto": brutto - lst - abg, "zahlstelle": zahl}
+            "abgaben": abg, "kronsteuer": kst, "netto": brutto - lst - abg - kst, "zahlstelle": zahl}
 
 
 async def berechnen(app, con):
@@ -264,7 +274,8 @@ def abrechnung_html(a):
     if a["zulage"]:
         posten.append((f'Zulage{": " + a["zulage_text"] if a["zulage_text"] else ""}', mark(a["zulage"])))
     posten += [("<b>Bruttobezüge</b>", f'<b>{mark(a["brutto"])}</b>'), ("Lohnsteuer", "− " + mark(a["lohnsteuer"])),
-               ("Sozialabgabe (Reichsversicherung)", "− " + mark(a["abgaben"])), ("<b>Auszahlung (netto)</b>", f'<b>{mark(a["netto"])}</b>')]
+               ("Sozialabgabe (Reichsversicherung)", "− " + mark(a["abgaben"]))] + ([("Kronsteuer (Crown Estates des Kaisers)", "− " + mark(a["kronsteuer"]))] if a["kronsteuer"] else []) \
+              + [("<b>Auszahlung (netto)</b>", f'<b>{mark(a["netto"])}</b>')]
     if a["laenderanteil"]:
         posten.append((f'davon Länderanteil der Lohnsteuer an {esc(a["staat"])}', mark(a["laenderanteil"])))
     return amt.daten_tabelle(zeilen) + "<h2>Bezüge und Abzüge</h2>" + amt.tabelle(["Posten", "Betrag"], posten)
@@ -281,7 +292,8 @@ async def mein_gehalt(request, k):
     rows = con.execute("SELECT * FROM bs_abrechnungen WHERE konto_id=? ORDER BY id DESC", (k["id"],)).fetchall()
     if x:
         einst = (amt.daten_tabelle([("Besoldungsgruppe", f'{esc(x["gruppe"])} · {esc(x["gruppe_name"])}'), ("Grundlage", esc(x["quelle"])),
-                                    ("Brutto", mark(x["brutto"])), ("Lohnsteuer", "− " + mark(x["lohnsteuer"])), ("Sozialabgabe", "− " + mark(x["abgaben"])),
+                                    ("Brutto", mark(x["brutto"])), ("Lohnsteuer", "− " + mark(x["lohnsteuer"])), ("Sozialabgabe", "− " + mark(x["abgaben"]))]
+                                   + ([("Kronsteuer (Crown Estates)", "− " + mark(x["kronsteuer"]))] if x["kronsteuer"] else []) + [
                                     ("Voraussichtlich netto", f'<b>{mark(x["netto"])}</b>')])
                  + '<p class="sa-hinweis">Die Auszahlung erfolgt mit dem monatlichen Lohnlauf des Schatzamts.</p>')
     else:
@@ -485,7 +497,7 @@ def _bedarf(con, liste):
     out = {}
     for x in liste:
         r = geld.stellenkonto(con, x["zahlstelle"]) or geld.sonder(con, "reichskasse")
-        bedarf = x["netto"] + x["abgaben"] + (0 if r["stelle"] == "reichskasse" else x["lohnsteuer"])
+        bedarf = x["netto"] + x["abgaben"] + x.get("kronsteuer", 0) + (0 if r["stelle"] == "reichskasse" else x["lohnsteuer"])
         out.setdefault(r["id"], [r, 0])[1] += bedarf
     return out
 
@@ -502,12 +514,14 @@ def _auszahlen(con, x, periode, lauf, k, bezug, zs, nachzahlung=False):
         geld.buchen(con, quelle["id"], sozial["id"], x["abgaben"], "sozialabgabe", f"Sozialabgabe {x['name']} {_monat(periode)}", k, bezug=bezug, minus=True)
     if x["lohnsteuer"] and quelle["id"] != kasse["id"]:
         geld.buchen(con, quelle["id"], kasse["id"], x["lohnsteuer"], "lohnsteuer", f"Lohnsteuer {x['name']} {_monat(periode)}", k, bezug=bezug, minus=True)
+    if x.get("kronsteuer"):
+        geld.buchen(con, quelle["id"], geld.sonder(con, "crown_estates")["id"], x["kronsteuer"], "kronsteuer", f"Kronsteuer {x['name']} {_monat(periode)}", k, bezug=bezug, minus=True)
     staat, anteil = steuern.laenderanteil_buchen(con, x["konto_id"], x["lohnsteuer"], k, bezug) if x["lohnsteuer"] else (None, 0)
     cur = con.execute("INSERT INTO bs_abrechnungen (lauf, periode, konto_id, name, gruppe, gruppe_name, quelle, grundgehalt, zulage, zulage_text, brutto, "
-                      "lohnsteuer, abgaben, netto, zahlstelle, staat, laenderanteil, zeit, nachzahlung) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      "lohnsteuer, abgaben, netto, zahlstelle, staat, laenderanteil, zeit, nachzahlung, kronsteuer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                       (lauf, periode, x["konto_id"], x["name"], x["gruppe"], x["gruppe_name"], x["quelle"], x["grundgehalt"], x["zulage"], x["zulage_text"],
                        x["brutto"], x["lohnsteuer"], x["abgaben"], x["netto"], zs.get(x["zahlstelle"], x["zahlstelle"]), staat["name"] if staat else "", anteil,
-                       int(time.time()), 1 if nachzahlung else 0))
+                       int(time.time()), 1 if nachzahlung else 0, x.get("kronsteuer", 0)))
     return cur.lastrowid
 
 
@@ -522,7 +536,7 @@ def nachzahlen(con, k=None):
         quelle = geld.stellenkonto(con, stelle) or kasse
         for rs in con.execute("SELECT * FROM bs_rueckstaende WHERE zahlstelle=? AND status='offen' ORDER BY periode, id", (stelle,)).fetchall():
             quelle = geld.konto(con, quelle["id"])
-            bedarf = rs["netto"] + rs["abgaben"] + (0 if quelle["id"] == kasse["id"] else rs["lohnsteuer"])
+            bedarf = rs["netto"] + rs["abgaben"] + rs["kronsteuer"] + (0 if quelle["id"] == kasse["id"] else rs["lohnsteuer"])
             if quelle["saldo"] < bedarf:
                 break
             x = dict(rs)
@@ -571,9 +585,9 @@ def lohnlauf_buchen(con, liste, periode, k, schoepfen=False):
         _auszahlen(con, x, periode, lauf, k, bezug, zs)
     for x in uebersprungen_voll:   # einbehaltene Gehälter: Rückstand, wird nachgezahlt, sobald die Zahlstelle wieder im Plus ist
         con.execute("INSERT INTO bs_rueckstaende (lauf, periode, konto_id, name, gruppe, gruppe_name, quelle, grundgehalt, zulage, zulage_text, brutto, lohnsteuer, "
-                    "abgaben, netto, zahlstelle, erstellt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "abgaben, netto, zahlstelle, erstellt, kronsteuer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (lauf, periode, x["konto_id"], x["name"], x["gruppe"], x["gruppe_name"], x["quelle"], x["grundgehalt"], x["zulage"], x["zulage_text"],
-                     x["brutto"], x["lohnsteuer"], x["abgaben"], x["netto"], x["zahlstelle"], int(time.time())))
+                     x["brutto"], x["lohnsteuer"], x["abgaben"], x["netto"], x["zahlstelle"], int(time.time()), x.get("kronsteuer", 0)))
     geld.protokoll(con, k, "Lohnlauf", f"{_monat(periode)}: {len(liste)} Abrechnungen, netto {mark(sum(x['netto'] for x in liste))}"
                                        + (f", Geldschöpfung {mark(geschoepft)}" if geschoepft else "")
                                        + (f"; {len(uebersprungen)} Gehälter einbehalten, Nachzahlung bei Deckung (Zahlstelle nicht gedeckt: {', '.join(sorted(set(u['zahlstelle'] for u in uebersprungen)))})"
@@ -591,7 +605,7 @@ async def lohnlauf(request, k):
         schon = con.execute("SELECT * FROM bs_laeufe WHERE periode=?", (periode,)).fetchone()
         liste = await berechnen(request.app, con)
         zs = dict(zahlstellen(con))
-        summen = {s: sum(x[s] for x in liste) for s in ("brutto", "lohnsteuer", "abgaben", "netto")}
+        summen = {s: sum(x[s] for x in liste) for s in ("brutto", "lohnsteuer", "abgaben", "kronsteuer", "netto")}
         deckung = _bedarf(con, liste)
         dz = [(esc(r["name"]), mark(b), mark(r["saldo"]), amt.status_marke("ok", "gedeckt") if r["saldo"] >= b else
                amt.status_marke("nein", f"fehlen {mark(b - r['saldo'])}" + ("" if r["stelle"] == "reichskasse" else " – Gehälter werden einbehalten")))
@@ -605,11 +619,11 @@ async def lohnlauf(request, k):
                      f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Lohnlauf {esc(_monat(periode))} ausführen ({len(liste)} Abrechnungen)</button></div></form>')
         probe = (f'<h2>Probelauf {esc(_monat(periode))}</h2>'
                  f'<div class="kennzahlen"><div><b>{len(liste)}</b>Empfänger</div><div><b>{mark(summen["brutto"])}</b>Brutto</div>'
-                 f'<div><b>{mark(summen["lohnsteuer"])}</b>Lohnsteuer</div><div><b>{mark(summen["abgaben"])}</b>Sozialabgaben</div><div><b>{mark(summen["netto"])}</b>Netto</div></div>'
+                 f'<div><b>{mark(summen["lohnsteuer"])}</b>Lohnsteuer</div><div><b>{mark(summen["abgaben"])}</b>Sozialabgaben</div><div><b>{mark(summen["kronsteuer"])}</b>Kronsteuer</div><div><b>{mark(summen["netto"])}</b>Netto</div></div>'
                  '<h3>Deckung der Zahlstellen</h3>' + amt.tabelle(["Zahlstelle", "Benötigt", "Guthaben", ""], dz, "–") + knopf
-                 + '<h3>Abrechnungen</h3>' + amt.tabelle(["Name", "Gruppe", "Grundlage", "Brutto", "Lohnsteuer", "Sozialabg.", "Netto", "Zahlstelle"],
+                 + '<h3>Abrechnungen</h3>' + amt.tabelle(["Name", "Gruppe", "Grundlage", "Brutto", "Lohnsteuer", "Sozialabg.", "Kronsteuer", "Netto", "Zahlstelle"],
                                                         [(esc(x["name"]), esc(x["gruppe"]), esc(x["quelle"]), mark(x["brutto"]), mark(x["lohnsteuer"]), mark(x["abgaben"]),
-                                                          f'<b>{mark(x["netto"])}</b>', esc(zs.get(x["zahlstelle"], x["zahlstelle"]))) for x in liste],
+                                                          mark(x["kronsteuer"]) if x["kronsteuer"] else "–", f'<b>{mark(x["netto"])}</b>', esc(zs.get(x["zahlstelle"], x["zahlstelle"]))) for x in liste],
                                                         "Niemand hat Anspruch auf Besoldung (Rollenzuordnung prüfen)."))
     laeufe = con.execute("SELECT * FROM bs_laeufe ORDER BY id DESC LIMIT 36").fetchall()
     inhalt = (f'<h1>{amt.ic("banknote")} Lohnlauf</h1><p class="az"><a href="{PFAD}amt/besoldung/">← Besoldungsordnung</a></p>{amt.meldung(request)}'
