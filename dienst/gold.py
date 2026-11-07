@@ -112,7 +112,7 @@ async def seite(request, k):
     menge = geld.geldmenge(con)
     gw = wert(con, gesamt)
     g = geld.einstellung(con, "gold")
-    eigene = handelbar(con, k)
+    eigene = handelbar(con, k) if sa.modus(request, k) == "staat" else {}   # Handel nur in der staatlichen Ansicht
     kz = [("Goldreserven gesamt", _t(gesamt)), ("Wert", mark(gw)), ("Golddeckung der Krone", f"{gw / menge * 100:.1f} %".replace(".", ",") if menge else "–"),
           ("Goldpreis", f"{preis(con):,.0f} € je kg".replace(",", "."))]
     zeilen = [(esc(r["name"]), _t(r["kg"]), mark(wert(con, r["kg"])), f"{r['kg'] / gesamt * 100:.1f} %".replace(".", ",") if gesamt else "–") for r in rows]
@@ -128,7 +128,7 @@ async def seite(request, k):
                   f'{g["abschlag"]} % Aufschlag. Ein Verkauf bringt neues, goldgedecktes Geld in die Kasse.</p>'
                   f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Ausführen</button></div></form>')
     preisform = ""
-    if geld.ist_leitung(k):
+    if geld.ist_leitung(k) and sa.modus(request, k) == "staat":
         preisform = (f'<h2>Goldpreis festsetzen</h2><form class="sa-leiste" method="post" action="{PFAD}gold/preis">{amt.csrf_feld(request)}'
                      f'<div><label for="p">€ je kg</label><input type="text" id="p" name="preis" value="{preis(con):.0f}"></div>'
                      f'<div><label for="a">Ab-/Aufschlag %</label><input type="text" id="a" name="abschlag" value="{esc(str(g["abschlag"]))}"></div>'

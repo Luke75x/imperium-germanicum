@@ -586,7 +586,8 @@ blatt.addEventListener("touchend",function(e){if(blatt.scrollTop<=0&&e.changedTo
 
 def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
     """Seitenrahmen der Amtsseite. portal = {"basis", "gruppen", "haupt", "logo": (schl, name), "name"} für eigene Portale im selben
-    Stil (z. B. schatzamt.py): eigene Navigation, eigenes Logo, eigener Basispfad, keine Aktensuche."""
+    Stil (z. B. schatzamt.py): eigene Navigation, eigenes Logo, eigener Basispfad, keine Aktensuche. Optional "unter_logo" (HTML unter
+    dem Logo der Seitenleiste) und "kopf_zusatz" (HTML neben dem Logo im Kopf, sichtbar auf dem Handy)."""
     import post
     basis = portal["basis"] if portal else BASIS
     leser = ist_leser(k) and not portal
@@ -626,7 +627,7 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
 <div class="app">
 <aside class="seite" id="menue" aria-label="Navigation">
 <div class="blatt-kopf"><b>Menü</b><button class="knopf-rund" type="button" id="menue-zu" aria-label="Menü schließen">{ic("x")}</button></div>
-<a class="logo" href="{basis}" title="{esc(logo_name)} – {esc(seitenname)}"><img src="{BASIS}logo/{logo}-kopf.png" alt="{esc(logo_name)}"></a>
+<a class="logo" href="{basis}" title="{esc(logo_name)} – {esc(seitenname)}"><img src="{BASIS}logo/{logo}-kopf.png" alt="{esc(logo_name)}"></a>{portal.get("unter_logo", "") if portal else ""}
 <div class="gruppen">{nav}</div>
 <div class="fuss"><a class="ein" href="{"/" if portal else "/informationen/die-reichsbehoerden/"}">{ic("house")}<span>Zur Website</span></a>
 <div class="konto-box"><span class="avatar" aria-hidden="true">{esc(_initialen(k["name"]))}</span><span class="konto-text"><b>{esc(k["name"])}</b><small>{esc(logo_name)}</small></span>
@@ -634,7 +635,7 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
 <button class="knopf-rund" type="submit" title="Abmelden" aria-label="Abmelden">{ic("log-out")}</button></form></div></div>
 </aside>
 <div class="spalte">
-<header class="kopf"><a class="logo" href="{basis}" title="{esc(logo_name)} – {esc(seitenname)}"><img src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a><span class="raum"></span>{suche}</header>
+<header class="kopf"><a class="logo" href="{basis}" title="{esc(logo_name)} – {esc(seitenname)}"><img src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a>{portal.get("kopf_zusatz", "") if portal else ""}<span class="raum"></span>{suche}</header>
 <main id="inhalt">{OOC_HINWEIS if ist_ooc_admin(k) else ""}{inhalt}</main>
 </div></div>
 <div class="schleier" id="schleier"></div>

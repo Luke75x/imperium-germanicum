@@ -13,7 +13,7 @@ import re
 import secrets
 import time
 from datetime import date, datetime
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from aiohttp import web
 
@@ -66,19 +66,75 @@ CSS = """<style>
 .sa-leiste{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:6px 0 10px}
 .sa-leiste>div{min-width:150px}
 table.liste td.sa-betrag,table.liste th.sa-betrag{text-align:right}
+.sa-modus{display:flex;border:1px solid var(--ink);border-radius:999px;padding:2px;margin:0 8px 12px;background:#fff}
+.sa-modus a{flex:1;text-align:center;padding:5px 10px;border-radius:999px;font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--ink);text-decoration:none}
+.sa-modus a:hover{background:var(--hell)}
+.sa-modus a.aktiv,.sa-modus a.aktiv:hover{background:var(--ink);color:#fff}
+.kopf .sa-modus{display:none;margin:0 0 0 4px}
+@media (max-width:800px){.kopf .sa-modus{display:flex}.kopf .sa-modus a{padding:5px 9px;font-size:12.5px}}
 </style>"""
 
 
 # ---------------------------------------------------------------- Rahmen, Rechte, Hilfen
 
-def nav(k):
-    mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Konto & Umsätze", "konto/"),
-            ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/"), ("sa-steuern", "receipt", "Steuern & Gebühren", "steuern/"),
-            ("sa-gehalt", "banknote", "Gehalt", "gehalt/"), ("sa-gewerbe", "store", "Gewerbe", "gewerbe/")]
-    gruppen = [("Mein Geld", mein),
-               ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/"), ("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"),
-                                    ("sa-gold", "coins", "Goldreserven", "gold/")])]
-    if geld.ist_beamter(k):
+# ---- Modus „Staatl.“ / „Privat“ (Umschalter unter dem Logo; Cookie, nur für Konten mit staatlichem Zugriff)
+MODUS_COOKIE = "sa_modus"
+PRIVATARTEN = ("privat", "gewerbe")
+NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe")     # Seiten, die nur die Privatperson betreffen
+
+
+def hat_staat(con, k):
+    """Hat das Konto staatlichen Zugriff (Kassen in eigener Verfügung oder Schatzamt)? Nur dann gibt es den Umschalter."""
+    return bool(k) and k["mitglied"] and (geld.ist_beamter(k) or any(r["art"] not in PRIVATARTEN for r in geld.verfuegbare_konten(con, k)))
+
+
+def modus(request, k):
+    """'staat' oder 'privat' (gewählt per Umschalter, gespeichert im Cookie; ohne staatlichen Zugriff immer 'privat')."""
+    if "sa_modus" not in request:
+        staat = request.cookies.get(MODUS_COOKIE) == "staat" and hat_staat(request.app["db"], k)
+        request["sa_modus"] = "staat" if staat else "privat"
+    return request["sa_modus"]
+
+
+def konten_im_modus(con, k, m):
+    """Verfügbare Konten des Modus: privat = Privat- und Gewerbekonten, staat = alle übrigen (Kassen, Behörden, Teilstaaten)."""
+    return [r for r in geld.verfuegbare_konten(con, k) if (r["art"] in PRIVATARTEN) == (m == "privat")]
+
+
+def _umschalter(m, aktiv):
+    def a(wert, text):
+        ziel = PFAD + "modus/" + wert
+        if aktiv and aktiv not in ("sa-start", "sa-konto", "sa-ueberweisen", "sa-tarife", "sa-finanzen", "sa-gold"):
+            ziel += "?weiter=" + quote(PFAD)
+        return f'<a href="{ziel}" class="{"aktiv" if m == wert else ""}"{" aria-current=true" if m == wert else ""}>{text}</a>'
+    return f'<nav class="sa-modus" aria-label="Ansicht">{a("staat", "Staatl.")}{a("privat", "Privat")}</nav>'
+
+
+async def modus_setzen(request):
+    m = "staat" if request.match_info["m"] == "staat" else "privat"
+    u = urlsplit(request.query.get("weiter") or request.headers.get("Referer") or PFAD)
+    ziel = u.path if u.path.startswith(PFAD) and not u.path.startswith(PFAD + "modus/") else PFAD
+    if ziel != PFAD and u.query:   # Kontowahl (?konto=) gilt nur im alten Modus, Meldungen nicht wiederholen
+        rest = "&".join(x for x in u.query.split("&") if x.split("=")[0] not in ("konto", "von", "m", "f"))
+        ziel += "?" + rest if rest else ""
+    r = web.HTTPSeeOther(ziel)
+    r.set_cookie(MODUS_COOKIE, m, max_age=365 * 86400, path=PFAD, samesite="Lax", httponly=True, secure=amt.config.SITE_URL.startswith("https"))
+    raise r
+
+
+def nav(k, m="privat", schalter=False, aktiv=""):
+    info = ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/"), ("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"),
+                            ("sa-gold", "coins", "Goldreserven", "gold/")])
+    if m == "staat":
+        mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Kassen & Umsätze", "konto/"),
+                ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/")]
+        gruppen = [("Staatliche Kassen", mein), info]
+    else:
+        mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Konto & Umsätze", "konto/"),
+                ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/"), ("sa-steuern", "receipt", "Steuern & Gebühren", "steuern/"),
+                ("sa-gehalt", "banknote", "Gehalt", "gehalt/"), ("sa-gewerbe", "store", "Gewerbe", "gewerbe/")]
+        gruppen = [("Mein Geld", mein), info]
+    if m == "staat" and geld.ist_beamter(k):
         amtl = [("sa-amt", "landmark", "Verwaltung", "amt/"), ("sa-amt-konten", "wallet", "Konten", "amt/konten/"),
                 ("sa-amt-steuern", "receipt", "Steuerverwaltung", "amt/steuern/"), ("sa-amt-gewerbe", "store", "Gewerberegister", "amt/gewerbe/")]
         if geld.ist_leitung(k):
@@ -94,7 +150,10 @@ def nav(k):
         weiter.append(("amtsseite", "layout-grid", "Amtsseite", amt.BASIS))
     weiter.append(("profil", "users", "Mein Profil", "/profil/"))
     gruppen.append(("Weiteres", weiter))
-    return {"basis": PFAD, "gruppen": gruppen, "haupt": mein[:4], "logo": geld.STELLE, "name": "Schatzamt"}
+    out = {"basis": PFAD, "gruppen": gruppen, "haupt": mein[:4], "logo": geld.STELLE, "name": "Schatzamt"}
+    if schalter:
+        out["unter_logo"] = out["kopf_zusatz"] = _umschalter(m, aktiv)
+    return out
 
 
 _KZ = re.compile(r'<div><b>(−?)([\d.]+),(\d\d) Kr</b>')
@@ -109,8 +168,14 @@ def _kennzahlen_kurz(html_):
 
 
 def ant(request, k, titel, aktiv, inhalt, status=200):
+    schalter = hat_staat(request.app["db"], k)
+    m = modus(request, k)
+    if schalter and aktiv.startswith("sa-amt"):
+        m = "staat"          # Verwaltungsseiten gehören immer zur staatlichen Ansicht
+    elif aktiv in NUR_PRIVAT:
+        m = "privat"
     return web.Response(status=status, content_type="text/html", headers={"Cache-Control": "no-store"},
-                        text=amt.rahmen(titel, aktiv, CSS + _kennzahlen_kurz(inhalt), k, request["csrf"], portal=nav(k)))
+                        text=amt.rahmen(titel, aktiv, CSS + _kennzahlen_kurz(inhalt), k, request["csrf"], portal=nav(k, m, schalter, aktiv)))
 
 
 def seite(recht=None):
@@ -226,8 +291,8 @@ def _monatsname(m):
 
 
 def _konto_waehlen(con, k, request):
-    """Gewähltes eigenes Konto (?konto=ID) aus den verfügbaren Konten, sonst das Privatkonto."""
-    konten = geld.verfuegbare_konten(con, k)
+    """Gewähltes eigenes Konto (?konto=ID) aus den verfügbaren Konten des Modus (Staatl./Privat), sonst das erste davon."""
+    konten = konten_im_modus(con, k, modus(request, k))
     i = request.query.get("konto", "")
     r = next((x for x in konten if str(x["id"]) == i), None) or (konten[0] if konten else None)
     return r, konten
@@ -250,29 +315,54 @@ async def uebersicht(request, k):
     if not k["mitglied"]:
         return ant(request, k, "Übersicht", "sa-start", f'<h1>{amt.ic("landmark")} {esc(geld.NAME)}</h1>'
                    '<div class="warnung">Ein Konto beim Schatzamt können nur Mitglieder unseres Discord-Servers eröffnen.</div>')
+    if modus(request, k) == "staat":
+        return _uebersicht_staat(request, k, con)
     p = geld.privatkonto(con, k["id"], k=k)
-    konten = geld.verfuegbare_konten(con, k)
+    konten = konten_im_modus(con, k, "privat")
     offen = steuern.offene_bescheide(con, [r["id"] for r in konten if r["art"] in ("privat", "gewerbe")])
     summe_offen = sum(steuern.offen(b) for b in offen)
     letzte = besoldung.letzte_abrechnung(con, k["id"])
     kz = [("Kontostand", mark(p["saldo"])), ("Offene Steuern & Gebühren", mark(summe_offen)),
           ("Letztes Gehalt (netto)", mark(letzte["netto"]) if letzte else "–"), ("Leitzins", f'{geld.einstellung(con, "leitzins")} %')]
-    karten = "".join(
+    inhalt = (f'<h1>{amt.ic("landmark")} Guten Tag, {esc(geld.anzeigename(con, k["id"], k["name"]))}</h1>'
+              f'<p class="az">Ihre Konten beim Kaiserlichen Schatz- und Währungsamt</p>{amt.meldung(request)}'
+              f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
+              f'<h2>Meine Konten</h2><div class="sa-karten">{_karten(konten)}</div>'
+              + ("<h2>Offene Steuern & Gebühren</h2>" + steuern.bescheid_tabelle(con, offen, f"{PFAD}steuern/") if offen else "")
+              + f'<h2>Letzte Umsätze</h2>' + amt.tabelle(UMSATZ_KOPF, umsatz_zeilen(con, p["id"], umsaetze(con, p["id"], 8)), "Noch keine Umsätze.")
+              + f'<p><a href="{PFAD}konto/">Alle Umsätze und Kontoauszüge →</a></p>')
+    return ant(request, k, "Übersicht", "sa-start", inhalt)
+
+
+def _uebersicht_staat(request, k, con):
+    """Staatliche Ansicht: nur die Kassen, über die die Person dienstlich verfügt (Behörden, Staatskassen, Reichskasse …)."""
+    konten = konten_im_modus(con, k, "staat")
+    kz = [("Guthaben der Kassen", mark(sum(r["saldo"] for r in konten))), ("Kassen in Verfügung", str(len(konten))),
+          ("Leitzins", f'{geld.einstellung(con, "leitzins")} %')]
+    if geld.ist_beamter(k):
+        kz.append(("Geldmenge im Umlauf", mark(geld.geldmenge(con))))
+    letzte = ""
+    if konten:
+        r = konten[0]
+        letzte = (f'<h2>Letzte Umsätze · {esc(r["name"])}</h2>'
+                  + amt.tabelle(UMSATZ_KOPF, umsatz_zeilen(con, r["id"], umsaetze(con, r["id"], 8)), "Noch keine Umsätze.")
+                  + f'<p><a href="{PFAD}konto/">Alle Kassen, Umsätze und Kontoauszüge →</a></p>')
+    leer = ('<div class="hinweis">Ihnen ist keine staatliche Kasse zur Verfügung zugewiesen.'
+            + (" Die Verwaltung des Schatzamts finden Sie in der Navigation." if geld.ist_beamter(k) else "") + "</div>")
+    inhalt = (f'<h1>{amt.ic("landmark")} Staatliche Kassen</h1>'
+              f'<p class="az">Dienstliche Ansicht für {esc(geld.anzeigename(con, k["id"], k["name"]))} – Ihr privates Konto sehen Sie unter „Privat“.</p>'
+              f'{amt.meldung(request)}<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
+              f'<h2>Kassen in Ihrer Verfügung</h2>' + (f'<div class="sa-karten">{_karten(konten)}</div>' if konten else leer) + letzte)
+    return ant(request, k, "Staatliche Kassen", "sa-start", inhalt)
+
+
+def _karten(konten):
+    return "".join(
         f'<div class="sa-karte"><small>{esc(geld.art_name(r))}</small><div class="sa-name">{esc(r["name"])}</div>'
         f'<div class="sa-nr az">{nummer_anzeige(r["nummer"])}</div><div class="sa-saldo">{betrag_html(r["saldo"], False)}</div>'
         + (f'<p class="az" style="color:var(--rot)">Gesperrt{": " + esc(r["sperrgrund"]) if r["sperrgrund"] else ""}</p>' if r["gesperrt"] else "")
         + f'<div class="sa-aktionen"><a class="btn" href="{PFAD}ueberweisen/?von={r["id"]}">{amt.ic("arrow-right-left")}Überweisen</a>'
         f'<a class="btn zweit" href="{PFAD}konto/?konto={r["id"]}">{amt.ic("wallet")}Umsätze</a></div></div>' for r in konten)
-    bescheide = ""
-    if offen:
-        bescheide = "<h2>Offene Steuern & Gebühren</h2>" + steuern.bescheid_tabelle(con, offen, f"{PFAD}steuern/")
-    inhalt = (f'<h1>{amt.ic("landmark")} Guten Tag, {esc(geld.anzeigename(con, k["id"], k["name"]))}</h1>'
-              f'<p class="az">Ihre Konten beim Kaiserlichen Schatz- und Währungsamt</p>{amt.meldung(request)}'
-              f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
-              f'<h2>Meine Konten</h2><div class="sa-karten">{karten}</div>{bescheide}'
-              f'<h2>Letzte Umsätze</h2>' + amt.tabelle(UMSATZ_KOPF, umsatz_zeilen(con, p["id"], umsaetze(con, p["id"], 8)), "Noch keine Umsätze.")
-              + f'<p><a href="{PFAD}konto/">Alle Umsätze und Kontoauszüge →</a></p>')
-    return ant(request, k, "Übersicht", "sa-start", inhalt)
 
 
 # ---------------------------------------------------------------- Bürger: Konto & Umsätze
@@ -281,6 +371,9 @@ async def uebersicht(request, k):
 async def konto_seite(request, k):
     con = request.app["db"]
     r, konten = _konto_waehlen(con, k, request)
+    if not r:
+        return ant(request, k, "Kassen & Umsätze", "sa-konto", f'<h1>{amt.ic("wallet")} Kassen & Umsätze</h1>'
+                   '<div class="hinweis">Ihnen ist keine staatliche Kasse zur Verfügung zugewiesen. Für das eigene Konto oben auf „Privat“ umschalten.</div>')
     m = request.query.get("monat", "")
     q = " ".join(request.query.get("q", "").split())[:60]
     von, bis = _monat_grenzen(m)
@@ -288,7 +381,8 @@ async def konto_seite(request, k):
     ein = sum(b["betrag"] for b in bs if b["an"] == r["id"])
     aus = sum(b["betrag"] for b in bs if b["von"] == r["id"])
     monate = "".join(f'<option value="{x}"{" selected" if x == m else ""}>{_monatsname(x)}</option>' for x in _monate(con, r["id"]))
-    inhalt = (f'<h1>{amt.ic("wallet")} Konto & Umsätze</h1>{amt.meldung(request)}' + _konto_auswahl(konten, r, f"{PFAD}konto/")
+    titel = "Kassen & Umsätze" if modus(request, k) == "staat" else "Konto & Umsätze"
+    inhalt = (f'<h1>{amt.ic("wallet")} {titel}</h1>{amt.meldung(request)}' + _konto_auswahl(konten, r, f"{PFAD}konto/")
               + f'<div class="sa-karte" style="max-width:520px"><small>{esc(geld.art_name(r))}</small><div class="sa-name">{esc(r["name"])}</div>'
               f'<div class="sa-nr az">{nummer_anzeige(r["nummer"])} · eröffnet {amt._zeit(r["eroeffnet"], False)}</div>'
               f'<div class="sa-saldo">{betrag_html(r["saldo"], False)}</div></div>'
@@ -299,7 +393,7 @@ async def konto_seite(request, k):
               f'<a class="btn zweit" href="{PFAD}konto/{r["id"]}/pdf?monat={esc(m)}">{amt.ic("file-down")}Kontoauszug (PDF)</a></form>'
               f'<p class="az">{len(bs)} Buchungen · Eingänge {mark(ein)} · Ausgänge {mark(aus)}</p>'
               + amt.tabelle(UMSATZ_KOPF, umsatz_zeilen(con, r["id"], bs), "Keine Umsätze im gewählten Zeitraum."))
-    return ant(request, k, "Konto & Umsätze", "sa-konto", inhalt)
+    return ant(request, k, titel, "sa-konto", inhalt)
 
 
 @seite()
@@ -341,7 +435,7 @@ def _steuern_ueberweisung(con, kv, ka, betrag):
 @seite("mitglied")
 async def ueberweisen_seite(request, k):
     con = request.app["db"]
-    konten = geld.verfuegbare_konten(con, k)
+    konten = konten_im_modus(con, k, modus(request, k))
     von = request.query.get("von", "")
     an = request.query.get("an", "")
     q = " ".join(request.query.get("q", "").split())[:60]
@@ -356,6 +450,9 @@ async def ueberweisen_seite(request, k):
               f'<a class="btn zweit" href="{PFAD}ueberweisen/?an={r["nummer"]}&von={esc(von)}">Übernehmen</a>') for r in rows],
             "Kein Konto gefunden.")
     opts = "".join(f'<option value="{r["id"]}"{" selected" if str(r["id"]) == von else ""}>{esc(r["name"])} · {mark(r["saldo"])}</option>' for r in konten)
+    if not konten:
+        return ant(request, k, "Überweisen", "sa-ueberweisen", f'<h1>{amt.ic("arrow-right-left")} Überweisen</h1>'
+                   '<div class="hinweis">Ihnen ist keine staatliche Kasse zur Verfügung zugewiesen. Für das eigene Konto oben auf „Privat“ umschalten.</div>')
     inhalt = (f'<h1>{amt.ic("arrow-right-left")} Überweisen</h1>{amt.meldung(request)}'
               f'<form class="sa-formular" method="post" action="{PFAD}ueberweisen/pruefen">{amt.csrf_feld(request)}<div class="zeilen">'
               f'<div><label for="von">Von Konto</label><select id="von" name="von">{opts}</select></div>'
@@ -902,6 +999,7 @@ def registrieren(app):
     geld.teilstaaten_sichern(con)
     r = app.router
     r.add_get(PFAD, uebersicht)
+    r.add_get(PFAD + "modus/{m}", modus_setzen)
     r.add_get(PFAD + "konto/", konto_seite)
     r.add_get(PFAD + "konto/{id}/pdf", kontoauszug_pdf)
     r.add_get(PFAD + "ueberweisen/", ueberweisen_seite)
