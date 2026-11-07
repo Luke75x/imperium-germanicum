@@ -902,6 +902,7 @@ async def seite(request, k):
         fest_vorn = []
         vt_stelle = "verteidigung"
         vt_ih = 0
+        grenze_hinweis = ""
         bew, richt, zuf = liste[0]["wirkung_reich"], liste[0]["richt_reich"], liste[0]["zufriedenheit_reich"]
         basis_ein, basis_rl = sum(x["summe_basis"] for x in liste if x["reichsgebiet"]), gesamt
     else:
@@ -909,6 +910,9 @@ async def seite(request, k):
         gesamt, pool, ruecklage = x["summe"], x["pool_land"], x["land"] - x["pool_land"]
         betraege = x["verteilung_land"]
         fest_vorn = [{"id": "abgabe", "name": "Abgabe an das Reich", "betrag": x["reich"], "farbe": "#3a3a3a", "schraffur": False}]
+        grenze_hinweis = (f'Die Abgabe an das Reich ist auf {_de(x["quote"])} % des Etats begrenzt. Ohne diese Obergrenze würde dieser Teilstaat '
+                          f'{_de(x["quote_theorie"])} % abgeben ({mark(x["reich_theorie"])} im Monat, {mark(x["reich_theorie"] - x["reich"])} mehr).'
+                          if x["quote_theorie"] > x["quote"] + 0.05 else "")
         vt_stelle = "vt-" + x["staat"]
         vt_ih = verteidigung.kennzahlen(con, vt_stelle)["instandhaltung"]
         bew, richt, basis_ein, basis_rl = x["wirkung_land"], x["richt_land"], x["summe_basis"], x["land"]
@@ -998,6 +1002,8 @@ async def seite(request, k):
     else:
         teile.append('Nur Ansicht – ändern darf die Verteilung ' + ("das Reich (Kanzler, Kaiser, Schatzamt-Leitung)." if ziel == "reich" else
                      "der Landesherr dieses Teilstaats.") + ' Geändert werden kann einmal im Monat, mit Wirkung ab dem Folgemonat.')
+    if grenze_hinweis:
+        teile.append(amt.ic("scale") + " " + grenze_hinweis)
     rechte = "".join(f'<p class="sa-hinweis">{t}</p>' for t in teile)
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}{" (Ihr Teilstaat)" if s in eigene else ""}</option>' for s, n in ziel_liste)
     erkl = ('<div class="sa-erkl"><b>Wie ist der Etat aufgebaut?</b><ol>'

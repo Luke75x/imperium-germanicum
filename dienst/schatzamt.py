@@ -506,10 +506,12 @@ def _kassen_zusatz(con, konten):
                 out[r["id"]] = f'Etat / Monat {geld.mark_kurz(e[r["stelle"]])}'
     if any(r["art"] == "teilstaat" for r in konten):
         import notlage
-        q = aufkommen.abgabequoten(aufkommen.staaten_bip(con), geld.einstellung(con, "aufkommen"), zuschlag=notlage.zuschlaege(con))
+        q, qt = aufkommen.abgabequoten_beide(aufkommen.staaten_bip(con), geld.einstellung(con, "aufkommen"), zuschlag=notlage.zuschlaege(con))
         for r in konten:
             if r["art"] == "teilstaat" and r["stelle"][3:] in q:
-                out[r["id"]] = f'Reichsabgabe {q[r["stelle"][3:]]:.1f} % der Steuereinnahmen'.replace(".", ",")
+                sid = r["stelle"][3:]
+                out[r["id"]] = (f'Reichsabgabe {q[sid]:.1f} % der Steuereinnahmen'
+                                + (f' (ohne Obergrenze {qt[sid]:.1f} %)' if qt[sid] > q[sid] + 0.05 else "")).replace(".", ",")
     if any(r["art"] == "verteidigung" for r in konten):
         import verteidigung
         etat = verteidigung._etat_monat(con)
@@ -796,7 +798,7 @@ def tarife_html(con):
     saetze = [("Währung", f'Krone (Kr) zu 100 Heller · 1 Kr = {e("wechselkurs")} €'),
               ("Staatshaushalt der Bevölkerung", f'Steuern {ak["steuerquote"]} % des BIP je Teilstaat (Echtmaßstab); Reichsabgabe je Teilstaat '
                                                  f'nach Bevölkerung, Einkommen pro Kopf und Fläche (im Schnitt {ak["reichsanteil"]} %, '
-                                                 f'{ak.get("quote_min", 20)}–{ak.get("quote_max", 65)} %), Rest an den Teilstaat; Pflichtausgaben {ak.get("ausgabenquote", 97)} % der Einnahmen (monatlich)'),
+                                                 f'mindestens {ak.get("quote_min", 20)} %, höchstens {ak.get("quote_max", 40)} % des Etats), Rest an den Teilstaat; Pflichtausgaben {ak.get("ausgabenquote", 97)} % der Einnahmen (monatlich)'),
               ("Verteidigungsetat", (lambda vt: 'Anteil am Ausgabenbudget bestimmen Reich und Teilstaaten in der Etatverteilung (Vorgabe: '
                                                   f'{float(vt["quote_bip"]):g}'.replace(".", ",") + f' % des BIP, davon {vt["anteil_reich"]} % an das Reich/Führungsstab); '
                                                   'der Anteil der Teilstaaten fließt in deren Verteidigungskasse (Militär, Gerät)')(e("verteidigung"))),

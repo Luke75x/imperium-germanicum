@@ -73,7 +73,7 @@ VORGABEN = {
     "leitzins": "2,0",
     "gold": {"preis_kg": 95000, "abschlag": 1},
     "wechselkurs": "1,21",          # € je Krone
-    "aufkommen": {"steuerquote": 24, "reichsanteil": 43, "ausgabenquote": 97, "automatisch": True},
+    "aufkommen": {"steuerquote": 24, "reichsanteil": 43, "quote_min": 20, "quote_max": 40, "ausgabenquote": 97, "automatisch": True},
     "gebuehren": {"reisepass": 5000, "personalausweis": 2500, "dienstpass": 0, "vorlaeufig": 2000, "fremdenpass": 4000,
                   "visum": 3000, "meldebescheinigung": 500},
 }

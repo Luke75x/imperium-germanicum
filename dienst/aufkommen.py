@@ -3,8 +3,9 @@
 Einnahmen: Jeden Monat zahlt die Bevölkerung jedes Teilstaats Steuern: BIP (Mio. €, karte_daten/bip.json) ÷ 12 × Steuerquote (24 %),
 umgerechnet in Kronen zum Wechselkurs. Reichsabgabe: Jeder Teilstaat führt einen eigenen Prozentsatz seiner Steuereinnahmen an das Reich ab
 (abgabequoten): Index aus Bevölkerung, Einkommen pro Kopf und Fläche (je Wurzel des Verhältnisses zum Durchschnitt, gewichtet,
-Vorgabe 40/40/20), so normiert, dass das Reich im Schnitt den „Reichsanteil“ (43 %) erhält, begrenzt auf quote_min…quote_max (20–65 %).
-Rest an die Staatskasse; die Freien Reichsgebiete (geld.ist_reichsgebiet) sind kein Teilstaat, sondern das
+Vorgabe 40/40/20), so normiert, dass die theoretische Abgabe im Schnitt den „Reichsanteil“ (43 %) ergibt (mindestens quote_min). Die tatsächliche
+Abgabe ist hart auf quote_max (40 % des Etats) begrenzt, auch mit Zuschlag der Haushaltsnotlage; was ein Teilstaat ohne diese Grenze zahlen würde, wird
+mitgeführt (quote_theorie, reich_theorie). Rest an die Staatskasse; die Freien Reichsgebiete (geld.ist_reichsgebiet) sind kein Teilstaat, sondern das
 Reich selbst – dort erhält die Reichskasse alles.
 Ausgaben: Pflichtausgaben (Soziales, Verteidigung, Infrastruktur, Bildung, Verwaltung der nicht spielenden Bevölkerung) als Quote der
 Einnahmen (Vorgabe 97 %) gehen zurück an die Volkswirtschaft; die übrigen 3 % sind der frei verfügbare Spielraum für Reich und Landesherren.
@@ -82,16 +83,22 @@ def staaten_bip(con):
 
 
 def abgabequoten(daten, p, summen_heller=None, zuschlag=None):
-    """{Teilstaat-ID: Reichsabgabe in %} – Index aus Bevölkerung, Einkommen pro Kopf und Fläche (Wurzel des Verhältnisses zum
-    Durchschnitt der Teilstaaten bzw. zum BIP/Kopf des ganzen Reiches), gewichtet; normiert auf den Reichsanteil als nach Einnahmen
-    gewichteten Durchschnitt; begrenzt auf quote_min…quote_max. Freie Reichsgebiete: 100 %."""
+    """{Teilstaat-ID: tatsächliche Reichsabgabe in %}: theoretische Quote (abgabequoten_theorie), mit Notlage-Zuschlag, höchstens quote_max."""
+    return abgabequoten_beide(daten, p, summen_heller, zuschlag)[0]
+
+
+def abgabequoten_beide(daten, p, summen_heller=None, zuschlag=None):
+    """(tatsächlich, theoretisch): {Teilstaat-ID: Reichsabgabe in %}. Theoretisch (ohne Obergrenze) – Index aus Bevölkerung, Einkommen pro Kopf und
+    Fläche (Wurzel des Verhältnisses zum Durchschnitt der Teilstaaten bzw. zum BIP/Kopf des ganzen Reiches), gewichtet; normiert auf den Reichsanteil
+    als nach Einnahmen gewichteten Durchschnitt; mindestens quote_min; dazu der Zuschlag der Haushaltsnotlage (Stufe 3). Tatsächlich: das Ganze, aber
+    höchstens quote_max (Vorgabe 40 %). Freie Reichsgebiete: 100 % (sie sind das Reich)."""
     w = dict(VORGABE_GEWICHTE, **(p.get("gewichte") or {}))
     wsum = sum(float(x) for x in w.values()) or 1
-    lo, hi = float(p.get("quote_min", 20)), float(p.get("quote_max", 65))
+    lo, hi = float(p.get("quote_min", 20)), float(p.get("quote_max", 40))
     basis = float(p["reichsanteil"])
     ts = [(s, bip, ew, km) for s, bip, ew, km in daten if not geld.ist_reichsgebiet(s)]
     if not ts:
-        return {}
+        return {}, {}
     ew_d = sum(x[2] for x in ts) / len(ts) or 1
     km_d = sum(x[3] for x in ts) / len(ts) or 1
     gesamt_ew = sum(x[2] for x in daten) or 1
@@ -103,18 +110,21 @@ def abgabequoten(daten, p, summen_heller=None, zuschlag=None):
                         + float(w["flaeche"]) * (km / km_d) ** .5) / wsum
     gew = summen_heller or {s["id"]: bip for s, bip, ew, km in ts}
     faktor = basis
-    for _ in range(30):   # normieren, sodass der gewichtete Schnitt (nach Begrenzung) dem Reichsanteil entspricht
-        q = {i: min(hi, max(lo, faktor * x)) for i, x in idx.items()}
+    for _ in range(30):   # normieren, sodass der gewichtete theoretische Schnitt (nach Untergrenze) dem Reichsanteil entspricht
+        q = {i: max(lo, faktor * x) for i, x in idx.items()}
         schnitt = sum(q[i] * gew.get(i, 0) for i in q) / (sum(gew.get(i, 0) for i in q) or 1)
         if abs(schnitt - basis) < 1e-6 or not schnitt:
             break
         faktor *= basis / schnitt
-    out = {i: round(v, 1) for i, v in q.items()}
+    theo = {i: round(v, 1) for i, v in q.items()}
     for sid, plus in (zuschlag or {}).items():   # Haushaltsnotlage (Stufe 3): Zuschlag auf die Reichsabgabe
-        if sid in out:
-            out[sid] = min(100.0, round(out[sid] + float(plus), 1))
-    out.update({s["id"]: 100.0 for s, *_ in daten if geld.ist_reichsgebiet(s)})
-    return out
+        if sid in theo:
+            theo[sid] = min(100.0, round(theo[sid] + float(plus), 1))
+    out = {i: min(hi, v) for i, v in theo.items()}   # harte Obergrenze (auch mit Zuschlag)
+    rg = {s["id"]: 100.0 for s, *_ in daten if geld.ist_reichsgebiet(s)}
+    out.update(rg)
+    theo.update(rg)
+    return out, theo
 
 
 def berechnen(con, p=None, periode=None):
@@ -129,7 +139,7 @@ def berechnen(con, p=None, periode=None):
     daten = staaten_bip(con)
     import notlage
     zusch = notlage.zuschlaege(con)
-    quoten = abgabequoten(daten, p, zuschlag=zusch)
+    quoten, quoten_theo = abgabequoten_beide(daten, p, zuschlag=zusch)
     basis = []
     for s, bip, ew, km in daten:
         summe = int(round(bip / 12 * quote * kr * 100))
@@ -142,7 +152,7 @@ def berechnen(con, p=None, periode=None):
         vert = int(round(bip / 12 * float(v["quote_bip"]) / 100 * kr * 100))
         vr0 = min(aus_r, int(round(vert * float(v["anteil_reich"]) / 100)))
         vl0 = 0 if reich_direkt else min(aus_l, vert - int(round(vert * float(v["anteil_reich"]) / 100)))
-        basis.append({"s": s, "bip": bip, "ew": ew, "km": km, "q": q, "rd": reich_direkt, "summe": summe, "reich": reich, "land": land,
+        basis.append({"s": s, "bip": bip, "ew": ew, "km": km, "q": q, "qt": quoten_theo.get(s["id"], q), "rd": reich_direkt, "summe": summe, "reich": reich, "land": land,
                       "aus_r": aus_r, "aus_l": aus_l, "vr0": vr0, "vl0": vl0})
     tot_ar = sum(b["aus_r"] for b in basis)
     vv_reich = sum(b["vr0"] for b in basis) / tot_ar * 100 if tot_ar else 0
@@ -190,7 +200,8 @@ def berechnen(con, p=None, periode=None):
         ver_r = etatplan.verteilung(aus_r, plan_reich)
         ver_l = etatplan.verteilung(aus_l, plan_l) if plan_l else {}
         vr, vl = ver_r["verteidigung"], ver_l.get("verteidigung", 0)
-        out.append({"staat": s["id"], "name": s["name"], "reichsgebiet": b["rd"], "bip": b["bip"], "ew": b["ew"], "km2": b["km"], "quote": b["q"],
+        out.append({"staat": s["id"], "name": s["name"], "reichsgebiet": b["rd"], "bip": b["bip"], "ew": b["ew"], "km2": b["km"], "quote": b["q"], "quote_theorie": b["qt"],
+                    "reich_theorie": summe if b["rd"] else int(round(summe * b["qt"] / 100)),
                     "zuschlag": zusch.get(s["id"], 0), "summe": summe, "reich": reich, "land": land, "summe_basis": b["summe"],
                     "ausgaben_reich": aus_r - vr, "ausgaben_land": aus_l - vl, "vert_reich": vr, "vert_land": vl,
                     "pool_reich": aus_r, "pool_land": aus_l, "verteilung_reich": ver_r, "verteilung_land": ver_l,
@@ -407,9 +418,13 @@ def tabelle_html(liste):
     for x in sorted(liste, key=lambda x: (not x["reichsgebiet"], -x["summe"])):
         kopf = x["bip"] * 1e6 / x["ew"] if x["ew"] else 0
         quote = ('<b>100 %</b> <span class="az">Reich</span>' if x["reichsgebiet"] else f'<b>{_pz(x["quote"])}</b>'
-                 + (f' <span class="sa-minus" title="Zuschlag wegen Haushaltsnotlage">⚠ +{x["zuschlag"]:g}</span>' if x.get("zuschlag") else ""))
+                 + (f' <span class="sa-minus" title="Zuschlag wegen Haushaltsnotlage">⚠ +{x["zuschlag"]:g}</span>' if x.get("zuschlag") else "")
+                 + (f'<br><span class="az" title="Abgabe ohne die Obergrenze: {_pz(x["quote_theorie"])} = {mark(x["reich_theorie"])} im Monat">'
+                    f'ohne Grenze {_pz(x["quote_theorie"])}</span>' if x["quote_theorie"] > x["quote"] + 0.05 else ""))
+        an_reich = geld.mark_kurz(x["reich"]) + (f'<br><span class="az" title="Abgabe ohne die Obergrenze">ohne Grenze {geld.mark_kurz(x["reich_theorie"])}</span>'
+                                                 if not x["reichsgebiet"] and x["reich_theorie"] > x["reich"] else "")
         zeilen.append((esc(_gebiet(x["staat"], x["name"])), _ew(x["ew"]), f"{_zahl(kopf)} €", f'{_zahl(x["km2"])} km²', quote,
-                       geld.mark_kurz(x["summe"]), geld.mark_kurz(x["reich"]), geld.mark_kurz(x["land"]) if x["land"] else "–",
+                       geld.mark_kurz(x["summe"]), an_reich, geld.mark_kurz(x["land"]) if x["land"] else "–",
                        geld.mark_kurz(x["land"] - x["ausgaben_land"] - x["vert_land"]) if x["land"] else "–"))
     return amt.tabelle(["Gebiet", "Einwohner", "BIP je Kopf", "Fläche", "Reichsabgabe", "Steuern / Monat", "an das Reich", "bleibt dem Teilstaat",
                         "davon frei¹"], zeilen, klasse="sa-haushalt")
@@ -422,8 +437,10 @@ def erklaerung_html(p):
             f'<li>Davon führt er einen eigenen Prozentsatz an das Reich ab. Er richtet sich nach <b>Bevölkerung ({w["bevoelkerung"]} %)</b>, '
             f'<b>Einkommen pro Kopf ({w["einkommen"]} %)</b> und <b>Fläche ({w["flaeche"]} %)</b> im Vergleich zum Durchschnitt: '
             'große, reiche und weitläufige Teilstaaten zahlen einen höheren Satz.</li>'
-            f'<li>Im Schnitt erhält das Reich <b>{esc(str(p["reichsanteil"]))} %</b>; kein Teilstaat zahlt weniger als '
-            f'{esc(str(p.get("quote_min", 20)))} % oder mehr als {esc(str(p.get("quote_max", 65)))} %. Die Freien Reichsgebiete sind das Reich selbst.</li>'
+            f'<li>Rechnerisch ergibt das im Schnitt <b>{esc(str(p["reichsanteil"]))} %</b>, mindestens {esc(str(p.get("quote_min", 20)))} %. '
+            f'<b>Höchstens {esc(str(p.get("quote_max", 40)))} % des Etats</b> gehen aber an das Reich – diese Obergrenze gilt immer, auch bei einem Zuschlag '
+            'wegen Haushaltsnotlage. Was ein Teilstaat ohne die Grenze zahlen müsste, steht jeweils darunter („ohne Grenze“). '
+            'Die Freien Reichsgebiete sind das Reich selbst.</li>'
             f'<li>¹ Pflichtausgaben für die Bevölkerung ({esc(str(p.get("ausgabenquote", 97)))} %) sind abgezogen – ein Teil davon ist als '
             f'<a href="{PFAD}verteidigung/">Verteidigungsetat</a> zweckgebunden; der Rest steht Reich und Landesherren frei zur Verfügung. '
             f'Wie das Ausgabenbudget auf Politikfelder verteilt wird, bestimmen Reich und Teilstaaten in der <a href="{PFAD}etatverteilung/">Etatverteilung</a>. '
@@ -462,8 +479,8 @@ async def seite(request, k):
                  + feld("a", "ausgabenquote", "Pflichtausgaben (% der Einnahmen)", p.get("ausgabenquote", 97))
                  + feld("w", "wechselkurs", "Wechselkurs (€ je Krone)", geld.einstellung(con, "wechselkurs"))
                  + '</div><h3>Reichsabgabe der Teilstaaten</h3><div class="zeilen">'
-                 + feld("r", "reichsanteil", "Durchschnitt an das Reich (%)", p["reichsanteil"])
-                 + feld("mi", "quote_min", "Mindestens (%)", p.get("quote_min", 20)) + feld("ma", "quote_max", "Höchstens (%)", p.get("quote_max", 65))
+                 + feld("r", "reichsanteil", "Rechnerischer Durchschnitt an das Reich (%)", p["reichsanteil"])
+                 + feld("mi", "quote_min", "Mindestens (%)", p.get("quote_min", 20)) + feld("ma", "quote_max", "Obergrenze der Abgabe (% des Etats)", p.get("quote_max", 40))
                  + '</div><div class="zeilen">'
                  + feld("gb", "g_bevoelkerung", "Gewicht Bevölkerung", w["bevoelkerung"]) + feld("ge", "g_einkommen", "Gewicht Einkommen pro Kopf", w["einkommen"])
                  + feld("gf", "g_flaeche", "Gewicht Fläche", w["flaeche"])
@@ -475,7 +492,7 @@ async def seite(request, k):
               f'<p class="az">Monatliche Steuereinnahmen aus der Wirtschaftsleistung der Bevölkerung – im Jahr {eur(summen(liste)["ein"] * 12)} '
               f'(1 Kr = {esc(str(geld.einstellung(con, "wechselkurs")))} €).</p>'
               + status + prognose_html(con, liste, besoldung_reich) + erklaerung_html(p)
-              + '<h2>Reichsabgabe der Teilstaaten</h2>' + tabelle_html(liste) + stell
+              + '<h2>Reichsabgabe der Teilstaaten</h2><div style="overflow-x:auto">' + tabelle_html(liste) + '</div>' + stell
               + f'<details class="sa-auf"><summary>{amt.ic("clock")}Gebuchte Monate ({len(laeufe)})</summary>'
               + amt.tabelle(["Monat", "Einnahmen", "Reich", "Teilstaaten", "Pflichtausgaben", "Gebucht"],
                             [(esc(sa._monatsname(l["periode"])), geld.mark_kurz(l["summe"]), geld.mark_kurz(l["reich"]),
@@ -496,9 +513,9 @@ async def speichern(request):
         w = float(str(form.get("wechselkurs", "")).replace(",", "."))
     except ValueError:
         w = 0
-    if any(v is None for v in werte.values()) or not 0.01 <= w <= 1000 or werte["quote_min"] > werte["reichsanteil"] or werte["quote_max"] < werte["reichsanteil"] \
+    if any(v is None for v in werte.values()) or not 0.01 <= w <= 1000 or werte["quote_min"] > werte["reichsanteil"] or werte["quote_max"] < werte["quote_min"] or not 0 < werte["quote_max"] <= 100 \
             or not (werte["g_bevoelkerung"] + werte["g_einkommen"] + werte["g_flaeche"]):
-        sa.weiter(f"{PFAD}haushalt/", "Bitte gültige Werte angeben (Mindestens ≤ Durchschnitt ≤ Höchstens, mindestens ein Gewicht über 0).", True)
+        sa.weiter(f"{PFAD}haushalt/", "Bitte gültige Werte angeben (Mindestens ≤ Durchschnitt, Mindestens ≤ Obergrenze, mindestens ein Gewicht über 0).", True)
     ganz = lambda x: int(x) if x == int(x) else x
     geld.einstellung_setzen(con, "aufkommen", {
         "steuerquote": ganz(werte["steuerquote"]), "reichsanteil": ganz(werte["reichsanteil"]), "ausgabenquote": ganz(werte["ausgabenquote"]),
