@@ -279,11 +279,19 @@ async def mein_gehalt(request, k):
                  + '<p class="sa-hinweis">Die Auszahlung erfolgt mit dem monatlichen Lohnlauf des Schatzamts.</p>')
     else:
         einst = '<p class="leer">Du erhältst derzeit keine Besoldung aus dem Reichshaushalt.</p>'
+    entfallen = []
+    for l in con.execute("SELECT periode, uebersprungen FROM bs_laeufe WHERE uebersprungen!='[]' ORDER BY periode DESC"):
+        for u in json.loads(l["uebersprungen"] or "[]"):
+            if u["konto_id"] == k["id"]:
+                entfallen.append((l["periode"], u))
+    einbehalt = ("".join(f'<div class="warnung">{amt.ic("triangle-alert")} <b>Gehalt {esc(_monat(p))} einbehalten:</b> {mark(u["netto"])} netto konnten nicht ausgezahlt werden, '
+                         f'weil die Zahlstelle „{esc(u["zahlstelle"])}“ im Minus bzw. nicht gedeckt war (Haushaltsnotlage). Das Monatsgehalt entfällt.</div>'
+                         for p, u in entfallen[:6])) if entfallen else ""
     jahr = str(date.today().year)
     summe = [r for r in rows if r["periode"].startswith(jahr)]
     zeilen = [(f'<a href="{PFAD}gehalt/{r["id"]}/">{esc(_monat(r["periode"]))}</a>', esc(r["gruppe"]), mark(r["brutto"]), mark(r["lohnsteuer"]),
                mark(r["abgaben"]), f'<b>{mark(r["netto"])}</b>') for r in rows]
-    inhalt = (f'<h1>{amt.ic("banknote")} Gehalt</h1>{amt.meldung(request)}'
+    inhalt = (f'<h1>{amt.ic("banknote")} Gehalt</h1>{amt.meldung(request)}{einbehalt}'
               f'<div class="kennzahlen"><div><b>{mark(sum(r["brutto"] for r in summe))}</b>Brutto {jahr}</div>'
               f'<div><b>{mark(sum(r["netto"] for r in summe))}</b>Netto {jahr}</div><div><b>{mark(sum(r["lohnsteuer"] for r in summe))}</b>Lohnsteuer {jahr}</div></div>'
               f'<h2>Aktuelle Einstufung</h2>{einst}<h2>Gehaltsabrechnungen</h2>'
