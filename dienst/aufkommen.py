@@ -120,6 +120,7 @@ def abgabequoten(daten, p, summen_heller=None, zuschlag=None):
 def berechnen(con, p=None):
     """Monatlicher Haushalt je Teilstaat (Heller): Einnahmen summe/reich/land, Pflichtausgaben ausgaben_reich/ausgaben_land und
     Verteidigungsetat vert_reich/vert_land (wird aus den Pflichtausgaben abgezweigt: verteidigung.py)."""
+    import etatplan
     import verteidigung
     p = p or geld.einstellung(con, "aufkommen")
     v = verteidigung.einstellungen(con)
@@ -129,7 +130,7 @@ def berechnen(con, p=None):
     import notlage
     zusch = notlage.zuschlaege(con)
     quoten = abgabequoten(daten, p, zuschlag=zusch)
-    out = []
+    basis = []
     for s, bip, ew, km in daten:
         summe = int(round(bip / 12 * quote * kr * 100))
         reich_direkt = geld.ist_reichsgebiet(s)
@@ -137,13 +138,27 @@ def berechnen(con, p=None):
         reich = summe if reich_direkt else int(round(summe * q / 100))
         land = summe - reich
         aus_r, aus_l = int(round(reich * aq)), int(round(land * aq))
+        # Vorgabe des Verteidigungsanteils (alte Regel: Anteil am BIP); gilt, solange Reich bzw. Teilstaat die Verteilung nicht angepasst haben
         vert = int(round(bip / 12 * float(v["quote_bip"]) / 100 * kr * 100))
-        vr = min(aus_r, int(round(vert * float(v["anteil_reich"]) / 100)))
-        vl = 0 if reich_direkt else min(aus_l, vert - int(round(vert * float(v["anteil_reich"]) / 100)))
-        out.append({"staat": s["id"], "name": s["name"], "reichsgebiet": reich_direkt, "bip": bip, "ew": ew, "km2": km, "quote": q, "zuschlag": zusch.get(s["id"], 0),
-                    "summe": summe, "reich": reich, "land": land, "ausgaben_reich": aus_r - vr, "ausgaben_land": aus_l - vl,
-                    "vert_reich": vr, "vert_land": vl,
-                    "kasse": None if reich_direkt else geld.stellenkonto(con, "ts-" + s["id"])})
+        vr0 = min(aus_r, int(round(vert * float(v["anteil_reich"]) / 100)))
+        vl0 = 0 if reich_direkt else min(aus_l, vert - int(round(vert * float(v["anteil_reich"]) / 100)))
+        basis.append({"s": s, "bip": bip, "ew": ew, "km": km, "q": q, "rd": reich_direkt, "summe": summe, "reich": reich, "land": land,
+                      "aus_r": aus_r, "aus_l": aus_l, "vr0": vr0, "vl0": vl0})
+    tot_ar = sum(b["aus_r"] for b in basis)
+    plan_reich = etatplan.plan(con, "reich", sum(b["vr0"] for b in basis) / tot_ar * 100 if tot_ar else 0)
+    out = []
+    for b in basis:
+        s = b["s"]
+        ver_r = etatplan.verteilung(b["aus_r"], plan_reich)
+        ver_l = {}
+        if not b["rd"]:
+            ver_l = etatplan.verteilung(b["aus_l"], etatplan.plan(con, "ts-" + s["id"], b["vl0"] / b["aus_l"] * 100 if b["aus_l"] else 0))
+        vr, vl = ver_r["verteidigung"], ver_l.get("verteidigung", 0)
+        out.append({"staat": s["id"], "name": s["name"], "reichsgebiet": b["rd"], "bip": b["bip"], "ew": b["ew"], "km2": b["km"], "quote": b["q"],
+                    "zuschlag": zusch.get(s["id"], 0), "summe": b["summe"], "reich": b["reich"], "land": b["land"],
+                    "ausgaben_reich": b["aus_r"] - vr, "ausgaben_land": b["aus_l"] - vl, "vert_reich": vr, "vert_land": vl,
+                    "pool_reich": b["aus_r"], "pool_land": b["aus_l"], "verteilung_reich": ver_r, "verteilung_land": ver_l,
+                    "kasse": None if b["rd"] else geld.stellenkonto(con, "ts-" + s["id"])})
     return sorted(out, key=lambda x: -x["summe"])
 
 
@@ -187,6 +202,13 @@ def ausfuehren(con, periode, k):
                     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (lauf, x["staat"], x["name"], x["bip"], x["summe"], x["reich"], x["land"], x["ausgaben_reich"], x["ausgaben_land"], x["quote"],
                      x["vert_reich"], x["vert_land"]))
+    import etatplan
+    for x in liste:   # Verteilung auf die Politikfelder des Monats festhalten (Reich aufsummiert über alle Posten)
+        if x["reichsgebiet"] or x["verteilung_land"]:
+            etatplan.verteilung_speichern(con, lauf, {"staat": x["staat"], "verteilung_land": x["verteilung_land"]})
+    for kat, _ in etatplan.KATEGORIEN:
+        con.execute("INSERT OR REPLACE INTO ep_verteilung (lauf, schl, kategorie, betrag) VALUES (?,?,?,?)",
+                    (lauf, "reich", kat, sum(x["verteilung_reich"].get(kat, 0) for x in liste)))
     geld.protokoll(con, k, "Staatshaushalt", f"{monat}: Einnahmen {mark(sum(x['summe'] for x in liste))}, Pflichtausgaben "
                                              f"{mark(sum(x['ausgaben_reich'] + x['ausgaben_land'] for x in liste))}, Verteidigung "
                                              f"{mark(sum(x['vert_reich'] + x['vert_land'] for x in liste))}")
@@ -344,6 +366,7 @@ def erklaerung_html(p):
             f'{esc(str(p.get("quote_min", 20)))} % oder mehr als {esc(str(p.get("quote_max", 65)))} %. Die Freien Reichsgebiete sind das Reich selbst.</li>'
             f'<li>¹ Pflichtausgaben für die Bevölkerung ({esc(str(p.get("ausgabenquote", 97)))} %) sind abgezogen – ein Teil davon ist als '
             f'<a href="{PFAD}verteidigung/">Verteidigungsetat</a> zweckgebunden; der Rest steht Reich und Landesherren frei zur Verfügung. '
+            f'Wie das Ausgabenbudget auf Politikfelder verteilt wird, bestimmen Reich und Teilstaaten in der <a href="{PFAD}etatverteilung/">Etatverteilung</a>. '
             'Aus dem Anteil des Reiches werden die Etats der Behörden bezahlt, die Behörden zahlen davon ihre Mitarbeiter.</li></ol></div>')
 
 

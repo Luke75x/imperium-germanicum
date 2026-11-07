@@ -436,11 +436,12 @@ async def uebersicht(request, k):
              + (f'<div class="sa-aktionen"><a class="btn zweit" href="{sa.PFAD}konto/?konto={rk["id"]}">{amt.ic("wallet")}Umsätze</a></div>' if darf_reich(k) else "")
              + '</div>')
     erkl = ('<div class="sa-erkl"><b>So ist die Verteidigung finanziert</b><ol>'
-            f'<li>Jeden Monat werden <b>{_zahl_de(e["quote_bip"])} % der Wirtschaftsleistung</b> (BIP ÷ 12) als Verteidigungsetat bereitgestellt – '
-            'aus den Pflichtausgaben, die freien Mittel von Reich und Teilstaaten bleiben gleich.</li>'
-            f'<li><b>{_zahl_de(e["anteil_reich"])} %</b> davon erhält das Reich (Reichsverteidigungskasse). Daraus wird der <b>Führungsstab</b> bezahlt: '
+            f'<li>Den Verteidigungsanteil bestimmen Reich und Teilstaaten selbst in der <a href="{sa.PFAD}etatverteilung/">Etatverteilung</a>. Als Vorgabe gelten '
+            f'<b>{_zahl_de(e["quote_bip"])} % der Wirtschaftsleistung</b> (BIP ÷ 12), davon <b>{_zahl_de(e["anteil_reich"])} %</b> für das Reich – '
+            'aus den Pflichtausgaben, die Rücklagen von Reich und Teilstaaten bleiben gleich.</li>'
+            '<li>Der Anteil des Reiches fließt in die Reichsverteidigungskasse. Daraus wird der <b>Führungsstab</b> bezahlt: '
             'Oberbefehlshaber und Stabschefs von Heer, Marine und Luftwaffe.</li>'
-            '<li>Den Rest erhält jeder Teilstaat für sich (Verteidigungskasse). Daraus werden <b>alle anderen militärischen Ämter</b> seines Teilstaats '
+            '<li>Der Anteil jedes Teilstaats fließt in dessen Verteidigungskasse. Daraus werden <b>alle anderen militärischen Ämter</b> seines Teilstaats '
             'bezahlt (Zuordnung über die Fraktionsrolle) sowie <b>Instandhaltung und Kauf von Militärgerät</b>.</li>'
             '<li>Ein Landesherr kann seiner Verteidigungskasse zusätzlich Geld aus der Staatskasse zuführen. Wird die Instandhaltung nicht bezahlt, '
             'sinkt die Einsatzbereitschaft des Geräts.</li></ol></div>')
@@ -449,8 +450,8 @@ async def uebersicht(request, k):
         c = amt.csrf_feld(request)
         feld = lambda i, n, t, v: f'<div><label for="{i}">{t}</label><input type="text" id="{i}" name="{n}" value="{esc(str(v))}"></div>'
         stell = (f'<details class="sa-auf"><summary>{amt.ic("pencil")}Sätze ändern</summary><form class="sa-formular" method="post" action="{PFAD}saetze">{c}'
-                 '<div class="zeilen">' + feld("q", "quote_bip", "Verteidigungsetat (% des BIP)", e["quote_bip"])
-                 + feld("a", "anteil_reich", "Anteil des Reiches (%)", e["anteil_reich"]) + feld("r", "restwert", "Restwert bei Ausmusterung (%)", e["restwert"])
+                 '<div class="zeilen">' + feld("q", "quote_bip", "Vorgabe Verteidigungsetat (% des BIP)", e["quote_bip"])
+                 + feld("a", "anteil_reich", "Vorgabe Anteil des Reiches (%)", e["anteil_reich"]) + feld("r", "restwert", "Restwert bei Ausmusterung (%)", e["restwert"])
                  + feld("v", "verfall", "Bereitschaftsverlust ohne Instandhaltung (Punkte)", e["verfall"])
                  + feld("h", "erholung", "Bereitschaftsgewinn bei Instandhaltung (Punkte)", e["erholung"]) + '</div>'
                  '<p class="sa-hinweis">Richtwert: NATO-Ziel 2 % des BIP. Änderungen gelten ab dem nächsten gebuchten Monat.</p>'

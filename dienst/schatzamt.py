@@ -113,7 +113,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe")     # Seiten, die nur die Privatperson betreffen
-NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
+NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_kassen(con, k):
@@ -179,6 +179,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
             mein += [("sa-konto", "wallet", "Kassen & Umsätze", "konto/"), ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/")]
         haushalt = [e for e, ok in ((("sa-etats", "landmark", "Etats der Behörden", "etats/"), kassen),
                                     (("sa-verteidigung", "shield", "Verteidigung", "verteidigung/"), vt),
+                                    (("sa-etatverteilung", "chart-pie", "Etatverteilung", "etatverteilung/"), kassen),
                                     (("sa-staatshaushalt", "chart-column", "Staatshaushalt", "haushalt/"), kassen),
                                     (("sa-notlage", "triangle-alert", "Haushaltsnotlagen", "notlagen/"), kassen),
                                     (("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"), kassen),
@@ -762,9 +763,9 @@ def tarife_html(con):
               ("Staatshaushalt der Bevölkerung", f'Steuern {ak["steuerquote"]} % des BIP je Teilstaat (Echtmaßstab); Reichsabgabe je Teilstaat '
                                                  f'nach Bevölkerung, Einkommen pro Kopf und Fläche (im Schnitt {ak["reichsanteil"]} %, '
                                                  f'{ak.get("quote_min", 20)}–{ak.get("quote_max", 65)} %), Rest an den Teilstaat; Pflichtausgaben {ak.get("ausgabenquote", 97)} % der Einnahmen (monatlich)'),
-              ("Verteidigungsetat", (lambda vt: f'{float(vt["quote_bip"]):g}'.replace(".", ",") + f' % des BIP je Monat (aus den Pflichtausgaben), davon '
-                                                  f'{vt["anteil_reich"]} % an das Reich (Führungsstab), der Rest an die Verteidigungskasse des Teilstaats '
-                                                  '(Militär, Gerät)')(e("verteidigung"))),
+              ("Verteidigungsetat", (lambda vt: 'Anteil am Ausgabenbudget bestimmen Reich und Teilstaaten in der Etatverteilung (Vorgabe: '
+                                                  f'{float(vt["quote_bip"]):g}'.replace(".", ",") + f' % des BIP, davon {vt["anteil_reich"]} % an das Reich/Führungsstab); '
+                                                  'der Anteil der Teilstaaten fließt in deren Verteidigungskasse (Militär, Gerät)')(e("verteidigung"))),
               ("Haushaltsnotlage", (lambda n: f'Kassen von Teilstaaten, Behörden und Verteidigung dürfen bis zu {n["dispo_monate"]:g} Monat(e) überziehen; im Minus werden die '
                                               f'Gehälter der Kasse einbehalten (und bei Ausgleich nachgezahlt), es fallen Strafzinsen (Leitzins + {n["aufschlag"]:g} Punkte) an, nach {n["ausgleich_tage"]} Tagen gleichen Teilstaaten '
                                               f'aus Gold aus (Reichsabgabe +{n["abgabe_plus"]:g} Punkte), nach {n["zwang_tage"]} Tagen Zwangsverwaltung')(
