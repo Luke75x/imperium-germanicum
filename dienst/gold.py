@@ -3,7 +3,7 @@
 Bestand in kg (gr_bestand je Stelle: 'ts-<sid>' Staatskasse eines Teilstaats, 'zentralbank' Reichsgoldreserve der Reichsgebiete);
 jede Bewegung in gr_buchungen. Erstausstattung: werkzeuge/goldreserven.py (Goldbestände der Nationalbanken nach World Gold Council,
 anteilig nach dem BIP-Anteil der Gebiete am jeweiligen Land).
-Bewertung: kg × Goldpreis (€/kg, Einstellung „gold“) × Spielmaßstab (Kr je Mio. €, wie beim Steueraufkommen) – Gold ist Vermögen, kein Geld.
+Bewertung: kg × Goldpreis (€/kg, Einstellung „gold“) ÷ Wechselkurs (Echtmaßstab) – Gold ist Vermögen, kein Geld.
 Handel nur mit der Zentralbank: Verkauf → Zentralbank zahlt den Gegenwert in Kronen auf die Staatskasse (Geldschöpfung, goldgedeckt),
 Kauf → Staatskasse zahlt an die Zentralbank (Geld verlässt den Umlauf). Ankaufsabschlag/Verkaufsaufschlag je 1 % (Einstellung).
 Berechtigt: Landesherr für die eigene Staatskasse (geld.regierte_staatskassen), Leitung des Schatzamts für alle; Goldpreis setzt die Leitung.
@@ -40,7 +40,8 @@ def preis(con):
 
 
 def massstab(con):
-    return float(str(geld.einstellung(con, "aufkommen")["massstab"]).replace(",", "."))
+    """Kronen je Mio. € (Echtmaßstab über den Wechselkurs)."""
+    return 1e6 / geld.wechselkurs(con)
 
 
 def wert(con, kg, faktor=1.0):

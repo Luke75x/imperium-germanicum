@@ -83,7 +83,7 @@ def nav(k):
                 ("sa-amt-steuern", "receipt", "Steuerverwaltung", "amt/steuern/"), ("sa-amt-gewerbe", "store", "Gewerberegister", "amt/gewerbe/")]
         if geld.ist_leitung(k):
             amtl += [("sa-amt-besoldung", "users", "Besoldung & Lohnlauf", "amt/besoldung/"), ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/"),
-                     ("sa-amt-aufkommen", "chart-column", "Steueraufkommen", "amt/aufkommen/"),
+                     ("sa-amt-aufkommen", "chart-column", "Staatshaushalt", "amt/aufkommen/"),
                      ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/")]
         amtl.append(("sa-amt-protokoll", "scroll-text", "Protokoll", "amt/protokoll/"))
         gruppen.append(("Schatzamt", amtl))
@@ -528,8 +528,8 @@ def tarife_html(con):
         unten = bis or unten
     v, g, ak = e("vermoegensteuer"), e("gewerbesteuer"), e("aufkommen")
     saetze = [("Währung", f'Krone (Kr) zu 100 Heller · 1 Kr = {e("wechselkurs")} €'),
-              ("Steueraufkommen der Bevölkerung", f'{ak["steuerquote"]} % des BIP je Teilstaat, Spielmaßstab {ak["massstab"]} Kr je Mio. €; '
-                                                  f'{ak["reichsanteil"]} % an das Reich, Rest an den Teilstaat (monatlich)'),
+              ("Staatshaushalt der Bevölkerung", f'Steuern {ak["steuerquote"]} % des BIP je Teilstaat (Echtmaßstab), {ak["reichsanteil"]} % an das Reich, '
+                                                 f'Rest an den Teilstaat; Pflichtausgaben {ak.get("ausgabenquote", 97)} % der Einnahmen (monatlich)'),
               ("Sozialabgabe (Reichsversicherung)", f'{e("sozialabgabe")} % des Bruttogehalts'),
               ("Länderanteil", f'{e("laenderanteil")} % von Lohn- und Kopfsteuer an den Wohnsitz-Teilstaat'),
               ("Kopfsteuer", f'{mark(e("kopfsteuer"))} je Steuerlauf und Staatsbürger'),

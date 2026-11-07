@@ -19,7 +19,7 @@ import bereiche
 esc = amt.esc
 NAME = "Kaiserliches Schatz- und Währungsamt"
 STELLE = ("schatzamt", NAME)
-MAX_BETRAG = 10 ** 13   # Heller (100 Mrd. Kronen)
+MAX_BETRAG = 10 ** 17   # Heller (1 Billiarde Kronen) – Echtmaßstab: Staatshaushalte in Milliarden
 KONTOART = {"privat": ("Privatkonto", 1000), "gewerbe": ("Gewerbekonto", 2000), "behoerde": ("Behördenkonto", 3000),
             "teilstaat": ("Staatskasse", 4000), "sonder": ("Sonderkonto", 9000)}
 SONDER = {"zentralbank": "Zentralbank des Reiches", "reichskasse": "Reichskasse", "sozialkasse": "Reichsversicherungskasse",
@@ -69,7 +69,7 @@ VORGABEN = {
     "leitzins": "2,0",
     "gold": {"preis_kg": 95000, "abschlag": 1},
     "wechselkurs": "1,21",          # € je Krone
-    "aufkommen": {"steuerquote": 24, "massstab": "1,35", "reichsanteil": 43, "automatisch": True},
+    "aufkommen": {"steuerquote": 24, "reichsanteil": 43, "ausgabenquote": 97, "automatisch": True},
     "gebuehren": {"reisepass": 5000, "personalausweis": 2500, "dienstpass": 0, "vorlaeufig": 2000, "fremdenpass": 4000,
                   "visum": 3000, "meldebescheinigung": 500},
 }
@@ -133,7 +133,9 @@ def mark_kurz(pf):
     """Kompakt für Kennzahlen: ab 10.000 Kr ohne Heller, ab 1 Mio. als „2,82 Mio. Kr“."""
     m = int(pf or 0) / 100
     a = abs(m)
-    if a >= 1e9:
+    if a >= 1e12:
+        zahl, zusatz = f"{m / 1e12:.2f}", " Bio."
+    elif a >= 1e9:
         zahl, zusatz = f"{m / 1e9:.2f}", " Mrd."
     elif a >= 1e6:
         zahl, zusatz = f"{m / 1e6:.2f}", " Mio."
@@ -143,6 +145,11 @@ def mark_kurz(pf):
     else:
         return mark(pf)
     return ("−" if m < 0 else "") + zahl.lstrip("-").replace(".", ",") + zusatz + " Kr"
+
+
+def wechselkurs(con):
+    """€ je Krone (Echtmaßstab)."""
+    return float(str(einstellung(con, "wechselkurs")).replace(",", "."))
 
 
 def betrag_lesen(s, null_erlaubt=False):
