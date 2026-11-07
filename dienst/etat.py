@@ -100,7 +100,9 @@ async def seite(request, k):
         summe_kasse += r["saldo"]
         summe_pk += kosten
         ist_mein = r["id"] in eigene
-        zeilen = [("Jahresetat", geld.mark_kurz(e.get(schl, 0))), (f"Zugewiesen {jahr}", geld.mark_kurz(zu.get(r["id"], 0))),
+        import besoldung
+        n_rs, s_rs = besoldung.rueckstand(con, schl)
+        zeilen = ([("Lohnrückstand", f'<b class="sa-minus">{mark(s_rs)}</b><br><span class="az">{n_rs} einbehaltene Gehälter</span>')] if n_rs else []) + [("Jahresetat", geld.mark_kurz(e.get(schl, 0))), (f"Zugewiesen {jahr}", geld.mark_kurz(zu.get(r["id"], 0))),
                   ("Personalkosten / Monat", (f'{mark(kosten)}<br><span class="az">{n} Besoldete</span>' if n else "keine Besoldeten") if pk is not None else "–"),
                   ("Reicht für", _monate(r["saldo"], kosten) if pk is not None else "–")]
         karten.append(

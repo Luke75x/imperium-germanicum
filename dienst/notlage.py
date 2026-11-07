@@ -5,10 +5,12 @@ Teilstaaten) und behoerde (Behörden, Reichskanzlei). Die Reichskasse selbst ist
 
 Dispo: Diese Kassen dürfen für Beschaffungen, Zuführungen und Überweisungen (DISPO_ARTEN) bis zu „dispo_monate“ Monatsreferenzen ins Minus
 (Staatskasse: Landesanteil des Monats, Verteidigungskasse: Verteidigungsetat des Monats, Behörde: Jahresetat ÷ 12). Alle anderen Zahlungen
-brauchen Deckung. Ein Lohnlauf zahlt nur aus gedeckten Zahlstellen (besoldung.lohnlauf_buchen) – Gehälter einer Kasse im Minus entfallen.
+brauchen Deckung. Ein Lohnlauf zahlt nur aus gedeckten Zahlstellen (besoldung.lohnlauf_buchen) – Gehälter einer Kasse im Minus werden
+einbehalten (bs_rueckstaende) und automatisch nachgezahlt, sobald die Zahlstelle wieder im Plus ist und den Betrag deckt (besoldung.nachzahlen).
 
 Stufen (je offener Fall, nl_faelle; Prüfung stündlich im Hintergrund und über die Seite):
- 1  Haushaltsnotlage: Meldung, Markierung, keine Ausgaben mehr (auch kein Dispo), Gehälter dieser Zahlstelle entfallen.
+ 1  Haushaltsnotlage: Meldung, Markierung, keine Ausgaben mehr (auch kein Dispo), Gehälter dieser Zahlstelle werden einbehalten
+    und nachgezahlt, sobald die Kasse wieder im Plus ist.
  2  Strafzinsen: je Kalendermonat Leitzins + „aufschlag“ Punkte p. a. auf das Minus an die Reichskasse.
  3  nach „ausgleich_tage“ Tagen (oder Minus > 1 Monatsreferenz): Teilstaat: Zwangsausgleich aus eigenen Mitteln (Verteidigungskasse:
     zuerst Staatskasse, dann Goldreserven des Teilstaats zum Ankaufskurs der Zentralbank) und Reichsabgabe +„abgabe_plus“ Punkte;
@@ -148,7 +150,7 @@ def banner(con, r):
         return ""
     tage = int((time.time() - f["seit"]) // 86400)
     return (f'<div class="warnung">{amt.ic("triangle-alert")} <b>Haushaltsnotlage</b> (Stufe {f["stufe"]}: {esc(STUFEN[f["stufe"]])}) seit {tage} Tagen – '
-            f'Minus {mark(-r["saldo"])}. Keine Ausgaben, Gehälter aus dieser Kasse entfallen'
+            f'Minus {mark(-r["saldo"])}. Keine Ausgaben, Gehälter aus dieser Kasse werden einbehalten und bei Ausgleich nachgezahlt'
             + (", Zwangsverwaltung durch Kanzler und Schatzamt" if f["zwang"] else "") + f'. <a href="{PFAD}">Einzelheiten</a></div>')
 
 
@@ -262,7 +264,7 @@ def pruefen(con, jetzt=None):
             cur = con.execute("INSERT INTO nl_faelle (konto_id, stelle, name, seit, minus_max) VALUES (?,?,?,?,?)", (r["id"], r["stelle"], r["name"], jetzt, -r["saldo"]))
             f = con.execute("SELECT * FROM nl_faelle WHERE id=?", (cur.lastrowid,)).fetchone()
             _ereignis(con, f["id"], jetzt, "eroeffnet",
-                      f'Haushaltsnotlage: {r["name"]} ist im Minus ({mark(r["saldo"])}). Keine Ausgaben mehr, Gehälter aus dieser Kasse entfallen; '
+                      f'Haushaltsnotlage: {r["name"]} ist im Minus ({mark(r["saldo"])}). Keine Ausgaben mehr, Gehälter aus dieser Kasse werden einbehalten (Nachzahlung bei Ausgleich); '
                       f'ab dem nächsten Monat Strafzinsen. Ausgleich: Einnahmen' + (", Goldreserven." if r["stelle"].startswith(("ts-", "vt-")) else "."), ereignisse, r)
             geld.protokoll(con, SYSTEM, "Haushaltsnotlage eröffnet", f'{r["name"]}: Minus {mark(-r["saldo"])}')
         _eskalieren(con, r, f, e, jetzt, ereignisse)
@@ -305,6 +307,14 @@ async def melden(app, con, ereignisse):
             log.exception("Meldung zur Haushaltsnotlage fehlgeschlagen")
 
 
+async def nachzahlungen(app, con):
+    """Zahlt einbehaltene Gehälter nach, sobald die Zahlstelle wieder im Plus ist (besoldung.nachzahlen), und benachrichtigt die Empfänger."""
+    import besoldung
+    nz = besoldung.nachzahlen(con)
+    await besoldung._nachzahlung_melden(app, nz)
+    return nz
+
+
 async def automatik(app):
     await asyncio.sleep(90)
     while True:
@@ -312,6 +322,7 @@ async def automatik(app):
             con = app["db"]
             if einstellungen(con).get("automatisch"):
                 await melden(app, con, pruefen(con))
+                await nachzahlungen(app, con)
         except Exception:
             log.exception("Haushaltsnotlage: Prüfung fehlgeschlagen")
         await asyncio.sleep(3600)
@@ -357,8 +368,11 @@ async def seite(request, k):
     zeilen = []
     for f in faelle:
         r = geld.konto(con, f["konto_id"])
+        import besoldung
+        n_rs, s_rs = besoldung.rueckstand(con, f["stelle"])
         zeilen.append((esc(f["name"]), f'{int((jetzt - f["seit"]) // 86400)} Tage', f'<b class="sa-minus">{geld.mark_kurz(r["saldo"])}</b>',
                        amt.status_marke("nein" if f["stufe"] >= 3 else "warn", f'Stufe {f["stufe"]}: {STUFEN[f["stufe"]]}'), geld.mark_kurz(f["zinsen"]),
+                       (f"{geld.mark_kurz(s_rs)} <span class=\"az\">({n_rs})</span>" if n_rs else "–"),
                        (geld.mark_kurz(f["ausgleich"]) + (f' <span class="az">· {f["gold_kg"]:g} kg Gold</span>' if f["gold_kg"] else "")) if f["ausgleich"] else "–",
                        esc(_naechster_schritt(f, e, jetzt))))
     status = (f'<p class="sa-status ok">{amt.ic("check")}Keine Kasse im Minus.</p>' if not faelle else
@@ -369,8 +383,8 @@ async def seite(request, k):
     erkl = ('<div class="sa-erkl"><b>Was passiert bei einem Minus?</b><ol>'
             f'<li>Kassen von Teilstaaten, Behörden und der Verteidigung dürfen für Beschaffungen und Zuführungen bis zu <b>{float(e["dispo_monate"]):g} Monat(e)</b> '
             'ihrer Einnahmen bzw. ihres Etats überziehen (Dispo). Gehälter werden nur bei Deckung gezahlt.</li>'
-            '<li><b>Stufe 1 – Haushaltsnotlage:</b> Meldung an die Verantwortlichen, keine Ausgaben mehr, <b>die Gehälter dieser Kasse entfallen</b>, '
-            'auch das Militär einer Verteidigungskasse im Minus wird nicht bezahlt.</li>'
+            '<li><b>Stufe 1 – Haushaltsnotlage:</b> Meldung an die Verantwortlichen, keine Ausgaben mehr, <b>die Gehälter dieser Kasse werden einbehalten</b>, '
+            'auch das Militär einer Verteidigungskasse im Minus wird nicht bezahlt – <b>sobald die Kasse wieder im Plus ist, werden sie nachgezahlt</b>.</li>'
             f'<li><b>Stufe 2 – Strafzinsen:</b> jeden Monat {leitzins + float(e["aufschlag"]):g} % p. a. (Leitzins + {float(e["aufschlag"]):g} Punkte) auf das Minus an die Reichskasse.</li>'
             f'<li><b>Stufe 3</b> nach {e["ausgleich_tage"]} Tagen oder bei Minus über einem Monat: Ein <b>Teilstaat gleicht es selbst aus</b> – die Verteidigungskasse aus '
             'der Staatskasse, danach durch <b>Verkauf seiner Goldreserven</b> – und zahlt '
@@ -409,7 +423,7 @@ async def seite(request, k):
     inhalt = (f'<h1>{amt.ic("triangle-alert")} Haushaltsnotlagen</h1>{amt.meldung(request)}'
               '<p class="az">Folgen, wenn eine Staats-, Verteidigungs- oder Behördenkasse ins Minus rutscht.</p>' + status
               + f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>' + erkl
-              + ('<h2>Offene Fälle</h2>' + amt.tabelle(["Kasse", "Seit", "Minus", "Stufe", "Strafzinsen", "Ausgleich", "Nächster Schritt"], zeilen, klasse="sa-haushalt") if zeilen else "")
+              + ('<h2>Offene Fälle</h2>' + amt.tabelle(["Kasse", "Seit", "Minus", "Stufe", "Strafzinsen", "Lohnrückstand", "Ausgleich", "Nächster Schritt"], zeilen, klasse="sa-haushalt") if zeilen else "")
               + f'<details class="sa-auf"><summary>{amt.ic("wallet")}Überziehungsrahmen ({len(rahmen)} Kassen)</summary>'
               + amt.tabelle(["Kasse", "Saldo", "Dispo", "Überzogen", ""], rahmen, "Keine Kassen.", klasse="sa-haushalt") + '</details>'
               + f'<details class="sa-auf"><summary>{amt.ic("clock")}Verlauf ({len(ereig)} Ereignisse, {len(alt)} beendete Fälle)</summary>'
@@ -443,7 +457,8 @@ async def pruefen_post(request):
     con = request.app["db"]
     ereignisse = pruefen(con)
     await melden(request.app, con, ereignisse)
-    sa.weiter(PFAD, f"Prüfung abgeschlossen: {len(ereignisse)} Ereignis(se).")
+    nz = await nachzahlungen(request.app, con)
+    sa.weiter(PFAD, f"Prüfung abgeschlossen: {len(ereignisse)} Ereignis(se)" + (f", {len(nz)} einbehaltene Gehälter nachgezahlt." if nz else "."))
 
 
 def registrieren(app):

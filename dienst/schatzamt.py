@@ -765,8 +765,8 @@ def tarife_html(con):
               ("Verteidigungsetat", (lambda vt: f'{float(vt["quote_bip"]):g}'.replace(".", ",") + f' % des BIP je Monat (aus den Pflichtausgaben), davon '
                                                   f'{vt["anteil_reich"]} % an das Reich (Führungsstab), der Rest an die Verteidigungskasse des Teilstaats '
                                                   '(Militär, Gerät)')(e("verteidigung"))),
-              ("Haushaltsnotlage", (lambda n: f'Kassen von Teilstaaten, Behörden und Verteidigung dürfen bis zu {n["dispo_monate"]:g} Monat(e) überziehen; im Minus entfallen die '
-                                              f'Gehälter der Kasse, es fallen Strafzinsen (Leitzins + {n["aufschlag"]:g} Punkte) an, nach {n["ausgleich_tage"]} Tagen gleichen Teilstaaten '
+              ("Haushaltsnotlage", (lambda n: f'Kassen von Teilstaaten, Behörden und Verteidigung dürfen bis zu {n["dispo_monate"]:g} Monat(e) überziehen; im Minus werden die '
+                                              f'Gehälter der Kasse einbehalten (und bei Ausgleich nachgezahlt), es fallen Strafzinsen (Leitzins + {n["aufschlag"]:g} Punkte) an, nach {n["ausgleich_tage"]} Tagen gleichen Teilstaaten '
                                               f'aus Gold aus (Reichsabgabe +{n["abgabe_plus"]:g} Punkte), nach {n["zwang_tage"]} Tagen Zwangsverwaltung')(
                   __import__("notlage").einstellungen(con))),
               ("Sozialabgabe (Reichsversicherung)", f'{e("sozialabgabe")} % des Bruttogehalts'),
