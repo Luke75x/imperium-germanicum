@@ -44,6 +44,7 @@ amt.ICONS.update({
 })
 
 CSS = """<style>
+.kennzahlen{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
 .kennzahlen b{white-space:nowrap;font-size:22px;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:520px){.kennzahlen{grid-template-columns:repeat(2,minmax(0,1fr))}html .kennzahlen b{font-size:19px!important;letter-spacing:-.01em}}
 .sa-saldo{font-size:34px;font-weight:700;letter-spacing:-.01em;line-height:1.1;margin:4px 0}
@@ -81,6 +82,7 @@ def nav(k):
                 ("sa-amt-steuern", "receipt", "Steuerverwaltung", "amt/steuern/"), ("sa-amt-gewerbe", "store", "Gewerberegister", "amt/gewerbe/")]
         if geld.ist_leitung(k):
             amtl += [("sa-amt-besoldung", "users", "Besoldung & Lohnlauf", "amt/besoldung/"), ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/"),
+                     ("sa-amt-aufkommen", "chart-column", "Steueraufkommen", "amt/aufkommen/"),
                      ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/")]
         amtl.append(("sa-amt-protokoll", "scroll-text", "Protokoll", "amt/protokoll/"))
         gruppen.append(("Schatzamt", amtl))
@@ -346,7 +348,7 @@ async def ueberweisen_seite(request, k):
     if q:
         rows = con.execute("SELECT * FROM gk_konten WHERE (name LIKE ? OR nummer LIKE ?) AND art!='sonder' ORDER BY art, name LIMIT 30",
                            (f"%{q}%", f"%{q.replace(' ', '').upper()}%")).fetchall()
-        rows += [r for r in con.execute("SELECT * FROM gk_konten WHERE art='sonder' AND stelle!='zentralbank' AND name LIKE ?", (f"%{q}%",))]
+        rows += [r for r in con.execute("SELECT * FROM gk_konten WHERE art='sonder' AND stelle NOT IN ('zentralbank','volkswirtschaft') AND name LIKE ?", (f"%{q}%",))]
         treffer = "<h2>Suchergebnis</h2>" + amt.tabelle(
             ["Empfänger", "Kontonummer", "Kontoart", ""],
             [(esc(r["name"]), f'<span class="sa-nr">{nummer_anzeige(r["nummer"])}</span>', esc(geld.art_name(r)),
@@ -377,7 +379,7 @@ def _ueberweisung_lesen(con, k, form):
     zweck = _f(form, "zweck", 140)
     if not kv:
         return None, "Bitte ein eigenes Konto als Auftraggeber wählen."
-    if not ka or ka["stelle"] == "zentralbank":
+    if not ka or ka["stelle"] in geld.AUSSEN:
         return None, "Die Kontonummer ist ungültig oder unbekannt (Prüfziffer prüfen)."
     if not betrag:
         return None, "Bitte einen gültigen Betrag angeben."
@@ -523,8 +525,10 @@ def tarife_html(con):
     for bis, satz in e("lohnsteuer")["stufen"]:
         stufen.append((f"{mark(unten)} – {mark(bis) if bis else 'darüber'}", f"{satz} %"))
         unten = bis or unten
-    v, g = e("vermoegensteuer"), e("gewerbesteuer")
-    saetze = [("Sozialabgabe (Reichsversicherung)", f'{e("sozialabgabe")} % des Bruttogehalts'),
+    v, g, ak = e("vermoegensteuer"), e("gewerbesteuer"), e("aufkommen")
+    saetze = [("Steueraufkommen der Bevölkerung", f'{ak["steuerquote"]} % des BIP je Teilstaat, Spielmaßstab {ak["massstab"]} M je Mio. €; '
+                                                  f'{ak["reichsanteil"]} % an das Reich, Rest an den Teilstaat (monatlich)'),
+              ("Sozialabgabe (Reichsversicherung)", f'{e("sozialabgabe")} % des Bruttogehalts'),
               ("Länderanteil", f'{e("laenderanteil")} % von Lohn- und Kopfsteuer an den Wohnsitz-Teilstaat'),
               ("Kopfsteuer", f'{mark(e("kopfsteuer"))} je Steuerlauf und Staatsbürger'),
               ("Vermögensteuer", f'{v["satz"]} % des Guthabens über {mark(v["freibetrag"])} je Steuerlauf'),
@@ -550,6 +554,7 @@ async def tarife(request, k):
 
 @seite()
 async def finanzen(request, k):
+    import aufkommen
     con = request.app["db"]
     seit = int(time.time()) - 30 * 86400
     kasse = geld.sonder(con, "reichskasse")
@@ -566,7 +571,8 @@ async def finanzen(request, k):
               + '<h2>Ausgaben der Reichskasse</h2>' + amt.tabelle(["Art", "Summe"], [(esc(geld.BUCHUNGSART.get(r["art"], r["art"])), mark(r["s"])) for r in aus], "Keine Ausgaben.")
               + '<h2>Verteilung der Geldmenge</h2>' + amt.tabelle(["Kontoart", "Konten", "Guthaben"],
                                                                   [(esc(geld.KONTOART[r["art"]][0]), r["n"], mark(r["s"])) for r in verteilung])
-              + '<h2>Staatskassen der Teilstaaten</h2>' + amt.tabelle(["Teilstaat", "Guthaben"], [(esc(r["name"]), mark(r["saldo"])) for r in staaten], "Keine Staatskassen."))
+              + '<h2>Staatskassen der Teilstaaten</h2>' + amt.tabelle(["Teilstaat", "Guthaben"], [(esc(r["name"]), mark(r["saldo"])) for r in staaten], "Keine Staatskassen.")
+              + aufkommen.finanzen_html(con))
     return ant(request, k, "Reichsfinanzen", "sa-finanzen", inhalt)
 
 
@@ -642,7 +648,7 @@ async def amt_konto(request, k):
     if r["inhaber_id"]:
         info.insert(1, ("Discord-ID", esc(r["inhaber_id"])))
     aktionen = ""
-    if r["stelle"] != "zentralbank":
+    if r["stelle"] not in geld.AUSSEN:
         if r["gesperrt"]:
             aktionen += (f'<form method="post" action="{pfad}entsperren">{amt.csrf_feld(request)}<button class="btn zweit" type="submit">'
                          f'{amt.ic("lock-open")}Sperre aufheben</button></form>')
@@ -673,7 +679,7 @@ async def _amt_konto_post(request, recht="beamter"):
     form = await formular(request)
     con = request.app["db"]
     r = geld.konto(con, request.match_info["id"]) if request.match_info["id"].isdigit() else None
-    if not r or r["stelle"] == "zentralbank":
+    if not r or r["stelle"] in geld.AUSSEN:
         raise web.HTTPNotFound(text="Konto nicht gefunden.")
     return k, form, con, r, f"{PFAD}amt/konten/{r['id']}/"
 
@@ -769,7 +775,7 @@ async def amt_schoepfung(request):
     z = geld.konto(con, form.get("ziel")) if str(form.get("ziel", "")).isdigit() else None
     betrag, grund = geld.betrag_lesen(form.get("betrag")), _f(form, "grund", 160)
     vernichten = request.path.endswith("vernichtung")
-    if not z or z["art"] not in ("sonder", "behoerde", "teilstaat") or z["stelle"] == "zentralbank" or not betrag or not grund:
+    if not z or z["art"] not in ("sonder", "behoerde", "teilstaat") or z["stelle"] in geld.AUSSEN or not betrag or not grund:
         weiter(f"{PFAD}amt/geldpolitik/", "Bitte Konto, Betrag und Begründung angeben.", True)
     zb = geld.sonder(con, "zentralbank")
     try:

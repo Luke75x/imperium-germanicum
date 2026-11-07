@@ -22,12 +22,14 @@ STELLE = ("schatzamt", NAME)
 MAX_BETRAG = 10 ** 13   # Pfennig (100 Mrd. Mark)
 KONTOART = {"privat": ("Privatkonto", 1000), "gewerbe": ("Gewerbekonto", 2000), "behoerde": ("Behördenkonto", 3000),
             "teilstaat": ("Staatskasse", 4000), "sonder": ("Sonderkonto", 9000)}
-SONDER = {"zentralbank": "Zentralbank des Reiches", "reichskasse": "Reichskasse", "sozialkasse": "Reichsversicherungskasse"}
+SONDER = {"zentralbank": "Zentralbank des Reiches", "reichskasse": "Reichskasse", "sozialkasse": "Reichsversicherungskasse",
+          "volkswirtschaft": "Volkswirtschaft (simulierte Bevölkerung)"}
+AUSSEN = ("zentralbank", "volkswirtschaft")   # Gegenkonten außerhalb des Geldumlaufs, dürfen ins Minus
 BUCHUNGSART = {"ueberweisung": "Überweisung", "gehalt": "Gehalt", "lohnsteuer": "Lohnsteuer", "sozialabgabe": "Sozialabgabe",
                "steuer": "Steuerzahlung", "gebuehr": "Gebühr", "laenderanteil": "Länderanteil", "umsatzsteuer": "Umsatzsteuer",
                "ueberweisungssteuer": "Überweisungssteuer", "geldschoepfung": "Geldschöpfung", "geldvernichtung": "Geldvernichtung",
                "korrektur": "Korrekturbuchung", "pfaendung": "Pfändung", "startguthaben": "Startguthaben", "erstattung": "Erstattung",
-               "zuweisung": "Haushaltszuweisung"}
+               "zuweisung": "Haushaltszuweisung", "steueraufkommen": "Steueraufkommen der Bevölkerung"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS gk_konten (
@@ -65,6 +67,7 @@ VORGABEN = {
     "frist_tage": 14,               # Zahlungsfrist für Bescheide
     "startguthaben": 0,             # bei Kontoeröffnung aus der Zentralbank
     "leitzins": "2,0",
+    "aufkommen": {"steuerquote": 24, "massstab": "1,35", "reichsanteil": 43, "automatisch": True},
     "gebuehren": {"reisepass": 5000, "personalausweis": 2500, "dienstpass": 0, "vorlaeufig": 2000, "fremdenpass": 4000,
                   "visum": 3000, "meldebescheinigung": 500},
 }
@@ -257,7 +260,7 @@ def buchen(con, von, an, betrag, art, zweck="", k=None, bezug="", minus=False, c
     if kv:
         if kv["gesperrt"] and art in ("ueberweisung", "steuer", "gebuehr"):
             raise Fehler(f'Das Konto {nummer_anzeige(kv["nummer"])} ist gesperrt' + (f': {kv["sperrgrund"]}' if kv["sperrgrund"] else "."))
-        if not minus and kv["stelle"] != "zentralbank" and kv["saldo"] < betrag:
+        if not minus and kv["stelle"] not in AUSSEN and kv["saldo"] < betrag:
             raise Fehler(f'Keine ausreichende Deckung auf {kv["name"]} (verfügbar {mark(kv["saldo"])}).')
     if ka and ka["gesperrt"] and art == "ueberweisung":
         raise Fehler("Das Empfängerkonto ist gesperrt und kann keine Überweisungen empfangen.")
@@ -276,7 +279,8 @@ def buchen(con, von, an, betrag, art, zweck="", k=None, bezug="", minus=False, c
 
 
 def geldmenge(con):
-    return -sonder(con, "zentralbank")["saldo"]
+    """Geld im Umlauf = Guthaben aller Konten außer Zentralbank und Volkswirtschaft (= −Saldo dieser beiden)."""
+    return -sum(sonder(con, s)["saldo"] for s in AUSSEN)
 
 
 # ---------------------------------------------------------------- Einstellungen, Protokoll
@@ -330,6 +334,7 @@ def verfuegbare_konten(con, k):
                 out.append(r)
     if amt.ROLLE_KANZLER in k["rollen"] or bereiche._alle(k):
         out.append(stellenkonto(con, "kanzlei"))
+    out += regierte_staatskassen(con, k)
     if ist_leitung(k):
         out += [sonder(con, "reichskasse"), sonder(con, "sozialkasse")]
     seen, res = set(), []
@@ -338,6 +343,25 @@ def verfuegbare_konten(con, k):
             seen.add(r["id"])
             res.append(r)
     return res
+
+
+def regierte_staatskassen(con, k):
+    """Staatskassen der Teilstaaten, die das Konto regiert (wie auf der Reichskarte: Fraktionsrolle + Landesherr oder Amtsrolle;
+    Teilstaaten ohne eigene Fraktion verwaltet der Kanzler)."""
+    import karte
+    rollen = set(k["rollen"])
+    regent = karte.ROLLE_LANDESHERR in rollen or bool(rollen & set(karte.ROLLEN_AEMTER))
+    kanzler = amt.ROLLE_KANZLER in rollen or bereiche._alle(k)
+    out = []
+    for s in karte.aktuell(con)["stand"]["staaten"]:
+        if s["id"] in REICHSGEBIETE:
+            continue
+        f = s["fraktion"]
+        if (f and f in rollen and (regent or f in karte.ROLLEN_AEMTER)) or (not f and kanzler):
+            r = stellenkonto(con, "ts-" + s["id"])
+            if r:
+                out.append(r)
+    return out
 
 
 def darf_einsehen(con, k, r):
