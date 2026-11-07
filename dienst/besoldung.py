@@ -120,6 +120,16 @@ def einrichten(con):
             con.execute("INSERT INTO bs_zuschlaege (name, art, wert, zahlstelle, rollen, rang) VALUES (?,?,?,?,?,?)", (n, art, w, z, json.dumps(rl), i))
         con.execute("UPDATE bs_rollen SET zahlstelle='reichskasse' WHERE rolle_id=? AND zahlstelle='auto'", (amt.ROLLE_KANZLER,))
         con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('zuschlaege', '1')")
+    if not con.execute("SELECT 1 FROM bs_meta WHERE schl='nebenaemter'").fetchone():
+        # 07.11.2026: Weitere Ämter neben der höchsten Besoldungsgruppe (Fall Ernst-August VI.: Hand des Kaisers + Kurfürst + Präsidium) – Zuschlag
+        # in Höhe der Hälfte des Grundgehalts des Amtes, fester Betrag aus der Reichskasse; wer das Amt bereits als Grundgehalt bezieht, erhält ihn nicht.
+        rang = (con.execute("SELECT MAX(rang) FROM bs_zuschlaege").fetchone()[0] or 0) + 1
+        for i, (n, rolle, gruppe) in enumerate((("Kurfürst", "1522696237004881980", "P3"), ("Präsidium des Reichstags", "1522701497413144776", "P2"))):
+            gg = con.execute("SELECT grundgehalt FROM bs_gruppen WHERE schl=?", (gruppe,)).fetchone()
+            if gg:
+                con.execute("INSERT INTO bs_zuschlaege (name, art, wert, zahlstelle, rollen, rang) VALUES (?,?,?,?,?,?)",
+                            (n, "betrag", float(gg[0] // 2), "reichskasse", json.dumps([rolle]), rang + i))
+        con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('nebenaemter', '1')")
     if not con.execute("SELECT 1 FROM bs_meta WHERE schl='crown'").fetchone():
         # 07.11.2026: Der Monarch (Imperator Rex, Imperatrix Regina) wird aus den Crown Estates des Kaisers bezahlt
         for r in ("1522685953054081054", "1535795611599638638"):
@@ -235,7 +245,12 @@ def einstufung(con, konto_id, rollen, rollennamen=None):
     elif zahl == "vt-land":
         import verteidigung
         zahl = verteidigung.zahlstelle_land(con, rollen)
-    return g, quelle, zahl, zulage, ztext
+    return g, quelle, zahl, zulage, ztext, (r if kand_rolle(p, gs) else None)
+
+
+def kand_rolle(p, gs):
+    """True, wenn das Grundgehalt aus einer Rolle stammt (nicht aus einer individuellen Einstufung)."""
+    return not (p and p["gruppe"] in gs)
 
 
 amt.ICONS.setdefault("plus", '<path d="M5 12h14"/><path d="M12 5v14"/>')
@@ -246,13 +261,15 @@ def zuschlaege(con, nur_aktiv=True):
     return [dict(r, rollen=json.loads(r["rollen"] or "[]")) for r in con.execute("SELECT * FROM bs_zuschlaege" + (" WHERE aktiv=1" if nur_aktiv else "") + " ORDER BY rang, id")]
 
 
-def zuschlaege_von(con, konto_id, rollen, grund):
+def zuschlaege_von(con, konto_id, rollen, grund, quelle_rolle=None):
     """[(Zuschlag, Betrag in Heller)] der Amtspositionen des Kontos: über die Discord-Rollen oder die persönliche Zuordnung; Prozentzuschläge
     beziehen sich auf das Grundgehalt der Besoldungsgruppe `grund` (Heller)."""
     rollen = set(rollen or ())
     zugeordnet = {r["zuschlag"] for r in con.execute("SELECT zuschlag FROM bs_zuschlag_personen WHERE konto_id=?", (konto_id,))}
     out = []
     for z in zuschlaege(con):
+        if quelle_rolle and quelle_rolle in z["rollen"] and z["id"] not in zugeordnet:
+            continue   # Amt begründet bereits das Grundgehalt – kein Zuschlag für dasselbe Amt
         if z["id"] in zugeordnet or rollen & set(z["rollen"]):
             betrag = int(round(grund * float(z["wert"]) / 100)) if z["art"] == "prozent" else int(round(float(z["wert"])))
             if betrag > 0:
@@ -278,11 +295,11 @@ def berechnen_einzeln(con, konto_id, name, rollen, rollennamen=None):
     e = einstufung(con, konto_id, rollen, rollennamen)
     if not e:
         return []
-    g, quelle, zahl, zulage, ztext = e
+    g, quelle, zahl, zulage, ztext, qrolle = e
     grund = g["grundgehalt"] if g else 0
     teile = {zahl: {"grund": grund, "zulage": zulage, "texte": [ztext] if ztext else [], "namen": [],
                     "posten": ([["Grundgehalt " + (g["schl"] if g else ""), grund]] if grund else []) + ([["Zulage" + (f": {ztext}" if ztext else ""), zulage]] if zulage else [])}}
-    for z, betrag in (zuschlaege_von(con, konto_id, rollen, grund) if g else []):
+    for z, betrag in (zuschlaege_von(con, konto_id, rollen, grund, qrolle) if g else []):
         zs = _zahlstelle_aufloesen(con, z["zahlstelle"], rollen, zahl)
         t = teile.setdefault(zs, {"grund": 0, "zulage": 0, "texte": [], "namen": [], "posten": []})
         t["zulage"] += betrag
@@ -568,7 +585,7 @@ async def verwaltung(request, k):
             e = einstufung(con, m["id"], m["rollen"], namen)
             if not e or not e[0]:
                 continue
-            for z, b in zuschlaege_von(con, m["id"], m["rollen"], e[0]["grundgehalt"]):
+            for z, b in zuschlaege_von(con, m["id"], m["rollen"], e[0]["grundgehalt"], e[5]):
                 vor.append((esc(m["name"]), esc(z["name"]), mark(b), esc(zs.get(_zahlstelle_aufloesen(con, z["zahlstelle"], m["rollen"], e[2]), z["zahlstelle"]))))
         teil = ('<p class="az">Zuschläge gibt es auf Amtspositionen: Wer eine der Rollen einer Amtsposition trägt (oder ihr persönlich zugeordnet ist), erhält zum Grundgehalt '
                 'seiner höchsten Besoldungsgruppe den Zuschlag – als Prozentsatz des Grundgehalts oder als fester Betrag. Jeder Zuschlag hat seine eigene zahlende Kasse '
