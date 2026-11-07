@@ -5,7 +5,8 @@ die Ränge „OR-n …“/„OF-n …“ werden beim ersten Aufruf automatisch i
 höchste Gruppe aller Rollen eines Mitglieds. Individuell (bs_personen): andere Gruppe, „keine Besoldung“, Zulage, Zahlstelle.
 Lohnlauf je Monat (bs_laeufe, eindeutig): Probelauf → Ausführen. Abzüge: Lohnsteuer (Stufentarif, steuern.lohnsteuer) und Sozialabgabe;
 Netto an das Privatkonto, Sozialabgabe an die Reichsversicherungskasse, Lohnsteuer an die Reichskasse, Länderanteil an die Staatskasse
-des Wohnsitzes. Fehlbetrag der Reichskasse auf Wunsch durch Geldschöpfung. Abrechnungen (bs_abrechnungen) mit PDF, DM an jeden.
+des Wohnsitzes. Es zahlt die Dienststelle (Zahlstelle „auto“ = dienststelle(): Behörde der Rollen, Reichskanzlei für den Kanzler, sonst
+Reichskasse); die Behörden finanzieren das aus ihrem Etat (etat.py). Fehlbetrag der Reichskasse auf Wunsch durch Geldschöpfung. Abrechnungen (bs_abrechnungen) mit PDF, DM an jeden.
 """
 import re
 import time
@@ -26,7 +27,7 @@ PFAD = sa.PFAD
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS bs_gruppen (schl TEXT PRIMARY KEY, name TEXT NOT NULL, laufbahn TEXT NOT NULL, grundgehalt INTEGER NOT NULL, rang INTEGER NOT NULL DEFAULT 0);
-CREATE TABLE IF NOT EXISTS bs_rollen (rolle_id TEXT PRIMARY KEY, gruppe TEXT NOT NULL, zahlstelle TEXT NOT NULL DEFAULT 'reichskasse');
+CREATE TABLE IF NOT EXISTS bs_rollen (rolle_id TEXT PRIMARY KEY, gruppe TEXT NOT NULL, zahlstelle TEXT NOT NULL DEFAULT 'auto');
 CREATE TABLE IF NOT EXISTS bs_personen (konto_id TEXT PRIMARY KEY, gruppe TEXT NOT NULL DEFAULT '', zulage INTEGER NOT NULL DEFAULT 0,
     zulage_text TEXT NOT NULL DEFAULT '', zahlstelle TEXT NOT NULL DEFAULT '', bemerkung TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS bs_laeufe (id INTEGER PRIMARY KEY AUTOINCREMENT, periode TEXT NOT NULL UNIQUE, anzahl INTEGER NOT NULL,
@@ -79,12 +80,16 @@ RANG = re.compile(r"^(OR|OF)-(\d{1,2})\b")
 
 def einrichten(con):
     con.executescript(SCHEMA)
+    con.execute("CREATE TABLE IF NOT EXISTS bs_meta (schl TEXT PRIMARY KEY, wert TEXT NOT NULL)")
     if not con.execute("SELECT 1 FROM bs_gruppen LIMIT 1").fetchone():
         for i, (s, n, l, g) in enumerate(GRUPPEN):
             con.execute("INSERT INTO bs_gruppen (schl, name, laufbahn, grundgehalt, rang) VALUES (?,?,?,?,?)", (s, n, l, g * M, i))
         for r, g in ROLLEN.items():
-            con.execute("INSERT OR IGNORE INTO bs_rollen (rolle_id, gruppe) VALUES (?,?)", (r, g))
-    con.execute("CREATE TABLE IF NOT EXISTS bs_meta (schl TEXT PRIMARY KEY, wert TEXT NOT NULL)")
+            con.execute("INSERT OR IGNORE INTO bs_rollen (rolle_id, gruppe, zahlstelle) VALUES (?,?,'auto')", (r, g))
+    if not con.execute("SELECT 1 FROM bs_meta WHERE schl='zahlstelle_auto'").fetchone():
+        # 07.11.2026: Die Behörden zahlen ihre Mitarbeiter selbst – bisherige Vorgabe „Reichskasse“ wird „nach Dienststelle“
+        con.execute("UPDATE bs_rollen SET zahlstelle='auto' WHERE zahlstelle='reichskasse'")
+        con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('zahlstelle_auto', '1')")
     con.commit()
 
 
@@ -105,8 +110,19 @@ def gruppen(con):
     return {g["schl"]: g for g in con.execute("SELECT * FROM bs_gruppen ORDER BY rang, schl")}
 
 
+def dienststelle(rollen):
+    """Zahlstelle nach Dienststelle: Reichskanzlei für den Kanzler, sonst die Behörde der Rollen (amt.BEHOERDEN), sonst die Reichskasse."""
+    rollen = set(rollen or ())
+    if amt.ROLLE_KANZLER in rollen:
+        return "kanzlei"
+    for b in amt.BEHOERDEN:
+        if rollen & set(b["rollen"]):
+            return b["schl"]
+    return "reichskasse"
+
+
 def zahlstellen(con):
-    out = [("reichskasse", "Reichskasse"), ("kanzlei", "Reichskanzlei")] + [(b["schl"], b["name"]) for b in amt.BEHOERDEN]
+    out = [("auto", "Nach Dienststelle (Behörde zahlt)"), ("reichskasse", "Reichskasse"), ("kanzlei", "Reichskanzlei")] + [(b["schl"], b["name"]) for b in amt.BEHOERDEN]
     out += [(r["stelle"], r["name"]) for r in con.execute("SELECT stelle, name FROM gk_konten WHERE art='teilstaat' ORDER BY name")]
     return out
 
@@ -119,7 +135,7 @@ def einstufung(con, konto_id, rollen, rollennamen=None):
         return None
     zulage, ztext = (p["zulage"], p["zulage_text"]) if p else (0, "")
     if p and p["gruppe"] in gs:
-        g, quelle, zahl = gs[p["gruppe"]], "Individuelle Einstufung", "reichskasse"
+        g, quelle, zahl = gs[p["gruppe"]], "Individuelle Einstufung", "auto"
     else:
         kand = []
         for r in rollen:
@@ -131,12 +147,14 @@ def einstufung(con, konto_id, rollen, rollennamen=None):
         if not kand:
             if not zulage:
                 return None
-            g, quelle, zahl = None, "Nur Zulage", "reichskasse"
+            g, quelle, zahl = None, "Nur Zulage", "auto"
         else:
             g, r, zahl = max(kand, key=lambda x: (x[0]["grundgehalt"], x[0]["rang"]))
             quelle = f"Rolle „{(rollennamen or {}).get(r, r)}“" if r else "Souverän"
     if p and p["zahlstelle"]:
         zahl = p["zahlstelle"]
+    if zahl == "auto":
+        zahl = dienststelle(rollen)
     return g, quelle, zahl, zulage, ztext
 
 
@@ -274,7 +292,7 @@ async def verwaltung(request, k):
     tabs = '<p class="reiter">' + " ".join(f'<a href="?reiter={s}" class="{"aktiv" if s == reiter else ""}">{t}</a>' for s, t in
                                           [("gruppen", "Besoldungsordnung"), ("rollen", "Rollenzuordnung"), ("personen", "Individuelle Einstufung")]) + "</p>"
     gopts = lambda sel="": "".join(f'<option value="{esc(s)}"{" selected" if s == sel else ""}>{esc(s)} · {esc(g["name"])} ({mark(g["grundgehalt"])})</option>' for s, g in gs.items())
-    zopts = lambda sel="reichskasse": "".join(f'<option value="{esc(s)}"{" selected" if s == sel else ""}>{esc(n)}</option>' for s, n in zs.items())
+    zopts = lambda sel="auto": "".join(f'<option value="{esc(s)}"{" selected" if s == sel else ""}>{esc(n)}</option>' for s, n in zs.items())
     if reiter == "rollen":
         rows = con.execute("SELECT * FROM bs_rollen").fetchall()
         rows = sorted(rows, key=lambda r: (-(gs[r["gruppe"]]["grundgehalt"] if r["gruppe"] in gs else 0), namen.get(r["rolle_id"], "")))
@@ -367,7 +385,7 @@ async def rolle_speichern(request):
         geld.protokoll(con, k, "Rollenzuordnung entfernt", rolle)
         con.commit()
         sa.weiter(pfad, "Zuordnung entfernt.")
-    g, z = str(form.get("gruppe", "")), str(form.get("zahlstelle", "reichskasse"))
+    g, z = str(form.get("gruppe", "")), str(form.get("zahlstelle", "auto"))
     if not rolle or g not in gruppen(con) or z not in dict(zahlstellen(con)):
         sa.weiter(pfad, "Bitte Rolle, Gruppe und Zahlstelle wählen.", True)
     con.execute("INSERT INTO bs_rollen (rolle_id, gruppe, zahlstelle) VALUES (?,?,?) ON CONFLICT(rolle_id) DO UPDATE SET gruppe=excluded.gruppe, "

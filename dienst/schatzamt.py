@@ -72,6 +72,34 @@ table.liste td.sa-betrag,table.liste th.sa-betrag{text-align:right}
 .sa-modus a.aktiv,.sa-modus a.aktiv:hover{background:var(--ink);color:#fff}
 .kopf .sa-modus{display:none;margin:0 0 0 4px}
 @media (max-width:800px){.kopf .sa-modus{display:flex}.kopf .sa-modus a{padding:5px 9px;font-size:12.5px}}
+.sa-karte.sa-mein{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.sa-werte{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:10px 0 0;font-size:13.5px}
+.sa-werte dt{color:var(--grau)}.sa-werte dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.sa-zusatz{margin:2px 0 0}
+.sa-schnell{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:14px 0 6px}
+.sa-schnell a{display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center;border:1px solid var(--linie);border-radius:12px;
+ padding:12px 14px;color:var(--ink);text-decoration:none;background:#fff}
+.sa-schnell a:hover{border-color:var(--ink)}
+.sa-schnell a .icon{grid-row:span 2}
+.sa-schnell a span{color:var(--grau);font-size:12.5px}
+.sa-erkl{border:1px solid var(--linie);border-radius:12px;padding:14px 18px;margin:16px 0;background:var(--hell);font-size:14px}
+.sa-erkl ol{margin:6px 0 0;padding-left:20px}.sa-erkl li{margin:4px 0}
+.sa-status{display:flex;gap:8px;align-items:center;margin:8px 0;color:var(--grau)}
+.sa-status.ok{color:var(--ok)}
+details.sa-auf{border:1px solid var(--linie);border-radius:12px;padding:0 16px;margin:16px 0;background:#fff}
+details.sa-auf>summary{cursor:pointer;padding:12px 0;font-weight:600;display:flex;gap:8px;align-items:center;list-style:none}
+details.sa-auf>summary::-webkit-details-marker{display:none}
+details.sa-auf>summary::after{content:"+";margin-left:auto;font-size:18px;color:var(--grau)}
+details.sa-auf[open]>summary::after{content:"–"}
+details.sa-auf[open]{padding-bottom:12px}
+table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-align:right;white-space:nowrap}
+@media (max-width:800px){
+ html table.liste.sa-haushalt tr{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px 10px;padding:10px 12px}
+ html table.liste.sa-haushalt td{display:block;width:auto;padding:0;border:0;text-align:left;white-space:normal;font-size:13.5px}
+ html table.liste.sa-haushalt td:first-child{grid-column:1/-1;font-weight:650;font-size:15px}
+ html table.liste.sa-haushalt td:first-child::before{display:none}
+ html table.liste.sa-haushalt td::before{font-size:11px}
+}
 </style>"""
 
 
@@ -81,7 +109,7 @@ table.liste td.sa-betrag,table.liste th.sa-betrag{text-align:right}
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe")     # Seiten, die nur die Privatperson betreffen
-NUR_STAAT = ("sa-finanzen", "sa-gold")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
+NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_staat(con, k):
@@ -125,11 +153,12 @@ async def modus_setzen(request):
 
 def nav(k, m="privat", schalter=False, aktiv=""):
     if m == "staat":
-        info = ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/"), ("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"),
-                                ("sa-gold", "coins", "Goldreserven", "gold/")])
         mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Kassen & Umsätze", "konto/"),
                 ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/")]
-        gruppen = [("Staatliche Kassen", mein), info]
+        haushalt = [("sa-etats", "landmark", "Etats der Behörden", "etats/"), ("sa-staatshaushalt", "chart-column", "Staatshaushalt", "haushalt/"),
+                    ("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"), ("sa-gold", "coins", "Goldreserven", "gold/")]
+        gruppen = [("Staatliche Kassen", mein), ("Haushalt", haushalt), ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
+        mein = mein + haushalt[:1]
     else:
         mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Konto & Umsätze", "konto/"),
                 ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/"), ("sa-steuern", "receipt", "Steuern & Gebühren", "steuern/"),
@@ -140,7 +169,6 @@ def nav(k, m="privat", schalter=False, aktiv=""):
                 ("sa-amt-steuern", "receipt", "Steuerverwaltung", "amt/steuern/"), ("sa-amt-gewerbe", "store", "Gewerberegister", "amt/gewerbe/")]
         if geld.ist_leitung(k):
             amtl += [("sa-amt-besoldung", "users", "Besoldung & Lohnlauf", "amt/besoldung/"), ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/"),
-                     ("sa-amt-aufkommen", "chart-column", "Staatshaushalt", "amt/aufkommen/"),
                      ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/")]
         amtl.append(("sa-amt-protokoll", "scroll-text", "Protokoll", "amt/protokoll/"))
         gruppen.append(("Schatzamt", amtl))
@@ -218,8 +246,17 @@ def dm(request, konto_id, text):
         asyncio.get_event_loop().create_task(request.app["discord"].dm(konto_id, text))
 
 
-def betrag_html(pf, vorzeichen=True):
-    return f'<span class="{"sa-plus" if pf > 0 else "sa-minus" if pf < 0 else ""}">{mark(pf, vorzeichen)}</span>'
+def betrag_html(pf, vorzeichen=True, kurz=False):
+    """Betrag farbig; kurz=True kürzt große Beträge (ab 1 Mio. Kr, z. B. „11,70 Mrd. Kr“) mit vollem Betrag als Tooltip."""
+    klasse = "sa-plus" if pf > 0 else "sa-minus" if pf < 0 else ""
+    if kurz and abs(pf) >= 100 * 10 ** 6:
+        return f'<span class="{klasse}" title="{mark(pf, vorzeichen)}">{geld.mark_kurz(pf)}</span>'
+    return f'<span class="{klasse}">{mark(pf, vorzeichen)}</span>'
+
+
+def werte_html(paare):
+    """Kompakte Liste Bezeichnung → Wert für Karten (statt breiter Tabelle)."""
+    return '<dl class="sa-werte">' + "".join(f"<dt>{esc(t)}</dt><dd>{v}</dd>" for t, v in paare) + "</dl>"
 
 
 def konto_kurz(r):
@@ -354,17 +391,44 @@ def _uebersicht_staat(request, k, con):
                   + f'<p><a href="{PFAD}konto/">Alle Kassen, Umsätze und Kontoauszüge →</a></p>')
     leer = ('<div class="hinweis">Ihnen ist keine staatliche Kasse zur Verfügung zugewiesen.'
             + (" Die Verwaltung des Schatzamts finden Sie in der Navigation." if geld.ist_beamter(k) else "") + "</div>")
+    zusatz = _kassen_zusatz(con, konten)
+    gruppen = [("Reich", [r for r in konten if r["art"] == "sonder"]), ("Behörden", [r for r in konten if r["art"] == "behoerde"]),
+               ("Teilstaaten", [r for r in konten if r["art"] == "teilstaat"])]
+    kassen = "".join(f'<h2>{esc(t)}</h2><div class="sa-karten">{_karten(rs, zusatz)}</div>' for t, rs in gruppen if rs) or leer
+    schnell = (f'<div class="sa-schnell"><a href="{PFAD}etats/">{amt.ic("landmark")}<b>Etats der Behörden</b><span>Kassenstand, Etat, Personalkosten</span></a>'
+               f'<a href="{PFAD}haushalt/">{amt.ic("chart-column")}<b>Staatshaushalt</b><span>Steuern und Reichsabgabe der Teilstaaten</span></a>'
+               f'<a href="{PFAD}finanzen/">{amt.ic("chart-column")}<b>Reichsfinanzen</b><span>Geldmenge, Reichskasse, Staatskassen</span></a></div>')
     inhalt = (f'<h1>{amt.ic("landmark")} Staatliche Kassen</h1>'
               f'<p class="az">Dienstliche Ansicht für {esc(geld.anzeigename(con, k["id"], k["name"]))} – Ihr privates Konto sehen Sie unter „Privat“.</p>'
               f'{amt.meldung(request)}<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
-              f'<h2>Kassen in Ihrer Verfügung</h2>' + (f'<div class="sa-karten">{_karten(konten)}</div>' if konten else leer) + letzte)
+              + schnell + kassen + letzte)
     return ant(request, k, "Staatliche Kassen", "sa-start", inhalt)
 
 
-def _karten(konten):
+def _kassen_zusatz(con, konten):
+    """{Konto-ID: kurze Zusatzzeile} – Jahresetat bei Behörden, Reichsabgabe bei Staatskassen."""
+    import aufkommen
+    import etat
+    out = {}
+    if any(r["art"] == "behoerde" for r in konten):
+        e = etat.etats(con)
+        for r in konten:
+            if r["art"] == "behoerde" and e.get(r["stelle"]):
+                out[r["id"]] = f'Jahresetat {geld.mark_kurz(e[r["stelle"]])}'
+    if any(r["art"] == "teilstaat" for r in konten):
+        q = aufkommen.abgabequoten(aufkommen.staaten_bip(con), geld.einstellung(con, "aufkommen"))
+        for r in konten:
+            if r["art"] == "teilstaat" and r["stelle"][3:] in q:
+                out[r["id"]] = f'Reichsabgabe {q[r["stelle"][3:]]:.1f} % der Steuereinnahmen'.replace(".", ",")
+    return out
+
+
+def _karten(konten, zusatz=None):
+    zusatz = zusatz or {}
     return "".join(
         f'<div class="sa-karte"><small>{esc(geld.art_name(r))}</small><div class="sa-name">{esc(r["name"])}</div>'
-        f'<div class="sa-nr az">{nummer_anzeige(r["nummer"])}</div><div class="sa-saldo">{betrag_html(r["saldo"], False)}</div>'
+        f'<div class="sa-nr az">{nummer_anzeige(r["nummer"])}</div><div class="sa-saldo">{betrag_html(r["saldo"], False, kurz=True)}</div>'
+        + (f'<p class="az sa-zusatz">{esc(zusatz[r["id"]])}</p>' if r["id"] in zusatz else "")
         + (f'<p class="az" style="color:var(--rot)">Gesperrt{": " + esc(r["sperrgrund"]) if r["sperrgrund"] else ""}</p>' if r["gesperrt"] else "")
         + f'<div class="sa-aktionen"><a class="btn" href="{PFAD}ueberweisen/?von={r["id"]}">{amt.ic("arrow-right-left")}Überweisen</a>'
         f'<a class="btn zweit" href="{PFAD}konto/?konto={r["id"]}">{amt.ic("wallet")}Umsätze</a></div></div>' for r in konten)
@@ -630,8 +694,9 @@ def tarife_html(con):
         unten = bis or unten
     v, g, ak = e("vermoegensteuer"), e("gewerbesteuer"), e("aufkommen")
     saetze = [("Währung", f'Krone (Kr) zu 100 Heller · 1 Kr = {e("wechselkurs")} €'),
-              ("Staatshaushalt der Bevölkerung", f'Steuern {ak["steuerquote"]} % des BIP je Teilstaat (Echtmaßstab), {ak["reichsanteil"]} % an das Reich, '
-                                                 f'Rest an den Teilstaat; Pflichtausgaben {ak.get("ausgabenquote", 97)} % der Einnahmen (monatlich)'),
+              ("Staatshaushalt der Bevölkerung", f'Steuern {ak["steuerquote"]} % des BIP je Teilstaat (Echtmaßstab); Reichsabgabe je Teilstaat '
+                                                 f'nach Bevölkerung, Einkommen pro Kopf und Fläche (im Schnitt {ak["reichsanteil"]} %, '
+                                                 f'{ak.get("quote_min", 20)}–{ak.get("quote_max", 65)} %), Rest an den Teilstaat; Pflichtausgaben {ak.get("ausgabenquote", 97)} % der Einnahmen (monatlich)'),
               ("Sozialabgabe (Reichsversicherung)", f'{e("sozialabgabe")} % des Bruttogehalts'),
               ("Länderanteil", f'{e("laenderanteil")} % von Lohn- und Kopfsteuer an den Wohnsitz-Teilstaat'),
               ("Kopfsteuer", f'{mark(e("kopfsteuer"))} je Steuerlauf und Staatsbürger'),

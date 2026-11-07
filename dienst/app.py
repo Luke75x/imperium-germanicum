@@ -28,6 +28,7 @@ import steuern
 import besoldung
 import aufkommen
 import gold
+import etat
 import organigramme
 import post
 import strafsachen
@@ -62,6 +63,7 @@ def erstellen():
     besoldung.registrieren(app)
     aufkommen.registrieren(app)
     gold.registrieren(app)
+    etat.registrieren(app)
     return app
 
 
