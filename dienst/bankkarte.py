@@ -216,7 +216,8 @@ def braucht_pin(con, request, k):
     if erste not in MEIN_GELD + DUAL:
         return False
     if erste in DUAL:
-        if request.cookies.get(sa.MODUS_COOKIE) == "staat" and sa.hat_staat(con, k):
+        c = request.cookies.get(sa.MODUS_COOKIE)
+        if (c == "staat" and sa.hat_staat(con, k)) or (c == "rp" and sa.ist_rp(k)):
             return False
     if len(teile) > 1 and teile[1].isdigit() and geld.ist_beamter(k):   # gehalt/<id>, konto/<id>/pdf
         return False

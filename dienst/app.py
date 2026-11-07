@@ -33,6 +33,7 @@ import verteidigung
 import notlage
 import etatplan
 import bankkarte
+import rpleitung
 import organigramme
 import post
 import strafsachen
@@ -72,6 +73,7 @@ def erstellen():
     notlage.registrieren(app)
     etatplan.registrieren(app)
     bankkarte.registrieren(app)
+    rpleitung.registrieren(app)
     return app
 
 

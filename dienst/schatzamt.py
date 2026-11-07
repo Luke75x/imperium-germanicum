@@ -69,6 +69,9 @@ table.liste td.sa-betrag,table.liste th.sa-betrag{text-align:right}
 .sa-modus{display:flex;border:1px solid var(--ink);border-radius:999px;padding:2px;margin:0 8px 12px;background:#fff}
 .sa-modus a{flex:1;text-align:center;padding:5px 10px;border-radius:999px;font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--ink);text-decoration:none}
 .sa-modus a:hover{background:var(--hell)}
+.sa-modus a.rp{flex:0 0 auto;padding:5px 8px;font-size:10.5px;font-weight:500;letter-spacing:.08em;opacity:.45}
+.sa-modus a.rp:hover,.sa-modus a.rp.aktiv{opacity:1}
+.sa-haken{display:flex;gap:8px;align-items:center;margin:6px 0;font-size:14px}.sa-haken input{width:auto}
 .sa-modus a.aktiv,.sa-modus a.aktiv:hover{background:var(--ink);color:#fff}
 .kopf .sa-modus{display:none;margin:0 0 0 4px}
 @media (max-width:800px){.kopf .sa-modus{display:flex}.kopf .sa-modus a{padding:5px 9px;font-size:12.5px}}
@@ -136,11 +139,21 @@ def hat_staat(con, k):
     return hat_kassen(con, k) or hat_verteidigung(con, k)
 
 
+def ist_rp(k):
+    """Server- und RP-Leitung (Discord-Administratoren): dritte Ansicht „RP“."""
+    return bool(k) and bool(k["mitglied"]) and bool(k["admin"])
+
+
 def modus(request, k):
-    """'staat' oder 'privat' (gewählt per Umschalter, gespeichert im Cookie; ohne staatlichen Zugriff immer 'privat')."""
+    """'staat', 'privat' oder 'rp' (gewählt per Umschalter, gespeichert im Cookie; ohne Zugriff immer 'privat')."""
     if "sa_modus" not in request:
-        staat = request.cookies.get(MODUS_COOKIE) == "staat" and hat_staat(request.app["db"], k)
-        request["sa_modus"] = "staat" if staat else "privat"
+        c = request.cookies.get(MODUS_COOKIE)
+        if c == "rp" and ist_rp(k):
+            request["sa_modus"] = "rp"
+        elif c == "staat" and hat_staat(request.app["db"], k):
+            request["sa_modus"] = "staat"
+        else:
+            request["sa_modus"] = "privat"
     return request["sa_modus"]
 
 
@@ -149,17 +162,21 @@ def konten_im_modus(con, k, m):
     return [r for r in geld.verfuegbare_konten(con, k) if (r["art"] in PRIVATARTEN) == (m == "privat")]
 
 
-def _umschalter(m, aktiv):
-    def a(wert, text):
+def _umschalter(m, aktiv, staat=True, rp=False):
+    def a(wert, text, klasse="", titel=""):
         ziel = PFAD + "modus/" + wert
         if aktiv and aktiv not in ("sa-start", "sa-konto", "sa-ueberweisen", "sa-tarife"):
             ziel += "?weiter=" + quote(PFAD)
-        return f'<a href="{ziel}" class="{"aktiv" if m == wert else ""}"{" aria-current=true" if m == wert else ""}>{text}</a>'
-    return f'<nav class="sa-modus" aria-label="Ansicht">{a("staat", "Staatl.")}{a("privat", "Privat")}</nav>'
+        kl = (klasse + (" aktiv" if m == wert else "")).strip()
+        return (f'<a href="{ziel}" class="{kl}"{" aria-current=true" if m == wert else ""}' + (f' title="{titel}" aria-label="{titel}"' if titel else "") + f'>{text}</a>')
+    return ('<nav class="sa-modus" aria-label="Ansicht">' + (a("staat", "Staatl.") if staat else "") + a("privat", "Privat")
+            + (a("rp", "RP", "rp", "RP-Leitung") if rp else "") + '</nav>')
 
 
 async def modus_setzen(request):
-    m = "staat" if request.match_info["m"] == "staat" else "privat"
+    m = {"staat": "staat", "rp": "rp"}.get(request.match_info["m"], "privat")
+    if m == "rp" and not ist_rp(await anmeldung.konto(request)):
+        m = "privat"
     u = urlsplit(request.query.get("weiter") or request.headers.get("Referer") or PFAD)
     ziel = u.path if u.path.startswith(PFAD) and not u.path.startswith(PFAD + "modus/") else PFAD
     if ziel != PFAD and u.query:   # Kontowahl (?konto=) gilt nur im alten Modus, Meldungen nicht wiederholen
@@ -171,7 +188,13 @@ async def modus_setzen(request):
 
 
 def nav(k, m="privat", schalter=False, aktiv="", con=None):
-    if m == "staat":
+    if m == "rp":
+        mein = [("sa-rp", "layout-dashboard", "Lagebild", "rp/"), ("sa-rp-faelle", "folder-open", "Fälle", "rp/faelle/"),
+                ("sa-rp-konten", "search", "Konten & Personen", "rp/konten/"), ("sa-rp-protokoll", "scroll-text", "Protokoll", "rp/protokoll/")]
+        gruppen = [("RP-Leitung", mein), ("Hilfsmittel", [("sa-amt-bankkarten", "credit-card", "Bankkarten", "amt/bankkarten/"),
+                                                          ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/"),
+                                                          ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/")])]
+    elif m == "staat":
         kassen = con is None or hat_kassen(con, k)
         vt = con is None or hat_verteidigung(con, k)
         mein = [("sa-start", "layout-dashboard", "Übersicht", "")]
@@ -194,7 +217,9 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
                 ("sa-gehalt", "banknote", "Gehalt", "gehalt/"), ("sa-gewerbe", "store", "Gewerbe", "gewerbe/")]
         gruppen = [("Bankkarte", [("sa-bankkarte", "credit-card", "Bankkarte & PIN", "bankkarte/")]), ("Mein Geld", mein),
                    ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
-    if m == "staat" and geld.ist_beamter(k):
+    if m == "rp":
+        pass
+    elif m == "staat" and geld.ist_beamter(k):
         amtl = [("sa-amt", "landmark", "Verwaltung", "amt/"), ("sa-amt-konten", "wallet", "Konten", "amt/konten/"),
                 ("sa-amt-steuern", "receipt", "Steuerverwaltung", "amt/steuern/"), ("sa-amt-gewerbe", "store", "Gewerberegister", "amt/gewerbe/"),
                 ("sa-amt-bankkarten", "credit-card", "Bankkarten", "amt/bankkarten/")]
@@ -212,7 +237,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
     gruppen.append(("Weiteres", weiter))
     out = {"basis": PFAD, "gruppen": gruppen, "haupt": mein[:4], "logo": geld.STELLE, "name": "Schatzamt"}
     if schalter:
-        out["unter_logo"] = out["kopf_zusatz"] = _umschalter(m, aktiv)
+        out["unter_logo"] = out["kopf_zusatz"] = _umschalter(m, aktiv, hat_staat(con, k) if con is not None else True, ist_rp(k))
     return out
 
 
@@ -228,9 +253,13 @@ def _kennzahlen_kurz(html_):
 
 
 def ant(request, k, titel, aktiv, inhalt, status=200):
-    schalter = hat_staat(request.app["db"], k)
+    schalter = hat_staat(request.app["db"], k) or ist_rp(k)
     m = modus(request, k)
-    if schalter and (aktiv.startswith("sa-amt") or aktiv in NUR_STAAT):
+    if aktiv.startswith("sa-rp"):
+        m = "rp"
+    elif m == "rp" and aktiv.startswith("sa-amt"):
+        pass                 # Hilfsmittel der RP-Leitung bleiben in der RP-Ansicht
+    elif schalter and (aktiv.startswith("sa-amt") or aktiv in NUR_STAAT):
         m = "staat"          # Verwaltungsseiten gehören immer zur staatlichen Ansicht
     elif aktiv in NUR_PRIVAT:
         m = "privat"
@@ -248,7 +277,7 @@ def seite(recht=None):
             k = await anmeldung.konto(request)
             if not k:
                 raise web.HTTPFound("/anmelden/?weiter=" + quote(request.path_qs))
-            ok = {"mitglied": k["mitglied"], "beamter": geld.ist_beamter(k), "leitung": geld.ist_leitung(k)}.get(recht, True)
+            ok = {"mitglied": k["mitglied"], "beamter": geld.ist_beamter(k), "leitung": geld.ist_leitung(k), "rp": ist_rp(k)}.get(recht, True)
             if recht == "staat":
                 ok = hat_kassen(request.app["db"], k)
             elif recht == "verteidigung":
@@ -258,6 +287,7 @@ def seite(recht=None):
                         "staat": "Dieser Bereich ist staatlich und nur für Amtsträger mit Verfügung über eine staatliche Kasse einsehbar.",
                         "verteidigung": "Der Bereich Verteidigung ist dem Militär (für den eigenen Teilstaat), den Landesherren, dem Führungsstab, "
                                         "dem Kanzler und dem Kaiser vorbehalten.",
+                        "rp": "Dieser Bereich ist der Server- und RP-Leitung vorbehalten.",
                         "beamter": "Dieser Bereich ist dem Kaiserlichen Schatz- und Währungsamt vorbehalten.",
                         "leitung": "Dieser Bereich ist der Leitung des Schatz- und Währungsamts vorbehalten."}[recht]
                 return ant(request, k, "Kein Zugang", "", f'<h1>Kein Zugang</h1><div class="warnung">{esc(text)}</div>', 403)
@@ -393,6 +423,8 @@ async def uebersicht(request, k):
     if not k["mitglied"]:
         return ant(request, k, "Übersicht", "sa-start", f'<h1>{amt.ic("landmark")} {esc(geld.NAME)}</h1>'
                    '<div class="warnung">Ein Konto beim Schatzamt können nur Mitglieder unseres Discord-Servers eröffnen.</div>')
+    if modus(request, k) == "rp":
+        raise web.HTTPFound(PFAD + "rp/")
     if modus(request, k) == "staat":
         return _uebersicht_staat(request, k, con)
     p = geld.privatkonto(con, k["id"], k=k)
