@@ -46,6 +46,8 @@ amt.ICONS.setdefault("wrench", '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0
                                '2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>')
 
 # Richtpreise (Größenordnung, Stand 2024/25, ohne Gewähr): (Schlüssel, Name, Kategorie, Mio. €, Instandhaltung % p. a., Besatzung)
+# Marine: Flugzeugträger ≈ großer Träger mit Katapulten (ohne Luftgeschwader), Kreuzer/Zerstörer ≈ große Lenkwaffenschiffe,
+# Amphibisches Mehrzweckkampfschiff ≈ Hubschrauberträger mit Docklandeschiff; Schlachtschiff: heute ohne Vorbild, angenommene Größenordnung.
 KATALOG = [
     ("kpz", "Kampfpanzer", "Heer", 29, 6, 4), ("spz", "Schützenpanzer", "Heer", 17, 6, 9),
     ("tpz", "Radschützen- und Transportpanzer", "Heer", 10, 5, 11), ("pzh", "Panzerhaubitze", "Heer", 17, 5, 5),
@@ -57,6 +59,9 @@ KATALOG = [
     ("kfz", "Kampfflugzeug", "Luftwaffe", 110, 7, 1), ("tfz", "Transportflugzeug", "Luftwaffe", 180, 6, 4),
     ("khs", "Kampfhubschrauber", "Luftwaffe", 50, 8, 2), ("ths", "Transporthubschrauber", "Luftwaffe", 80, 8, 4),
     ("drohne", "Aufklärungs- und Kampfdrohne", "Luftwaffe", 30, 6, 0),
+    ("traeger", "Flugzeugträger", "Marine", 10000, 4, 2000), ("schlachtschiff", "Schlachtschiff", "Marine", 6000, 4, 1200),
+    ("kreuzer", "Kreuzer", "Marine", 3000, 3, 400), ("zerstoerer", "Zerstörer", "Marine", 2000, 3, 300),
+    ("amphib", "Amphibisches Mehrzweckkampfschiff", "Marine", 900, 3, 450),
     ("fregatte", "Fregatte", "Marine", 1800, 3, 120), ("korvette", "Korvette", "Marine", 500, 3, 60),
     ("uboot", "U-Boot", "Marine", 1000, 3, 30), ("minen", "Minenabwehrboot", "Marine", 150, 4, 40),
     ("versorger", "Einsatzgruppenversorger", "Marine", 600, 3, 150),
@@ -79,12 +84,14 @@ ARTEN = {"beschaffung": "Beschaffung", "ausmusterung": "Ausmusterung", "instandh
 
 
 def einrichten(con):
+    """Legt fehlende Katalogeinträge an (neue Typen kommen so auch in bestehende Kataloge) und hält die Reihenfolge aktuell;
+    bereits angepasste Preise und Sätze bleiben unberührt."""
     con.executescript(SCHEMA)
-    if not con.execute("SELECT 1 FROM vt_katalog LIMIT 1").fetchone():
-        kurs = geld.wechselkurs(con)
-        for i, (s, n, kat, mio, ih, bes) in enumerate(KATALOG):
-            con.execute("INSERT INTO vt_katalog (schl, name, kategorie, preis, instandhaltung, besatzung, rang) VALUES (?,?,?,?,?,?,?)",
-                        (s, n, kat, int(round(mio * 1e6 / kurs)) * 100, ih, bes, i))
+    kurs = geld.wechselkurs(con)
+    for i, (s, n, kat, mio, ih, bes) in enumerate(KATALOG):
+        con.execute("INSERT OR IGNORE INTO vt_katalog (schl, name, kategorie, preis, instandhaltung, besatzung, rang) VALUES (?,?,?,?,?,?,?)",
+                    (s, n, kat, int(round(mio * 1e6 / kurs)) * 100, ih, bes, i))
+        con.execute("UPDATE vt_katalog SET rang=? WHERE schl=?", (i, s))
     con.commit()
 
 
