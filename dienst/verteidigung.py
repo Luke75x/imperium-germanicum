@@ -13,7 +13,8 @@ Bestand je Teilstaat (vt_bestand, mit Einsatzbereitschaft 0–100 %), Beschaffun
 Ausmusterung (Restwert zurück), monatliche Instandhaltung (vt_laeufe; reicht das Geld nicht, sinkt die Einsatzbereitschaft,
 bei voller Bezahlung steigt sie wieder). Vorgänge in vt_vorgaenge.
 Rechte: Reichsverteidigungskasse – Führungsstab, Kanzler/Kaiser, Leitung des Schatzamts; Teilstaat – Landesherr (wie Staatskasse),
-Leitung des Schatzamts.
+Leitung des Schatzamts. Gerät beschaffen/ausmustern zusätzlich der Generalstab des Teilstaats (darf_geraet); Zuführung aus der
+Staatskasse und Kontoumsätze nur Landesherr/Leitung.
 Sehen (sicht): alles – Führungsstab, Kaiser, Kanzler (und Leitung des Schatzamts); Militär (Generalstab, Teilstreitkräfte, militärische
 Dienstgrade = Rollen mit Zahlstelle „vt-land“) und Landesherren nur ihren Teilstaat laut Fraktionsrolle; Militär ohne Fraktion das Reich. Katalog und Sätze: Leitung des Schatzamts und Führungsstab. Seiten unter /schatzamt/verteidigung/ (staatlich).
 """
@@ -136,6 +137,15 @@ def regierte(con, k):
     if geld.ist_leitung(k):
         return {r["stelle"][3:] for r in con.execute("SELECT stelle FROM gk_konten WHERE art='verteidigung' AND stelle LIKE 'vt-%'")}
     return {r["stelle"][3:] for r in geld.regierte_staatskassen(con, k)}
+
+
+def darf_geraet(con, k, sid):
+    """Gerät beschaffen und ausmustern: wer über die Kasse verfügt (Landesherr, Leitung) und der Generalstab des Teilstaats
+    (Generalstab-Rolle, Militär im Sinne von ist_militaer, Fraktionsrolle des Teilstaats)."""
+    if darf_land(con, k, sid):
+        return True
+    return (bool(k) and k["mitglied"] and GENERALSTAB in k["rollen"] and ist_militaer(con, k)
+            and sid in staaten_von(con, k["rollen"]))
 
 
 def darf_land(con, k, sid):
@@ -446,7 +456,8 @@ async def land(request, k):
         return sa.ant(request, k, "Kein Zugang", "sa-verteidigung", '<h1>Kein Zugang</h1><div class="warnung">Sie sehen nur den Verteidigungsbereich '
                       'Ihres eigenen Teilstaats (Zuordnung über die Fraktionsrolle).</div>', 403)
     stelle = kasse["stelle"]
-    darf = darf_land(con, k, sid)
+    darf = darf_geraet(con, k, sid)          # Gerät beschaffen/ausmustern (Landesherr, Generalstab des Teilstaats, Leitung)
+    kasse_darf = darf_land(con, k, sid)      # über die Kassen verfügen: Zuführung, Umsätze (Landesherr, Leitung)
     kz = kennzahlen(con, stelle)
     b = bestand(con, stelle)
     pk = await personalkosten(request.app, con)
@@ -490,7 +501,7 @@ async def land(request, k):
                     '{minimumFractionDigits:2,maximumFractionDigits:2})+" Kr"}function u(){var p=+s.options[s.selectedIndex].dataset.preis*(+a.value||0);'
                     'o.textContent="Gesamtpreis "+z(p)+" – Verteidigungskasse "+z(k)+(p>k?" (nicht gedeckt)":"");}s.onchange=a.oninput=u;u();'
                     'f.onsubmit=function(){return confirm(o.textContent+". Jetzt beschaffen?")}})()</script>')
-        if staatskasse:
+        if staatskasse and kasse_darf:
             aktionen += (f'<h2>Aus der Staatskasse zuführen</h2><form class="sa-leiste" method="post" action="{PFAD}{esc(sid)}/zufuehren">{c}'
                          '<div><label for="zb">Betrag in Kronen</label><input type="text" id="zb" name="betrag" required inputmode="decimal"></div>'
                          f'<button class="btn zweit" type="submit">{amt.ic("arrow-right-left")}Zuführen</button></form>'
@@ -499,7 +510,7 @@ async def land(request, k):
     s = sicht(con, k)
     zurueck = (f'<p class="zurueck"><a href="{PFAD}">{amt.ic("arrow-left")}Verteidigung</a></p>' if s["alle"] or len(s["sids"]) > 1 or s["reich"] else "")
     inhalt = (zurueck + f'<h1>{amt.ic("shield")} Verteidigung · {esc(name)}</h1>{amt.meldung(request)}'
-              + ("" if darf else '<p class="sa-hinweis">Nur Ansicht – Beschaffungen und Zuführungen veranlasst der Landesherr.</p>')
+              + ("" if darf else '<p class="sa-hinweis">Nur Ansicht – Beschaffungen veranlassen Landesherr und Generalstab des Teilstaats.</p>')
               + f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kzs)}</div>'
               + (f'<p class="sa-status{" ok" if frei >= 0 else ""}">{amt.ic("check" if frei >= 0 else "clock")}'
                  + (f"Nach Personal und Instandhaltung bleiben vom Monatsetat {mark(frei)} für Beschaffungen."
@@ -511,7 +522,7 @@ async def land(request, k):
               + amt.tabelle(["Zeit", "Vorgang", "Betrag", "Beschreibung", "Durch"],
                             [(amt._zeit(v["zeit"]), esc(ARTEN.get(v["art"], v["art"])), mark(v["betrag"]), esc(v["text"]), esc(v["autor_name"])) for v in vorg],
                             "Noch keine Vorgänge.") + '</details>'
-              + (f'<p><a href="{sa.PFAD}konto/?konto={kasse["id"]}">Umsätze der Verteidigungskasse →</a></p>' if darf else ""))
+              + (f'<p><a href="{sa.PFAD}konto/?konto={kasse["id"]}">Umsätze der Verteidigungskasse →</a></p>' if kasse_darf else ""))
     return sa.ant(request, k, f"Verteidigung {name}", "sa-verteidigung", inhalt)
 
 
@@ -566,8 +577,8 @@ def _anzahl(form):
 async def beschaffen_post(request):
     k, form, con = await _post(request)
     sid = request.match_info["sid"]
-    if not darf_land(con, k, sid):
-        raise web.HTTPForbidden(text="Über diese Verteidigungskasse darfst du nicht verfügen.")
+    if not darf_geraet(con, k, sid):
+        raise web.HTTPForbidden(text="Für diesen Teilstaat darfst du kein Gerät beschaffen oder ausmustern.")
     try:
         preis = beschaffen(con, "vt-" + sid, str(form.get("typ", "")), _anzahl(form), k)
         con.commit()
@@ -580,8 +591,8 @@ async def beschaffen_post(request):
 async def ausmustern_post(request):
     k, form, con = await _post(request)
     sid = request.match_info["sid"]
-    if not darf_land(con, k, sid):
-        raise web.HTTPForbidden(text="Über diese Verteidigungskasse darfst du nicht verfügen.")
+    if not darf_geraet(con, k, sid):
+        raise web.HTTPForbidden(text="Für diesen Teilstaat darfst du kein Gerät beschaffen oder ausmustern.")
     try:
         erloes = ausmustern(con, "vt-" + sid, str(form.get("typ", "")), _anzahl(form), k)
         con.commit()
