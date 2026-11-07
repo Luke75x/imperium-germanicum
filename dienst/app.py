@@ -32,6 +32,7 @@ import etat
 import verteidigung
 import notlage
 import etatplan
+import bankkarte
 import organigramme
 import post
 import strafsachen
@@ -39,7 +40,7 @@ import reichstag
 
 
 def erstellen():
-    app = web.Application(client_max_size=2 * 1024 * 1024)
+    app = web.Application(client_max_size=2 * 1024 * 1024, middlewares=[bankkarte.pin_sperre])
     app["db"] = db.verbinden()
     app["discord"] = dc = discord_api.Discord()
     app.on_startup.append(dc.start)
@@ -70,6 +71,7 @@ def erstellen():
     verteidigung.registrieren(app)
     notlage.registrieren(app)
     etatplan.registrieren(app)
+    bankkarte.registrieren(app)
     return app
 
 

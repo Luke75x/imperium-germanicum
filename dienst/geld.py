@@ -286,6 +286,10 @@ def buchen(con, von, an, betrag, art, zweck="", k=None, bezug="", minus=False, c
     if kv and ka and kv["stelle"] in ("reichskasse", "zentralbank"):
         import notlage
         notlage.hilfe_pruefen(con, kv, ka, art)   # das Reich zahlt nicht für das Minus eines Teilstaats
+    if kv and k and k.get("id") and art in ("ueberweisung", "steuer", "gebuehr") and kv["art"] in ("privat", "gewerbe") and kv["inhaber_id"] == k["id"]:
+        import bankkarte   # ohne gültige Bankkarte keine selbst veranlasste Geldbewegung
+        if not bankkarte.karte_gueltig(con, k["id"]):
+            raise Fehler("Ohne gültige Bankkarte sind keine Geldbewegungen möglich. Beantrage eine Karte im Schatzamt-Portal unter „Bankkarte“.")
     if kv:
         if kv["gesperrt"] and art in ("ueberweisung", "steuer", "gebuehr"):
             raise Fehler(f'Das Konto {nummer_anzeige(kv["nummer"])} ist gesperrt' + (f': {kv["sperrgrund"]}' if kv["sperrgrund"] else "."))

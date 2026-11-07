@@ -61,7 +61,7 @@ CSS = """<style>
 .sa-formular{max-width:760px}
 .sa-formular .zeilen{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:10px}
 .sa-formular label{display:block}
-.sa-formular input[type=text],.sa-formular input[type=search],.sa-formular select,.sa-formular textarea{width:100%}
+.sa-formular input[type=text],.sa-formular input[type=password],.sa-formular input[type=search],.sa-formular select,.sa-formular textarea{width:100%}
 .sa-hinweis{color:var(--grau);font-size:13.5px}
 .sa-leiste{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:6px 0 10px}
 .sa-leiste>div{min-width:150px}
@@ -112,7 +112,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 # ---- Modus „Staatl.“ / „Privat“ (Umschalter unter dem Logo; Cookie, nur für Konten mit staatlichem Zugriff)
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
-NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe")     # Seiten, die nur die Privatperson betreffen
+NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe", "sa-bankkarte")     # Seiten, die nur die Privatperson betreffen
 NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
@@ -192,10 +192,12 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
         mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Konto & Umsätze", "konto/"),
                 ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/"), ("sa-steuern", "receipt", "Steuern & Gebühren", "steuern/"),
                 ("sa-gehalt", "banknote", "Gehalt", "gehalt/"), ("sa-gewerbe", "store", "Gewerbe", "gewerbe/")]
-        gruppen = [("Mein Geld", mein), ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
+        gruppen = [("Bankkarte", [("sa-bankkarte", "credit-card", "Bankkarte & PIN", "bankkarte/")]), ("Mein Geld", mein),
+                   ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
     if m == "staat" and geld.ist_beamter(k):
         amtl = [("sa-amt", "landmark", "Verwaltung", "amt/"), ("sa-amt-konten", "wallet", "Konten", "amt/konten/"),
-                ("sa-amt-steuern", "receipt", "Steuerverwaltung", "amt/steuern/"), ("sa-amt-gewerbe", "store", "Gewerberegister", "amt/gewerbe/")]
+                ("sa-amt-steuern", "receipt", "Steuerverwaltung", "amt/steuern/"), ("sa-amt-gewerbe", "store", "Gewerberegister", "amt/gewerbe/"),
+                ("sa-amt-bankkarten", "credit-card", "Bankkarten", "amt/bankkarten/")]
         if geld.ist_leitung(k):
             amtl += [("sa-amt-besoldung", "users", "Besoldung & Lohnlauf", "amt/besoldung/"), ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/"),
                      ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/")]

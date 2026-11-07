@@ -250,7 +250,7 @@ td.text{white-space:pre-wrap;word-break:break-word}
 .s-offen{color:var(--warn)}.s-ok{color:var(--ok)}.s-nein{color:var(--rot)}.s-neutral{color:var(--grau)}
 form.zeile{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:10px 0}
 label{display:block;font-size:13px;color:var(--grau);margin-bottom:3px}
-input[type=text],input[type=search],input[type=number],input[type=date],input[type=file],select,textarea{font:inherit;padding:8px 10px;border:1px solid #c9ccd2;border-radius:8px;background:#fff;color:var(--ink);max-width:100%}
+input[type=text],input[type=search],input[type=number],input[type=date],input[type=file],input[type=password],select,textarea{font:inherit;padding:8px 10px;border:1px solid #c9ccd2;border-radius:8px;background:#fff;color:var(--ink);max-width:100%}
 input:focus,select:focus,textarea:focus{outline:0;border-color:#8aa3c7;box-shadow:0 0 0 3px rgba(31,78,140,.12)}
 textarea{width:100%;min-height:90px}
 .btn,button.btn{font:inherit;font-size:14.5px;font-weight:500;border:1px solid var(--kopf);background:var(--kopf);color:#fff;padding:8px 15px;cursor:pointer;text-decoration:none;display:inline-flex;gap:7px;align-items:center;border-radius:8px;transition:filter .15s,background .15s}
@@ -462,7 +462,7 @@ html.min .btn,html.min button.btn{background:#111;border-color:#111}
 html.min .btn.zweit{background:#fff;color:#111;border-color:#dcdee2}
 html.min .btn.zweit:hover{background:#f6f7f8}
 html.min .btn.gefahr{background:#fff;color:var(--rot);border-color:#ecd0d0}
-html.min input[type=text],html.min input[type=search],html.min select,html.min textarea{border-color:#dcdee2}
+html.min input[type=text],html.min input[type=search],html.min input[type=password],html.min select,html.min textarea{border-color:#dcdee2}
 html.min .hinweis{border:0;background:#f5f6f8}
 html.min .warnung{border:0;background:#fbf1f1}
 html.min .balken{background:#111}
