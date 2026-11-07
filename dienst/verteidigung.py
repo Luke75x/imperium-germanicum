@@ -15,8 +15,9 @@ bei voller Bezahlung steigt sie wieder). Vorgänge in vt_vorgaenge.
 Rechte: Reichsverteidigungskasse – Führungsstab, Kanzler/Kaiser, Leitung des Schatzamts; Teilstaat – Landesherr (wie Staatskasse),
 Leitung des Schatzamts. Gerät beschaffen/ausmustern zusätzlich der Generalstab des Teilstaats (darf_geraet); Zuführung aus der
 Staatskasse und Kontoumsätze nur Landesherr/Leitung.
-Sehen (sicht): alles – Führungsstab, Kaiser, Kanzler (und Leitung des Schatzamts); Militär (Generalstab, Teilstreitkräfte, militärische
-Dienstgrade = Rollen mit Zahlstelle „vt-land“) und Landesherren nur ihren Teilstaat laut Fraktionsrolle; Militär ohne Fraktion das Reich. Katalog und Sätze: Leitung des Schatzamts und Führungsstab. Seiten unter /schatzamt/verteidigung/ (staatlich).
+Sehen (sicht): alles – Führungsstab, Kaiser, Kanzler (und Leitung des Schatzamts); General- und Offiziersstab (Rollen Generalstab,
+Offiziersränge; ohne Polizei/Zoll/Katastrophenschutz) und Landesherren nur ihren Teilstaat laut Fraktionsrolle; Stab ohne Fraktion das Reich.
+Unteroffiziere und Mannschaften sehen den Verteidigungsetat nicht. Gerät beschaffen: Generäle (Generalstab) des Teilstaats, Landesherr. Katalog und Sätze: Leitung des Schatzamts und Führungsstab. Seiten unter /schatzamt/verteidigung/ (staatlich).
 """
 import json
 import time
@@ -39,6 +40,7 @@ ROLLE_OBERBEFEHLSHABER = "1522707672808292586"
 FUEHRUNGSSTAB = {ROLLE_OBERBEFEHLSHABER: "Oberbefehlshaber", "1522721092127555666": "Stabschef des Heeres",
                  "1522912530446684190": "Stabschef der Marine", "1522913031456034938": "Stabschef der Luftwaffe"}
 GENERALSTAB = "1522706926973096057"
+OFFIZIERSSTAB = "1522914146390380636"     # Discord-Rolle „Offiziersränge“
 TEILSTREITKRAEFTE = {"1526343002966986882": "Kaiserliches Heer", "1526343128997695528": "Kaiserliche Luftwaffe",
                      "1526343421386690663": "Kaiserliche Marine"}
 
@@ -169,6 +171,17 @@ def militaer_rollen(con):
     return {GENERALSTAB, *TEILSTREITKRAEFTE} | {r["rolle_id"] for r in con.execute("SELECT rolle_id FROM bs_rollen WHERE zahlstelle='vt-land'")}
 
 
+def _zivil(rollen):
+    """Angehörige einer zivilen Sicherheitsbehörde (Polizei, Zoll, Katastrophenschutz) – deren Ränge stehen ebenfalls unter
+    Generalstab/Offiziersrängen, zählen aber nicht zum Militär."""
+    return bool(set(rollen) & {r for b in amt.BEHOERDEN if b["schl"] in ("polizei", "zoll", "katastrophenschutz") for r in b["rollen"]})
+
+
+def ist_stab(con, k):
+    """General- oder Offiziersstab des Militärs (Rollen Generalstab bzw. Offiziersränge, ohne zivile Sicherheitsbehörden)."""
+    return bool(k) and bool(set(k["rollen"]) & {GENERALSTAB, OFFIZIERSSTAB}) and not _zivil(k["rollen"])
+
+
 def ist_militaer(con, k):
     """Militär: Teilstreitkraft oder militärischer Dienstgrad; der Generalstab zählt, außer bei Angehörigen einer zivilen
     Sicherheitsbehörde (Polizei, Zoll, Katastrophenschutz), deren Ränge ebenfalls im Generalstab geführt werden."""
@@ -194,7 +207,7 @@ def sicht(con, k):
         return {"alle": False, "sids": set(), "reich": False, "irgendwas": False}
     if "_vt_sicht" not in k:
         alle = ist_fuehrungsstab(k) or bereiche._alle(k) or geld.ist_leitung(k)
-        mil = ist_militaer(con, k)
+        mil = ist_stab(con, k)   # nur General- und Offiziersstab; Unteroffiziere und Mannschaften sehen den Etat nicht
         eigene = staaten_von(con, k["rollen"]) if mil else set()
         sids = {r["stelle"][3:] for r in geld.regierte_staatskassen(con, k)} | eigene
         reich = alle or (mil and not eigene)
