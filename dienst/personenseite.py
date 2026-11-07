@@ -23,6 +23,7 @@ from aiohttp import web
 import amt
 import anmeldung
 import landespolizei
+import lichtbild
 import meldewesen
 import passdigital
 import passdruck
@@ -88,7 +89,7 @@ def darf_sehen(k):
 
 def dokument(con, p, status):
     d = passdruck.daten(con, p, True)
-    d["foto"] = f'{BASIS}pass-foto/{p["konto_id"]}' if d["foto"] else ""
+    d["foto"] = lichtbild.url(con, p["akte_id"], p["konto_id"])
     stempel = f'<div class="stempel">{esc(passdigital.STEMPEL[status])}</div>' if status in passdigital.STEMPEL else ""
     if p["art"] == "personalausweis":
         vorne, hinten = passdruck.karte_seiten(d)
@@ -216,8 +217,9 @@ def _seite(con, k, z, p, status, request=None):
                      f'<span>{esc(HINWEIS[status])}{zusatz}</span></div></div>')
     gesperrt = bool(z and z["verschluss"]) and not amt.darf_verschluss(k)
     konto_id = z["konto_id"] if z else (p["konto_id"] if p is not None else "")
-    foto = con.execute("SELECT avatar FROM konten WHERE id=?", (konto_id,)).fetchone() if konto_id else None
-    bild = (f'<img src="{BASIS}pass-foto/{esc(konto_id)}" alt="">' if foto and foto["avatar"] and not gesperrt else '<span class="ohne">kein Bild</span>')
+    akte_id = z["id"] if z else (p["akte_id"] if p is not None else None)
+    foto = lichtbild.url(con, akte_id, konto_id)
+    bild = (f'<img src="{esc(foto)}" alt="">' if foto and not gesperrt else '<span class="ohne">kein Bild</span>')
     name = (z["ic_name"] or z["name"]) if z and not gesperrt else (p["inhaber"] if p is not None and not gesperrt else "Verschlusssache")
     unter = (f'{amt.STATUS_AKTE.get(z["status"], z["status"])} · Bürgerakte {amt.az_akte(z["id"])}' if z and not gesperrt
              else ("Inhaberakte gesperrt (Verschlusssache)" if gesperrt else "Keine Bürgerakte vorhanden"))

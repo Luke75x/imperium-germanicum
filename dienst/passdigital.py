@@ -15,6 +15,7 @@ from aiohttp import web
 import amt
 import anmeldung
 import config
+import lichtbild
 import meldewesen
 import passdruck
 
@@ -224,8 +225,8 @@ def ansicht_html(con, p, pfad, wahl, daten_zuerst=False):
     import webseite
     s_key, s_text = meldewesen.pass_status(p)
     d = passdruck.daten(con, p, True)
-    if d["foto"]:   # über den Dienst ausliefern: die CSP der Website erlaubt keine Bilder von cdn.discordapp.com
-        d["foto"] = f'{BASIS}pass-foto/{p["konto_id"]}'
+    # über den Dienst ausliefern: die CSP der Website erlaubt keine Bilder von cdn.discordapp.com
+    d["foto"] = lichtbild.url(con, p["akte_id"], p["konto_id"])
     stempel = f'<div class="stempel">{esc(STEMPEL[s_key])}</div>' if s_key in STEMPEL else ""
     holo = '<div class="holo"></div>'
     stil = passdruck._css().split("}", 1)[1]   # Passseiten-Stile ohne @font-face (steht im Dokument)
@@ -308,7 +309,7 @@ def nav(k):
     return [("mein-pass", "id-card", "Mein Pass", "mein-pass/")] if hat else []
 
 
-def knopf(p):
+def knopf(p, con=None):
     return f'<a class="btn zweit" href="{BASIS}pass/{p["id"]}/">{amt.ic("book-open")}Digital ansehen</a>'
 
 

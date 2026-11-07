@@ -20,6 +20,7 @@ from datetime import date, datetime
 from aiohttp import web
 
 import amt
+import lichtbild
 import meldewesen
 import qr
 import zollwesen
@@ -396,8 +397,8 @@ def daten(con, p, mit_foto):
     akte = con.execute("SELECT * FROM amt_akten WHERE id=?", (p["akte_id"],)).fetchone()
     ws = meldewesen.wohnsitz(con, p["akte_id"])
     konto = con.execute("SELECT avatar FROM konten WHERE id=?", (p["konto_id"],)).fetchone()
-    foto = ""
-    if mit_foto and konto and konto["avatar"]:
+    foto = lichtbild.daten_uri(con, p["akte_id"]) if mit_foto else ""
+    if mit_foto and not foto and konto and konto["avatar"]:
         foto = f'https://cdn.discordapp.com/avatars/{p["konto_id"]}/{konto["avatar"]}.png?size=512'
     geschlecht = (akte["geschlecht"] if akte else "") or ""
     wohnsitz = ""
@@ -435,18 +436,20 @@ async def druck(request):
                 pdf = await pg.pdf(prefer_css_page_size=True, print_background=True)
             finally:
                 await browser.close()
-    meldewesen._eintrag(con, p["id"], "Druckvorlage", f'Druckvorlage erstellt ({"mit Discord-Bild" if mit_foto else "Lichtbild zum Einkleben"}).', k)
+    art_bild = ("mit eigenem Lichtbild" if d["foto"].startswith("data:") else "mit Discord-Bild" if d["foto"] else "ohne Bild") if mit_foto else "Lichtbild zum Einkleben"
+    meldewesen._eintrag(con, p["id"], "Druckvorlage", f'Druckvorlage erstellt ({art_bild}).', k)
     con.commit()
     return web.Response(body=pdf, content_type="application/pdf",
                         headers={"Content-Disposition": f'attachment; filename="druckvorlage-{p["nummer"]}.pdf"', "Cache-Control": "no-store"})
 
 
-def knoepfe(p):
+def knoepfe(p, con=None):
     """Knöpfe für die Pass-Ansicht (nur gültige Pässe der unterstützten Arten)."""
     if meldewesen.pass_status(p)[0] != "gueltig":
         return ""
     u = f'{PFAD}paesse/{p["id"]}/druck'
-    return (f'<a class="btn zweit" href="{u}?bild=discord">{amt.ic("printer")}Druckvorlage (mit Profilbild)</a>'
+    eigen = con is not None and lichtbild.vorhanden(con, p["akte_id"])
+    return (f'<a class="btn zweit" href="{u}?bild=discord">{amt.ic("printer")}Druckvorlage (mit {"Lichtbild" if eigen else "Profilbild"})</a>'
             f'<a class="btn zweit" href="{u}?bild=leer">{amt.ic("printer")}Druckvorlage (Lichtbild einkleben)</a>')
 
 

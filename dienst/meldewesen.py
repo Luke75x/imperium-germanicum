@@ -39,7 +39,7 @@ SEITE = 50
 AUSGESTELLT = []    # fn(request, con, akte, art, passnummer, konto) nach Ausstellung eines Passes (steuern.py: Gebühr)
 PRUEF_ZUSATZ = []   # fn(request, konto) -> HTML über dem Eingabefeld der Passprüfung (personenseite.py: QR-Scanner)
 DM_ZUSATZ = []      # fn(passnummer) -> Text, wird an die DM bei Ausstellung angehängt (passdigital.py: Link)
-PASS_KNOEPFE = []   # fn(pass) -> HTML, weitere Knöpfe in der Pass-Ansicht (passdruck.py: Druckvorlagen)
+PASS_KNOEPFE = []   # fn(pass, con) -> HTML, weitere Knöpfe in der Pass-Ansicht (passdruck.py: Druckvorlagen)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS mw_meldungen (
@@ -232,7 +232,8 @@ def akte_abschnitt(request, con, z, schreiben):
         aktuell = "Im Ausland (abgemeldet)"
     else:
         aktuell = '<span class="s-offen">Kein Wohnsitz gemeldet</span>'
-    h = (f'<h2>Melde- und Passwesen</h2>' + amt.daten_tabelle([("Aktueller Wohnsitz", aktuell)])
+    import lichtbild
+    h = (f'<h2>Melde- und Passwesen</h2>' + lichtbild.abschnitt(request, con, z, schreiben) + amt.daten_tabelle([("Aktueller Wohnsitz", aktuell)])
          + amt.tabelle(["Meldung", "Teilstaat", "Anschrift (IC)", "Gültig ab (IC)", "Erfasst"],
                        [(esc(MELDEARTEN.get(m["art"], m["art"])), esc(m["staat_name"]), esc(m["anschrift"] or "–"), esc(m["gueltig_ab"] or "–"),
                          f'{esc(m["autor_name"])} · {amt._zeit(m["zeit"], False)}') for m in meldungen], "Keine Meldungen.")
@@ -444,7 +445,7 @@ async def pass_ansicht(request):
               f'<div class="felder">{amt._feld("ug", "Grund", f"<select id=ug name=grund>{gr}</select>", "Bei Diebstahl wird der Pass zur Fahndung ausgeschrieben; Zoll und Polizei sehen das bei der Prüfung.")}'
               f'{amt._feld("ub", "Vermerk", "<input type=text id=ub name=text maxlength=300>")}</div>'
               f'<div class="aktionen"><button class="btn gefahr" type="submit">{amt.ic("x")}Pass für ungültig erklären</button></div></form>')
-    h += f'<div class="aktionen">{"".join(fn(p) for fn in PASS_KNOEPFE)}<a class="btn zweit" href="{PFAD}paesse/{p["id"]}/pdf">{amt.ic("file-down")}PDF</a><a class="btn zweit" href="{PFAD}paesse/">{amt.ic("arrow-left")}Zum Passregister</a></div>'
+    h += f'<div class="aktionen">{"".join(fn(p, con) for fn in PASS_KNOEPFE)}<a class="btn zweit" href="{PFAD}paesse/{p["id"]}/pdf">{amt.ic("file-down")}PDF</a><a class="btn zweit" href="{PFAD}paesse/">{amt.ic("arrow-left")}Zum Passregister</a></div>'
     return _seite(request, "Pass " + p["nummer"], "paesse", h)
 
 

@@ -16,6 +16,7 @@ import bereiche
 import discord_api
 import karte
 import landespolizei
+import lichtbild
 import meldewesen
 import passdruck
 import passdigital
@@ -50,6 +51,7 @@ def erstellen():
     landespolizei.registrieren(app)
     amtshilfe.registrieren(app)
     meldewesen.registrieren(app)
+    lichtbild.registrieren(app)
     passdruck.registrieren(app)
     passdigital.registrieren(app)
     personenseite.registrieren(app)
