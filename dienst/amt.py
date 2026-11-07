@@ -1342,12 +1342,13 @@ def _siegel(name):
             f'<image href="data:image/png;base64,{_PDF_ADLER}" x="62" y="64" width="76" height="70" preserveAspectRatio="xMidYMid meet"/></svg>')
 
 
-def _pdf_html(titel, inhalt, k, stelle=None, az="", einstufung=EINSTUFUNG_NFD, doktyp="", unterzeile="", schluss="", qr_url=""):
+def _pdf_html(titel, inhalt, k, stelle=None, az="", einstufung=EINSTUFUNG_NFD, doktyp="", unterzeile="", schluss="", qr_url="", bearbeiter=None):
     schl, name = stelle or logo_von(k)
+    bearbeiter = bearbeiter or k["name"]
     jetzt = _zeit(int(time.time()))
     block = "".join(f"<dt>{esc(a)}</dt><dd>{esc(b)}</dd>" for a, b in
                     [("Dienststelle", unterzeile or name), ("Aktenzeichen", az), ("Datum", jetzt.split(" ")[0]),
-                     ("Erstellt", jetzt + " Uhr"), ("Bearbeitet von", k["name"])] if b)
+                     ("Erstellt", jetzt + " Uhr"), ("Bearbeitet von", bearbeiter)] if b)
     kopf = (f'<img class="wz" src="data:image/png;base64,{_PDF_ADLER}" alt="">'
             f'<div class="bk"><div class="bk-logo"><img src="data:image/png;base64,{_pdf_logo(schl)}" alt="{esc(name)}">'
             f'{f"<div class=unter>{esc(unterzeile)}</div>" if unterzeile else ""}</div>'
@@ -1358,7 +1359,7 @@ def _pdf_html(titel, inhalt, k, stelle=None, az="", einstufung=EINSTUFUNG_NFD, d
            'Dieses Dokument ist kein amtliches Schriftstück im Spiel.</div>') if ist_ooc_admin(k) else ""
     fuss = (f'<div class="schluss">{_siegel(name)}<div class="schluss-text">'
             f'{schluss or "<p class=ia>Im Auftrag</p>"}'
-            f'<div class="linie">{esc(k["name"])}<br>{esc(unterzeile or name)}</div>'
+            f'<div class="linie">{esc(bearbeiter)}<br>{esc(unterzeile or name)}</div>'
             f'<p class="s-hinweis">Dieses Schriftstück wurde maschinell erstellt und ist ohne Unterschrift gültig. '
             f'Auszug aus den Akten der Reichsbehörden des Imperium Germanicum, Stand {jetzt} Uhr.</p></div></div>{ooc}')
     return (f'<!doctype html><html lang="de"><head><meta charset="utf-8"><title>{esc(titel)}</title><style>{PDF_CSS}</style></head>'
@@ -1382,7 +1383,7 @@ def _pdf_rand(text, name, einstufung):
     return kopf, fuss
 
 
-async def _pdf_antwort(request, dateiname, titel, inhalt, stelle=None, az="", einstufung=EINSTUFUNG_NFD, doktyp="", unterzeile="", schluss="", qr_url=None):
+async def _pdf_antwort(request, dateiname, titel, inhalt, stelle=None, az="", einstufung=EINSTUFUNG_NFD, doktyp="", unterzeile="", schluss="", qr_url=None, bearbeiter=None):
     """PDF im amtlichen Layout. stelle = (Logo-Schlüssel, Behördenname) der ausstellenden Stelle (sonst die des Kontos),
     az = Aktenzeichen im Kennblock, einstufung = VS-Vermerk („“ = keiner, z. B. Bescheinigungen für Bürger)."""
     from playwright.async_api import async_playwright
@@ -1391,7 +1392,7 @@ async def _pdf_antwort(request, dateiname, titel, inhalt, stelle=None, az="", ei
     stelle = stelle or logo_von(k)
     if qr_url is None:   # Standard: Seite des Dokuments in der Amtsseite (Pfad ohne letztes Segment, z. B. …/buerger/13/pdf → …/buerger/13/)
         qr_url = config.SITE_URL + request.path.rsplit("/", 1)[0] + "/"
-    text = _pdf_html(titel, inhalt, k, stelle, az, einstufung, doktyp, unterzeile, schluss, qr_url)
+    text = _pdf_html(titel, inhalt, k, stelle, az, einstufung, doktyp, unterzeile, schluss, qr_url, bearbeiter)
     kopf, fuss = _pdf_rand(az or titel, unterzeile or stelle[1], einstufung)
     async with _pdf_sperre:
         async with async_playwright() as p:

@@ -97,6 +97,10 @@ def einrichten(con):
     for tab in ("bs_abrechnungen", "bs_rueckstaende"):
         if "kronsteuer" not in {r[1] for r in con.execute(f"PRAGMA table_info({tab})")}:
             con.execute(f"ALTER TABLE {tab} ADD COLUMN kronsteuer INTEGER NOT NULL DEFAULT 0")
+        if "posten" not in {r[1] for r in con.execute(f"PRAGMA table_info({tab})")}:
+            con.execute(f"ALTER TABLE {tab} ADD COLUMN posten TEXT NOT NULL DEFAULT ''")   # JSON: [[Bezeichnung, Heller], …]
+    if "zahlstelle_schl" not in {r[1] for r in con.execute("PRAGMA table_info(bs_abrechnungen)")}:
+        con.execute("ALTER TABLE bs_abrechnungen ADD COLUMN zahlstelle_schl TEXT NOT NULL DEFAULT ''")
     if not con.execute("SELECT 1 FROM bs_gruppen LIMIT 1").fetchone():
         for i, (s, n, l, g) in enumerate(GRUPPEN):
             con.execute("INSERT INTO bs_gruppen (schl, name, laufbahn, grundgehalt, rang) VALUES (?,?,?,?,?)", (s, n, l, g * M, i))
@@ -276,13 +280,16 @@ def berechnen_einzeln(con, konto_id, name, rollen, rollennamen=None):
         return []
     g, quelle, zahl, zulage, ztext = e
     grund = g["grundgehalt"] if g else 0
-    teile = {zahl: {"grund": grund, "zulage": zulage, "texte": [ztext] if ztext else [], "namen": []}}
+    teile = {zahl: {"grund": grund, "zulage": zulage, "texte": [ztext] if ztext else [], "namen": [],
+                    "posten": ([["Grundgehalt " + (g["schl"] if g else ""), grund]] if grund else []) + ([["Zulage" + (f": {ztext}" if ztext else ""), zulage]] if zulage else [])}}
     for z, betrag in (zuschlaege_von(con, konto_id, rollen, grund) if g else []):
         zs = _zahlstelle_aufloesen(con, z["zahlstelle"], rollen, zahl)
-        t = teile.setdefault(zs, {"grund": 0, "zulage": 0, "texte": [], "namen": []})
+        t = teile.setdefault(zs, {"grund": 0, "zulage": 0, "texte": [], "namen": [], "posten": []})
         t["zulage"] += betrag
-        t["texte"].append(f'Zuschlag {z["name"]}' + (f' {float(z["wert"]):g} %'.replace(".", ",") if z["art"] == "prozent" else ""))
+        bez = f'Zuschlag {z["name"]}' + (f' {float(z["wert"]):g} %'.replace(".", ",") if z["art"] == "prozent" else "")
+        t["texte"].append(bez)
         t["namen"].append(z["name"])
+        t["posten"].append([bez, betrag])
     gesamt = sum(t["grund"] + t["zulage"] for t in teile.values())
     if gesamt <= 0:
         return []
@@ -306,7 +313,7 @@ def berechnen_einzeln(con, konto_id, name, rollen, rollennamen=None):
                     "gruppe_name": (g["name"] if g else "Zulage") if haupt else ", ".join(t["namen"]),
                     "quelle": quelle if haupt else "Amtsposition: " + ", ".join(t["namen"]),
                     "grundgehalt": t["grund"], "zulage": t["zulage"], "zulage_text": ", ".join(t["texte"]), "brutto": brutto, "lohnsteuer": a, "abgaben": b,
-                    "kronsteuer": c, "netto": brutto - a - b - c, "zahlstelle": zs})
+                    "kronsteuer": c, "netto": brutto - a - b - c, "zahlstelle": zs, "posten": t["posten"]})
     return out
 
 
@@ -345,18 +352,87 @@ def _monat(periode):
     return sa._monatsname(periode)
 
 
-def abrechnung_html(a):
-    zeilen = [("Zeitraum", esc(_monat(a["periode"])) + (" – Nachzahlung einbehaltener Bezüge" if a["nachzahlung"] else "")), ("Name", esc(a["name"])), ("Besoldungsgruppe", f'{esc(a["gruppe"])} · {esc(a["gruppe_name"])}'),
-              ("Grundlage", esc(a["quelle"])), ("Zahlstelle", esc(a["zahlstelle_name"] if "zahlstelle_name" in a.keys() else a["zahlstelle"]))]
-    posten = [("Grundgehalt", mark(a["grundgehalt"]))]
-    if a["zulage"]:
-        posten.append((f'Zulage{": " + a["zulage_text"] if a["zulage_text"] else ""}', mark(a["zulage"])))
-    posten += [("<b>Bruttobezüge</b>", f'<b>{mark(a["brutto"])}</b>'), ("Lohnsteuer", "− " + mark(a["lohnsteuer"])),
-               ("Sozialabgabe (Reichsversicherung)", "− " + mark(a["abgaben"]))] + ([("Kronsteuer (Crown Estates des Kaisers)", "− " + mark(a["kronsteuer"]))] if a["kronsteuer"] else []) \
-              + [("<b>Auszahlung (netto)</b>", f'<b>{mark(a["netto"])}</b>')]
+ABRECHNUNG_CSS = """<style>
+.ab-kopf{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1mm 6mm;margin:2mm 0 3mm}
+.ab-kopf div{border-bottom:.5pt solid #ccd0d6;padding:.8mm 0}
+.ab-kopf small{display:block;color:#666;font-size:7.5pt;letter-spacing:.06em;text-transform:uppercase}
+.ab-kopf b{font-size:9.5pt}
+table.ab{width:100%;border-collapse:collapse;margin:1mm 0 3mm;font-size:9.5pt}
+table.ab th{text-align:left;font-size:7.5pt;letter-spacing:.07em;text-transform:uppercase;color:#555;border-bottom:.8pt solid #000;padding:1mm}
+table.ab td{padding:1mm;border-bottom:.4pt solid #dde0e5}
+table.ab td.b,table.ab th.b{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+table.ab tr.summe td{border-top:.8pt solid #000;border-bottom:0;font-weight:700}
+table.ab tr.abzug td.b{color:#7a1212}
+.ab-netto{display:flex;justify-content:space-between;align-items:baseline;border:1.2pt solid #000;padding:2.2mm 4mm;margin:2mm 0 3mm;background:#f4f5f7}
+.ab-netto span{font-size:9pt;letter-spacing:.08em;text-transform:uppercase}
+.ab-netto b{font-size:17pt}
+.ab-hinweis{font-size:8.5pt;color:#555;margin:1.5mm 0}
+</style>"""
+
+
+def abrechnung_stelle(con, a):
+    """(Logo-Schlüssel, Name) der zahlenden Stelle für den Briefkopf: Behörden mit eigenem Logo, Reichskanzlei, Schatzamt (Reichskasse);
+    sonst das allgemeine Logo der Reichsbehörden mit dem Namen der Kasse."""
+    schl = a["zahlstelle_schl"] if "zahlstelle_schl" in a.keys() else ""
+    if not schl:   # ältere Abrechnungen: nur der Kassenname gespeichert
+        schl = next((s for s, n in zahlstellen(con) if n == a["zahlstelle"]), "")
+    if schl == "kanzlei":
+        return ("kanzler", "Reichskanzlei")
+    if schl == "reichskasse":
+        return geld.STELLE
+    if any(b["schl"] == schl for b in amt.BEHOERDEN):
+        return amt.stelle_behoerde(schl)
+    return ("reichsbehoerden", a["zahlstelle"] or "Die Reichsbehörden")
+
+
+def _prozent(teil, ganz):
+    return f"{teil / ganz * 100:,.1f} %".replace(",", "X").replace(".", ",").replace("X", ".") if ganz else "–"
+
+
+def abrechnung_html(a, con=None):
+    """Gehaltsabrechnung als HTML (Seite und PDF): Kopfdaten, Bezüge, Abzüge, Auszahlungsbetrag, Jahreswerte und Hinweise."""
+    keys = a.keys()
+    posten = json.loads(a["posten"]) if "posten" in keys and a["posten"] else []
+    if not posten:
+        posten = ([["Grundgehalt " + a["gruppe"], a["grundgehalt"]]] if a["grundgehalt"] else []) + ([[a["zulage_text"] or "Zulage", a["zulage"]]] if a["zulage"] else [])
+    kontonr = ""
+    if con is not None:
+        r = con.execute("SELECT nummer FROM gk_konten WHERE art='privat' AND inhaber_id=?", (a["konto_id"],)).fetchone()
+        kontonr = geld.nummer_anzeige(r["nummer"]) if r else ""
+    kopf = [("Name", a["name"]), ("Abrechnungsmonat", _monat(a["periode"]) + (" · Nachzahlung" if a["nachzahlung"] else "")),
+            ("Besoldungsgruppe", f'{a["gruppe"]} · {a["gruppe_name"]}' if a["gruppe"] != "ZUS" else a["gruppe_name"]), ("Grundlage", a["quelle"]),
+            ("Zahlende Stelle", a["zahlstelle_name"] if "zahlstelle_name" in keys else a["zahlstelle"]), ("Auszahlung auf Konto", kontonr or "Privatkonto"),
+            ("Ausgezahlt am", amt._zeit(a["zeit"], False)), ("Abrechnung Nr.", f'LL-{a["periode"]}-{a["id"]}')]
+    kopf_html = '<div class="ab-kopf">' + "".join(f'<div><small>{esc(k)}</small><b>{esc(v)}</b></div>' for k, v in kopf) + '</div>'
+    bez = "".join(f'<tr><td>{esc(b)}</td><td class="b">{mark(v)}</td></tr>' for b, v in posten)
+    bez += f'<tr class="summe"><td>Bruttobezüge</td><td class="b">{mark(a["brutto"])}</td></tr>'
+    abz = f'<tr class="abzug"><td>Lohnsteuer <span class="az">({_prozent(a["lohnsteuer"], a["brutto"])} des Bruttos)</span></td><td class="b">− {mark(a["lohnsteuer"])}</td></tr>'
+    abz += f'<tr class="abzug"><td>Sozialabgabe, Reichsversicherung <span class="az">({_prozent(a["abgaben"], a["brutto"])})</span></td><td class="b">− {mark(a["abgaben"])}</td></tr>'
+    if a["kronsteuer"]:
+        abz += f'<tr class="abzug"><td>Kronsteuer, Crown Estates des Kaisers <span class="az">({_prozent(a["kronsteuer"], a["brutto"])})</span></td><td class="b">− {mark(a["kronsteuer"])}</td></tr>'
+    abz += f'<tr class="summe"><td>Abzüge gesamt</td><td class="b">− {mark(a["lohnsteuer"] + a["abgaben"] + a["kronsteuer"])}</td></tr>'
+    html = (ABRECHNUNG_CSS + kopf_html
+            + f'<table class="ab"><thead><tr><th>Bezüge</th><th class="b">Betrag</th></tr></thead><tbody>{bez}</tbody></table>'
+            + f'<table class="ab"><thead><tr><th>Abzüge</th><th class="b">Betrag</th></tr></thead><tbody>{abz}</tbody></table>'
+            + f'<div class="ab-netto"><span>Auszahlungsbetrag (netto)</span><b>{mark(a["netto"])}</b></div>')
+    hinweise = []
     if a["laenderanteil"]:
-        posten.append((f'davon Länderanteil der Lohnsteuer an {esc(a["staat"])}', mark(a["laenderanteil"])))
-    return amt.daten_tabelle(zeilen) + "<h2>Bezüge und Abzüge</h2>" + amt.tabelle(["Posten", "Betrag"], posten)
+        hinweise.append(f'Von der Lohnsteuer gehen {mark(a["laenderanteil"])} als Länderanteil an {a["staat"]}; für Sie entsteht dadurch kein weiterer Abzug.')
+    if con is not None:
+        jahr = a["periode"][:4]
+        j = con.execute("SELECT SUM(brutto) b, SUM(lohnsteuer) l, SUM(abgaben) s, SUM(kronsteuer) k, SUM(netto) n FROM bs_abrechnungen WHERE konto_id=? AND periode>=? AND periode<=?",
+                        (a["konto_id"], jahr + "-01", a["periode"])).fetchone()
+        html += (f'<table class="ab"><thead><tr><th>Aufgelaufen {esc(jahr)} bis {esc(_monat(a["periode"]))}</th><th class="b">Brutto</th><th class="b">Lohnsteuer</th>'
+                 '<th class="b">Sozialabgabe</th>' + ('<th class="b">Kronsteuer</th>' if j["k"] else "") + '<th class="b">Netto</th></tr></thead><tbody>'
+                 f'<tr><td>Alle Abrechnungen des Jahres</td><td class="b">{mark(j["b"] or 0)}</td><td class="b">{mark(j["l"] or 0)}</td><td class="b">{mark(j["s"] or 0)}</td>'
+                 + (f'<td class="b">{mark(j["k"] or 0)}</td>' if j["k"] else "") + f'<td class="b"><b>{mark(j["n"] or 0)}</b></td></tr></tbody></table>')
+        andere = con.execute("SELECT * FROM bs_abrechnungen WHERE konto_id=? AND periode=? AND id!=? ORDER BY id", (a["konto_id"], a["periode"], a["id"])).fetchall()
+        if andere:
+            html += ('<table class="ab"><thead><tr><th>Weitere Abrechnungen dieses Monats (Zuschläge anderer Kassen)</th><th>Zahlende Stelle</th><th class="b">Netto</th></tr></thead><tbody>'
+                     + "".join(f'<tr><td>{esc(o["gruppe_name"] if o["gruppe"] == "ZUS" else o["gruppe"] + " · " + o["gruppe_name"])}</td><td>{esc(o["zahlstelle"])}</td><td class="b">{mark(o["netto"])}</td></tr>' for o in andere)
+                     + f'<tr class="summe"><td colspan="2">Gesamtauszahlung des Monats</td><td class="b">{mark(a["netto"] + sum(o["netto"] for o in andere))}</td></tr></tbody></table>')
+    hinweise.append("Die Besoldung richtet sich nach der Besoldungsordnung des Reiches; Sätze und Zuschläge sind unter „Tarife & Sätze“ im Schatzamt-Portal einsehbar.")
+    return html + "".join(f'<p class="ab-hinweis">{esc(h)}</p>' for h in hinweise)
 
 
 # ---------------------------------------------------------------- Bürger
@@ -416,7 +492,7 @@ async def abrechnung(request, k):
     if a["konto_id"] != k["id"] and not geld.ist_beamter(k):
         raise web.HTTPNotFound()
     inhalt = (f'<h1>{amt.ic("banknote")} Gehaltsabrechnung {esc(_monat(a["periode"]))}</h1><p class="az"><a href="{PFAD}gehalt/">← Gehalt</a></p>'
-              + abrechnung_html(a) + f'<p><a class="btn zweit" href="{PFAD}gehalt/{a["id"]}/pdf">{amt.ic("file-down")}Als PDF</a></p>')
+              + abrechnung_html(a, con) + f'<p><a class="btn zweit" href="{PFAD}gehalt/{a["id"]}/pdf">{amt.ic("file-down")}Als PDF</a></p>')
     return sa.ant(request, k, "Gehaltsabrechnung", "sa-gehalt", inhalt)
 
 
@@ -428,9 +504,11 @@ async def abrechnung_pdf(request):
     a = _abrechnung(con, request.match_info["id"])
     if a["konto_id"] != k["id"] and not geld.ist_beamter(k):
         raise web.HTTPNotFound()
-    inhalt = f'<h1>Gehaltsabrechnung</h1><p class="az">{esc(a["name"])} · {esc(_monat(a["periode"]))}</p>' + abrechnung_html(a)
-    return await amt._pdf_antwort(request, f"gehaltsabrechnung-{a['periode']}", "Gehaltsabrechnung", inhalt, stelle=geld.STELLE,
-                                  az=f"LL-{a['periode']}-{a['id']}", einstufung="", doktyp="Gehaltsabrechnung",
+    stelle = abrechnung_stelle(con, a)
+    inhalt = f'<h1>Gehaltsabrechnung</h1><p class="az">{esc(a["name"])} · {esc(_monat(a["periode"]))}</p>' + abrechnung_html(a, con)
+    return await amt._pdf_antwort(request, f"gehaltsabrechnung-{a['periode']}-{a['id']}", "Gehaltsabrechnung", inhalt, stelle=stelle,
+                                  az=f"LL-{a['periode']}-{a['id']}", einstufung="", doktyp="Gehaltsabrechnung · Besoldung",
+                                  unterzeile=f"{stelle[1]} – Besoldungsstelle", bearbeiter="Kaiserliches Schatz- und Währungsamt, Besoldungsstelle",
                                   qr_url=f"{config.SITE_URL}{PFAD}gehalt/{a['id']}/")
 
 
@@ -714,10 +792,12 @@ def _auszahlen(con, x, periode, lauf, k, bezug, zs, nachzahlung=False):
         geld.buchen(con, quelle["id"], geld.sonder(con, "crown_estates")["id"], x["kronsteuer"], "kronsteuer", f"Kronsteuer {x['name']} {_monat(periode)}", k, bezug=bezug, minus=True)
     staat, anteil = steuern.laenderanteil_buchen(con, x["konto_id"], x["lohnsteuer"], k, bezug) if x["lohnsteuer"] else (None, 0)
     cur = con.execute("INSERT INTO bs_abrechnungen (lauf, periode, konto_id, name, gruppe, gruppe_name, quelle, grundgehalt, zulage, zulage_text, brutto, "
-                      "lohnsteuer, abgaben, netto, zahlstelle, staat, laenderanteil, zeit, nachzahlung, kronsteuer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      "lohnsteuer, abgaben, netto, zahlstelle, staat, laenderanteil, zeit, nachzahlung, kronsteuer, posten, zahlstelle_schl) "
+                      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                       (lauf, periode, x["konto_id"], x["name"], x["gruppe"], x["gruppe_name"], x["quelle"], x["grundgehalt"], x["zulage"], x["zulage_text"],
                        x["brutto"], x["lohnsteuer"], x["abgaben"], x["netto"], zs.get(x["zahlstelle"], x["zahlstelle"]), staat["name"] if staat else "", anteil,
-                       int(time.time()), 1 if nachzahlung else 0, x.get("kronsteuer", 0)))
+                       int(time.time()), 1 if nachzahlung else 0, x.get("kronsteuer", 0),
+                       x["posten"] if isinstance(x.get("posten"), str) else json.dumps(x.get("posten") or [], ensure_ascii=False), x["zahlstelle"]))
     return cur.lastrowid
 
 
@@ -782,9 +862,10 @@ def lohnlauf_buchen(con, liste, periode, k, schoepfen=False):
         _auszahlen(con, x, periode, lauf, k, bezug, zs)
     for x in uebersprungen_voll:   # einbehaltene Gehälter: Rückstand, wird nachgezahlt, sobald die Zahlstelle wieder im Plus ist
         con.execute("INSERT INTO bs_rueckstaende (lauf, periode, konto_id, name, gruppe, gruppe_name, quelle, grundgehalt, zulage, zulage_text, brutto, lohnsteuer, "
-                    "abgaben, netto, zahlstelle, erstellt, kronsteuer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "abgaben, netto, zahlstelle, erstellt, kronsteuer, posten) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (lauf, periode, x["konto_id"], x["name"], x["gruppe"], x["gruppe_name"], x["quelle"], x["grundgehalt"], x["zulage"], x["zulage_text"],
-                     x["brutto"], x["lohnsteuer"], x["abgaben"], x["netto"], x["zahlstelle"], int(time.time()), x.get("kronsteuer", 0)))
+                     x["brutto"], x["lohnsteuer"], x["abgaben"], x["netto"], x["zahlstelle"], int(time.time()), x.get("kronsteuer", 0),
+                     json.dumps(x.get("posten") or [], ensure_ascii=False)))
     geld.protokoll(con, k, "Lohnlauf", f"{_monat(periode)}: {len(liste)} Abrechnungen, netto {mark(sum(x['netto'] for x in liste))}"
                                        + (f", Geldschöpfung {mark(geschoepft)}" if geschoepft else "")
                                        + (f"; {len(uebersprungen)} Gehälter einbehalten, Nachzahlung bei Deckung (Zahlstelle nicht gedeckt: {', '.join(sorted(set(u['zahlstelle'] for u in uebersprungen)))})"
@@ -835,6 +916,13 @@ async def lohnlauf(request, k):
     return sa.ant(request, k, "Lohnlauf", "sa-amt-besoldung", inhalt)
 
 
+def dm_text(a):
+    """Nachricht an den Empfänger einer Gehaltsabrechnung (mit Link zur Abrechnung und zum PDF)."""
+    return (f"Gehaltsabrechnung {_monat(a['periode'])} ({a['zahlstelle']}):\nBrutto {mark(a['brutto'])} · Lohnsteuer {mark(a['lohnsteuer'])} · Sozialabgabe "
+            f"{mark(a['abgaben'])}" + (f" · Kronsteuer {mark(a['kronsteuer'])}" if a["kronsteuer"] else "") + f"\nAuszahlung: {mark(a['netto'])} auf dein Konto.\n"
+            f"Abrechnung und PDF: {config.SITE_URL}{PFAD}gehalt/{a['id']}/")
+
+
 async def _nachzahlung_melden(app, nz):
     for z in nz:
         try:
@@ -861,9 +949,7 @@ async def lohnlauf_ausfuehren(request):
         con.rollback()
         sa.weiter(pfad, str(e), True)
     for a in con.execute("SELECT * FROM bs_abrechnungen WHERE lauf=?", (lauf,)).fetchall():
-        sa.dm(request, a["konto_id"], f"Gehaltsabrechnung {_monat(periode)} (Kaiserliches Schatz- und Währungsamt):\nBrutto {mark(a['brutto'])} · Lohnsteuer "
-                                      f"{mark(a['lohnsteuer'])} · Sozialabgabe {mark(a['abgaben'])}\nAuszahlung: {mark(a['netto'])} auf dein Konto.\n"
-                                      f"{config.SITE_URL}{PFAD}gehalt/{a['id']}/")
+        sa.dm(request, a["konto_id"], dm_text(a))
     uebersprungen = json.loads(con.execute("SELECT uebersprungen FROM bs_laeufe WHERE id=?", (lauf,)).fetchone()[0] or "[]")
     for u in uebersprungen:
         sa.dm(request, u["konto_id"], f"Dein Gehalt für {_monat(periode)} wurde einbehalten: Die Kasse „{u['zahlstelle']}“ ist nicht gedeckt "
