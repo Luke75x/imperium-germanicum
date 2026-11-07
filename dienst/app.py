@@ -32,6 +32,7 @@ import etat
 import verteidigung
 import notlage
 import etatplan
+import teilstaat
 import bankkarte
 import rpleitung
 import organigramme
@@ -72,6 +73,7 @@ def erstellen():
     verteidigung.registrieren(app)
     notlage.registrieren(app)
     etatplan.registrieren(app)
+    teilstaat.registrieren(app)
     bankkarte.registrieren(app)
     rpleitung.registrieren(app)
     return app

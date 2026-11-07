@@ -83,6 +83,20 @@ table.liste td.sa-betrag,table.liste th.sa-betrag{text-align:right}
 .sa-inline{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0}
 .sa-inline input[type=number]{width:80px}
 .btn.klein{padding:5px 10px;font-size:13px}
+.sa-bereich{margin:0 0 14px}
+.sa-bereich-kopf{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:0 0 6px}
+.sa-bereich-name{display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--grau)}
+.sa-bereich-name .icon{width:16px;height:16px}
+.sa-bereich select{padding:4px 8px;font-size:13.5px;max-width:100%}
+.sa-bereich .reiter{flex-wrap:nowrap;overflow-x:auto;gap:4px 20px;margin:0;scrollbar-width:thin}
+.sa-bereich .reiter a{white-space:nowrap;padding:9px 2px}
+.sa-todo{display:grid;gap:8px;margin:12px 0 6px}
+.sa-todo>div{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--linie);border-radius:12px;padding:10px 14px;background:#fff;font-size:14px}
+.sa-todo>div.warn{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.sa-todo .icon{width:18px;height:18px;flex:none;margin-top:1px}
+.sa-todo b{font-weight:650}
+.sa-todo .az{display:block;margin-top:2px}
+.sa-spalten{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0 24px;align-items:start}
 .sa-schnell{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:14px 0 6px}
 .sa-schnell a{display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center;border:1px solid var(--linie);border-radius:12px;
  padding:12px 14px;color:var(--ink);text-decoration:none;background:#fff}
@@ -116,7 +130,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe", "sa-bankkarte")     # Seiten, die nur die Privatperson betreffen
-NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
+NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-teilstaat", "sa-reich")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_kassen(con, k):
@@ -187,6 +201,115 @@ async def modus_setzen(request):
     raise r
 
 
+# ---------------------------------------------------------------- Haushalt: Reiter „Mein Teilstaat“ und „Reichshaushalt“
+
+def _regierte(con, k):
+    """{Teilstaat-ID: Staatskasse} der Teilstaaten, die das Konto regiert (je Anfrage zwischengespeichert)."""
+    if not k or not k["mitglied"]:
+        return {}
+    if "_sa_regiert" not in k:
+        import karte
+        staaten = karte.aktuell(con)["stand"]["staaten"]
+        eigene = karte.fraktionen(set(k["rollen"]), staaten)
+        own = {x["id"] for x in staaten if x.get("fraktion") in eigene}   # der eigene Teilstaat steht vorn, dann alphabetisch
+        rs = sorted(geld.regierte_staatskassen(con, k), key=lambda r: (r["stelle"][3:] not in own, r["name"]))
+        k["_sa_regiert"] = {r["stelle"][3:]: r for r in rs}
+    return k["_sa_regiert"]
+
+
+def _ts_url(tab, sid, regiert):
+    z = "ts-" + sid
+    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "plan": f"etatplanung/?ziel={z}", "vt": f"verteidigung/{sid}/",
+                   "notlage": f"notlagen/?bereich={z}", "kasse": f"konto/?konto={regiert[sid]['id']}"}[tab]
+
+
+def _teilstaat_tabs(con, k, sid):
+    import etatplan
+    import verteidigung
+    tabs = [("start", "Überblick"), ("etat", "Etat")]
+    if etatplan.darf_aendern(con, k, "ts-" + sid):
+        tabs.append(("plan", "Etat planen"))
+    if verteidigung.darf_sehen(con, k, sid):
+        tabs.append(("vt", "Verteidigung"))
+    return tabs + [("notlage", "Haushaltsnotlage"), ("kasse", "Kasse & Umsätze")]
+
+
+def _reich_tabs(con, k):
+    import etatplan
+    tabs = [("haushalt", "Staatshaushalt", "haushalt/"), ("etat", "Etatverteilung", "etatverteilung/?ziel=reich")]
+    if etatplan.darf_aendern(con, k, "reich"):
+        tabs.append(("plan", "Etat planen", "etatplanung/?ziel=reich"))
+    tabs += [("etats", "Etats der Behörden", "etats/"), ("finanzen", "Reichsfinanzen", "finanzen/"), ("gold", "Goldreserven", "gold/"),
+             ("notlage", "Haushaltsnotlagen", "notlagen/?bereich=reich")]
+    if hat_verteidigung(con, k):
+        tabs.append(("vt", "Verteidigung", "verteidigung/"))
+    return tabs
+
+
+def _reiter_kontext(request, k, con, aktiv):
+    """(Bereich, Teilstaat-ID, Reiter) der aktuellen Seite: Bereich 'ts' = Mein Teilstaat, 'reich' = Reichshaushalt; None = Seite gehört zu keinem Bereich."""
+    if aktiv not in ("sa-teilstaat", "sa-etatverteilung", "sa-etatplanung", "sa-verteidigung", "sa-notlage", "sa-konto",
+                     "sa-staatshaushalt", "sa-finanzen", "sa-etats", "sa-gold"):
+        return None
+    regiert = _regierte(con, k)
+    q = request.query
+    ziel = q.get("ziel", "")
+    if aktiv == "sa-teilstaat":
+        sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regiert else next(iter(regiert), None)
+        return ("ts", sid, "start") if sid else None
+    if aktiv in ("sa-etatverteilung", "sa-etatplanung"):
+        tab = "etat" if aktiv == "sa-etatverteilung" else "plan"
+        if ziel.startswith("ts-") and ziel[3:] in regiert:
+            return "ts", ziel[3:], tab
+        if ziel == "reich" or (ziel.startswith("ts-") and ziel[3:] not in regiert):
+            return "reich", None, tab
+        return ("ts", next(iter(regiert)), tab) if regiert else ("reich", None, tab)
+    if aktiv == "sa-verteidigung":
+        sid = request.match_info.get("sid", "")
+        return ("ts", sid, "vt") if sid in regiert else ("reich", None, "vt")
+    if aktiv == "sa-notlage":
+        b = q.get("bereich", "")
+        if b.startswith("ts-") and b[3:] in regiert:
+            return "ts", b[3:], "notlage"
+        if b == "reich" or not regiert:
+            return "reich", None, "notlage"
+        return ("reich", None, "notlage") if (geld.ist_leitung(k) or amt.ROLLE_KANZLER in k["rollen"]) else ("ts", next(iter(regiert)), "notlage")
+    if aktiv == "sa-konto":
+        r = _konto_waehlen(con, k, request)[0]   # das angezeigte Konto: Staats- oder Verteidigungskasse eines regierten Teilstaats → Reiter „Kasse & Umsätze“
+        sid = (r["stelle"] or "")[3:] if r and (r["stelle"] or "")[:3] in ("ts-", "vt-") else ""
+        return ("ts", sid, "kasse") if sid in regiert else None
+    return "reich", None, {"sa-staatshaushalt": "haushalt", "sa-finanzen": "finanzen", "sa-etats": "etats", "sa-gold": "gold"}[aktiv]
+
+
+def reiter_html(request, k, con, aktiv):
+    """(HTML der Reiterleiste, Schlüssel für die Seitenleiste). Alles zu einem Haushalt – Teilstaat oder Reich – liegt hinter einem Eintrag der Seitenleiste."""
+    if not k or not k["mitglied"]:
+        return "", aktiv
+    ctx = _reiter_kontext(request, k, con, aktiv)
+    if not ctx:
+        return "", aktiv
+    bereich, sid, tab = ctx
+    if bereich == "reich" and not hat_kassen(con, k):
+        return "", aktiv   # Militär ohne Kasse: kein Reichshaushalt, die Seitenleiste führt direkt zu „Verteidigung“
+    if bereich == "ts":
+        regiert = _regierte(con, k)
+        links = "".join(f'<a href="{esc(_ts_url(t, sid, regiert))}"{" class=aktiv aria-current=page" if t == tab else ""}>{esc(n)}</a>' for t, n in _teilstaat_tabs(con, k, sid))
+        wahl = ""
+        if len(regiert) > 1:
+            opt = "".join(f'<option value="{esc(_ts_url(tab, s_, regiert))}"{" selected" if s_ == sid else ""}>{esc(r["name"].replace("Staatskasse ", ""))}</option>'
+                          for s_, r in regiert.items())
+            wahl = f'<select aria-label="Teilstaat wählen" onchange="location.href=this.value">{opt}</select>'
+        else:
+            wahl = f'<b>{esc(regiert[sid]["name"].replace("Staatskasse ", ""))}</b>'
+        kopf = f'<span class="sa-bereich-name">{amt.ic("flag")}Mein Teilstaat</span>{wahl}'
+        schl = "sa-teilstaat"
+    else:
+        links = "".join(f'<a href="{PFAD}{u}"{" class=aktiv aria-current=page" if t == tab else ""}>{esc(n)}</a>' for t, n, u in _reich_tabs(con, k))
+        kopf = f'<span class="sa-bereich-name">{amt.ic("landmark")}Reichshaushalt</span>'
+        schl = "sa-reich"
+    return f'<div class="sa-bereich"><div class="sa-bereich-kopf">{kopf}</div><nav class="reiter" aria-label="Bereich">{links}</nav></div>', schl
+
+
 def nav(k, m="privat", schalter=False, aktiv="", con=None):
     if m == "rp":
         mein = [("sa-rp", "layout-dashboard", "Lagebild", "rp/"), ("sa-rp-faelle", "folder-open", "Fälle", "rp/faelle/"),
@@ -200,18 +323,15 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
         mein = [("sa-start", "layout-dashboard", "Übersicht", "")]
         if kassen:
             mein += [("sa-konto", "wallet", "Kassen & Umsätze", "konto/"), ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/")]
-        haushalt = [e for e, ok in ((("sa-etats", "landmark", "Etats der Behörden", "etats/"), kassen),
-                                    (("sa-verteidigung", "shield", "Verteidigung", "verteidigung/"), vt),
-                                    (("sa-etatverteilung", "chart-pie", "Etatverteilung", "etatverteilung/"), kassen),
-                                    (("sa-etatplanung", "pencil", "Etat planen", "etatplanung/"), kassen),
-                                    (("sa-staatshaushalt", "chart-column", "Staatshaushalt", "haushalt/"), kassen),
-                                    (("sa-notlage", "triangle-alert", "Haushaltsnotlagen", "notlagen/"), kassen),
-                                    (("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"), kassen),
-                                    (("sa-gold", "coins", "Goldreserven", "gold/"), kassen)) if ok]
+        regiert = con is None or bool(_regierte(con, k))
+        # Alles zu einem Haushalt liegt hinter einem Eintrag (Reiter oben auf der Seite): Mein Teilstaat, Reichshaushalt; Verteidigung nur für das Militär ohne Kasse
+        haushalt = [e for e, ok in ((("sa-teilstaat", "flag", "Mein Teilstaat", "teilstaat/"), regiert),
+                                    (("sa-reich", "landmark", "Reichshaushalt", "haushalt/"), kassen),
+                                    (("sa-verteidigung", "shield", "Verteidigung", "verteidigung/"), vt and not kassen)) if ok]
         gruppen = [("Staatliche Kassen" if kassen else "Dienstlich", mein), ("Haushalt", haushalt),
                    ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
         gruppen = [g for g in gruppen if g[1]]
-        mein = mein + [e for e in haushalt if e[0] in ("sa-etats", "sa-verteidigung")][:4 - len(mein)]
+        mein = mein + [e for e in haushalt if e[0] in ("sa-teilstaat", "sa-reich", "sa-verteidigung")][:4 - len(mein)]
     else:
         mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Konto & Umsätze", "konto/"),
                 ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/"), ("sa-steuern", "receipt", "Steuern & Gebühren", "steuern/"),
@@ -264,9 +384,10 @@ def ant(request, k, titel, aktiv, inhalt, status=200):
         m = "staat"          # Verwaltungsseiten gehören immer zur staatlichen Ansicht
     elif aktiv in NUR_PRIVAT:
         m = "privat"
+    reiter, nav_aktiv = reiter_html(request, k, request.app["db"], aktiv)   # Reiter Teilstaat / Reichshaushalt; die Seitenleiste markiert den Bereich
     return web.Response(status=status, content_type="text/html", headers={"Cache-Control": "no-store"},
-                        text=amt.rahmen(titel, aktiv, CSS + _kennzahlen_kurz(inhalt), k, request["csrf"],
-                                        portal=nav(k, m, schalter, aktiv, request.app["db"])))
+                        text=amt.rahmen(titel, nav_aktiv, CSS + _kennzahlen_kurz(reiter + inhalt), k, request["csrf"],
+                                        portal=nav(k, m, schalter, nav_aktiv, request.app["db"])))
 
 
 def seite(recht=None):
@@ -467,7 +588,9 @@ def _uebersicht_staat(request, k, con):
     gruppen = [("Reich", [r for r in konten if r["art"] == "sonder"]), ("Behörden", [r for r in konten if r["art"] == "behoerde"]),
                ("Teilstaaten", [r for r in konten if r["art"] == "teilstaat"]), ("Verteidigung", [r for r in konten if r["art"] == "verteidigung"])]
     kassen = "".join(f'<h2>{esc(t)}</h2><div class="sa-karten">{_karten(rs, zusatz)}</div>' for t, rs in gruppen if rs) or leer
-    schnell = (f'<div class="sa-schnell"><a href="{PFAD}etats/">{amt.ic("landmark")}<b>Etats der Behörden</b><span>Kassenstand, Etat, Personalkosten</span></a>'
+    schnell = (f'<div class="sa-schnell">'
+               + (f'<a href="{PFAD}teilstaat/">{amt.ic("flag")}<b>Mein Teilstaat</b><span>Etat, Kassen, Verteidigung, Notlage</span></a>' if _regierte(con, k) else "")
+               + f'<a href="{PFAD}etats/">{amt.ic("landmark")}<b>Etats der Behörden</b><span>Kassenstand, Etat, Personalkosten</span></a>'
                + (f'<a href="{PFAD}verteidigung/">{amt.ic("shield")}<b>Verteidigung</b><span>Etats, Militärgerät, Einsatzbereitschaft</span></a>'
                   if hat_verteidigung(con, k) else "")
                +                f'<a href="{PFAD}haushalt/">{amt.ic("chart-column")}<b>Staatshaushalt</b><span>Steuern und Reichsabgabe der Teilstaaten</span></a>'
