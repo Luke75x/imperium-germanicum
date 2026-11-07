@@ -130,6 +130,10 @@ def einrichten(con):
                 con.execute("INSERT INTO bs_zuschlaege (name, art, wert, zahlstelle, rollen, rang) VALUES (?,?,?,?,?,?)",
                             (n, "betrag", float(gg[0] // 2), "reichskasse", json.dumps([rolle]), rang + i))
         con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('nebenaemter', '1')")
+    if not con.execute("SELECT 1 FROM bs_meta WHERE schl='nebenamt_regel'").fetchone():
+        # Die Einzel-Zuschläge Kurfürst/Präsidium gehen in der allgemeinen Nebenamt-Regel auf (gleiche Beträge) – abschalten, sonst doppelt
+        con.execute("UPDATE bs_zuschlaege SET aktiv=0 WHERE name IN ('Kurfürst', 'Präsidium des Reichstags')")
+        con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('nebenamt_regel', '1')")
     if not con.execute("SELECT 1 FROM bs_meta WHERE schl='crown'").fetchone():
         # 07.11.2026: Der Monarch (Imperator Rex, Imperatrix Regina) wird aus den Crown Estates des Kaisers bezahlt
         for r in ("1522685953054081054", "1535795611599638638"):
@@ -248,6 +252,65 @@ def einstufung(con, konto_id, rollen, rollennamen=None):
     return g, quelle, zahl, zulage, ztext, (r if kand_rolle(p, gs) else None)
 
 
+# ---------------------------------------------------------------- Nebenämter (07.11.2026, Nutzervorgabe „überall Zuschläge“)
+# Wer Rollen aus mehreren Amtsbereichen trägt, erhält das Grundgehalt der höchsten Gruppe und für jeden WEITEREN Amtsbereich einen Zuschlag von
+# NEBENAMT_SATZ % des Grundgehalts der höchsten Gruppe in diesem Bereich, gezahlt von der Kasse dieses Amtes. Innerhalb eines Bereichs zählt nur
+# das höchste Amt (Dienstgrade sind aufsteigend, Verwaltungslaufbahnen ebenso; Abgeordneter + Präsidium = ein Reichstagsmandat).
+NEBENAMT_SATZ = 50
+AMTSBEREICHE = (("OR", "Dienstgrad"), ("OF", "Dienstgrad"), ("A", "Verwaltung"), ("B", "Verwaltung"), ("P1", "Reichstag"), ("P2", "Reichstag"),
+                ("P3", "Kurfürst"), ("R", "Justiz"), ("S1", "Hand des Kaisers"), ("S2", "Kanzler"), ("KRG", "Monarch"), ("KR", "Monarch"))
+
+
+def amtsbereich(schl):
+    return next((b for pre, b in AMTSBEREICHE if schl.startswith(pre)), schl)
+
+
+def nebenaemter(con, konto_id, rollen, g, rollennamen=None):
+    """[(Bezeichnung, Betrag Heller, Zahlstelle-Schlüssel)] der Nebenamt-Zuschläge zum Grundgehalt der Gruppe g."""
+    if not g:
+        return []
+    gs = gruppen(con)
+    eingang = {}   # niedrigste Gruppe je Laufbahn (Eingangsamt)
+    for gg in gs.values():
+        if gg["laufbahn"] not in eingang or gg["rang"] < eingang[gg["laufbahn"]]["rang"]:
+            eingang[gg["laufbahn"]] = gg
+    gedeckt = set()   # Rollen mit eigenem Zuschlag (z. B. Oberbefehlshaber, Stabschef): deren Amtsbereich ist damit abgegolten
+    for zu in zuschlaege(con):
+        gedeckt |= set(zu["rollen"]) & set(rollen or ())
+    ausgeschlossen = {amtsbereich(g["schl"])}
+    best = {}
+    for r in rollen or ():
+        z = con.execute("SELECT * FROM bs_rollen WHERE rolle_id=?", (r,)).fetchone()
+        if not z or z["gruppe"] not in gs:
+            continue
+        gg = gs[z["gruppe"]]
+        b = amtsbereich(gg["schl"])
+        if r in gedeckt:
+            ausgeschlossen.add(b)
+            continue
+        name = (rollennamen or {}).get(r, "")
+        if (rollennamen is not None and b in ("Dienstgrad", "Verwaltung") and eingang[gg["laufbahn"]]["schl"] == gg["schl"]
+                and not RANG.match(name)):
+            continue   # bloße Zugehörigkeit (Kaiserliches Heer, Reichsverwaltung, Kaiserliches Reichssicherheitsamt …) ist kein eigenes Amt
+        if b not in best or (gg["grundgehalt"], gg["rang"]) > (best[b][0]["grundgehalt"], best[b][0]["rang"]):
+            best[b] = (gg, r, z["zahlstelle"])
+    for b in ausgeschlossen:
+        best.pop(b, None)
+    out = []
+    for b, (gg, r, zahl) in sorted(best.items(), key=lambda t: -t[1][0]["grundgehalt"]):
+        betrag = int(round(gg["grundgehalt"] * NEBENAMT_SATZ / 100))
+        if betrag <= 0:
+            continue
+        if zahl == "auto":
+            zahl = zahlstelle_auto(r, rollen, rollennamen)
+        elif zahl == "vt-land":
+            import verteidigung
+            zahl = verteidigung.zahlstelle_land(con, rollen)
+        name = (rollennamen or {}).get(r) or gg["name"]
+        out.append((f'Nebenamt {name} ({gg["schl"]}, {NEBENAMT_SATZ} %)', betrag, zahl))
+    return out
+
+
 def kand_rolle(p, gs):
     """True, wenn das Grundgehalt aus einer Rolle stammt (nicht aus einer individuellen Einstufung)."""
     return not (p and p["gruppe"] in gs)
@@ -307,6 +370,12 @@ def berechnen_einzeln(con, konto_id, name, rollen, rollennamen=None):
         t["texte"].append(bez)
         t["namen"].append(z["name"])
         t["posten"].append([bez, betrag])
+    for bez, betrag, zs in nebenaemter(con, konto_id, rollen, g, rollennamen):
+        t = teile.setdefault(zs, {"grund": 0, "zulage": 0, "texte": [], "namen": [], "posten": []})
+        t["zulage"] += betrag
+        t["texte"].append(bez)
+        t["namen"].append(bez.split(" (")[0])
+        t["posten"].append([bez, betrag])
     gesamt = sum(t["grund"] + t["zulage"] for t in teile.values())
     if gesamt <= 0:
         return []
@@ -362,7 +431,10 @@ def zuschlag_tabelle_html(con):
     zs = dict(zahlstellen(con))
     zeilen = [(esc(z["name"]), (f'{float(z["wert"]):g} % des Grundgehalts'.replace(".", ",") if z["art"] == "prozent" else mark(int(z["wert"])) + " im Monat"),
                esc("Kasse des Grundgehalts" if z["zahlstelle"] == "grund" else zs.get(z["zahlstelle"], z["zahlstelle"]))) for z in zuschlaege(con)]
-    return ("<h2>Zuschläge auf Amtspositionen</h2>" + amt.tabelle(["Amtsposition", "Zuschlag", "Gezahlt von"], zeilen, "Keine Zuschläge.")) if zeilen else ""
+    zeilen.append(("Nebenämter (jeder weitere Amtsbereich)", f"{NEBENAMT_SATZ} % des Grundgehalts des höchsten Amtes im Bereich", "Kasse dieses Amtes"))
+    return ("<h2>Zuschläge auf Amtspositionen</h2>" + amt.tabelle(["Amtsposition", "Zuschlag", "Gezahlt von"], zeilen, "Keine Zuschläge.")
+            + '<p class="az">Amtsbereiche: Dienstgrad (Militär und Vollzug), Verwaltung, Reichstag, Kurfürst, Justiz, Hand des Kaisers, Kanzler, Monarch. '
+              'Innerhalb eines Bereichs zählt nur das höchste Amt; das höchste Amt insgesamt bestimmt das Grundgehalt.</p>')
 
 
 def _monat(periode):
@@ -587,9 +659,14 @@ async def verwaltung(request, k):
                 continue
             for z, b in zuschlaege_von(con, m["id"], m["rollen"], e[0]["grundgehalt"], e[5]):
                 vor.append((esc(m["name"]), esc(z["name"]), mark(b), esc(zs.get(_zahlstelle_aufloesen(con, z["zahlstelle"], m["rollen"], e[2]), z["zahlstelle"]))))
+            for bez, b, zst in nebenaemter(con, m["id"], m["rollen"], e[0], namen):
+                vor.append((esc(m["name"]), esc(bez), mark(b), esc(zs.get(zst, zst))))
         teil = ('<p class="az">Zuschläge gibt es auf Amtspositionen: Wer eine der Rollen einer Amtsposition trägt (oder ihr persönlich zugeordnet ist), erhält zum Grundgehalt '
                 'seiner höchsten Besoldungsgruppe den Zuschlag – als Prozentsatz des Grundgehalts oder als fester Betrag. Jeder Zuschlag hat seine eigene zahlende Kasse '
                 '(z. B. Crown Estates oder Reichsverteidigungskasse). Der Kaiser bezieht das Kaisergehalt als Grundgehalt und die Zuschläge seiner übrigen Positionen.</p>'
+                f'<p class="az"><b>Nebenämter (automatisch):</b> Trägt jemand Ämter aus mehreren Amtsbereichen (Dienstgrad, Verwaltung, Reichstag, Kurfürst, Justiz, '
+                f'Hand des Kaisers, Kanzler, Monarch), gibt es für jeden weiteren Bereich {NEBENAMT_SATZ} % des Grundgehalts des höchsten Amtes in diesem Bereich, '
+                'gezahlt von der Kasse dieses Amtes. Innerhalb eines Bereichs zählt nur das höchste Amt.</p>'
                 + "".join(blöcke) + f'<details class="sa-auf"><summary>{amt.ic("plus")}Neue Amtsposition mit Zuschlag</summary>{formular()}</details>'
                 + '<h2>Aktuelle Zuschläge</h2>' + amt.tabelle(["Person", "Amtsposition", "Zuschlag / Monat", "Gezahlt von"], vor, "Derzeit erhält niemand einen Zuschlag."))
     elif reiter == "rollen":
