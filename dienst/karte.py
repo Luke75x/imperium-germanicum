@@ -42,6 +42,16 @@ ROLLE_SOUVERAEN = "1522685953054081054"      # Imperator Rex
 ROLLEN_AEMTER = ("1525947356049309788", "1525947448776986665", "1525947612639793253", "1555971841888223242", "1525948431267532860")
 REICHSGEBIETE = "Freie Reichsgebiete"        # kein Teilstaat: Kanzler und Souverän regieren
 ROLLE_KANZLER = "1561856444913946664"
+# Fraktionsrollen, die zugleich etwas anderes bedeuten: „Heiliger Stuhl“ ist auch die Rolle des Klerus (Kardinal, Bischof …).
+# Sie zählt nur als Fraktion, wenn die Person keine andere Fraktionsrolle hat (z. B. Kardinal Baier → St. Longinus Orden).
+FRAKTION_NACHRANGIG = {"1522705410069631017"}
+
+
+def fraktionen(rollen, staaten):
+    """Wirksame Fraktionsrollen einer Person (nachrangige Doppelrollen fallen weg, sobald eine andere Fraktion da ist)."""
+    rollen = set(rollen or ())
+    fr = {s["fraktion"] for s in staaten if s.get("fraktion") and s["fraktion"] in rollen}
+    return fr - FRAKTION_NACHRANGIG if fr - FRAKTION_NACHRANGIG else fr
 MUSTER = ("voll", "streifen", "karo", "punkte")
 
 with open(os.path.join(DATEN, "geo.json"), encoding="utf-8") as _fh:
@@ -207,7 +217,8 @@ def _regent_von(k, stand):
     """IDs der Teilstaaten, deren Regent das Konto ist (Landesherr + Fraktionsrolle)."""
     if not k or ROLLE_LANDESHERR not in k["rollen"]:
         return []
-    return [s["id"] for s in stand["staaten"] if s["fraktion"] and s["fraktion"] in k["rollen"]]
+    fr = fraktionen(k["rollen"], stand["staaten"])
+    return [s["id"] for s in stand["staaten"] if s["fraktion"] and s["fraktion"] in fr]
 
 
 def _swatch(s, groesse=18):
@@ -468,7 +479,8 @@ async def info_json(request):
         if art == "kanzler" and s["fraktion"]:
             # Regent: Fraktionsrolle plus Landesherr oder eines der Zusatzämter (Gouverneur, Vizekönig …)
             personen = [person(m, s["fraktion"]) for m in mitglieder
-                        if s["fraktion"] in m["rollen"] and (ROLLE_LANDESHERR in m["rollen"] or any(r in ROLLEN_AEMTER for r in m["rollen"]))]
+                        if s["fraktion"] in fraktionen(m["rollen"], stand["staaten"])
+                        and (ROLLE_LANDESHERR in m["rollen"] or any(r in ROLLEN_AEMTER for r in m["rollen"]))]
             if personen:
                 regenten[s["id"]] = {"art": "landesherr", "fraktion": rollen.get(s["fraktion"], ""), "personen": personen}
                 continue

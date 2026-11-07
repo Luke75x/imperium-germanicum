@@ -379,11 +379,13 @@ def regierte_staatskassen(con, k):
     regent = karte.ROLLE_LANDESHERR in rollen or bool(rollen & set(karte.ROLLEN_AEMTER))
     kanzler = amt.ROLLE_KANZLER in rollen or bereiche._alle(k)
     out = []
-    for s in karte.aktuell(con)["stand"]["staaten"]:
+    staaten = karte.aktuell(con)["stand"]["staaten"]
+    eigene = karte.fraktionen(rollen, staaten)
+    for s in staaten:
         if ist_reichsgebiet(s):
             continue
         f = s["fraktion"]
-        if (f and f in rollen and (regent or f in karte.ROLLEN_AEMTER)) or (not f and kanzler):
+        if (f and f in eigene and (regent or f in karte.ROLLEN_AEMTER)) or (not f and kanzler):
             r = stellenkonto(con, "ts-" + s["id"])
             if r:
                 out.append(r)

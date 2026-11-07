@@ -197,8 +197,9 @@ def ist_militaer(con, k):
 def staaten_von(con, rollen):
     """Teilstaat-IDs aller Fraktionsrollen unter den Rollen."""
     import karte
-    rollen = set(rollen or ())
-    return {s["id"] for s in karte.aktuell(con)["stand"]["staaten"] if s.get("fraktion") and s["fraktion"] in rollen and not geld.ist_reichsgebiet(s)}
+    staaten = karte.aktuell(con)["stand"]["staaten"]
+    fr = karte.fraktionen(rollen, staaten)
+    return {s["id"] for s in staaten if s.get("fraktion") and s["fraktion"] in fr and not geld.ist_reichsgebiet(s)}
 
 
 def sicht(con, k):
@@ -232,12 +233,8 @@ def namen(con, sids):
 
 def staat_von(con, rollen):
     """Teilstaat-ID der Fraktionsrolle unter den Rollen (oder None)."""
-    import karte
-    rollen = set(rollen or ())
-    for s in karte.aktuell(con)["stand"]["staaten"]:
-        if s.get("fraktion") and s["fraktion"] in rollen and not geld.ist_reichsgebiet(s):
-            return s["id"]
-    return None
+    sids = sorted(staaten_von(con, rollen))
+    return sids[0] if sids else None
 
 
 def zahlstelle_land(con, rollen):
