@@ -127,8 +127,8 @@ def abgabequoten_beide(daten, p, summen_heller=None, zuschlag=None):
     return out, theo
 
 
-def berechnen(con, p=None, periode=None):
-    """Monatlicher Haushalt je Teilstaat (Heller) im Monat periode (Etatverteilung dieses Monats; Vorgabe: nächster zu buchender Monat): Einnahmen summe/reich/land, Pflichtausgaben ausgaben_reich/ausgaben_land und
+def berechnen(con, p=None, periode=None, entwurf=None):
+    """Monatlicher Haushalt je Teilstaat (Heller) im Monat periode (Etatverteilung dieses Monats; Vorgabe: nächster zu buchender Monat; entwurf = probeweise mit einem Etatentwurf, siehe etatplan.plan): Einnahmen summe/reich/land, Pflichtausgaben ausgaben_reich/ausgaben_land und
     Verteidigungsetat vert_reich/vert_land (wird aus den Pflichtausgaben abgezweigt: verteidigung.py)."""
     import etatplan
     import verteidigung
@@ -156,11 +156,11 @@ def berechnen(con, p=None, periode=None):
                       "aus_r": aus_r, "aus_l": aus_l, "vr0": vr0, "vl0": vl0})
     tot_ar = sum(b["aus_r"] for b in basis)
     vv_reich = sum(b["vr0"] for b in basis) / tot_ar * 100 if tot_ar else 0
-    plan_reich, richt_reich = etatplan.plan(con, "reich", vv_reich, periode), etatplan.richtwerte(vv_reich)
+    plan_reich, richt_reich = etatplan.plan(con, "reich", vv_reich, periode, entwurf), etatplan.richtwerte(vv_reich)
     w_reich = etatplan.bewerten(plan_reich, richt_reich)   # Boni/Mali des Reichsetats: Freie Reichsgebiete + Rücklage der Reichskasse
     # Rücklage: eigener Satz der Fassung (+ sparen, − aus der Kasse entnehmen) oder Vorgabe 100 − ausgabenquote; dazu die Etatwirkung (Pp.)
     rl_vorgabe = round(100 - aq * 100, 2)
-    rl_r = etatplan.ruecklage_satz(con, "reich", periode)
+    rl_r = etatplan.ruecklage_satz(con, "reich", periode, entwurf)
     rl_r = rl_vorgabe if rl_r is None else rl_r
     aq_r = max(0.0, 1 - rl_r / 100 - w_reich["summe"]["ruecklage"] / 100)
     z_reich = etatplan.zufriedenheit(con, "reich", plan_reich, richt_reich)   # Bevölkerungszufriedenheit (Freie Reichsgebiete)
@@ -170,7 +170,7 @@ def berechnen(con, p=None, periode=None):
         plan_l = richt_l = w_l = z_l = None
         if not b["rd"]:
             vv = b["vl0"] / b["aus_l"] * 100 if b["aus_l"] else 0
-            plan_l, richt_l = etatplan.plan(con, "ts-" + s["id"], vv, periode), etatplan.richtwerte(vv)
+            plan_l, richt_l = etatplan.plan(con, "ts-" + s["id"], vv, periode, entwurf), etatplan.richtwerte(vv)
             w_l = etatplan.bewerten(plan_l, richt_l)
             z_l = etatplan.zufriedenheit(con, "ts-" + s["id"], plan_l, richt_l)
         # Wirkung auf das Steueraufkommen: im Teilstaat dessen eigener Etat, in den Freien Reichsgebieten der Reichsetat; dazu die Zufriedenheit
@@ -182,7 +182,7 @@ def berechnen(con, p=None, periode=None):
         rl_l, frei_l, deckel_l = None, 0, False
         aq_l = aq
         if not b["rd"]:
-            rl_l = etatplan.ruecklage_satz(con, "ts-" + s["id"], periode)
+            rl_l = etatplan.ruecklage_satz(con, "ts-" + s["id"], periode, entwurf)
             rl_l = rl_vorgabe if rl_l is None else rl_l
             aq_l = max(0.0, 1 - rl_l / 100 - w_l["summe"]["ruecklage"] / 100)
             frei_l = etatplan.kasse_frei(con, kasse)

@@ -116,7 +116,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe", "sa-bankkarte")     # Seiten, die nur die Privatperson betreffen
-NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
+NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_kassen(con, k):
@@ -203,6 +203,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
         haushalt = [e for e, ok in ((("sa-etats", "landmark", "Etats der Behörden", "etats/"), kassen),
                                     (("sa-verteidigung", "shield", "Verteidigung", "verteidigung/"), vt),
                                     (("sa-etatverteilung", "chart-pie", "Etatverteilung", "etatverteilung/"), kassen),
+                                    (("sa-etatplanung", "pencil", "Etat planen", "etatplanung/"), kassen),
                                     (("sa-staatshaushalt", "chart-column", "Staatshaushalt", "haushalt/"), kassen),
                                     (("sa-notlage", "triangle-alert", "Haushaltsnotlagen", "notlagen/"), kassen),
                                     (("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"), kassen),

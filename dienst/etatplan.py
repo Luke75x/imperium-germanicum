@@ -12,16 +12,18 @@ Wirkung: Der Anteil „Verteidigung“ ist echtes Geld – er fließt jeden Mona
 (aufkommen.berechnen, verteidigung.py). Die übrigen Kategorien sind simulierte Ausgaben der Bevölkerung (Gegenkonto „Volkswirtschaft“); sie werden je
 Haushaltsmonat in ep_verteilung festgehalten.
 Vorgabe, solange nichts gespeichert ist: Verteidigung aus der alten Regel (Einstellung „verteidigung“: Anteil am BIP), der Rest nach VORGABE_GEWICHT.
-Änderungen: einmal je Monat. Eine Änderung gilt ab dem folgenden Kalendermonat (Fassung in ep_fassungen mit „ab“) und sperrt den Haushalt bis zum
-selben Tag des Folgemonats (geändert am 08.11. → gilt ab Dezember, nächste Änderung ab 08.12.). Rechte: Teilstaat – Landesherr (geld.regierte_staatskassen, nicht unter Zwangsverwaltung),
-Reich – Schatzamt-Leitung, Kanzler, Kaiser; ansehen darf jeder mit staatlichem Zugriff. Tabellen: ep_fassungen, ep_log, ep_verteilung
+Änderungsperiode: In den letzten sieben Tagen eines Kalendermonats kann der Etat für den Folgemonat eingereicht werden. Davor lässt sich jederzeit ein
+Entwurf speichern (ep_entwuerfe, ein Entwurf je Haushalt, beliebig oft änderbar, noch ohne Wirkung); „Etat einreichen“ schickt den zuletzt gespeicherten
+Entwurf endgültig ab (ep_fassungen mit „ab“ = Folgemonat) und sperrt den Haushalt bis zur nächsten Änderungsperiode. Ein nicht eingereichter Entwurf gilt nicht:
+es bleibt beim bisherigen Etat. Planung unter /schatzamt/etatplanung/, die Seite Etatverteilung zeigt nur den geltenden Etat. Rechte: Teilstaat – Landesherr (geld.regierte_staatskassen, nicht unter Zwangsverwaltung),
+Reich – Schatzamt-Leitung, Kanzler, Kaiser; ansehen darf jeder mit staatlichem Zugriff. Tabellen: ep_fassungen, ep_entwuerfe, ep_log, ep_verteilung
 (ep_plaene = alte, ungenutzte Einzeltabelle, nur noch Quelle der Übernahme).
 """
 import calendar
 import json
 import math
 import time
-from datetime import date
+from datetime import date, timedelta
 
 from aiohttp import web
 
@@ -33,6 +35,7 @@ from geld import mark
 
 esc = amt.esc
 PFAD = sa.PFAD + "etatverteilung/"
+PFAD_PLAN = sa.PFAD + "etatplanung/"
 
 KATEGORIEN = [("innere_sicherheit", "Innere Sicherheit"), ("forschung", "Forschung"), ("gesundheit", "Gesundheitswesen"), ("industrie", "Industrie"),
               ("kultur", "Kultur"), ("verteidigung", "Verteidigung"), ("soziales", "Arbeit und Soziales"), ("umwelt", "Umwelt"),
@@ -45,6 +48,9 @@ VORGABE_GEWICHT = {"soziales": 41, "gesundheit": 14, "bildung": 12, "transport":
 amt.ICONS.setdefault("chart-pie", '<path d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"/>'
                                   '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>')
 
+amt.ICONS.setdefault("send", '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/>'
+                              '<path d="m21.854 2.147-10.94 10.939"/>')
+
 amt.ICONS.setdefault("scale", '<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/>'
                              '<path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>')
 
@@ -52,6 +58,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS ep_plaene (schl TEXT NOT NULL, kategorie TEXT NOT NULL, anteil REAL NOT NULL, PRIMARY KEY (schl, kategorie));
 CREATE TABLE IF NOT EXISTS ep_fassungen (schl TEXT NOT NULL, ab TEXT NOT NULL, zeit INTEGER NOT NULL, vorgabe INTEGER NOT NULL DEFAULT 0,
     anteile TEXT NOT NULL DEFAULT '{}', PRIMARY KEY (schl, ab));
+CREATE TABLE IF NOT EXISTS ep_entwuerfe (schl TEXT PRIMARY KEY, zeit INTEGER NOT NULL, autor_id TEXT NOT NULL DEFAULT '', autor_name TEXT NOT NULL DEFAULT '',
+    anteile TEXT NOT NULL, ruecklage REAL);
 CREATE TABLE IF NOT EXISTS ep_log (id INTEGER PRIMARY KEY AUTOINCREMENT, zeit INTEGER NOT NULL, schl TEXT NOT NULL, autor_id TEXT NOT NULL DEFAULT '',
     autor_name TEXT NOT NULL, text TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS ep_zufriedenheit (lauf INTEGER NOT NULL, schl TEXT NOT NULL, wert REAL NOT NULL, ziel REAL NOT NULL,
@@ -62,6 +70,7 @@ CREATE TABLE IF NOT EXISTS ep_verteilung (lauf INTEGER NOT NULL, schl TEXT NOT N
 
 
 def einrichten(con):
+    neu = not con.execute("SELECT 1 FROM sqlite_master WHERE name='ep_entwuerfe'").fetchone()
     con.executescript(SCHEMA)
     if "ruecklage" not in {r[1] for r in con.execute("PRAGMA table_info(ep_fassungen)")}:
         con.execute("ALTER TABLE ep_fassungen ADD COLUMN ruecklage REAL")   # Rücklage in % des eigenen Steueranteils (− = Entnahme); NULL = Vorgabe
@@ -73,6 +82,13 @@ def einrichten(con):
         for schl, w in alt.items():
             if len(w) == len(KATEGORIEN):
                 con.execute("INSERT INTO ep_fassungen (schl, ab, zeit, vorgabe, anteile) VALUES (?,?,0,0,?)", (schl, "0000-00", json.dumps(w)))
+    if neu:
+        # Nach der früheren Regel (jederzeit änderbar, gilt ab Folgemonat) vorgemerkte Fassungen werden Entwürfe: sie gelten erst, wenn sie in der Änderungsperiode eingereicht sind.
+        for r in con.execute("SELECT * FROM ep_fassungen WHERE zeit>0 AND ab>?", (monat_heute(),)).fetchall():
+            if not r["vorgabe"]:
+                con.execute("INSERT OR IGNORE INTO ep_entwuerfe (schl, zeit, autor_id, autor_name, anteile, ruecklage) VALUES (?,?,?,?,?,?)",
+                            (r["schl"], r["zeit"], "", "Übernahme", r["anteile"], r["ruecklage"]))
+            con.execute("DELETE FROM ep_fassungen WHERE schl=? AND ab=?", (r["schl"], r["ab"]))
     con.commit()
 
 
@@ -83,8 +99,12 @@ def _folgemonat(periode):
     return f"{j + (m == 12)}-{m % 12 + 1:02d}"
 
 
+def heute():
+    return date.today()
+
+
 def monat_heute():
-    return date.today().strftime("%Y-%m")
+    return heute().strftime("%Y-%m")
 
 
 def monat_folgend():
@@ -109,8 +129,11 @@ def vorgemerkt(con, schl):
     return con.execute("SELECT * FROM ep_fassungen WHERE schl=? AND ab>? ORDER BY ab DESC LIMIT 1", (schl, monat_heute())).fetchone()
 
 
-def ruecklage_satz(con, schl, periode=None):
+def ruecklage_satz(con, schl, periode=None, entwurf=None):
     """Eigener Rücklagensatz der geltenden Fassung (% des eigenen Steueranteils, negativ = Entnahme aus der Kasse) oder None (Vorgabe)."""
+    if entwurf and schl in entwurf:
+        r = entwurf[schl].get("ruecklage")
+        return None if r is None else float(r)
     f = fassung(con, schl, periode)
     return None if not f or f["vorgabe"] or f["ruecklage"] is None else float(f["ruecklage"])
 
@@ -133,18 +156,20 @@ def kasse_frei(con, kasse, reich=False):
     return max(0, int(kasse["saldo"]) - kasse_gebunden(con, kasse, reich)) if kasse else 0
 
 
-def _plus_monat(d):
-    j, m = d.year + (d.month == 12), d.month % 12 + 1
-    return date(j, m, min(d.day, calendar.monthrange(j, m)[1]))
+def aenderungsperiode(d=None):
+    """(Beginn, Ende) der Änderungsperiode im Monat von d: die letzten sieben Tage des Kalendermonats. In ihr wird der Etat für den Folgemonat eingereicht."""
+    d = d or heute()
+    ende = d.replace(day=calendar.monthrange(d.year, d.month)[1])
+    return ende - timedelta(days=6), ende
 
 
-def gesperrt_bis(con, schl):
-    """Datum, ab dem wieder geändert werden darf (selber Tag im Folgemonat der letzten Änderung), oder None, wenn frei."""
-    r = con.execute("SELECT MAX(zeit) z FROM ep_fassungen WHERE schl=? AND zeit>0", (schl,)).fetchone()
-    if not r or not r["z"]:
-        return None
-    frei = _plus_monat(date.fromtimestamp(r["z"]))
-    return frei if date.today() < frei else None
+def in_aenderungsperiode(d=None):
+    d = d or heute()
+    return aenderungsperiode(d)[0] <= d
+
+
+def _tag(d):
+    return d.strftime("%d.%m.%Y")
 
 
 # ---------------------------------------------------------------- Verteilung
@@ -173,8 +198,11 @@ def angepasst(con, schl, periode=None):
     return bool(f and not f["vorgabe"])
 
 
-def plan(con, schl, vorgabe_verteidigung=0.0, periode=None):
-    """Verteilung (Kategorie → Prozent des Ausgabenbudgets) für 'reich' oder 'ts-<sid>' im Monat periode (Vorgabe: nächster Lauf)."""
+def plan(con, schl, vorgabe_verteidigung=0.0, periode=None, entwurf=None):
+    """Verteilung (Kategorie → Prozent des Ausgabenbudgets) für 'reich' oder 'ts-<sid>' im Monat periode (Vorgabe: nächster Lauf).
+    entwurf = {schl: {"anteile": …, "ruecklage": …}} rechnet probeweise mit einem Entwurf statt der geltenden Fassung."""
+    if entwurf and schl in entwurf:
+        return {k: float(entwurf[schl]["anteile"][k]) for k, _ in KATEGORIEN}
     f = fassung(con, schl, periode)
     rows = json.loads(f["anteile"]) if f and not f["vorgabe"] else {}
     if len(rows) == len(KATEGORIEN):
@@ -203,30 +231,48 @@ def aktuelle(con, schl, liste, periode=None):
     return {kat: (x["verteilung_land"].get(kat, 0) / x["pool_land"] * 100 if x and x["pool_land"] else 0) for kat, _ in KATEGORIEN}
 
 
-def _fassung_setzen(con, schl, vorgabe_, werte, ruecklage=None):
+def entwurf(con, schl):
+    """Gespeicherter Entwurf des Haushalts (Row) oder None."""
+    return con.execute("SELECT * FROM ep_entwuerfe WHERE schl=?", (schl,)).fetchone()
+
+
+def entwurf_speichern(con, schl, werte, ruecklage, k):
+    """Speichert (ersetzt) den Entwurf: beliebig oft, ohne Wirkung auf den Haushalt."""
+    con.execute("INSERT OR REPLACE INTO ep_entwuerfe (schl, zeit, autor_id, autor_name, anteile, ruecklage) VALUES (?,?,?,?,?,?)",
+                (schl, int(time.time()), k["id"] if k else "", k["name"] if k else "System",
+                 json.dumps({kat: round(float(werte[kat]), 2) for kat, _ in KATEGORIEN}), None if ruecklage is None else round(float(ruecklage), 2)))
+    _log(con, schl, k, "Entwurf gespeichert (noch nicht eingereicht)")
+
+
+def eingereicht(con, schl):
+    """Für den Folgemonat eingereichte Fassung (Row) oder None."""
+    return con.execute("SELECT * FROM ep_fassungen WHERE schl=? AND ab=? AND zeit>0", (schl, monat_folgend())).fetchone()
+
+
+def _aenderungstext(alt, neu, rl_alt, rl_neu):
+    aend = [f'{NAMEN[kat]} {alt[kat]:.1f} % → {float(neu[kat]):.1f} %'.replace(".", ",") for kat, _ in KATEGORIEN if abs(alt[kat] - float(neu[kat])) >= 0.05]
+    if rl_neu is not None and rl_alt is not None and abs(rl_neu - rl_alt) >= 0.05:
+        aend.insert(0, f'Rücklage {rl_alt:+.1f} % → {rl_neu:+.1f} %'.replace(".", ",").replace("-", "−"))
+    return "; ".join(aend) if aend else "unverändert"
+
+
+def einreichen(con, schl, k, alt, rl_alt):
+    """Reicht den zuletzt gespeicherten Entwurf endgültig als Etat für den Folgemonat ein. Gibt einen Fehlertext zurück oder None bei Erfolg.
+    alt/rl_alt = bisher geltende Verteilung und Rücklage (für das Änderungsprotokoll)."""
     ab = monat_folgend()
-    con.execute("INSERT OR REPLACE INTO ep_fassungen (schl, ab, zeit, vorgabe, anteile, ruecklage) VALUES (?,?,?,?,?,?)",
-                (schl, ab, int(time.time()), 1 if vorgabe_ else 0, json.dumps(werte or {}), ruecklage))
-    return ab
-
-
-def speichern(con, schl, werte, k, alt=None, ruecklage=None, ruecklage_alt=None):
-    """Merkt eine Verteilung (Prozent je Kategorie, Summe 100, dazu der Rücklagensatz) für den Folgemonat vor und protokolliert die Änderung.
-    Gibt den Monat „ab“ zurück."""
-    alt = alt or plan(con, schl, 0.0)
-    rl = None if ruecklage is None else round(float(ruecklage), 2)
-    ab = _fassung_setzen(con, schl, False, {kat: round(float(werte[kat]), 2) for kat, _ in KATEGORIEN}, rl)
-    aend = [f'{NAMEN[kat]} {alt[kat]:.1f} % → {float(werte[kat]):.1f} %'.replace(".", ",") for kat, _ in KATEGORIEN if abs(alt[kat] - float(werte[kat])) >= 0.05]
-    if rl is not None and ruecklage_alt is not None and abs(rl - ruecklage_alt) >= 0.05:
-        aend.insert(0, f'Rücklage {ruecklage_alt:+.1f} % → {rl:+.1f} %'.replace(".", ",").replace("-", "−"))
-    _log(con, schl, k, f"Verteilung ab {sa._monatsname(ab)} geändert: " + ("; ".join(aend) if aend else "unverändert"))
-    return ab
-
-
-def zuruecksetzen(con, schl, k):
-    ab = _fassung_setzen(con, schl, True, {})
-    _log(con, schl, k, f"Verteilung ab {sa._monatsname(ab)} auf die Vorgabe zurückgesetzt")
-    return ab
+    von, bis = aenderungsperiode()
+    if not in_aenderungsperiode():
+        return f"Der Etat kann nur in der Änderungsperiode eingereicht werden ({_tag(von)} bis {_tag(bis)})."
+    if eingereicht(con, schl):
+        return f"Der Etat für {sa._monatsname(ab)} wurde schon eingereicht."
+    e = entwurf(con, schl)
+    if not e:
+        return "Es ist noch kein Entwurf gespeichert. Bitte zuerst „Entwurf speichern“."
+    con.execute("INSERT OR REPLACE INTO ep_fassungen (schl, ab, zeit, vorgabe, anteile, ruecklage) VALUES (?,?,?,0,?,?)",
+                (schl, ab, int(time.time()), e["anteile"], e["ruecklage"]))
+    con.execute("DELETE FROM ep_entwuerfe WHERE schl=?", (schl,))
+    _log(con, schl, k, f"Etat für {sa._monatsname(ab)} eingereicht: " + _aenderungstext(alt, json.loads(e["anteile"]), rl_alt, e["ruecklage"]))
+    return None
 
 
 def _log(con, schl, k, text):
@@ -493,6 +539,8 @@ CSS = """<style>
 .ep-summe{display:flex;gap:10px;align-items:center;margin:10px 0;font-weight:600}
 .ep-summe.falsch{color:var(--rot)}.ep-summe.richtig{color:var(--ok)}
 .ep-hinweis{margin:8px 0}
+.ep-einreichen{border-top:1px solid var(--linie,#e3e4e7);margin-top:14px;padding-top:10px;font-size:13.5px}
+.ep-einreichen p{margin:0 0 8px}
 .ep-hf{display:flex;gap:8px;align-items:center}.ep-hf .icon{width:16px;height:16px;flex:none}
 .ep-rl{border:1px solid var(--linie,#e3e4e7);border-radius:10px;padding:12px 14px;margin:0 0 14px}
 .ep-rl-kopf{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
@@ -645,6 +693,21 @@ WK_CSS = """<style>
 }
 </style>"""
 
+PLAN_JS = r"""
+(function(){var f=document.getElementById("ep-form");if(!f)return;
+var start=new URLSearchParams(new FormData(f)).toString();
+function geaendert(){return new URLSearchParams(new FormData(f)).toString()!==start}
+var e=document.getElementById("ep-einreichen-form");
+if(e)e.addEventListener("submit",function(ev){
+ if(geaendert()){alert("Es gibt ungespeicherte Änderungen. Bitte zuerst „Entwurf speichern“ – eingereicht wird der gespeicherte Entwurf.");ev.preventDefault();return}
+ if(!confirm("Etat jetzt endgültig einreichen? Danach lässt er sich bis zur nächsten Änderungsperiode nicht mehr ändern."))ev.preventDefault()});
+var v=document.getElementById("ep-vorgabe");
+if(v)v.addEventListener("click",function(){
+ var R=JSON.parse(v.dataset.richt);
+ Object.keys(R).forEach(function(k){var n=document.getElementById("ep-n-"+k),r=document.getElementById("ep-r-"+k);if(n){n.value=R[k];if(r)r.value=R[k];n.dispatchEvent(new Event("input",{bubbles:true}))}});
+ var n=document.getElementById("ep-rl"),r=document.getElementById("ep-rl-r");if(n){n.value=v.dataset.rl;if(r)r.value=v.dataset.rl;n.dispatchEvent(new Event("input",{bubbles:true}))}});
+})();
+"""
 WK_JS = r"""
 (function(){
 var D=JSON.parse(document.getElementById("ep-daten").textContent), W=D.wk; if(!W)return;
@@ -879,20 +942,30 @@ def regeln_html():
             + amt.tabelle(["Politikfeld", "Bonus", "Malus"], zeilen))
 
 
-@sa.seite("staat")
-async def seite(request, k):
+async def _seite(request, k, planung):
+    """planung=False: Etatverteilung (geltender Etat im laufenden Monat, nur Ansicht); planung=True: Etat planen (Entwurf und Einreichen für den Folgemonat)."""
     import aufkommen
     import verteidigung
     con = request.app["db"]
-    ab = monat_folgend()
+    ab = monat_folgend() if planung else monat_heute()   # Monat, den die Seite zeigt
     liste = aufkommen.berechnen(con, periode=ab)
     ziel_liste = ziele(con, liste)
-    gueltig = {s for s, _ in ziel_liste}
     eigene = [r["stelle"] for r in geld.regierte_staatskassen(con, k)]
+    if planung:
+        ziel_liste = [(s, n) for s, n in ziel_liste if darf_aendern(con, k, s)]
+        if not ziel_liste:
+            return sa.ant(request, k, "Etat planen", "sa-etatplanung",
+                          f'<h1>{amt.ic("pencil")} Etat planen</h1><p class="az">Den Etat planen und einreichen dürfen der Landesherr eines Teilstaats sowie für das Reich '
+                          f'Kanzler, Kaiser und Schatzamt-Leitung. Den geltenden Etat sehen Sie unter <a href="{PFAD}">Etatverteilung</a>.</p>')
+    gueltig = {s for s, _ in ziel_liste}
     ziel = request.query.get("ziel", "")
     if ziel not in gueltig:
-        ziel = next((s for s in eigene if s in gueltig), "reich")
+        ziel = next((s for s in eigene if s in gueltig), ziel_liste[0][0] if planung else "reich")
     name = dict(ziel_liste)[ziel]
+    ent = entwurf(con, ziel) if planung else None
+    eing = eingereicht(con, ziel) if planung else None
+    if ent and not eing:   # mit dem Entwurf rechnen: Wirkung, Zufriedenheit und Beträge gelten für den Entwurf
+        liste = aufkommen.berechnen(con, periode=ab, entwurf={ziel: {"anteile": json.loads(ent["anteile"]), "ruecklage": ent["ruecklage"]}})
     pk = await verteidigung.personalkosten(request.app, con)
     if ziel == "reich":
         gesamt = sum(x["reich"] for x in liste)
@@ -924,10 +997,11 @@ async def seite(request, k):
     rl_w = bew["summe"]["ruecklage"]
     gebunden = kasse_gebunden(con, kasse_rl, ziel == "reich")
     kassen_name = "Reichskasse" if ziel == "reich" else "Staatskasse"
-    anteile = runden100(aktuelle(con, ziel, liste, ab))
+    anteile = runden100(json.loads(ent["anteile"]) if ent and not eing else aktuelle(con, ziel, liste, ab))
     berechtigt = darf_aendern(con, k, ziel)
-    sperre = gesperrt_bis(con, ziel)
-    darf = berechtigt and not sperre
+    darf = planung and berechtigt and not eing
+    in_per = in_aenderungsperiode()
+    von, bis = aenderungsperiode()
     n_pers, kosten = (pk or {}).get(vt_stelle, (0, 0))
     vt_min = kosten + vt_ih if pk is not None else 0
     kat_daten = [{"id": kat, "name": NAMEN[kat], "anteil": anteile[kat], "farbe": PALETTE[i % len(PALETTE)], "schraffur": i >= len(PALETTE)}
@@ -979,29 +1053,48 @@ async def seite(request, k):
                 + (f' Die Etatwirkung verschiebt die Rücklage um {_vz(rl_w, "Pp")}.' if rl_w else "") + '</p>'
                 f'<p class="ep-rl-info" id="ep-rl-info">{_rl_text(rl_eff, basis_rl - pool, kassen_name, deckel)}</p>{kasse_info}</div>')
     if darf:
-        form_in = (f'<form method="post" action="{PFAD}speichern" id="ep-form">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">{rl_block}{tabelle}'
+        form_in = (f'<form method="post" action="{PFAD_PLAN}entwurf" id="ep-form">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">{rl_block}{tabelle}'
                    '<div class="ep-summe" id="ep-summe"><span></span></div>'
                    f'<div class="warnung ep-hinweis" id="ep-min" style="display:none">{amt.ic("triangle-alert")} Dieser Verteidigungsanteil deckt nicht einmal die Gehälter und die '
                    f'Instandhaltung des Militärs ({mark(vt_min)} im Monat). Die Gehälter werden dann einbehalten, die Einsatzbereitschaft sinkt.</div>'
-                   f'<div class="aktionen"><button class="btn" type="submit" id="ep-speichern">{amt.ic("check")}Verteilung speichern</button>'
-                   f'<button class="btn zweit" type="button" id="ep-normieren">Auf 100 % bringen</button></div></form>'
-                   + (f'<form method="post" action="{PFAD}zuruecksetzen" onsubmit="return confirm(\'Auf die Vorgabe zurücksetzen?\')">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
-                      f'<div class="aktionen"><button class="btn zweit" type="submit">Auf Vorgabe zurücksetzen</button></div></form>' if angepasst(con, ziel, ab) else ""))
+                   f'<div class="aktionen"><button class="btn zweit" type="submit" id="ep-speichern">{amt.ic("check")}Entwurf speichern</button>'
+                   f'<button class="btn zweit" type="button" id="ep-normieren">Auf 100 % bringen</button>'
+                   f'<button class="btn zweit" type="button" id="ep-vorgabe" data-richt="{esc(json.dumps(runden100(richt)))}" data-rl="{liste[0]["rl_vorgabe"]:.1f}">Auf Vorgabe setzen</button></div></form>')
+        if in_per and ent:
+            form_in += (f'<form method="post" action="{PFAD_PLAN}einreichen" id="ep-einreichen-form" class="ep-einreichen">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
+                        f'<p><b>Etat einreichen</b> – schickt den zuletzt gespeicherten Entwurf (vom {esc(amt._zeit(ent["zeit"]))}) endgültig ab. Er gilt dann ab '
+                        f'<b>{esc(sa._monatsname(ab))}</b> und ist bis zur nächsten Änderungsperiode nicht mehr änderbar.</p>'
+                        f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("send")}Etat einreichen</button></div></form>')
+        elif in_per:
+            form_in += f'<p class="ep-einreichen">Zum Einreichen zuerst einen Entwurf speichern.</p>'
+        else:
+            form_in += (f'<p class="ep-einreichen">{amt.ic("lock")} Einreichen ist nur in der Änderungsperiode möglich: <b>{esc(_tag(von))} bis {esc(_tag(bis))}</b>. '
+                        'Bis dahin lässt sich der Entwurf beliebig oft speichern und ändern.</p>')
     else:
         form_in = rl_block + tabelle
-    vm = vorgemerkt(con, ziel)
     teile = []
-    if vm:
-        teile.append(f'Neue Verteilung vorgemerkt ({amt._zeit(vm["zeit"])}): sie gilt <b>ab {esc(sa._monatsname(vm["ab"]))}</b>; '
-                     f'bis dahin gilt die bisherige Verteilung. Die Tabelle zeigt den Etat ab {esc(sa._monatsname(ab))}.')
-    if darf:
-        teile.append(f'Sie dürfen die Verteilung dieses Haushalts ändern – <b>einmal im Monat</b>. Eine Änderung gilt ab <b>{esc(sa._monatsname(ab))}</b>; '
-                     f'danach ist der Etat bis zum {esc(_plus_monat(date.today()).strftime("%d.%m.%Y"))} gesperrt.')
-    elif berechtigt:
-        teile.append(f'{amt.ic("lock")} Der Etat wurde in diesem Monat schon geändert. <b>Nächste Änderung ab {esc(sperre.strftime("%d.%m.%Y"))}</b>.')
+    if planung:
+        teile.append(f'{amt.ic("clock")} Planung des Etats für <b>{esc(sa._monatsname(ab))}</b>. Änderungsperiode: die letzten sieben Tage des Monats '
+                     f'({esc(_tag(von))} bis {esc(_tag(bis))}); '
+                     + ('<b>sie läuft jetzt</b>.' if in_per else 'sie beginnt am ' + esc(_tag(von)) + '.'))
+        if eing:
+            teile.append(f'{amt.ic("lock")} <b>Eingereicht</b> am {esc(amt._zeit(eing["zeit"]))}: Dieser Etat gilt ab {esc(sa._monatsname(ab))}. '
+                         f'Bis zur nächsten Änderungsperiode lässt er sich nicht mehr ändern.')
+        elif ent:
+            teile.append(f'Entwurf gespeichert am {esc(amt._zeit(ent["zeit"]))} ({esc(ent["autor_name"])}) – <b>noch nicht eingereicht</b>, ohne Wirkung. '
+                         'Die Tabelle zeigt den Entwurf.')
+        else:
+            teile.append('Noch kein Entwurf gespeichert; die Tabelle zeigt den bisher geltenden Etat. Wird in der Änderungsperiode nichts eingereicht, bleibt es dabei.')
     else:
-        teile.append('Nur Ansicht – ändern darf die Verteilung ' + ("das Reich (Kanzler, Kaiser, Schatzamt-Leitung)." if ziel == "reich" else
-                     "der Landesherr dieses Teilstaats.") + ' Geändert werden kann einmal im Monat, mit Wirkung ab dem Folgemonat.')
+        vm = vorgemerkt(con, ziel)
+        teile.append(f'Der geltende Etat im {esc(sa._monatsname(ab))}. Änderungen werden in der <b>Änderungsperiode</b> (letzte sieben Tage des Monats, '
+                     f'{esc(_tag(von))} bis {esc(_tag(bis))}) für den Folgemonat eingereicht.')
+        if vm:
+            teile.append(f'Für <b>{esc(sa._monatsname(vm["ab"]))}</b> ist ein neuer Etat eingereicht ({esc(amt._zeit(vm["zeit"]))}); bis dahin gilt dieser Etat.')
+        if berechtigt:
+            teile.append(f'<a class="btn zweit" href="{PFAD_PLAN}?ziel={esc(ziel)}">{amt.ic("pencil")}Etat planen</a>')
+        else:
+            teile.append('Nur Ansicht – ändern darf den Etat ' + ("das Reich (Kanzler, Kaiser, Schatzamt-Leitung)." if ziel == "reich" else "der Landesherr dieses Teilstaats."))
     if grenze_hinweis:
         teile.append(amt.ic("scale") + " " + grenze_hinweis)
     rechte = "".join(f'<p class="sa-hinweis">{t}</p>' for t in teile)
@@ -1036,8 +1129,9 @@ async def seite(request, k):
                   + f'<td>{bw["boni"]} / {bw["mali"]}</td><td>{_vz(bw["summe"]["einnahmen"], "%")}</td>'
                   + f'<td>{_de((liste[0]["zufriedenheit_reich"] if s == "reich" else x2["zufriedenheit_land"])["neu"], 0)}</td></tr>')
     verlauf = con.execute("SELECT * FROM ep_log WHERE schl=? ORDER BY id DESC LIMIT 15", (ziel,)).fetchall()
-    inhalt = (CSS + f'<h1>{amt.ic("chart-pie")} Etatverteilung · {esc(name)}</h1>{amt.meldung(request)}'
-              f'<p class="az">Wie viel vom Ausgabenbudget fließt in welches Politikfeld? Das Tortendiagramm zeigt den gesamten Monatsetat ab {esc(sa._monatsname(ab))}.</p>'
+    titel = "Etat planen" if planung else "Etatverteilung"
+    inhalt = (CSS + f'<h1>{amt.ic("pencil" if planung else "chart-pie")} {titel} · {esc(name)}</h1>{amt.meldung(request)}'
+              f'<p class="az">Wie viel vom Ausgabenbudget fließt in welches Politikfeld? Das Tortendiagramm zeigt den gesamten Monatsetat im {esc(sa._monatsname(ab))}.</p>'
               f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div>'
               f'<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>'
               f'<div class="kennzahlen">{"".join(f'<div><b{f" id={i}" if i else ""}>{esc(v)}</b><span{f" id={i}-t" if i else ""}>{esc(t)}</span></div>' for t, v, i in kz)}</div>'
@@ -1046,12 +1140,22 @@ async def seite(request, k):
                 '<div class="ep-tipp" id="ep-tipp"></div></div><div>' + form_in + '</div></div>'
               + zuf_html(zuf, zuf_verlauf(con, ziel), ziel == "reich")
               + wirkung_html(bew, basis_ein, basis_rl, ziel == "reich")
-              + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script><script>{ZUF_JS}</script>'
-              + f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Vergleich aller Haushalte (Anteile am Ausgabenbudget in %)</summary><div class="ep-scroll">'
-                f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>'
+              + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script><script>{ZUF_JS}</script>' + (f'<script>{PLAN_JS}</script>' if darf else "")
+              + ("" if planung else f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Vergleich aller Haushalte (Anteile am Ausgabenbudget in %)</summary><div class="ep-scroll">'
+                f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>')
               + f'<details class="sa-auf"><summary>{amt.ic("clock")}Änderungen ({len(verlauf)})</summary>'
               + amt.tabelle(["Zeit", "Durch", "Änderung"], [(amt._zeit(v["zeit"]), esc(v["autor_name"]), esc(v["text"])) for v in verlauf], "Noch keine Änderungen.") + '</details>')
-    return sa.ant(request, k, "Etatverteilung", "sa-etatverteilung", inhalt)
+    return sa.ant(request, k, titel, "sa-etatplanung" if planung else "sa-etatverteilung", inhalt)
+
+
+@sa.seite("staat")
+async def seite(request, k):
+    return await _seite(request, k, False)
+
+
+@sa.seite("staat")
+async def planung_seite(request, k):
+    return await _seite(request, k, True)
 
 
 # ---------------------------------------------------------------- Öffentliche Etatübersicht (alle angemeldeten Nutzer, nur Prozente)
@@ -1164,56 +1268,53 @@ def _rl_lesen(form):
     return v if -1000 <= v <= 100 else None
 
 
-def _sperre_pruefen(con, ziel):
-    bis = gesperrt_bis(con, ziel)
-    if bis:
-        sa.weiter(f"{PFAD}?ziel={ziel}", f"Der Etat wurde in diesem Monat schon geändert; die nächste Änderung ist ab {bis.strftime('%d.%m.%Y')} möglich.", True)
-
-
-async def speichern_post(request):
-    k = await anmeldung.konto(request)
+def _zugriff(con, k, ziel):
     if not k:
         raise web.HTTPFound("/anmelden/")
+    if not (ziel == "reich" or ziel.startswith("ts-")) or not darf_aendern(con, k, ziel):
+        raise web.HTTPForbidden(text="Den Etat dieses Haushalts dürfen Sie nicht planen.")
+
+
+async def entwurf_post(request):
+    k = await anmeldung.konto(request)
     form = await sa.formular(request)
     con = request.app["db"]
     ziel = str(form.get("ziel", ""))
-    if not (ziel == "reich" or ziel.startswith("ts-")) or not darf_aendern(con, k, ziel):
-        raise web.HTTPForbidden(text="Die Verteilung dieses Haushalts dürfen Sie nicht ändern.")
-    _sperre_pruefen(con, ziel)
+    _zugriff(con, k, ziel)
+    if eingereicht(con, ziel):
+        sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Der Etat ist schon eingereicht und bis zur nächsten Änderungsperiode nicht mehr änderbar.", True)
     werte = _lesen(form)
     if werte is None:
-        sa.weiter(f"{PFAD}?ziel={ziel}", "Bitte für alle elf Kategorien Prozentwerte angeben, die zusammen 100 % ergeben.", True)
+        sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Bitte für alle elf Kategorien Prozentwerte angeben, die zusammen 100 % ergeben.", True)
     rl = _rl_lesen(form)
     if rl is None:
-        sa.weiter(f"{PFAD}?ziel={ziel}", "Bitte für die Rücklage einen Prozentwert zwischen −1000 und 100 angeben.", True)
+        sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Bitte für die Rücklage einen Prozentwert zwischen −1000 und 100 angeben.", True)
+    entwurf_speichern(con, ziel, werte, rl, k)
+    con.commit()
+    sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Entwurf gespeichert. Er hat noch keine Wirkung – eingereicht wird in der Änderungsperiode.")
+
+
+async def einreichen_post(request):
     import aufkommen
+    k = await anmeldung.konto(request)
+    form = await sa.formular(request)
+    con = request.app["db"]
+    ziel = str(form.get("ziel", ""))
+    _zugriff(con, k, ziel)
     ab = monat_folgend()
     liste = aufkommen.berechnen(con, periode=ab)
     rl_alt = liste[0]["rl_satz_reich"] if ziel == "reich" else next((x["rl_satz_land"] for x in liste if "ts-" + x["staat"] == ziel), None)
-    ab = speichern(con, ziel, werte, k, alt=runden100(aktuelle(con, ziel, liste, ab)), ruecklage=rl,
-                   ruecklage_alt=liste[0]["rl_vorgabe"] if rl_alt is None else rl_alt)
+    fehler = einreichen(con, ziel, k, runden100(aktuelle(con, ziel, liste, ab)), liste[0]["rl_vorgabe"] if rl_alt is None else rl_alt)
+    if fehler:
+        sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", fehler, True)
     con.commit()
-    sa.weiter(f"{PFAD}?ziel={ziel}", f"Verteilung gespeichert; sie gilt ab {sa._monatsname(ab)}. Nächste Änderung ab {_plus_monat(date.today()).strftime('%d.%m.%Y')}.")
-
-
-async def zuruecksetzen_post(request):
-    k = await anmeldung.konto(request)
-    if not k:
-        raise web.HTTPFound("/anmelden/")
-    form = await sa.formular(request)
-    con = request.app["db"]
-    ziel = str(form.get("ziel", ""))
-    if not (ziel == "reich" or ziel.startswith("ts-")) or not darf_aendern(con, k, ziel):
-        raise web.HTTPForbidden(text="Die Verteilung dieses Haushalts dürfen Sie nicht ändern.")
-    _sperre_pruefen(con, ziel)
-    ab = zuruecksetzen(con, ziel, k)
-    con.commit()
-    sa.weiter(f"{PFAD}?ziel={ziel}", f"Ab {sa._monatsname(ab)} gilt wieder die Vorgabe. Nächste Änderung ab {_plus_monat(date.today()).strftime('%d.%m.%Y')}.")
+    sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", f"Etat eingereicht; er gilt ab {sa._monatsname(ab)}.")
 
 
 def registrieren(app):
     einrichten(app["db"])
     app.router.add_get(PFAD, seite)
+    app.router.add_get(PFAD_PLAN, planung_seite)
     app.router.add_get(PFAD_OEFF, oeffentlich)
-    app.router.add_post(PFAD + "speichern", speichern_post)
-    app.router.add_post(PFAD + "zuruecksetzen", zuruecksetzen_post)
+    app.router.add_post(PFAD_PLAN + "entwurf", entwurf_post)
+    app.router.add_post(PFAD_PLAN + "einreichen", einreichen_post)
