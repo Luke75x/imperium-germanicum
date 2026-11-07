@@ -20,6 +20,7 @@ Offiziersränge; ohne Polizei/Zoll/Katastrophenschutz) und Landesherren nur ihre
 Unteroffiziere und Mannschaften sehen den Verteidigungsetat nicht. Gerät beschaffen: Generäle (Generalstab) des Teilstaats, Landesherr. Katalog und Sätze: Leitung des Schatzamts und Führungsstab. Seiten unter /schatzamt/verteidigung/ (staatlich).
 """
 import json
+import logging
 import time
 from datetime import date
 
@@ -86,7 +87,8 @@ CREATE TABLE IF NOT EXISTS vt_vorgaenge (id INTEGER PRIMARY KEY AUTOINCREMENT, z
 CREATE INDEX IF NOT EXISTS vt_vorgaenge_s ON vt_vorgaenge (stelle, id);
 CREATE TABLE IF NOT EXISTS vt_laeufe (periode TEXT PRIMARY KEY, summe INTEGER NOT NULL, bezahlt INTEGER NOT NULL, zeit INTEGER NOT NULL, autor_name TEXT NOT NULL);
 """
-ARTEN = {"beschaffung": "Beschaffung", "ausmusterung": "Ausmusterung", "instandhaltung": "Instandhaltung", "zufuehrung": "Zuführung"}
+ARTEN = {"beschaffung": "Beschaffung", "ausmusterung": "Ausmusterung", "instandhaltung": "Instandhaltung", "zufuehrung": "Zuführung",
+         "etatwirkung": "Etatwirkung"}
 
 
 def einrichten(con):
@@ -355,6 +357,19 @@ def instandhaltung(con, periode, k=None):
                  f"Instandhaltung {monat}: {mark(zahlung)} von {mark(kosten)}" + ("" if anteil >= 1 else " – Einsatzbereitschaft sinkt"))
         summe += kosten
         bezahlt += zahlung
+    # Etatverteilung: Bonus/Malus „Verteidigung“ verändert die Einsatzbereitschaft (Punkte je Monat)
+    import etatplan
+    try:
+        wirkung = etatplan.bereitschaft_wirkung(con)
+    except Exception:
+        logging.getLogger("verteidigung").exception("Etatwirkung auf die Einsatzbereitschaft nicht berechenbar")
+        wirkung = {}
+    for (stelle,) in con.execute("SELECT DISTINCT stelle FROM vt_bestand WHERE anzahl>0").fetchall():
+        d = float(wirkung.get(stelle, 0) or 0)
+        if abs(d) < 0.01:
+            continue
+        con.execute("UPDATE vt_bestand SET bereitschaft=MIN(100.0, MAX(0.0, ROUND(bereitschaft + ?, 2))) WHERE stelle=? AND anzahl>0", (d, stelle))
+        _vorgang(con, stelle, "etatwirkung", k, "", 0, 0, f"Etatverteilung {monat}: Einsatzbereitschaft {'+' if d > 0 else '−'}{abs(d):g} Punkte".replace(".", ","))
     con.execute("INSERT INTO vt_laeufe (periode, summe, bezahlt, zeit, autor_name) VALUES (?,?,?,?,?)", (periode, summe, bezahlt, int(time.time()), k["name"]))
     con.commit()
     return summe, bezahlt

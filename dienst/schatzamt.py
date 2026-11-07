@@ -165,7 +165,7 @@ def konten_im_modus(con, k, m):
 def _umschalter(m, aktiv, staat=True, rp=False):
     def a(wert, text, klasse="", titel=""):
         ziel = PFAD + "modus/" + wert
-        if aktiv and aktiv not in ("sa-start", "sa-konto", "sa-ueberweisen", "sa-tarife"):
+        if aktiv and aktiv not in ("sa-start", "sa-konto", "sa-ueberweisen", "sa-tarife", "sa-etatuebersicht"):
             ziel += "?weiter=" + quote(PFAD)
         kl = (klasse + (" aktiv" if m == wert else "")).strip()
         return (f'<a href="{ziel}" class="{kl}"{" aria-current=true" if m == wert else ""}' + (f' title="{titel}" aria-label="{titel}"' if titel else "") + f'>{text}</a>')
@@ -208,7 +208,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
                                     (("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"), kassen),
                                     (("sa-gold", "coins", "Goldreserven", "gold/"), kassen)) if ok]
         gruppen = [("Staatliche Kassen" if kassen else "Dienstlich", mein), ("Haushalt", haushalt),
-                   ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
+                   ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
         gruppen = [g for g in gruppen if g[1]]
         mein = mein + [e for e in haushalt if e[0] in ("sa-etats", "sa-verteidigung")][:4 - len(mein)]
     else:
@@ -216,7 +216,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
                 ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/"), ("sa-steuern", "receipt", "Steuern & Gebühren", "steuern/"),
                 ("sa-gehalt", "banknote", "Gehalt", "gehalt/"), ("sa-gewerbe", "store", "Gewerbe", "gewerbe/")]
         gruppen = [("Bankkarte", [("sa-bankkarte", "credit-card", "Bankkarte & PIN", "bankkarte/")]), ("Mein Geld", mein),
-                   ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
+                   ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
     if m == "rp":
         pass
     elif m == "staat" and geld.ist_beamter(k):

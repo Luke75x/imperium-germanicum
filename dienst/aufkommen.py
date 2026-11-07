@@ -145,20 +145,34 @@ def berechnen(con, p=None):
         basis.append({"s": s, "bip": bip, "ew": ew, "km": km, "q": q, "rd": reich_direkt, "summe": summe, "reich": reich, "land": land,
                       "aus_r": aus_r, "aus_l": aus_l, "vr0": vr0, "vl0": vl0})
     tot_ar = sum(b["aus_r"] for b in basis)
-    plan_reich = etatplan.plan(con, "reich", sum(b["vr0"] for b in basis) / tot_ar * 100 if tot_ar else 0)
+    vv_reich = sum(b["vr0"] for b in basis) / tot_ar * 100 if tot_ar else 0
+    plan_reich, richt_reich = etatplan.plan(con, "reich", vv_reich), etatplan.richtwerte(vv_reich)
+    w_reich = etatplan.bewerten(plan_reich, richt_reich)   # Boni/Mali des Reichsetats: Freie Reichsgebiete + Rücklage der Reichskasse
+    aq_r = min(1.05, max(0.0, aq - w_reich["summe"]["ruecklage"] / 100))
     out = []
     for b in basis:
         s = b["s"]
-        ver_r = etatplan.verteilung(b["aus_r"], plan_reich)
-        ver_l = {}
+        plan_l = richt_l = w_l = None
         if not b["rd"]:
-            ver_l = etatplan.verteilung(b["aus_l"], etatplan.plan(con, "ts-" + s["id"], b["vl0"] / b["aus_l"] * 100 if b["aus_l"] else 0))
+            vv = b["vl0"] / b["aus_l"] * 100 if b["aus_l"] else 0
+            plan_l, richt_l = etatplan.plan(con, "ts-" + s["id"], vv), etatplan.richtwerte(vv)
+            w_l = etatplan.bewerten(plan_l, richt_l)
+        # Wirkung auf das Steueraufkommen: im Teilstaat dessen eigener Etat, in den Freien Reichsgebieten der Reichsetat
+        f_ein = 1 + (w_reich if b["rd"] else w_l)["summe"]["einnahmen"] / 100
+        summe = int(round(b["summe"] * f_ein))
+        reich = summe if b["rd"] else int(round(summe * b["q"] / 100))
+        land = summe - reich
+        aq_l = aq if b["rd"] else min(1.05, max(0.0, aq - w_l["summe"]["ruecklage"] / 100))
+        aus_r, aus_l = int(round(reich * aq_r)), int(round(land * aq_l))
+        ver_r = etatplan.verteilung(aus_r, plan_reich)
+        ver_l = etatplan.verteilung(aus_l, plan_l) if plan_l else {}
         vr, vl = ver_r["verteidigung"], ver_l.get("verteidigung", 0)
         out.append({"staat": s["id"], "name": s["name"], "reichsgebiet": b["rd"], "bip": b["bip"], "ew": b["ew"], "km2": b["km"], "quote": b["q"],
-                    "zuschlag": zusch.get(s["id"], 0), "summe": b["summe"], "reich": b["reich"], "land": b["land"],
-                    "ausgaben_reich": b["aus_r"] - vr, "ausgaben_land": b["aus_l"] - vl, "vert_reich": vr, "vert_land": vl,
-                    "pool_reich": b["aus_r"], "pool_land": b["aus_l"], "verteilung_reich": ver_r, "verteilung_land": ver_l,
-                    "kasse": None if b["rd"] else geld.stellenkonto(con, "ts-" + s["id"])})
+                    "zuschlag": zusch.get(s["id"], 0), "summe": summe, "reich": reich, "land": land, "summe_basis": b["summe"],
+                    "ausgaben_reich": aus_r - vr, "ausgaben_land": aus_l - vl, "vert_reich": vr, "vert_land": vl,
+                    "pool_reich": aus_r, "pool_land": aus_l, "verteilung_reich": ver_r, "verteilung_land": ver_l,
+                    "plan_land": plan_l, "richt_land": richt_l, "wirkung_land": w_l, "plan_reich": plan_reich, "richt_reich": richt_reich,
+                    "wirkung_reich": w_reich, "kasse": None if b["rd"] else geld.stellenkonto(con, "ts-" + s["id"])})
     return sorted(out, key=lambda x: -x["summe"])
 
 

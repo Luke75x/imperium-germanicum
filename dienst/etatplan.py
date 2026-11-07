@@ -12,6 +12,7 @@ Vorgabe, solange nichts gespeichert ist: Verteidigung aus der alten Regel (Einst
 Reich – Schatzamt-Leitung, Kanzler, Kaiser; ansehen darf jeder mit staatlichem Zugriff. Tabellen: ep_plaene, ep_log, ep_verteilung.
 """
 import json
+import math
 import time
 
 from aiohttp import web
@@ -35,6 +36,9 @@ VORGABE_GEWICHT = {"soziales": 41, "gesundheit": 14, "bildung": 12, "transport":
 
 amt.ICONS.setdefault("chart-pie", '<path d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"/>'
                                   '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>')
+
+amt.ICONS.setdefault("scale", '<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/>'
+                             '<path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>')
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ep_plaene (schl TEXT NOT NULL, kategorie TEXT NOT NULL, anteil REAL NOT NULL, PRIMARY KEY (schl, kategorie));
@@ -130,6 +134,109 @@ def verteilung_speichern(con, lauf, x):
     for schl, ver in (("reich", x.get("verteilung_reich")), ("ts-" + x["staat"], x.get("verteilung_land"))):
         for kat, betrag in (ver or {}).items():
             con.execute("INSERT OR REPLACE INTO ep_verteilung (lauf, schl, kategorie, betrag) VALUES (?,?,?,?)", (lauf, schl, kat, int(betrag)))
+
+
+# ---------------------------------------------------------------- Wirkungen (Boni und Mali)
+# Richtwert je Kategorie = Vorgabe-Verteilung des Haushalts (vorgabe(): Verteidigung nach BIP-Regel, Rest nach VORGABE_GEWICHT).
+# Erfüllung e = Anteil ÷ Richtwert. Unter „malus_ab“ greift der Malus (voll ab „malus_voll“), zwischen „bonus_ab“ und „bonus_bis“ der Bonus,
+# darüber nimmt er bis „saettigung“ ab (Überversorgung bringt nichts, das Geld fehlt anderswo). Sind alle Kategorien mindestens bei „bonus_ab“,
+# gibt es zusätzlich den Bonus „Ausgewogener Etat“. Ziel ist also ein ausgewogener Etat mit leichten Schwerpunkten.
+# Hebel: einnahmen = Steueraufkommen des Gebiets in % (trifft Reichsabgabe und Landesanteil gleichermaßen; beim Reich das Aufkommen der
+# Freien Reichsgebiete), ruecklage = Prozentpunkte des eigenen Anteils, die zusätzlich als Rücklage in der Kasse bleiben (negativ: Mehrausgaben),
+# bereitschaft = Punkte Einsatzbereitschaft des Militärgeräts je Monat (Verteidigungskasse bzw. Reichsverteidigungskasse).
+GRENZEN = {"malus_ab": 0.75, "malus_voll": 0.25, "bonus_ab": 0.9, "bonus_bis": 1.6, "saettigung": 2.4}
+HEBEL = {"einnahmen": ("Steueraufkommen", "%"), "ruecklage": ("Rücklage", "Pp."), "bereitschaft": ("Einsatzbereitschaft", "Pkt./Monat")}
+WIRKUNGEN = {
+    "innere_sicherheit": ({"einnahmen": 0.3}, "Steuerehrlichkeit – weniger Betrug und Schwarzarbeit",
+                          {"einnahmen": -2.5}, "Kriminalität und Schattenwirtschaft"),
+    "forschung": ({"einnahmen": 0.6}, "Innovationen stärken die Wirtschaft",
+                  {"einnahmen": -1.0}, "Abwanderung von Fachkräften und Unternehmen"),
+    "gesundheit": ({"einnahmen": 0.3}, "Gesunde Bevölkerung, weniger Arbeitsausfall",
+                   {"einnahmen": -2.0, "ruecklage": -0.5}, "Krankheitswellen: Arbeitsausfall und Notfallkosten"),
+    "industrie": ({"einnahmen": 0.6}, "Wettbewerbsfähige Industrie",
+                  {"einnahmen": -2.0}, "Deindustrialisierung und Betriebsschließungen"),
+    "kultur": ({"einnahmen": 0.2}, "Tourismus und Ansehen des Landes",
+               {"einnahmen": -0.5}, "Verödung der Städte, ausbleibender Tourismus"),
+    "verteidigung": ({"bereitschaft": 2.0}, "Gut ausgestattete Truppe – Einsatzbereitschaft steigt",
+                     {"bereitschaft": -6.0}, "Ersatzteilmangel und Ausbildungslücken – Einsatzbereitschaft sinkt"),
+    "soziales": ({"einnahmen": 0.3}, "Sozialer Frieden und hohe Beschäftigung",
+                 {"einnahmen": -3.0, "ruecklage": -0.5}, "Armut, Streiks und Unruhen; teure Notprogramme"),
+    "umwelt": ({"ruecklage": 0.1}, "Weniger Schäden durch Unwetter und Verschmutzung",
+               {"ruecklage": -0.8}, "Umweltschäden und teure Sanierungen"),
+    "transport": ({"einnahmen": 0.4}, "Leistungsfähige Verkehrswege für den Handel",
+                  {"einnahmen": -2.0}, "Marode Straßen, Brücken und Bahnen bremsen den Handel"),
+    "bildung": ({"einnahmen": 0.3}, "Gut ausgebildete Arbeitskräfte",
+                {"einnahmen": -1.5}, "Fachkräftemangel"),
+    "landwirtschaft": ({"ruecklage": 0.15}, "Selbstversorgung mit Lebensmitteln",
+                       {"ruecklage": -0.8}, "Teure Lebensmitteleinfuhren und Ernteausfälle"),
+}
+AUSGEWOGEN = ({"einnahmen": 0.5}, "Ausgewogener Etat: alle Politikfelder mindestens zu 90 % des Richtwerts versorgt")
+
+
+def richtwerte(verteidigung_prozent):
+    return vorgabe(verteidigung_prozent)
+
+
+def _stufe(e):
+    """(Stufe, Stärke 0…1) zur Erfüllung e."""
+    g = GRENZEN
+    if e < g["malus_ab"]:
+        return "malus", min(1.0, (g["malus_ab"] - e) / (g["malus_ab"] - g["malus_voll"]))
+    if e < g["bonus_ab"]:
+        return "knapp", 0.0
+    if e <= g["bonus_bis"]:
+        return "bonus", 1.0
+    if e < g["saettigung"]:
+        return "bonus", (g["saettigung"] - e) / (g["saettigung"] - g["bonus_bis"])
+    return "ueber", 0.0
+
+
+def bewerten(anteile, richt):
+    """Boni und Mali einer Verteilung (Prozent je Kategorie) gegenüber den Richtwerten.
+    → {"zeilen": [{kat, anteil, richt, e, stufe, staerke, effekt}], "summe": {hebel: Wert}, "ausgewogen", "boni", "mali"}"""
+    zeilen, summe = [], {h: 0.0 for h in HEBEL}
+    for kat, _ in KATEGORIEN:
+        a, r = float(anteile.get(kat, 0)), float(richt.get(kat, 0))
+        bonus, _, malus, _ = WIRKUNGEN[kat]
+        if r < 0.05:
+            e, stufe, st = None, "knapp", 0.0
+        else:
+            e = a / r
+            stufe, st = _stufe(e)
+        quelle = bonus if stufe == "bonus" else malus if stufe == "malus" else {}
+        effekt = {h: round(v * st, 3) for h, v in quelle.items()}
+        for h, v in effekt.items():
+            summe[h] += v
+        zeilen.append({"kat": kat, "anteil": a, "richt": r, "e": e, "stufe": stufe, "staerke": st, "effekt": effekt})
+    ausgewogen = all(z["e"] is None or z["e"] >= GRENZEN["bonus_ab"] for z in zeilen)
+    if ausgewogen:
+        for h, v in AUSGEWOGEN[0].items():
+            summe[h] += v
+    return {"zeilen": zeilen, "summe": {h: round(v, 3) for h, v in summe.items()}, "ausgewogen": ausgewogen,
+            "boni": sum(1 for z in zeilen if z["stufe"] == "bonus" and z["staerke"] > 0),
+            "mali": sum(1 for z in zeilen if z["stufe"] == "malus" and z["staerke"] > 0)}
+
+
+def hebel_text(effekt):
+    """'Steueraufkommen −2,5 %, Rücklage −0,5 Pp.'"""
+    teile = []
+    for h, v in effekt.items():
+        if abs(v) < 0.0005:
+            continue
+        name, einheit = HEBEL[h]
+        teile.append(f'{name} {"+" if v > 0 else "−"}{_de(abs(v), 2).rstrip("0").rstrip(",")} {einheit}')
+    return ", ".join(teile)
+
+
+def bereitschaft_wirkung(con):
+    """{Verteidigungskasse (Stelle): Punkte Einsatzbereitschaft je Monat} aus der aktuellen Etatverteilung (für verteidigung.instandhaltung)."""
+    import aufkommen
+    out = {}
+    for x in aufkommen.berechnen(con):
+        out.setdefault("verteidigung", x["wirkung_reich"]["summe"]["bereitschaft"])
+        if not x["reichsgebiet"] and x.get("wirkung_land"):
+            out["vt-" + x["staat"]] = x["wirkung_land"]["summe"]["bereitschaft"]
+    return out
 
 
 # ---------------------------------------------------------------- Rechte
@@ -235,7 +342,7 @@ function zeichnen(){
   else el.setAttribute("d",pfad(a0,a1,96));
   el.setAttribute("fill",x.schraffur?"url(#hs"+i+")":x.farbe);
   el.setAttribute("tabindex","0");el.dataset.id=x.id;
-  el.setAttribute("aria-label",x.name+": "+pz(x.betrag/gesamt*100)+" des Etats, "+de(x.betrag));
+  el.setAttribute("aria-label",x.name+": "+pz(x.betrag/gesamt*100)+" des Etats"+(D.nur_prozent?"":", "+de(x.betrag)));
   el.addEventListener("mousemove",function(e){zeigen(x,e)});el.addEventListener("mouseleave",weg);
   el.addEventListener("focus",function(){fokus(x.id,true);var b=el.getBBox();zeigenAn(x,b.x+b.width/2,b.y+b.height/2)});el.addEventListener("blur",weg);
   svg.appendChild(el)});
@@ -244,7 +351,7 @@ function zeichnen(){
   if(a)a.textContent=pz(x.betrag/gesamt*100)});
  summe()}
 function zeigen(x,e){var r=torte.getBoundingClientRect();zeigenAn(x,(e.clientX-r.left)/r.width*200,(e.clientY-r.top)/r.height*200);fokus(x.id,true)}
-function zeigenAn(x,px,py){var gesamt=D.gesamt||1;tipp.innerHTML="<b>"+x.name+"</b><br>"+pz(x.betrag/gesamt*100)+" des Etats · "+de(x.betrag);
+function zeigenAn(x,px,py){var gesamt=D.gesamt||1;tipp.innerHTML="<b>"+x.name+"</b><br>"+pz(x.betrag/gesamt*100)+" des Etats"+(D.nur_prozent?"":" · "+de(x.betrag));
  tipp.style.left=(px/200*100)+"%";tipp.style.top=(py/200*100)+"%";tipp.classList.add("an")}
 function weg(){tipp.classList.remove("an");fokus(null,false)}
 function fokus(id,an){torte.classList.toggle("hat-fokus",!!an);[].forEach.call(svg.querySelectorAll("[data-id]"),function(p){p.classList.toggle("fokus",an&&p.dataset.id===id)});
@@ -274,6 +381,145 @@ def _de(x, stellen=1):
     return f"{x:.{stellen}f}".replace(".", ",")
 
 
+# ---------------------------------------------------------------- Darstellung der Wirkungen
+
+WK_CSS = """<style>
+.ep-wk{margin:22px 0 8px}
+.ep-wk h2{display:flex;align-items:center;gap:8px}
+.ep-wk .kennzahlen small{display:block;color:var(--grau);font-size:12px;margin-top:2px}
+.wk-plus{color:var(--ok)}.wk-minus{color:var(--rot)}
+.wk-marke{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.03em;padding:2px 8px;border-radius:999px;white-space:nowrap;
+ border:1px solid var(--linie);color:var(--grau);background:#fff}
+.wk-marke.bonus{background:#e7f6ee;border-color:#9ed4b5;color:#13663d}
+.wk-marke.malus{background:#fdecec;border-color:#f0b3b3;color:#a32020}
+.wk-ausg{padding:10px 14px;border-radius:10px;margin:10px 0;border:1px solid var(--linie);background:var(--hell)}
+.wk-ausg.ja{border-color:#9ed4b5;background:#e7f6ee}
+.ep-wk-tab td.wk-text small{display:block;color:var(--grau);font-size:12px;margin-top:2px}
+.ep-wk-tab td.num{white-space:nowrap}
+@media (max-width:800px){
+ .ep-wk-tab thead{display:none}
+ .ep-wk-tab tr{display:grid;grid-template-columns:1fr auto auto;gap:2px 10px;align-items:center;padding:8px 0;border-bottom:1px solid #eef0f2}
+ .ep-tab.ep-wk-tab td{border:0!important;padding:0}
+ .ep-wk-tab td:nth-child(2),.ep-wk-tab td:nth-child(3){display:none}
+ .ep-wk-tab td:first-child{font-weight:600}
+ .ep-wk-tab td.wk-text{grid-column:1/-1;font-size:13px}
+ .ep-wk-tab td.wk-text small{font-size:11.5px}
+}
+</style>"""
+
+WK_JS = r"""
+(function(){
+var D=JSON.parse(document.getElementById("ep-daten").textContent), W=D.wk; if(!W)return;
+var G=W.grenzen;
+function zahl(v,st){return v.toLocaleString("de-DE",{minimumFractionDigits:0,maximumFractionDigits:st===undefined?2:st})}
+function vz(v,e){return (v>0?"+":v<0?"−":"±")+zahl(Math.abs(v))+" "+e}
+function hebel(eff){var t=[];Object.keys(eff).forEach(function(h){var v=eff[h];if(Math.abs(v)<0.0005)return;t.push(W.hebel[h][0]+" "+vz(v,W.hebel[h][1]))});return t.join(", ")}
+function stufe(e){if(e<G.malus_ab)return["malus",Math.min(1,(G.malus_ab-e)/(G.malus_ab-G.malus_voll))];if(e<G.bonus_ab)return["knapp",0];
+ if(e<=G.bonus_bis)return["bonus",1];if(e<G.saettigung)return["bonus",(G.saettigung-e)/(G.saettigung-G.bonus_bis)];return["ueber",0]}
+function kurz(h){var k=h/100,a=Math.abs(k),s=k<0?"−":"+";
+ if(a>=1e9)return s+zahl(a/1e9)+" Mrd. Kr";if(a>=1e6)return s+zahl(a/1e6)+" Mio. Kr";return s+zahl(a,0)+" Kr"}
+function anteile(){var o={};[].forEach.call(document.querySelectorAll("input[type=number][data-kat]"),function(f){o[f.dataset.kat]=parseFloat(String(f.value).replace(",","."))||0});
+ D.kategorien.forEach(function(k){if(!(k.id in o))o[k.id]=k.anteil});return o}
+function rechnen(){
+ var a=anteile(),sum={einnahmen:0,ruecklage:0,bereitschaft:0},boni=0,mali=0,ausg=true;
+ D.kategorien.forEach(function(k){
+  var r=W.richt[k.id]||0,w=W.wirkungen[k.id],z=document.querySelector('[data-wk="'+k.id+'"]');if(!z)return;
+  var e=null,st=["knapp",0];if(r>=0.05){e=a[k.id]/r;st=stufe(e)}
+  if(e!==null&&e<G.bonus_ab)ausg=false;
+  var q=st[0]==="bonus"?w[0]:st[0]==="malus"?w[2]:{},eff={};Object.keys(q).forEach(function(h){eff[h]=q[h]*st[1];sum[h]+=eff[h]});
+  if(st[0]==="bonus"&&st[1]>0)boni++;if(st[0]==="malus"&&st[1]>0)mali++;
+  z.querySelector(".wk-anteil").textContent=zahl(a[k.id],1)+" %";
+  z.querySelector(".wk-e").textContent=e===null?"–":zahl(e*100,0)+" %";
+  var m=z.querySelector(".wk-marke"),txt=z.querySelector(".wk-haupt");
+  if(st[0]==="bonus"&&st[1]>0){m.className="wk-marke bonus";m.textContent=st[1]<1?"Bonus "+zahl(st[1]*100,0)+" %":"Bonus";txt.textContent=w[1]+": "+hebel(eff)+(st[1]<1?" (Überversorgung: Wirkung lässt nach)":"")}
+  else if(st[0]==="malus"){m.className="wk-marke malus";m.textContent=st[1]<1?"Malus "+zahl(st[1]*100,0)+" %":"Malus";txt.textContent=w[3]+": "+hebel(eff)}
+  else if(st[0]==="ueber"){m.className="wk-marke";m.textContent="Überversorgt";txt.textContent="Kein zusätzlicher Nutzen – das Geld fehlt in anderen Feldern."}
+  else{m.className="wk-marke";m.textContent=e===null?"–":"Knapp";txt.textContent=e===null?"Kein Richtwert.":"Keine Wirkung – für den Bonus fehlen "+zahl(Math.max(0.1,Math.ceil((G.bonus_ab*r-a[k.id])*10-1e-9)/10),1)+" Prozentpunkte."}
+ });
+ if(ausg)Object.keys(W.ausgewogen[0]).forEach(function(h){sum[h]+=W.ausgewogen[0][h]});
+ var ae=document.getElementById("wk-ausg");if(ae){ae.className="wk-ausg"+(ausg?" ja":"");ae.querySelector("span").textContent=ausg?
+  "Ausgewogener Etat – zusätzlicher Bonus: "+hebel(W.ausgewogen[0])+".":"Kein ausgewogener Etat: Liegen alle Politikfelder bei mindestens "+zahl(G.bonus_ab*100,0)+" % ihres Richtwerts, gibt es zusätzlich "+hebel(W.ausgewogen[0])+"."}
+ function setz(id,v,e,basis){var b=document.getElementById(id);if(!b)return;b.textContent=vz(Math.round(v*100)/100,e);b.className=v>0.0005?"wk-plus":v<-0.0005?"wk-minus":"";
+  var s=document.getElementById(id+"-kr");if(s&&basis!==undefined)s.textContent=Math.abs(v)<0.0005?"keine Veränderung":"≈ "+kurz(basis*v/100)+" im Monat"}
+ setz("wk-ein",sum.einnahmen,"%",W.basis_ein);setz("wk-rl",sum.ruecklage,"Pp.",W.basis_rl);setz("wk-vt",sum.bereitschaft,"Pkt.");
+ var bl=document.getElementById("wk-bilanz");if(bl)bl.textContent=boni+" Boni · "+mali+" Mali";
+}
+[].forEach.call(document.querySelectorAll("input[data-kat]"),function(f){f.addEventListener("input",rechnen)});
+var n=document.getElementById("ep-normieren");if(n)n.addEventListener("click",rechnen);
+rechnen()})();
+"""
+
+
+def _vz(v, einheit):
+    return f'{"+" if v > 0 else "−" if v < 0 else "±"}{_de(abs(v), 2).rstrip("0").rstrip(",")} {einheit}'
+
+
+def wirkung_daten(richt, basis_ein, basis_rl):
+    return {"richt": richt, "wirkungen": WIRKUNGEN, "grenzen": GRENZEN, "hebel": HEBEL, "ausgewogen": AUSGEWOGEN,
+            "basis_ein": basis_ein, "basis_rl": basis_rl}
+
+
+def wirkung_html(bew, basis_ein, basis_rl, reich=False):
+    """Abschnitt „Auswirkungen“: Gesamtwirkung + Tabelle je Kategorie (WK_JS aktualisiert ihn live bei Eingaben)."""
+    s = bew["summe"]
+
+    def kachel(i, titel, v, einheit, basis=None):
+        kl = "wk-plus" if v > 0.0005 else "wk-minus" if v < -0.0005 else ""
+        unter = ""
+        if basis is not None:
+            unter = f'<small id="{i}-kr">{"keine Veränderung" if abs(v) < 0.0005 else "≈ " + ("+" if v > 0 else "−") + geld.mark_kurz(abs(int(basis * v / 100))) + " im Monat"}</small>'
+        return f'<div><b id="{i}" class="{kl}">{_vz(v, einheit)}</b>{esc(titel)}{unter}</div>'
+
+    kz = (kachel("wk-ein", "Steueraufkommen" + (" der Freien Reichsgebiete" if reich else ""), s["einnahmen"], "%", basis_ein)
+          + kachel("wk-rl", "Rücklage der " + ("Reichskasse" if reich else "Staatskasse"), s["ruecklage"], "Pp.", basis_rl)
+          + kachel("wk-vt", "Einsatzbereitschaft je Monat", s["bereitschaft"], "Pkt.")
+          + f'<div><b id="wk-bilanz">{bew["boni"]} Boni · {bew["mali"]} Mali</b>Bilanz</div>')
+    zeilen = []
+    for z in bew["zeilen"]:
+        kat = z["kat"]
+        bonus, btext, malus, mtext = WIRKUNGEN[kat]
+        if z["stufe"] == "bonus" and z["staerke"] > 0:
+            marke = f'<span class="wk-marke bonus">Bonus{"" if z["staerke"] >= 1 else " " + _de(z["staerke"] * 100, 0) + " %"}</span>'
+            haupt = f'{btext}: {hebel_text(z["effekt"])}' + ("" if z["staerke"] >= 1 else " (Überversorgung: Wirkung lässt nach)")
+        elif z["stufe"] == "malus":
+            marke = f'<span class="wk-marke malus">Malus{"" if z["staerke"] >= 1 else " " + _de(z["staerke"] * 100, 0) + " %"}</span>'
+            haupt = f'{mtext}: {hebel_text(z["effekt"])}'
+        elif z["stufe"] == "ueber":
+            marke, haupt = '<span class="wk-marke">Überversorgt</span>', "Kein zusätzlicher Nutzen – das Geld fehlt in anderen Feldern."
+        else:
+            marke = f'<span class="wk-marke">{"–" if z["e"] is None else "Knapp"}</span>'
+            haupt = ("Kein Richtwert." if z["e"] is None else
+                     f'Keine Wirkung – für den Bonus fehlen {_de(max(0.1, math.ceil((GRENZEN["bonus_ab"] * z["richt"] - z["anteil"]) * 10 - 1e-9) / 10))} Prozentpunkte.')
+        regel = f'Bonus ab {_de(GRENZEN["bonus_ab"] * z["richt"])} %: {hebel_text(bonus)} · Malus unter {_de(GRENZEN["malus_ab"] * z["richt"])} %: {hebel_text(malus)}'
+        zeilen.append(f'<tr data-wk="{kat}"><td>{esc(NAMEN[kat])}</td><td class="num">{_de(z["richt"])} %</td><td class="num wk-anteil">{_de(z["anteil"])} %</td>'
+                      f'<td class="num wk-e">{"–" if z["e"] is None else _de(z["e"] * 100, 0) + " %"}</td><td>{marke}</td>'
+                      f'<td class="wk-text"><span class="wk-haupt">{esc(haupt)}</span><small>{esc(regel)}</small></td></tr>')
+    g = GRENZEN
+    ausg_text = (f'Ausgewogener Etat – zusätzlicher Bonus: {hebel_text(AUSGEWOGEN[0])}.' if bew["ausgewogen"] else
+                 f'Kein ausgewogener Etat: Liegen alle Politikfelder bei mindestens {_de(g["bonus_ab"] * 100, 0)} % ihres Richtwerts, gibt es zusätzlich '
+                 f'{hebel_text(AUSGEWOGEN[0])}.')
+    return (WK_CSS + f'<section class="ep-wk" id="ep-wk"><h2>{amt.ic("scale")} Auswirkungen der Verteilung</h2>'
+            '<p class="az">Jedes Politikfeld hat einen <b>Richtwert</b> (die Vorgabe-Verteilung). '
+            f'Ab {_de(g["bonus_ab"] * 100, 0)} % des Richtwerts gibt es einen <b>Bonus</b>, unter {_de(g["malus_ab"] * 100, 0)} % einen <b>Malus</b> '
+            f'(voll ab {_de(g["malus_voll"] * 100, 0)} %). Über {_de(g["bonus_bis"] * 100, 0)} % lässt der Bonus nach, ab {_de(g["saettigung"] * 100, 0)} % '
+            'bringt mehr Geld nichts mehr. Am besten fährt ein <b>ausgewogener Etat</b> mit leichten Schwerpunkten. '
+            'Die Wirkungen gelten jeweils im nächsten gebuchten Monat.</p>'
+            f'<div class="kennzahlen">{kz}</div><div class="wk-ausg{" ja" if bew["ausgewogen"] else ""}" id="wk-ausg"><span>{esc(ausg_text)}</span></div>'
+            '<div class="ep-scroll"><table class="ep-tab ep-wk-tab"><thead><tr><th>Politikfeld</th><th class="num">Richtwert</th><th class="num">Anteil</th>'
+            f'<th class="num">Erfüllung</th><th>Stand</th><th>Wirkung</th></tr></thead><tbody>{"".join(zeilen)}</tbody></table></div></section>')
+
+
+def regeln_html():
+    """Übersicht aller Boni und Mali (öffentlich)."""
+    g = GRENZEN
+    zeilen = [(esc(NAMEN[kat]), esc(f'{btext}: {hebel_text(b)}'), esc(f'{mtext}: {hebel_text(m)}')) for kat, (b, btext, m, mtext) in WIRKUNGEN.items()]
+    zeilen.append(("<b>Ausgewogener Etat</b>", esc(f'Alle Felder mindestens {_de(g["bonus_ab"] * 100, 0)} % des Richtwerts: {hebel_text(AUSGEWOGEN[0])}'), "–"))
+    return (f'<p class="az">Bonus ab {_de(g["bonus_ab"] * 100, 0)} % des Richtwerts eines Politikfelds, Malus unter {_de(g["malus_ab"] * 100, 0)} % '
+            f'(voll ab {_de(g["malus_voll"] * 100, 0)} %); über {_de(g["bonus_bis"] * 100, 0)} % lässt der Bonus nach. „Steueraufkommen“ betrifft die '
+            'Einnahmen des ganzen Gebiets (auch die Abgabe an das Reich), „Rücklage“ den frei verfügbaren Teil der Kasse, „Einsatzbereitschaft“ das Militärgerät.</p>'
+            + amt.tabelle(["Politikfeld", "Bonus", "Malus"], zeilen))
+
+
 @sa.seite("staat")
 async def seite(request, k):
     import aufkommen
@@ -296,6 +542,8 @@ async def seite(request, k):
         fest_vorn = []
         vt_stelle = "verteidigung"
         vt_ih = 0
+        bew, richt = liste[0]["wirkung_reich"], liste[0]["richt_reich"]
+        basis_ein, basis_rl = sum(x["summe_basis"] for x in liste if x["reichsgebiet"]), gesamt
     else:
         x = next(x for x in liste if "ts-" + x["staat"] == ziel)
         gesamt, pool, ruecklage = x["summe"], x["pool_land"], x["land"] - x["pool_land"]
@@ -303,6 +551,7 @@ async def seite(request, k):
         fest_vorn = [{"id": "abgabe", "name": "Abgabe an das Reich", "betrag": x["reich"], "farbe": "#3a3a3a", "schraffur": False}]
         vt_stelle = "vt-" + x["staat"]
         vt_ih = verteidigung.kennzahlen(con, vt_stelle)["instandhaltung"]
+        bew, richt, basis_ein, basis_rl = x["wirkung_land"], x["richt_land"], x["summe_basis"], x["land"]
     anteile = aktuelle(con, ziel, liste)
     anteile = runden100(anteile)
     darf = darf_aendern(con, k, ziel)
@@ -312,7 +561,8 @@ async def seite(request, k):
                  for i, (kat, _) in enumerate(KATEGORIEN)]
     fest_hinten = [{"id": "ruecklage", "name": "Rücklage der Staatskasse" if ziel != "reich" else "Rücklage der Reichskasse",
                     "betrag": ruecklage, "farbe": "#c4c6cb", "schraffur": False}]
-    daten = {"gesamt": gesamt, "pool": pool, "vt_min": vt_min, "kategorien": kat_daten, "fest_vorn": fest_vorn, "fest_hinten": fest_hinten, "farben": PALETTE}
+    daten = {"gesamt": gesamt, "pool": pool, "vt_min": vt_min, "kategorien": kat_daten, "fest_vorn": fest_vorn, "fest_hinten": fest_hinten, "farben": PALETTE,
+             "wk": wirkung_daten(richt, basis_ein, basis_rl)}
     c = amt.csrf_feld(request)
     zeilen = []
     for f in fest_vorn:
@@ -374,7 +624,9 @@ async def seite(request, k):
         else:
             x2 = next(x for x in liste if "ts-" + x["staat"] == s)
             ver, pl = x2["verteilung_land"], x2["pool_land"]
-        vz.append(f'<tr><td><a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a></td>' + "".join(f'<td>{_de(ver[kat] / pl * 100 if pl else 0)}</td>' for kat, _ in KATEGORIEN) + '</tr>')
+        bw = liste[0]["wirkung_reich"] if s == "reich" else x2["wirkung_land"]
+        vz.append(f'<tr><td><a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a></td>' + "".join(f'<td>{_de(ver[kat] / pl * 100 if pl else 0)}</td>' for kat, _ in KATEGORIEN)
+                  + f'<td>{bw["boni"]} / {bw["mali"]}</td><td>{_vz(bw["summe"]["einnahmen"], "%")}</td></tr>')
     verlauf = con.execute("SELECT * FROM ep_log WHERE schl=? ORDER BY id DESC LIMIT 15", (ziel,)).fetchall()
     inhalt = (CSS + f'<h1>{amt.ic("chart-pie")} Etatverteilung · {esc(name)}</h1>{amt.meldung(request)}'
               '<p class="az">Wie viel vom Ausgabenbudget fließt in welches Politikfeld? Das Tortendiagramm zeigt den gesamten Monatsetat.</p>'
@@ -384,12 +636,84 @@ async def seite(request, k):
               + rechte + erkl
               + f'<div class="ep-raster"><div class="ep-torte" id="ep-torte"><svg viewBox="0 0 200 200" role="img" aria-label="Tortendiagramm des Etats {esc(name)}"></svg>'
                 '<div class="ep-tipp" id="ep-tipp"></div></div><div>' + form_in + '</div></div>'
-              + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script>'
+              + wirkung_html(bew, basis_ein, basis_rl, ziel == "reich")
+              + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script>'
               + f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Vergleich aller Haushalte (Anteile am Ausgabenbudget in %)</summary><div class="ep-scroll">'
-                f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th>{kopf}</tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>'
+                f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>'
               + f'<details class="sa-auf"><summary>{amt.ic("clock")}Änderungen ({len(verlauf)})</summary>'
               + amt.tabelle(["Zeit", "Durch", "Änderung"], [(amt._zeit(v["zeit"]), esc(v["autor_name"]), esc(v["text"])) for v in verlauf], "Noch keine Änderungen.") + '</details>')
     return sa.ant(request, k, "Etatverteilung", "sa-etatverteilung", inhalt)
+
+
+# ---------------------------------------------------------------- Öffentliche Etatübersicht (alle angemeldeten Nutzer, nur Prozente)
+
+PFAD_OEFF = sa.PFAD + "etatuebersicht/"
+
+
+def _torte_daten(x, liste, ziel):
+    """Anteile (Promille-Einheiten statt Kronen) für das öffentliche Tortendiagramm."""
+    if ziel == "reich":
+        gesamt = sum(y["reich"] for y in liste)
+        pool = sum(y["pool_reich"] for y in liste)
+        ver = {kat: sum(y["verteilung_reich"].get(kat, 0) for y in liste) for kat, _ in KATEGORIEN}
+        vorn, ruecklage = [], gesamt - pool
+    else:
+        gesamt, pool, ver = x["summe"], x["pool_land"], x["verteilung_land"]
+        vorn, ruecklage = [("abgabe", "Abgabe an das Reich", x["reich"], "#3a3a3a")], x["land"] - x["pool_land"]
+    n = lambda h: int(round(h / gesamt * 1_000_000)) if gesamt else 0
+    kat = [{"id": k, "name": NAMEN[k], "anteil": ver[k] / pool * 100 if pool else 0, "farbe": PALETTE[i % len(PALETTE)], "schraffur": i >= len(PALETTE)}
+           for i, (k, _) in enumerate(KATEGORIEN)]
+    return {"gesamt": 1_000_000, "pool": n(pool), "vt_min": 0, "kategorien": kat, "nur_prozent": True, "farben": PALETTE,
+            "fest_vorn": [{"id": i, "name": nm, "betrag": n(b), "farbe": f, "schraffur": False} for i, nm, b, f in vorn],
+            "fest_hinten": [{"id": "ruecklage", "name": "Rücklage", "betrag": n(ruecklage), "farbe": "#c4c6cb", "schraffur": False}]}
+
+
+@sa.seite()
+async def oeffentlich(request, k):
+    import aufkommen
+    con = request.app["db"]
+    liste = aufkommen.berechnen(con)
+    ziel_liste = ziele(con, liste)
+    gueltig = dict(ziel_liste)
+    ziel = request.query.get("ziel", "")
+    if ziel not in gueltig:
+        eigene = [r["stelle"] for r in geld.regierte_staatskassen(con, k)]
+        ziel = next((s for s in eigene if s in gueltig), "reich")
+    x = None if ziel == "reich" else next(y for y in liste if "ts-" + y["staat"] == ziel)
+    d = _torte_daten(x, liste, ziel)
+    bew = liste[0]["wirkung_reich"] if ziel == "reich" else x["wirkung_land"]
+    zeilen = []
+    for f in d["fest_vorn"]:
+        zeilen.append(f'<tr class="ep-fest" data-zeile="{f["id"]}"><td><span class="ep-farbe" style="background:{f["farbe"]}"></span>{esc(f["name"])}</td>'
+                      f'<td class="num">{_de(f["betrag"] / 10000)} %</td></tr>')
+    stufen = {z["kat"]: z for z in bew["zeilen"]}
+    for kd in d["kategorien"]:
+        z = stufen[kd["id"]]
+        marke = ('<span class="wk-marke bonus">Bonus</span>' if z["stufe"] == "bonus" and z["staerke"] > 0 else
+                 '<span class="wk-marke malus">Malus</span>' if z["stufe"] == "malus" else "")
+        zeilen.append(f'<tr data-zeile="{kd["id"]}"><td><span class="ep-farbe{" schraffur" if kd["schraffur"] else ""}" style="background-color:{kd["farbe"]}"></span>'
+                      f'{esc(kd["name"])} {marke}</td><td class="num">{_de(kd["anteil"] * d["pool"] / 1_000_000)} %</td></tr>')
+    for f in d["fest_hinten"]:
+        zeilen.append(f'<tr class="ep-fest" data-zeile="{f["id"]}"><td><span class="ep-farbe" style="background:{f["farbe"]}"></span>{esc(f["name"])}</td>'
+                      f'<td class="num">{_de(f["betrag"] / 10000)} %</td></tr>')
+    auswahl = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in ziel_liste)
+    e = bew["summe"]["einnahmen"]
+    lage = (f'<div class="wk-ausg{" ja" if bew["ausgewogen"] else ""}"><b>{"Ausgewogener Etat" if bew["ausgewogen"] else "Etat mit Schwerpunkten"}</b> · '
+            f'{bew["boni"]} Boni · {bew["mali"]} Mali · Wirkung auf das Steueraufkommen: '
+            f'<b class="{"wk-plus" if e > 0 else "wk-minus" if e < 0 else ""}">{_vz(e, "%")}</b></div>')
+    staatl = (f'<p class="sa-hinweis"><a href="{PFAD}?ziel={esc(ziel)}">Zur Etatverteilung mit Beträgen und Einstellungen</a></p>'
+              if sa.hat_kassen(con, k) else "")
+    inhalt = (CSS + WK_CSS + f'<h1>{amt.ic("chart-pie")} Etatübersicht</h1>'
+              '<p class="az">Wofür geben Reich und Teilstaaten ihr Geld aus? Anteile am monatlichen Etat.</p>'
+              f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{auswahl}</select></div>'
+              '<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>' + lage
+              + f'<div class="ep-raster"><div class="ep-torte" id="ep-torte"><svg viewBox="0 0 200 200" role="img" aria-label="Tortendiagramm des Etats {esc(gueltig[ziel])}"></svg>'
+                '<div class="ep-tipp" id="ep-tipp"></div></div><div>'
+                f'<table class="ep-tab"><thead><tr><th>Posten</th><th class="num">Anteil am Etat</th></tr></thead><tbody>{"".join(zeilen)}</tbody></table></div></div>'
+              + f'<script type="application/json" id="ep-daten">{json.dumps(d, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script>'
+              + staatl
+              + f'<details class="sa-auf"><summary>{amt.ic("scale")}Wie wirkt sich die Verteilung aus?</summary>{regeln_html()}</details>')
+    return sa.ant(request, k, "Etatübersicht", "sa-etatuebersicht", inhalt)
 
 
 def _lesen(form):
@@ -441,5 +765,6 @@ async def zuruecksetzen_post(request):
 def registrieren(app):
     einrichten(app["db"])
     app.router.add_get(PFAD, seite)
+    app.router.add_get(PFAD_OEFF, oeffentlich)
     app.router.add_post(PFAD + "speichern", speichern_post)
     app.router.add_post(PFAD + "zuruecksetzen", zuruecksetzen_post)
