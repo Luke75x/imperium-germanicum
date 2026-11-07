@@ -148,9 +148,13 @@ def berechnen(con, p=None, periode=None):
     vv_reich = sum(b["vr0"] for b in basis) / tot_ar * 100 if tot_ar else 0
     plan_reich, richt_reich = etatplan.plan(con, "reich", vv_reich, periode), etatplan.richtwerte(vv_reich)
     w_reich = etatplan.bewerten(plan_reich, richt_reich)   # Boni/Mali des Reichsetats: Freie Reichsgebiete + Rücklage der Reichskasse
-    aq_r = min(1.05, max(0.0, aq - w_reich["summe"]["ruecklage"] / 100))
+    # Rücklage: eigener Satz der Fassung (+ sparen, − aus der Kasse entnehmen) oder Vorgabe 100 − ausgabenquote; dazu die Etatwirkung (Pp.)
+    rl_vorgabe = round(100 - aq * 100, 2)
+    rl_r = etatplan.ruecklage_satz(con, "reich", periode)
+    rl_r = rl_vorgabe if rl_r is None else rl_r
+    aq_r = max(0.0, 1 - rl_r / 100 - w_reich["summe"]["ruecklage"] / 100)
     z_reich = etatplan.zufriedenheit(con, "reich", plan_reich, richt_reich)   # Bevölkerungszufriedenheit (Freie Reichsgebiete)
-    out = []
+    zw = []
     for b in basis:
         s = b["s"]
         plan_l = richt_l = w_l = z_l = None
@@ -164,7 +168,24 @@ def berechnen(con, p=None, periode=None):
         summe = int(round(b["summe"] * f_ein))
         reich = summe if b["rd"] else int(round(summe * b["q"] / 100))
         land = summe - reich
-        aq_l = aq if b["rd"] else min(1.05, max(0.0, aq - w_l["summe"]["ruecklage"] / 100))
+        kasse = None if b["rd"] else geld.stellenkonto(con, "ts-" + s["id"])
+        rl_l, frei_l, deckel_l = None, 0, False
+        aq_l = aq
+        if not b["rd"]:
+            rl_l = etatplan.ruecklage_satz(con, "ts-" + s["id"], periode)
+            rl_l = rl_vorgabe if rl_l is None else rl_l
+            aq_l = max(0.0, 1 - rl_l / 100 - w_l["summe"]["ruecklage"] / 100)
+            frei_l = etatplan.kasse_frei(con, kasse)
+            if aq_l > 1 and land and land * (aq_l - 1) > frei_l:   # Entnahme höchstens bis zu den freien Mitteln der Staatskasse
+                aq_l, deckel_l = 1 + frei_l / land, True
+        zw.append((b, s, plan_l, richt_l, w_l, z_l, summe, reich, land, kasse, rl_l, frei_l, deckel_l, aq_l))
+    tot_reich = sum(t[7] for t in zw)
+    frei_r = etatplan.kasse_frei(con, geld.sonder(con, "reichskasse"), reich=True)
+    deckel_r = False
+    if aq_r > 1 and tot_reich and tot_reich * (aq_r - 1) > frei_r:
+        aq_r, deckel_r = 1 + frei_r / tot_reich, True
+    out = []
+    for b, s, plan_l, richt_l, w_l, z_l, summe, reich, land, kasse, rl_l, frei_l, deckel_l, aq_l in zw:
         aus_r, aus_l = int(round(reich * aq_r)), int(round(land * aq_l))
         ver_r = etatplan.verteilung(aus_r, plan_reich)
         ver_l = etatplan.verteilung(aus_l, plan_l) if plan_l else {}
@@ -174,7 +195,9 @@ def berechnen(con, p=None, periode=None):
                     "ausgaben_reich": aus_r - vr, "ausgaben_land": aus_l - vl, "vert_reich": vr, "vert_land": vl,
                     "pool_reich": aus_r, "pool_land": aus_l, "verteilung_reich": ver_r, "verteilung_land": ver_l,
                     "plan_land": plan_l, "richt_land": richt_l, "wirkung_land": w_l, "plan_reich": plan_reich, "richt_reich": richt_reich,
-                    "wirkung_reich": w_reich, "zufriedenheit_land": z_l, "zufriedenheit_reich": z_reich, "kasse": None if b["rd"] else geld.stellenkonto(con, "ts-" + s["id"])})
+                    "wirkung_reich": w_reich, "zufriedenheit_land": z_l, "zufriedenheit_reich": z_reich, "kasse": kasse,
+                    "rl_satz_land": rl_l, "frei_land": frei_l, "gedeckelt_land": deckel_l, "rl_satz_reich": rl_r, "frei_reich_kasse": frei_r,
+                    "gedeckelt_reich": deckel_r, "rl_vorgabe": rl_vorgabe})
     return sorted(out, key=lambda x: -x["summe"])
 
 

@@ -1,5 +1,9 @@
 """Etatverteilung: Reich und Teilstaaten bestimmen, wie ihr Ausgabenbudget auf elf Politikfelder verteilt wird (/schatzamt/etatverteilung/).
 
+Rücklage (Spalte ep_fassungen.ruecklage, % des eigenen Steueranteils; NULL = Vorgabe 100 − ausgabenquote): plus = sparen (bleibt in der Staats- bzw.
+Reichskasse), minus = entnehmen (Ausgabenbudget größer als der Steueranteil, Differenz aus der Kasse), höchstens bis zu den freien Mitteln
+(kasse_frei: Kontostand − Besoldung des letzten Lohnlaufs aus dieser Kasse, beim Reich zusätzlich die Behörden-Etats). Kein Bonus/Malus fürs Sparen
+oder Entnehmen; öffentlich als Haushaltsführung angezeigt.
 Etat (Steueraufkommen im Monat) eines Teilstaats = Abgabe an das Reich (nicht beeinflussbar, Reichsabgabe nach Bevölkerung, Einkommen und Fläche)
 + Landesanteil. Vom Landesanteil gehen „ausgabenquote“ % (Vorgabe 97 %) als Ausgabenbudget in die Politikfelder, der Rest ist die Rücklage der
 Staatskasse. Das Ausgabenbudget verteilt der Teilstaat selbst in Prozent auf die Kategorien (Summe 100 %). Das Reich verteilt sein Ausgabenbudget
@@ -59,6 +63,8 @@ CREATE TABLE IF NOT EXISTS ep_verteilung (lauf INTEGER NOT NULL, schl TEXT NOT N
 
 def einrichten(con):
     con.executescript(SCHEMA)
+    if "ruecklage" not in {r[1] for r in con.execute("PRAGMA table_info(ep_fassungen)")}:
+        con.execute("ALTER TABLE ep_fassungen ADD COLUMN ruecklage REAL")   # Rücklage in % des eigenen Steueranteils (− = Entnahme); NULL = Vorgabe
     if not con.execute("SELECT 1 FROM ep_fassungen LIMIT 1").fetchone():
         # Übernahme der bisherigen Pläne: gelten von Anfang an, sperren nicht (zeit 0)
         alt = {}
@@ -101,6 +107,30 @@ def fassung(con, schl, periode=None):
 def vorgemerkt(con, schl):
     """Fassung, die erst in einem künftigen Monat gilt (nach dem laufenden Kalendermonat), oder None."""
     return con.execute("SELECT * FROM ep_fassungen WHERE schl=? AND ab>? ORDER BY ab DESC LIMIT 1", (schl, monat_heute())).fetchone()
+
+
+def ruecklage_satz(con, schl, periode=None):
+    """Eigener Rücklagensatz der geltenden Fassung (% des eigenen Steueranteils, negativ = Entnahme aus der Kasse) oder None (Vorgabe)."""
+    f = fassung(con, schl, periode)
+    return None if not f or f["vorgabe"] or f["ruecklage"] is None else float(f["ruecklage"])
+
+
+def kasse_gebunden(con, kasse, reich=False):
+    """Im Monat schon verplante Mittel einer Kasse: Besoldung des letzten Lohnlaufs aus dieser Kasse, beim Reich dazu die Etats der Behörden."""
+    if not kasse:
+        return 0
+    lauf = con.execute("SELECT periode FROM bs_laeufe ORDER BY periode DESC LIMIT 1").fetchone()
+    b = con.execute("SELECT COALESCE(SUM(brutto),0) FROM bs_abrechnungen WHERE periode=? AND zahlstelle=? AND nachzahlung=0",
+                    (lauf["periode"], kasse["name"])).fetchone()[0] if lauf else 0
+    if reich:
+        import etat
+        b += sum(etat.etats(con).values())
+    return int(b)
+
+
+def kasse_frei(con, kasse, reich=False):
+    """Freie Mittel (Heller) einer Staats- bzw. der Reichskasse, die ein Etat entnehmen darf: Kontostand minus gebundene Mittel."""
+    return max(0, int(kasse["saldo"]) - kasse_gebunden(con, kasse, reich)) if kasse else 0
 
 
 def _plus_monat(d):
@@ -173,18 +203,22 @@ def aktuelle(con, schl, liste, periode=None):
     return {kat: (x["verteilung_land"].get(kat, 0) / x["pool_land"] * 100 if x and x["pool_land"] else 0) for kat, _ in KATEGORIEN}
 
 
-def _fassung_setzen(con, schl, vorgabe_, werte):
+def _fassung_setzen(con, schl, vorgabe_, werte, ruecklage=None):
     ab = monat_folgend()
-    con.execute("INSERT OR REPLACE INTO ep_fassungen (schl, ab, zeit, vorgabe, anteile) VALUES (?,?,?,?,?)",
-                (schl, ab, int(time.time()), 1 if vorgabe_ else 0, json.dumps(werte or {})))
+    con.execute("INSERT OR REPLACE INTO ep_fassungen (schl, ab, zeit, vorgabe, anteile, ruecklage) VALUES (?,?,?,?,?,?)",
+                (schl, ab, int(time.time()), 1 if vorgabe_ else 0, json.dumps(werte or {}), ruecklage))
     return ab
 
 
-def speichern(con, schl, werte, k, alt=None):
-    """Merkt eine Verteilung (Prozent je Kategorie, Summe 100) für den Folgemonat vor und protokolliert die Änderung. Gibt den Monat „ab“ zurück."""
+def speichern(con, schl, werte, k, alt=None, ruecklage=None, ruecklage_alt=None):
+    """Merkt eine Verteilung (Prozent je Kategorie, Summe 100, dazu der Rücklagensatz) für den Folgemonat vor und protokolliert die Änderung.
+    Gibt den Monat „ab“ zurück."""
     alt = alt or plan(con, schl, 0.0)
-    ab = _fassung_setzen(con, schl, False, {kat: round(float(werte[kat]), 2) for kat, _ in KATEGORIEN})
+    rl = None if ruecklage is None else round(float(ruecklage), 2)
+    ab = _fassung_setzen(con, schl, False, {kat: round(float(werte[kat]), 2) for kat, _ in KATEGORIEN}, rl)
     aend = [f'{NAMEN[kat]} {alt[kat]:.1f} % → {float(werte[kat]):.1f} %'.replace(".", ",") for kat, _ in KATEGORIEN if abs(alt[kat] - float(werte[kat])) >= 0.05]
+    if rl is not None and ruecklage_alt is not None and abs(rl - ruecklage_alt) >= 0.05:
+        aend.insert(0, f'Rücklage {ruecklage_alt:+.1f} % → {rl:+.1f} %'.replace(".", ",").replace("-", "−"))
     _log(con, schl, k, f"Verteilung ab {sa._monatsname(ab)} geändert: " + ("; ".join(aend) if aend else "unverändert"))
     return ab
 
@@ -399,6 +433,25 @@ def zuf_reichsweit(liste):
 
 # ---------------------------------------------------------------- Rechte
 
+def haushaltsfuehrung(liste, schl):
+    """Tatsächliche Rücklage in % des eigenen Steueranteils (positiv = gespart, negativ = aus der Kasse entnommen)."""
+    if schl == "reich":
+        basis, pool = sum(x["reich"] for x in liste), sum(x["pool_reich"] for x in liste)
+    else:
+        x = next((x for x in liste if "ts-" + x["staat"] == schl), None)
+        basis, pool = (x["land"], x["pool_land"]) if x else (0, 0)
+    return (basis - pool) / basis * 100 if basis else 0.0
+
+
+def _rl_text(pz, betrag, kassen_name, gedeckelt=False):
+    if pz > 0.05:
+        return f'Sparen: <b>{_de(pz)} %</b> ({esc(mark(betrag))}) bleiben im Monat in der {esc(kassen_name)}.'
+    if pz < -0.05:
+        return (f'Entnahme: <b>{_de(-pz)} %</b> ({esc(mark(-betrag))}) kommen im Monat zusätzlich aus der {esc(kassen_name)}.'
+                + (' Begrenzt auf die freien Mittel der Kasse.' if gedeckelt else ''))
+    return 'Ausgeglichen: der ganze Steueranteil wird ausgegeben.'
+
+
 def darf_aendern(con, k, schl):
     if not k or not k["mitglied"]:
         return False
@@ -440,6 +493,19 @@ CSS = """<style>
 .ep-summe{display:flex;gap:10px;align-items:center;margin:10px 0;font-weight:600}
 .ep-summe.falsch{color:var(--rot)}.ep-summe.richtig{color:var(--ok)}
 .ep-hinweis{margin:8px 0}
+.ep-hf{display:flex;gap:8px;align-items:center}.ep-hf .icon{width:16px;height:16px;flex:none}
+.ep-rl{border:1px solid var(--linie,#e3e4e7);border-radius:10px;padding:12px 14px;margin:0 0 14px}
+.ep-rl-kopf{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.ep-rl-titel{font-weight:600}
+.ep-rl-feld{display:flex;align-items:center;gap:8px}
+.ep-rl-feld input[type=range]{width:200px;accent-color:var(--ink)}
+.ep-rl-feld input[type=number]{width:84px;text-align:right;padding:4px 6px}
+.ep-rl-hilfe{font-size:12.5px;color:var(--grau);margin:6px 0}
+.ep-rl-info{margin:6px 0;font-size:14px}
+.ep-kasse{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--grau)}
+.ep-kasse .icon{width:15px;height:15px;flex:none;margin-top:1px}
+.ep-farbe-leer{background:transparent;border:1px dashed var(--grau)}
+@media (max-width:600px){.ep-rl-feld{width:100%}.ep-rl-feld input[type=range]{flex:1;width:auto}}
 .ep-vergleich td,.ep-vergleich th{font-size:12.5px;padding:5px 6px;text-align:right;white-space:nowrap}
 .ep-vergleich td:first-child,.ep-vergleich th:first-child{text-align:left}
 .ep-scroll{overflow-x:auto}
@@ -481,7 +547,18 @@ function scheiben(){
  return s}
 function pfad(a0,a1,r){var x0=100+r*Math.sin(a0),y0=100-r*Math.cos(a0),x1=100+r*Math.sin(a1),y1=100-r*Math.cos(a1),gross=(a1-a0)>Math.PI?1:0;
  return "M100,100 L"+x0+","+y0+" A"+r+","+r+" 0 "+gross+" 1 "+x1+","+y1+" Z"}
+function rlRechnen(){var e=document.getElementById("ep-rl");if(!e||!D.rl)return;var R=D.rl;
+ var r=parseFloat(String(e.value).replace(",","."));if(isNaN(r))r=0;
+ var pool=Math.round(R.basis*Math.max(0,1-r/100-R.w/100)),ged=false;
+ if(pool-R.basis>R.frei){pool=R.basis+R.frei;ged=true}
+ var rl=R.basis-pool,p=R.basis?rl/R.basis*100:0;D.pool=pool;D.fest_hinten[0].betrag=Math.max(0,rl);
+ function t(id,v){var o=document.getElementById(id);if(o)o.textContent=v}
+ t("ep-kz-pool",kurz(pool));t("ep-kz-rl",kurz(Math.abs(rl)));t("ep-kz-rl-t",rl>=0?"Rücklage":"Entnahme aus der "+R.kasse);
+ var z=document.getElementById("ep-entnahme-zeile");if(z)z.hidden=rl>=0;t("ep-entnahme-betrag",kurz(Math.max(0,-rl)));t("ep-entnahme-pz",pz(D.gesamt?Math.max(0,-rl)/D.gesamt*100:0));
+ var i=document.getElementById("ep-rl-info");if(i)i.innerHTML=p>0.05?"Sparen: <b>"+pz(p)+"</b> ("+de(rl)+") bleiben im Monat in der "+R.kasse+".":
+  p<-0.05?"Entnahme: <b>"+pz(-p)+"</b> ("+de(-rl)+") kommen im Monat zusätzlich aus der "+R.kasse+"."+(ged?" Begrenzt auf die freien Mittel der Kasse.":""):"Ausgeglichen: der ganze Steueranteil wird ausgegeben."}
 function zeichnen(){
+ rlRechnen();
  var s=scheiben(), gesamt=D.gesamt||1, w=0;
  while(svg.firstChild)svg.removeChild(svg.firstChild);
  var defs=document.createElementNS(svgNS,"defs");
@@ -526,6 +603,9 @@ felder.forEach(function(f){f.addEventListener("input",function(){
 regler.forEach(function(r){r.addEventListener("input",function(){var n=document.getElementById("ep-n-"+r.dataset.kat);if(n)n.value=r.value;zeichnen()})});
 [].forEach.call(document.querySelectorAll("[data-zeile]"),function(z){
  z.addEventListener("mouseenter",function(){fokus(z.dataset.zeile,true)});z.addEventListener("mouseleave",function(){fokus(null,false)})});
+(function(){var n=document.getElementById("ep-rl"),g=document.getElementById("ep-rl-r");
+ if(n)n.addEventListener("input",function(){if(g)g.value=parseFloat(String(n.value).replace(",","."))||0;zeichnen()});
+ if(g)g.addEventListener("input",function(){if(n)n.value=g.value;zeichnen()})})();
 var norm=document.getElementById("ep-normieren");
 if(norm)norm.addEventListener("click",function(){var n=felder,s=n.reduce(function(a,f){return a+(parseFloat(String(f.value).replace(",","."))||0)},0);
  if(!s)return;var neu=n.map(function(f){return Math.round((parseFloat(String(f.value).replace(",","."))||0)/s*1000)/10}),d=Math.round((100-neu.reduce(function(a,b){return a+b},0))*10)/10;
@@ -775,6 +855,19 @@ def zuf_tabelle(liste, ziel_liste, pfad, markiert=""):
             + "".join(z for _, z in sorted(zeilen, key=lambda t: -t[0])) + '</tbody></table>')
 
 
+def hf_tabelle(liste, ziel_liste, pfad, markiert=""):
+    """Öffentlich: wer spart, wer entnimmt aus seiner Kasse (nur Prozente des eigenen Steueranteils)."""
+    zeilen = []
+    for s, n in ziel_liste:
+        hf = haushaltsfuehrung(liste, s)
+        art = f'{_de(hf)} % gespart' if hf > 0.05 else f'{_de(-hf)} % entnommen' if hf < -0.05 else "ausgeglichen"
+        zeilen.append((hf, f'<tr{" class=fokus" if s == markiert else ""}><td><a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td>'
+                           f'<td class="num">{esc(art)}</td></tr>'))
+    return ('<p class="zf-meta">Rücklage in Prozent des eigenen Steueranteils: plus = gespart, minus = zusätzlich aus der Kasse ausgegeben.</p>'
+            '<table class="zf-tab"><thead><tr><th>Haushalt</th><th class="num">Rücklage</th></tr></thead><tbody>'
+            + "".join(z for _, z in sorted(zeilen, key=lambda t: -t[0])) + '</tbody></table>')
+
+
 def regeln_html():
     """Übersicht aller Boni und Mali (öffentlich)."""
     g = GRENZEN
@@ -820,6 +913,13 @@ async def seite(request, k):
         vt_ih = verteidigung.kennzahlen(con, vt_stelle)["instandhaltung"]
         bew, richt, basis_ein, basis_rl = x["wirkung_land"], x["richt_land"], x["summe_basis"], x["land"]
         zuf = x["zufriedenheit_land"]
+    if ziel == "reich":
+        kasse_rl, rl_satz, frei, deckel = geld.sonder(con, "reichskasse"), liste[0]["rl_satz_reich"], liste[0]["frei_reich_kasse"], liste[0]["gedeckelt_reich"]
+    else:
+        kasse_rl, rl_satz, frei, deckel = x["kasse"], x["rl_satz_land"], x["frei_land"], x["gedeckelt_land"]
+    rl_w = bew["summe"]["ruecklage"]
+    gebunden = kasse_gebunden(con, kasse_rl, ziel == "reich")
+    kassen_name = "Reichskasse" if ziel == "reich" else "Staatskasse"
     anteile = runden100(aktuelle(con, ziel, liste, ab))
     berechtigt = darf_aendern(con, k, ziel)
     sperre = gesperrt_bis(con, ziel)
@@ -829,9 +929,10 @@ async def seite(request, k):
     kat_daten = [{"id": kat, "name": NAMEN[kat], "anteil": anteile[kat], "farbe": PALETTE[i % len(PALETTE)], "schraffur": i >= len(PALETTE)}
                  for i, (kat, _) in enumerate(KATEGORIEN)]
     fest_hinten = [{"id": "ruecklage", "name": "Rücklage der Staatskasse" if ziel != "reich" else "Rücklage der Reichskasse",
-                    "betrag": ruecklage, "farbe": "#c4c6cb", "schraffur": False}]
+                    "betrag": max(0, ruecklage), "farbe": "#c4c6cb", "schraffur": False}]
     daten = {"gesamt": gesamt, "pool": pool, "vt_min": vt_min, "kategorien": kat_daten, "fest_vorn": fest_vorn, "fest_hinten": fest_hinten, "farben": PALETTE,
-             "wk": wirkung_daten(richt, basis_ein, basis_rl), "zuf": zuf_daten(zuf)}
+             "wk": wirkung_daten(richt, basis_ein, basis_rl), "zuf": zuf_daten(zuf),
+             "rl": {"basis": basis_rl, "w": rl_w, "frei": frei, "kasse": kassen_name}}
     c = amt.csrf_feld(request)
     zeilen = []
     for f in fest_vorn:
@@ -853,11 +954,28 @@ async def seite(request, k):
     for f in fest_hinten:
         zeilen.append(f'<tr class="ep-fest" data-zeile="{f["id"]}"><td><span class="ep-farbe" style="background:{f["farbe"]}"></span>{esc(f["name"])}</td>'
                       f'<td class="num">–</td><td class="num ep-anteil-gesamt">{_de(f["betrag"] / gesamt * 100 if gesamt else 0)} %</td>'
-                      f'<td class="num"><span title="{mark(f["betrag"])}">{geld.mark_kurz(f["betrag"])}</span></td></tr>')
+                      f'<td class="num"><span class="ep-betrag" title="{mark(f["betrag"])}">{geld.mark_kurz(f["betrag"])}</span></td></tr>')
+    zeilen.append(f'<tr class="ep-fest ep-entnahme" id="ep-entnahme-zeile"{"" if ruecklage < 0 else " hidden"}><td><span class="ep-farbe ep-farbe-leer"></span>'
+                  f'Entnahme aus der {kassen_name}</td><td class="num">–</td><td class="num" id="ep-entnahme-pz">{_de(-ruecklage / gesamt * 100 if gesamt else 0)} %</td>'
+                  f'<td class="num"><span id="ep-entnahme-betrag">{geld.mark_kurz(max(0, -ruecklage))}</span></td></tr>')
     tabelle = ('<table class="ep-tab"><thead><tr><th>Kategorie</th><th class="num">Anteil am Ausgabenbudget</th><th class="num">Anteil am Etat</th>'
                f'<th class="num">Betrag / Monat</th></tr></thead><tbody>{"".join(zeilen)}</tbody></table>')
+    rl_eff = (basis_rl - pool) / basis_rl * 100 if basis_rl else 0
+    rl_wert = rl_satz if rl_satz is not None else liste[0]["rl_vorgabe"]
+    kasse_info = (f'<div class="ep-kasse">{amt.ic("landmark")}<span>{esc(kassen_name)}: Kontostand <b>{esc(mark(kasse_rl["saldo"] if kasse_rl else 0))}</b>'
+                  f' · im Monat gebunden {esc(mark(gebunden))} · <b>frei verfügbar {esc(mark(frei))}</b></span></div>')
     if darf:
-        form_in = (f'<form method="post" action="{PFAD}speichern" id="ep-form">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">{tabelle}'
+        rl_feld = (f'<input type="range" id="ep-rl-r" min="-100" max="100" step="0.5" value="{max(-100, min(100, rl_wert)):.1f}" aria-label="Rücklage Regler"> '
+                   f'<input type="number" id="ep-rl" name="ruecklage" min="-1000" max="100" step="0.1" value="{rl_wert:.1f}" aria-label="Rücklage in Prozent"> %')
+    else:
+        rl_feld = f'<b>{_vz(rl_wert, "%")}</b>'
+    rl_block = (f'<div class="ep-rl"><div class="ep-rl-kopf"><span class="ep-rl-titel">Rücklage</span><span class="ep-rl-feld">{rl_feld}</span></div>'
+                f'<p class="ep-rl-hilfe">In Prozent des eigenen Steueranteils ({esc(mark(basis_rl))}). <b>Plus</b> = sparen: das Geld bleibt in der {esc(kassen_name)}. '
+                f'<b>Minus</b> = entnehmen: zusätzlich zum Monatsetat fließen freie Mittel der {esc(kassen_name)} in die Politikfelder.'
+                + (f' Die Etatwirkung verschiebt die Rücklage um {_vz(rl_w, "Pp")}.' if rl_w else "") + '</p>'
+                f'<p class="ep-rl-info" id="ep-rl-info">{_rl_text(rl_eff, basis_rl - pool, kassen_name, deckel)}</p>{kasse_info}</div>')
+    if darf:
+        form_in = (f'<form method="post" action="{PFAD}speichern" id="ep-form">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">{rl_block}{tabelle}'
                    '<div class="ep-summe" id="ep-summe"><span></span></div>'
                    f'<div class="warnung ep-hinweis" id="ep-min" style="display:none">{amt.ic("triangle-alert")} Dieser Verteidigungsanteil deckt nicht einmal die Gehälter und die '
                    f'Instandhaltung des Militärs ({mark(vt_min)} im Monat). Die Gehälter werden dann einbehalten, die Einsatzbereitschaft sinkt.</div>'
@@ -866,7 +984,7 @@ async def seite(request, k):
                    + (f'<form method="post" action="{PFAD}zuruecksetzen" onsubmit="return confirm(\'Auf die Vorgabe zurücksetzen?\')">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
                       f'<div class="aktionen"><button class="btn zweit" type="submit">Auf Vorgabe zurücksetzen</button></div></form>' if angepasst(con, ziel, ab) else ""))
     else:
-        form_in = tabelle
+        form_in = rl_block + tabelle
     vm = vorgemerkt(con, ziel)
     teile = []
     if vm:
@@ -887,13 +1005,15 @@ async def seite(request, k):
                if ziel == "reich" else
                '<li>Der Etat ist das Steueraufkommen des Teilstaats im Monat. Ein Teil davon ist die <b>Abgabe an das Reich</b>; sie richtet sich nach Bevölkerung, '
                'Einkommen und Fläche und lässt sich <b>nicht beeinflussen</b>.</li>')
-            + '<li>Vom eigenen Anteil bleibt eine <b>Rücklage</b> in der Kasse (freie Mittel, nicht änderbar); der große Rest ist das <b>Ausgabenbudget</b>.</li>'
+            + '<li>Vom eigenen Anteil bleibt die <b>Rücklage</b> in der Kasse; der Rest ist das <b>Ausgabenbudget</b>. Die Rücklage ist frei wählbar: '
+            '<b>sparen</b> (plus) oder <b>entnehmen</b> (minus) – dann fließen zusätzlich freie Mittel der Kasse in die Politikfelder.</li>'
             '<li>Das Ausgabenbudget verteilt ' + ("das Reich" if ziel == "reich" else "der Teilstaat") + ' in Prozent auf die elf Kategorien. '
             '<b>Verteidigung ist echtes Geld</b>: dieser Anteil fließt jeden Monat in die '
             + ("Reichsverteidigungskasse (Führungsstab)" if ziel == "reich" else "Verteidigungskasse (Gehälter des Militärs, Instandhaltung und Kauf von Gerät)")
             + '. Die übrigen Kategorien sind Ausgaben für die Bevölkerung.</li></ol></div>')
-    kz = [("Etat im Monat", mark(gesamt)), ("Ausgabenbudget", mark(pool)), ("Rücklage", mark(ruecklage)),
-          ("Verteidigung", mark(betraege["verteidigung"]))]
+    kz = [("Etat im Monat", mark(gesamt), ""), ("Ausgabenbudget", mark(pool), "ep-kz-pool"),
+          ("Rücklage" if ruecklage >= 0 else f"Entnahme aus der {kassen_name}", mark(abs(ruecklage)), "ep-kz-rl"),
+          ("Verteidigung", mark(betraege["verteidigung"]), "")]
     # Vergleich aller Haushalte
     kopf = "".join(f'<th title="{esc(NAMEN[kat])}">{esc(NAMEN[kat][:11])}</th>' for kat, _ in KATEGORIEN)
     vz = []
@@ -905,7 +1025,8 @@ async def seite(request, k):
             x2 = next(x for x in liste if "ts-" + x["staat"] == s)
             ver, pl = x2["verteilung_land"], x2["pool_land"]
         bw = liste[0]["wirkung_reich"] if s == "reich" else x2["wirkung_land"]
-        vz.append(f'<tr><td><a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a></td>' + "".join(f'<td>{_de(ver[kat] / pl * 100 if pl else 0)}</td>' for kat, _ in KATEGORIEN)
+        vz.append(f'<tr><td><a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a></td><td>{_vz(round(haushaltsfuehrung(liste, s), 1), "%")}</td>'
+                  + "".join(f'<td>{_de(ver[kat] / pl * 100 if pl else 0)}</td>' for kat, _ in KATEGORIEN)
                   + f'<td>{bw["boni"]} / {bw["mali"]}</td><td>{_vz(bw["summe"]["einnahmen"], "%")}</td>'
                   + f'<td>{_de((liste[0]["zufriedenheit_reich"] if s == "reich" else x2["zufriedenheit_land"])["neu"], 0)}</td></tr>')
     verlauf = con.execute("SELECT * FROM ep_log WHERE schl=? ORDER BY id DESC LIMIT 15", (ziel,)).fetchall()
@@ -913,7 +1034,7 @@ async def seite(request, k):
               f'<p class="az">Wie viel vom Ausgabenbudget fließt in welches Politikfeld? Das Tortendiagramm zeigt den gesamten Monatsetat ab {esc(sa._monatsname(ab))}.</p>'
               f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div>'
               f'<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>'
-              f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
+              f'<div class="kennzahlen">{"".join(f'<div><b{f" id={i}" if i else ""}>{esc(v)}</b><span{f" id={i}-t" if i else ""}>{esc(t)}</span></div>' for t, v, i in kz)}</div>'
               + rechte + erkl
               + f'<div class="ep-raster"><div class="ep-torte" id="ep-torte"><svg viewBox="0 0 200 200" role="img" aria-label="Tortendiagramm des Etats {esc(name)}"></svg>'
                 '<div class="ep-tipp" id="ep-tipp"></div></div><div>' + form_in + '</div></div>'
@@ -921,7 +1042,7 @@ async def seite(request, k):
               + wirkung_html(bew, basis_ein, basis_rl, ziel == "reich")
               + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script><script>{ZUF_JS}</script>'
               + f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Vergleich aller Haushalte (Anteile am Ausgabenbudget in %)</summary><div class="ep-scroll">'
-                f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>'
+                f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>'
               + f'<details class="sa-auf"><summary>{amt.ic("clock")}Änderungen ({len(verlauf)})</summary>'
               + amt.tabelle(["Zeit", "Durch", "Änderung"], [(amt._zeit(v["zeit"]), esc(v["autor_name"]), esc(v["text"])) for v in verlauf], "Noch keine Änderungen.") + '</details>')
     return sa.ant(request, k, "Etatverteilung", "sa-etatverteilung", inhalt)
@@ -947,7 +1068,7 @@ def _torte_daten(x, liste, ziel):
            for i, (k, _) in enumerate(KATEGORIEN)]
     return {"gesamt": 1_000_000, "pool": n(pool), "vt_min": 0, "kategorien": kat, "nur_prozent": True, "farben": PALETTE,
             "fest_vorn": [{"id": i, "name": nm, "betrag": n(b), "farbe": f, "schraffur": False} for i, nm, b, f in vorn],
-            "fest_hinten": [{"id": "ruecklage", "name": "Rücklage", "betrag": n(ruecklage), "farbe": "#c4c6cb", "schraffur": False}]}
+            "fest_hinten": [{"id": "ruecklage", "name": "Rücklage", "betrag": n(max(0, ruecklage)), "farbe": "#c4c6cb", "schraffur": False}]}
 
 
 @sa.seite()
@@ -981,7 +1102,12 @@ async def oeffentlich(request, k):
                       f'<td class="num">{_de(f["betrag"] / 10000)} %</td></tr>')
     auswahl = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in ziel_liste)
     e = bew["summe"]["einnahmen"]
-    lage = (f'<div class="wk-ausg{" ja" if bew["ausgewogen"] else ""}"><b>{"Ausgewogener Etat" if bew["ausgewogen"] else "Etat mit Schwerpunkten"}</b> · '
+    hf = haushaltsfuehrung(liste, ziel)
+    kname = "Reichskasse" if ziel == "reich" else "Staatskasse"
+    hf_text = (f'spart <b>{_de(hf)} %</b> des eigenen Steueranteils in die {kname}' if hf > 0.05 else
+               f'entnimmt zusätzlich <b>{_de(-hf)} %</b> aus der {kname}' if hf < -0.05 else 'gibt den ganzen Steueranteil aus')
+    lage = (f'<div class="wk-ausg ep-hf">{amt.ic("landmark")} <span><b>Haushaltsführung:</b> {"Das Reich" if ziel == "reich" else esc(gueltig[ziel])} {hf_text}.</span></div>'
+            f'<div class="wk-ausg{" ja" if bew["ausgewogen"] else ""}"><b>{"Ausgewogener Etat" if bew["ausgewogen"] else "Etat mit Schwerpunkten"}</b> · '
             f'{bew["boni"]} Boni · {bew["mali"]} Mali · Wirkung auf das Steueraufkommen: '
             f'<b class="{"wk-plus" if e > 0 else "wk-minus" if e < 0 else ""}">{_vz(e, "%")}</b></div>'
             f'<div class="zf-kopf {_zf_klasse(zuf["neu"])}" style="margin:10px 0"><div><div class="zf-wert">{_de(zuf["neu"], 0)} <small>/ 100</small></div>'
@@ -999,6 +1125,7 @@ async def oeffentlich(request, k):
                 f'<table class="ep-tab"><thead><tr><th>Posten</th><th class="num">Anteil am Etat</th></tr></thead><tbody>{"".join(zeilen)}</tbody></table></div></div>'
               + f'<script type="application/json" id="ep-daten">{json.dumps(d, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script>'
               + staatl
+              + f'<h2>{amt.ic("landmark")} Haushaltsführung</h2>' + hf_tabelle(liste, ziel_liste, PFAD_OEFF, ziel)
               + f'<h2>{amt.ic("users")} Bevölkerungszufriedenheit im Reich</h2>' + zuf_tabelle(liste, ziel_liste, PFAD_OEFF, ziel)
               + f'<details class="sa-auf"><summary>{amt.ic("scale")}Wie wirkt sich die Verteilung aus?</summary>{regeln_html()}'
                 '<p class="az"><b>Bevölkerungszufriedenheit:</b> Index 0–100 aus den Investitionen (Gewichte: '
@@ -1022,6 +1149,15 @@ def _lesen(form):
     return werte if abs(sum(werte.values()) - 100.0) <= 0.05 else None
 
 
+def _rl_lesen(form):
+    """Rücklagensatz aus dem Formular: Zahl −1000 … 100 oder None, wenn ungültig."""
+    try:
+        v = float(str(form.get("ruecklage", "")).replace(",", ".").strip())
+    except ValueError:
+        return None
+    return v if -1000 <= v <= 100 else None
+
+
 def _sperre_pruefen(con, ziel):
     bis = gesperrt_bis(con, ziel)
     if bis:
@@ -1041,9 +1177,15 @@ async def speichern_post(request):
     werte = _lesen(form)
     if werte is None:
         sa.weiter(f"{PFAD}?ziel={ziel}", "Bitte für alle elf Kategorien Prozentwerte angeben, die zusammen 100 % ergeben.", True)
+    rl = _rl_lesen(form)
+    if rl is None:
+        sa.weiter(f"{PFAD}?ziel={ziel}", "Bitte für die Rücklage einen Prozentwert zwischen −1000 und 100 angeben.", True)
     import aufkommen
     ab = monat_folgend()
-    ab = speichern(con, ziel, werte, k, alt=runden100(aktuelle(con, ziel, aufkommen.berechnen(con, periode=ab), ab)))
+    liste = aufkommen.berechnen(con, periode=ab)
+    rl_alt = liste[0]["rl_satz_reich"] if ziel == "reich" else next((x["rl_satz_land"] for x in liste if "ts-" + x["staat"] == ziel), None)
+    ab = speichern(con, ziel, werte, k, alt=runden100(aktuelle(con, ziel, liste, ab)), ruecklage=rl,
+                   ruecklage_alt=liste[0]["rl_vorgabe"] if rl_alt is None else rl_alt)
     con.commit()
     sa.weiter(f"{PFAD}?ziel={ziel}", f"Verteilung gespeichert; sie gilt ab {sa._monatsname(ab)}. Nächste Änderung ab {_plus_monat(date.today()).strftime('%d.%m.%Y')}.")
 
