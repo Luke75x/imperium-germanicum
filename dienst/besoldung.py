@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS bs_abrechnungen (id INTEGER PRIMARY KEY AUTOINCREMENT
 CREATE INDEX IF NOT EXISTS bs_abrechnungen_k ON bs_abrechnungen (konto_id, periode);
 """
 
-M = 100   # Pfennig je Mark
+M = 100   # Heller je Krone
 GRUPPEN = [
     ("OR-1", "Soldat / Wachtmeister", "Mannschaften & Unteroffiziere", 1500), ("OR-2", "Gefreiter / Hauptwachtmeister", "Mannschaften & Unteroffiziere", 1600),
     ("OR-3", "Obergefreiter", "Mannschaften & Unteroffiziere", 1700), ("OR-4", "Stabsgefreiter", "Mannschaften & Unteroffiziere", 1850),
@@ -300,7 +300,7 @@ async def verwaltung(request, k):
         teil = (f'<form class="sa-formular" method="post" action="{PFAD}amt/besoldung/person">{c}<div class="zeilen">'
                 f'<div><label for="m">Mitglied</label><select id="m" name="konto">{mopts}</select></div>'
                 f'<div><label for="g2">Besoldungsgruppe</label><select id="g2" name="gruppe"><option value="">nach Rolle</option><option value="-">keine Besoldung</option>{gopts()}</select></div>'
-                '<div><label for="zl">Zulage (M/Monat)</label><input type="text" id="zl" name="zulage" value="0"></div>'
+                '<div><label for="zl">Zulage (Kr/Monat)</label><input type="text" id="zl" name="zulage" value="0"></div>'
                 '<div><label for="zt">Zulage für</label><input type="text" id="zt" name="zulage_text" maxlength="60"></div>'
                 f'<div><label for="z2">Zahlstelle</label><select id="z2" name="zahlstelle"><option value="">nach Rolle</option>{zopts("")}</select></div>'
                 '<div><label for="b">Bemerkung</label><input type="text" id="b" name="bemerkung" maxlength="120"></div></div>'
@@ -320,7 +320,7 @@ async def verwaltung(request, k):
                 '<div><label for="s">Kürzel (neu oder bestehend)</label><input type="text" id="s" name="schl" required maxlength="10"></div>'
                 '<div><label for="n">Bezeichnung</label><input type="text" id="n" name="name" required maxlength="60"></div>'
                 f'<div><label for="l">Laufbahn</label><input type="text" id="l" name="laufbahn" list="lb" required maxlength="60"><datalist id="lb">{laufbahnen}</datalist></div>'
-                '<div><label for="gg">Grundgehalt (M/Monat)</label><input type="text" id="gg" name="grundgehalt" required></div></div>'
+                '<div><label for="gg">Grundgehalt (Kr/Monat)</label><input type="text" id="gg" name="grundgehalt" required></div></div>'
                 f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Gruppe speichern</button></div></form>'
                 + amt.tabelle(["Laufbahn", "Gruppe", "Bezeichnung", "Grundgehalt", "Rollen", ""], zeilen))
     inhalt = (f'<h1>{amt.ic("users")} Besoldung & Lohnlauf</h1>{amt.meldung(request)}'
@@ -411,6 +411,45 @@ def _bedarf(con, liste):
     return out
 
 
+def lohnlauf_buchen(con, liste, periode, k, schoepfen=False):
+    """Bucht den Lohnlauf (Liste aus berechnen()) für `periode`; wirft geld.Fehler bei fehlender Deckung. Gibt die Lauf-ID zurück."""
+    kasse = geld.sonder(con, "reichskasse")
+    zb = geld.sonder(con, "zentralbank")
+    geschoepft = 0
+    for r, bedarf in _bedarf(con, liste).values():
+        r = geld.konto(con, r["id"])
+        if r["saldo"] < bedarf:
+            if r["id"] == kasse["id"] and schoepfen:
+                geschoepft = bedarf - r["saldo"]
+                geld.buchen(con, zb["id"], kasse["id"], geschoepft, "geldschoepfung", f"Deckung Lohnlauf {_monat(periode)}", k)
+            else:
+                raise geld.Fehler(f'Die Zahlstelle {r["name"]} ist nicht gedeckt (benötigt {mark(bedarf)}, vorhanden {mark(r["saldo"])}).')
+    cur = con.execute("INSERT INTO bs_laeufe (periode, anzahl, brutto, lohnsteuer, abgaben, netto, geschoepft, zeit, autor_name) VALUES (?,?,?,?,?,?,?,?,?)",
+                      (periode, len(liste), sum(x["brutto"] for x in liste), sum(x["lohnsteuer"] for x in liste), sum(x["abgaben"] for x in liste),
+                       sum(x["netto"] for x in liste), geschoepft, int(time.time()), k["name"]))
+    lauf, bezug = cur.lastrowid, f"LL-{periode}"
+    sozial = geld.sonder(con, "sozialkasse")
+    zs = dict(zahlstellen(con))
+    for x in liste:
+        quelle = geld.stellenkonto(con, x["zahlstelle"]) or kasse
+        privat = geld.privatkonto(con, x["konto_id"])
+        zweck = f"Besoldung {_monat(periode)} · {x['gruppe']}"
+        geld.buchen(con, quelle["id"], privat["id"], x["netto"], "gehalt", zweck, k, bezug=bezug, minus=True)
+        if x["abgaben"]:
+            geld.buchen(con, quelle["id"], sozial["id"], x["abgaben"], "sozialabgabe", f"Sozialabgabe {x['name']} {_monat(periode)}", k, bezug=bezug, minus=True)
+        if x["lohnsteuer"] and quelle["id"] != kasse["id"]:
+            geld.buchen(con, quelle["id"], kasse["id"], x["lohnsteuer"], "lohnsteuer", f"Lohnsteuer {x['name']} {_monat(periode)}", k, bezug=bezug, minus=True)
+        staat, anteil = steuern.laenderanteil_buchen(con, x["konto_id"], x["lohnsteuer"], k, bezug) if x["lohnsteuer"] else (None, 0)
+        con.execute("INSERT INTO bs_abrechnungen (lauf, periode, konto_id, name, gruppe, gruppe_name, quelle, grundgehalt, zulage, zulage_text, brutto, "
+                    "lohnsteuer, abgaben, netto, zahlstelle, staat, laenderanteil, zeit) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (lauf, periode, x["konto_id"], x["name"], x["gruppe"], x["gruppe_name"], x["quelle"], x["grundgehalt"], x["zulage"], x["zulage_text"],
+                     x["brutto"], x["lohnsteuer"], x["abgaben"], x["netto"], zs.get(x["zahlstelle"], x["zahlstelle"]), staat["name"] if staat else "", anteil, int(time.time())))
+    geld.protokoll(con, k, "Lohnlauf", f"{_monat(periode)}: {len(liste)} Abrechnungen, netto {mark(sum(x['netto'] for x in liste))}"
+                                       + (f", Geldschöpfung {mark(geschoepft)}" if geschoepft else ""))
+    con.commit()
+    return lauf
+
+
 @sa.seite("leitung")
 async def lohnlauf(request, k):
     con = request.app["db"]
@@ -463,41 +502,8 @@ async def lohnlauf_ausfuehren(request):
     liste = await berechnen(request.app, con)
     if not liste:
         sa.weiter(pfad, "Keine Empfänger.", True)
-    kasse = geld.sonder(con, "reichskasse")
-    zb = geld.sonder(con, "zentralbank")
-    geschoepft = 0
     try:
-        for r, bedarf in _bedarf(con, liste).values():
-            r = geld.konto(con, r["id"])
-            if r["saldo"] < bedarf:
-                if r["id"] == kasse["id"] and form.get("schoepfen"):
-                    geschoepft = bedarf - r["saldo"]
-                    geld.buchen(con, zb["id"], kasse["id"], geschoepft, "geldschoepfung", f"Deckung Lohnlauf {_monat(periode)}", k)
-                else:
-                    raise geld.Fehler(f'Die Zahlstelle {r["name"]} ist nicht gedeckt (benötigt {mark(bedarf)}, vorhanden {mark(r["saldo"])}).')
-        cur = con.execute("INSERT INTO bs_laeufe (periode, anzahl, brutto, lohnsteuer, abgaben, netto, geschoepft, zeit, autor_name) VALUES (?,?,?,?,?,?,?,?,?)",
-                          (periode, len(liste), sum(x["brutto"] for x in liste), sum(x["lohnsteuer"] for x in liste), sum(x["abgaben"] for x in liste),
-                           sum(x["netto"] for x in liste), geschoepft, int(time.time()), k["name"]))
-        lauf, bezug = cur.lastrowid, f"LL-{periode}"
-        sozial = geld.sonder(con, "sozialkasse")
-        zs = dict(zahlstellen(con))
-        for x in liste:
-            quelle = geld.stellenkonto(con, x["zahlstelle"]) or kasse
-            privat = geld.privatkonto(con, x["konto_id"])
-            zweck = f"Besoldung {_monat(periode)} · {x['gruppe']}"
-            geld.buchen(con, quelle["id"], privat["id"], x["netto"], "gehalt", zweck, k, bezug=bezug, minus=True)
-            if x["abgaben"]:
-                geld.buchen(con, quelle["id"], sozial["id"], x["abgaben"], "sozialabgabe", f"Sozialabgabe {x['name']} {_monat(periode)}", k, bezug=bezug, minus=True)
-            if x["lohnsteuer"] and quelle["id"] != kasse["id"]:
-                geld.buchen(con, quelle["id"], kasse["id"], x["lohnsteuer"], "lohnsteuer", f"Lohnsteuer {x['name']} {_monat(periode)}", k, bezug=bezug, minus=True)
-            staat, anteil = steuern.laenderanteil_buchen(con, x["konto_id"], x["lohnsteuer"], k, bezug) if x["lohnsteuer"] else (None, 0)
-            con.execute("INSERT INTO bs_abrechnungen (lauf, periode, konto_id, name, gruppe, gruppe_name, quelle, grundgehalt, zulage, zulage_text, brutto, "
-                        "lohnsteuer, abgaben, netto, zahlstelle, staat, laenderanteil, zeit) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                        (lauf, periode, x["konto_id"], x["name"], x["gruppe"], x["gruppe_name"], x["quelle"], x["grundgehalt"], x["zulage"], x["zulage_text"],
-                         x["brutto"], x["lohnsteuer"], x["abgaben"], x["netto"], zs.get(x["zahlstelle"], x["zahlstelle"]), staat["name"] if staat else "", anteil, int(time.time())))
-        geld.protokoll(con, k, "Lohnlauf", f"{_monat(periode)}: {len(liste)} Abrechnungen, netto {mark(sum(x['netto'] for x in liste))}"
-                                           + (f", Geldschöpfung {mark(geschoepft)}" if geschoepft else ""))
-        con.commit()
+        lauf = lohnlauf_buchen(con, liste, periode, k, bool(form.get("schoepfen")))
     except geld.Fehler as e:
         con.rollback()
         sa.weiter(pfad, str(e), True)

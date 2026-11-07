@@ -1,6 +1,6 @@
 """Geldsystem des Reiches – Kern: Konten, Buchungen, Einstellungen, Rechte, Protokoll.
 
-Währung: Mark (M), intern Pfennig (INTEGER). Kontonummern IBAN-artig „IG“ + 2 Prüfziffern (mod 97) + 4-stellige Kontoart + 8-stellige Nummer.
+Währung: Krone (Kr), 1 Kr = 100 Heller, intern Heller (INTEGER); Kurs 1 Kr = 1,21 € (Einstellung „wechselkurs“). Kontonummern IBAN-artig „IG“ + 2 Prüfziffern (mod 97) + 4-stellige Kontoart + 8-stellige Nummer.
 Kontoarten: privat (je Discord-Konto), gewerbe (genehmigte Gewerbe), behoerde (je amt.BEHOERDEN + Reichskanzlei), teilstaat (je
 Teilstaat der Reichskarte), sonder (zentralbank, reichskasse, sozialkasse).
 Geldschöpfung: nur über das Konto „zentralbank“, das als einziges ins Minus gehen darf – Geldmenge im Umlauf = −Saldo der Zentralbank.
@@ -19,7 +19,7 @@ import bereiche
 esc = amt.esc
 NAME = "Kaiserliches Schatz- und Währungsamt"
 STELLE = ("schatzamt", NAME)
-MAX_BETRAG = 10 ** 13   # Pfennig (100 Mrd. Mark)
+MAX_BETRAG = 10 ** 13   # Heller (100 Mrd. Kronen)
 KONTOART = {"privat": ("Privatkonto", 1000), "gewerbe": ("Gewerbekonto", 2000), "behoerde": ("Behördenkonto", 3000),
             "teilstaat": ("Staatskasse", 4000), "sonder": ("Sonderkonto", 9000)}
 SONDER = {"zentralbank": "Zentralbank des Reiches", "reichskasse": "Reichskasse", "sozialkasse": "Reichsversicherungskasse",
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS gk_gewerbe (
     grund TEXT NOT NULL DEFAULT '', zeit INTEGER NOT NULL, entschieden_von TEXT NOT NULL DEFAULT '', entschieden INTEGER);
 """
 
-# Vorgaben (alle in Pfennig bzw. Prozent); vom Schatzamt unter „Tarife & Sätze“ änderbar.
+# Vorgaben (alle in Heller bzw. Prozent); vom Schatzamt unter „Tarife & Sätze“ änderbar.
 VORGABEN = {
     "lohnsteuer": {"stufen": [[100000, 0], [300000, 10], [600000, 20], [None, 30]]},   # Grenzsteuersätze auf das Monatsbrutto
     "sozialabgabe": 5,              # % des Bruttos an die Reichsversicherungskasse
@@ -67,6 +67,8 @@ VORGABEN = {
     "frist_tage": 14,               # Zahlungsfrist für Bescheide
     "startguthaben": 0,             # bei Kontoeröffnung aus der Zentralbank
     "leitzins": "2,0",
+    "gold": {"preis_kg": 95000, "abschlag": 1},
+    "wechselkurs": "1,21",          # € je Krone
     "aufkommen": {"steuerquote": 24, "massstab": "1,35", "reichsanteil": 43, "automatisch": True},
     "gebuehren": {"reisepass": 5000, "personalausweis": 2500, "dienstpass": 0, "vorlaeufig": 2000, "fremdenpass": 4000,
                   "visum": 3000, "meldebescheinigung": 500},
@@ -123,12 +125,12 @@ def mark(pf, vorzeichen=False, einheit=True):
     pf = int(pf or 0)
     neg = pf < 0
     m, p = divmod(abs(pf), 100)
-    t = f"{m:,}".replace(",", ".") + f",{p:02d}" + (" M" if einheit else "")
+    t = f"{m:,}".replace(",", ".") + f",{p:02d}" + (" Kr" if einheit else "")
     return ("−" if neg else "+" if vorzeichen and pf > 0 else "") + t
 
 
 def mark_kurz(pf):
-    """Kompakt für Kennzahlen: ab 10.000 M ohne Pfennige, ab 1 Mio. als „2,82 Mio. M“."""
+    """Kompakt für Kennzahlen: ab 10.000 Kr ohne Heller, ab 1 Mio. als „2,82 Mio. Kr“."""
     m = int(pf or 0) / 100
     a = abs(m)
     if a >= 1e9:
@@ -137,15 +139,15 @@ def mark_kurz(pf):
         zahl, zusatz = f"{m / 1e6:.2f}", " Mio."
     elif a >= 1e4:
         zahl, zusatz = f"{round(m):,}".replace(",", "."), ""
-        return ("−" if m < 0 else "") + zahl.lstrip("-") + " M"
+        return ("−" if m < 0 else "") + zahl.lstrip("-") + " Kr"
     else:
         return mark(pf)
-    return ("−" if m < 0 else "") + zahl.lstrip("-").replace(".", ",") + zusatz + " M"
+    return ("−" if m < 0 else "") + zahl.lstrip("-").replace(".", ",") + zusatz + " Kr"
 
 
 def betrag_lesen(s, null_erlaubt=False):
-    """'1.234,56', '1234.56', '1234' … → Pfennig (None bei Unsinn oder ≤ 0)."""
-    s = re.sub(r"[\sℳM]|Mark", "", str(s or ""))
+    """'1.234,56', '1234.56', '1234' … → Heller (None bei Unsinn oder ≤ 0)."""
+    s = re.sub(r"\s|Kronen|Krone|Kr\.?", "", str(s or ""))
     if not s:
         return None
     if "," in s:
@@ -246,7 +248,7 @@ def art_name(r):
 # ---------------------------------------------------------------- Buchen
 
 def buchen(con, von, an, betrag, art, zweck="", k=None, bezug="", minus=False, commit=False):
-    """Bucht betrag (Pfennig) von Konto-ID `von` auf `an` (None = außerhalb, z. B. Geldvernichtung). Wirft Fehler bei fehlender
+    """Bucht betrag (Heller) von Konto-ID `von` auf `an` (None = außerhalb, z. B. Geldvernichtung). Wirft Fehler bei fehlender
     Deckung oder Sperre. Gibt die Buchungs-ID zurück."""
     betrag = int(betrag)
     if betrag <= 0:

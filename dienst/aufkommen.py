@@ -3,7 +3,7 @@
 Jeden Monat zahlt die Bevölkerung jedes Teilstaats Steuern: BIP (Mio. €, karte_daten/bip.json) ÷ 12 × Steuerquote × Spielmaßstab.
 Verteilung wie in einem Bundesstaat: Reichsanteil (Vorgabe 43 % ≈ Bund + EU) an die Reichskasse, Rest (57 % ≈ Länder + Gemeinden)
 an die Staatskasse des Teilstaats; in den unmittelbaren Reichsgebieten (geld.REICHSGEBIETE) erhält das Reich beides.
-Vorgaben angelehnt an Deutschland: Steuerquote 24 % des BIP, Maßstab 1,35 M je Mio. € echtem Steueraufkommen (so deckt der
+Vorgaben angelehnt an Deutschland: Steuerquote 24 % des BIP, Maßstab 1,35 Kr je Mio. € echtem Steueraufkommen (so deckt der
 Reichsanteil die Besoldung mit kleinem Überschuss). Gegenkonto ist das Sonderkonto „volkswirtschaft“ (außerhalb des Geldumlaufs).
 Läuft automatisch einmal je Kalendermonat (Hintergrundaufgabe, abschaltbar), sonst über /schatzamt/amt/aufkommen/.
 Tabellen: ak_laeufe (je Monat eindeutig), ak_posten (je Teilstaat).
@@ -61,7 +61,7 @@ def staaten_bip(con):
 
 
 def berechnen(con, p=None):
-    """Monatliches Aufkommen je Teilstaat: [{staat, name, bip, summe, reich, land, kasse}] (Pfennig)."""
+    """Monatliches Aufkommen je Teilstaat: [{staat, name, bip, summe, reich, land, kasse}] (Heller)."""
     p = p or geld.einstellung(con, "aufkommen")
     quote, massstab, anteil = float(p["steuerquote"]) / 100, _zahl(p["massstab"]), float(p["reichsanteil"]) / 100
     out = []
@@ -153,7 +153,7 @@ async def seite(request, k):
               + prognose_html(con, liste, abfluss) + knopf
               + f'<h2>Stellschrauben</h2><form class="sa-formular" method="post" action="{PFAD}amt/aufkommen/">{c}<div class="zeilen">'
               f'<div><label for="q">Steuerquote (% des BIP)</label><input type="text" id="q" name="steuerquote" value="{esc(str(p["steuerquote"]))}"></div>'
-              f'<div><label for="m">Spielmaßstab (M je Mio. € Aufkommen)</label><input type="text" id="m" name="massstab" value="{esc(str(p["massstab"]))}"></div>'
+              f'<div><label for="m">Spielmaßstab (Kr je Mio. € Aufkommen)</label><input type="text" id="m" name="massstab" value="{esc(str(p["massstab"]))}"></div>'
               f'<div><label for="r">Reichsanteil (%)</label><input type="text" id="r" name="reichsanteil" value="{esc(str(p["reichsanteil"]))}"></div></div>'
               f'<label><input type="checkbox" name="automatisch" value="1"{" checked" if p.get("automatisch") else ""}> Jeden Monat automatisch buchen</label>'
               f'<div class="aktionen"><button class="btn zweit" type="submit">{amt.ic("check")}Speichern</button></div></form>'

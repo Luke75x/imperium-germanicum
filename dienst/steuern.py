@@ -324,7 +324,7 @@ async def amt_neu(request, k):
               f'<form class="sa-formular" method="post" action="{PFAD}amt/steuern/neu/">{amt.csrf_feld(request)}<div class="zeilen">'
               f'<div><label for="an">Konto (Kontonummer)</label><input type="text" id="an" name="an" required class="sa-nr" value="{esc(an)}"></div>'
               f'<div><label for="art">Steuerart</label><select id="art" name="art">{arten}</select></div>'
-              '<div><label for="b">Betrag in Mark</label><input type="text" id="b" name="betrag" required></div>'
+              '<div><label for="b">Betrag in Kronen</label><input type="text" id="b" name="betrag" required></div>'
               '<div><label for="p">Zeitraum (optional)</label><input type="text" id="p" name="periode" maxlength="20" placeholder="z. B. 2026-11"></div>'
               f'<div><label for="f">Zahlungsfrist (Tage)</label><input type="text" id="f" name="frist" value="{geld.einstellung(con, "frist_tage")}"></div></div>'
               '<div><label for="g">Begründung / Berechnungsgrundlage</label><textarea id="g" name="grundlage" required maxlength="2000"></textarea></div>'
@@ -564,19 +564,19 @@ async def tarife_bearbeiten(request, k):
     v, g = e("vermoegensteuer"), e("gewerbesteuer")
     feld = lambda n, label, wert, hilfe="": (f'<div><label for="{n}">{esc(label)}</label><input type="text" id="{n}" name="{n}" value="{esc(str(wert))}">'
                                             + (f'<span class="sa-hinweis">{esc(hilfe)}</span>' if hilfe else "") + "</div>")
-    geb = "".join(feld("geb_" + s, f"Gebühr {geld.GEBUEHR_NAMEN.get(s, s)} (M)", mark(b, einheit=False)) for s, b in e("gebuehren").items())
+    geb = "".join(feld("geb_" + s, f"Gebühr {geld.GEBUEHR_NAMEN.get(s, s)} (Kr)", mark(b, einheit=False)) for s, b in e("gebuehren").items())
     inhalt = (f'<h1>{amt.ic("percent")} Sätze festlegen</h1>{amt.meldung(request)}'
               f'<form class="sa-formular" method="post" action="{PFAD}amt/tarife/">{amt.csrf_feld(request)}'
-              '<h2>Lohnsteuer</h2><label for="st">Stufen: je Zeile „Obergrenze Monatsbrutto in Mark“ und „Grenzsteuersatz in %“, letzte Zeile mit * für „darüber“</label>'
+              '<h2>Lohnsteuer</h2><label for="st">Stufen: je Zeile „Obergrenze Monatsbrutto in Kronen“ und „Grenzsteuersatz in %“, letzte Zeile mit * für „darüber“</label>'
               f'<textarea id="st" name="stufen" rows="5" class="sa-nr">{esc(stufen)}</textarea>'
               '<h2>Abgaben und Steuern</h2><div class="zeilen">'
               + feld("sozialabgabe", "Sozialabgabe (%)", e("sozialabgabe")) + feld("laenderanteil", "Länderanteil (%)", e("laenderanteil"))
-              + feld("kopfsteuer", "Kopfsteuer je Lauf (M)", mark(e("kopfsteuer"), einheit=False))
-              + feld("v_satz", "Vermögensteuer (%)", v["satz"]) + feld("v_frei", "Vermögensteuer Freibetrag (M)", mark(v["freibetrag"], einheit=False))
-              + feld("g_grund", "Gewerbesteuer Grundbetrag (M)", mark(g["grund"], einheit=False)) + feld("g_satz", "Gewerbesteuer auf Eingänge (%)", g["satz"])
+              + feld("kopfsteuer", "Kopfsteuer je Lauf (Kr)", mark(e("kopfsteuer"), einheit=False))
+              + feld("v_satz", "Vermögensteuer (%)", v["satz"]) + feld("v_frei", "Vermögensteuer Freibetrag (Kr)", mark(v["freibetrag"], einheit=False))
+              + feld("g_grund", "Gewerbesteuer Grundbetrag (Kr)", mark(g["grund"], einheit=False)) + feld("g_satz", "Gewerbesteuer auf Eingänge (%)", g["satz"])
               + feld("umsatzsteuer", "Umsatzsteuer (%)", e("umsatzsteuer")) + feld("ueberweisungssteuer", "Überweisungssteuer (%)", e("ueberweisungssteuer"))
               + feld("saeumnis", "Säumniszuschlag je Mahnstufe (%)", e("saeumnis")) + feld("frist_tage", "Zahlungsfrist (Tage)", e("frist_tage"))
-              + feld("startguthaben", "Startguthaben bei Kontoeröffnung (M)", mark(e("startguthaben"), einheit=False))
+              + feld("startguthaben", "Startguthaben bei Kontoeröffnung (Kr)", mark(e("startguthaben"), einheit=False))
               + f'</div><h2>Verwaltungsgebühren</h2><div class="zeilen">{geb}</div>'
               f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Sätze speichern</button></div></form>')
     return sa.ant(request, k, "Sätze festlegen", "sa-amt-tarife", inhalt)

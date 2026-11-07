@@ -76,7 +76,8 @@ def nav(k):
             ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/"), ("sa-steuern", "receipt", "Steuern & Gebühren", "steuern/"),
             ("sa-gehalt", "banknote", "Gehalt", "gehalt/"), ("sa-gewerbe", "store", "Gewerbe", "gewerbe/")]
     gruppen = [("Mein Geld", mein),
-               ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/"), ("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/")])]
+               ("Information", [("sa-tarife", "percent", "Tarife & Sätze", "tarife/"), ("sa-finanzen", "chart-column", "Reichsfinanzen", "finanzen/"),
+                                    ("sa-gold", "coins", "Goldreserven", "gold/")])]
     if geld.ist_beamter(k):
         amtl = [("sa-amt", "landmark", "Verwaltung", "amt/"), ("sa-amt-konten", "wallet", "Konten", "amt/konten/"),
                 ("sa-amt-steuern", "receipt", "Steuerverwaltung", "amt/steuern/"), ("sa-amt-gewerbe", "store", "Gewerberegister", "amt/gewerbe/")]
@@ -96,7 +97,7 @@ def nav(k):
     return {"basis": PFAD, "gruppen": gruppen, "haupt": mein[:4], "logo": geld.STELLE, "name": "Schatzamt"}
 
 
-_KZ = re.compile(r'<div><b>(−?)([\d.]+),(\d\d) M</b>')
+_KZ = re.compile(r'<div><b>(−?)([\d.]+),(\d\d) Kr</b>')
 
 
 def _kennzahlen_kurz(html_):
@@ -360,7 +361,7 @@ async def ueberweisen_seite(request, k):
               f'<div><label for="von">Von Konto</label><select id="von" name="von">{opts}</select></div>'
               f'<div><label for="an">Empfänger (Kontonummer)</label><input type="text" id="an" name="an" required value="{esc(nummer_anzeige(an) if an else "")}" '
               'placeholder="IG00 0000 0000 0000" class="sa-nr" autocomplete="off"></div>'
-              '<div><label for="b">Betrag in Mark</label><input type="text" id="b" name="betrag" required inputmode="decimal" placeholder="0,00"></div>'
+              '<div><label for="b">Betrag in Kronen</label><input type="text" id="b" name="betrag" required inputmode="decimal" placeholder="0,00"></div>'
               '</div><div><label for="z">Verwendungszweck</label><input type="text" id="z" name="zweck" maxlength="140" required></div>'
               f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("arrow-right")}Weiter zur Prüfung</button></div></form>'
               f'<h2>Empfänger suchen</h2><form class="sa-leiste" method="get"><input type="hidden" name="von" value="{esc(von)}">'
@@ -526,7 +527,8 @@ def tarife_html(con):
         stufen.append((f"{mark(unten)} – {mark(bis) if bis else 'darüber'}", f"{satz} %"))
         unten = bis or unten
     v, g, ak = e("vermoegensteuer"), e("gewerbesteuer"), e("aufkommen")
-    saetze = [("Steueraufkommen der Bevölkerung", f'{ak["steuerquote"]} % des BIP je Teilstaat, Spielmaßstab {ak["massstab"]} M je Mio. €; '
+    saetze = [("Währung", f'Krone (Kr) zu 100 Heller · 1 Kr = {e("wechselkurs")} €'),
+              ("Steueraufkommen der Bevölkerung", f'{ak["steuerquote"]} % des BIP je Teilstaat, Spielmaßstab {ak["massstab"]} Kr je Mio. €; '
                                                   f'{ak["reichsanteil"]} % an das Reich, Rest an den Teilstaat (monatlich)'),
               ("Sozialabgabe (Reichsversicherung)", f'{e("sozialabgabe")} % des Bruttogehalts'),
               ("Länderanteil", f'{e("laenderanteil")} % von Lohn- und Kopfsteuer an den Wohnsitz-Teilstaat'),
@@ -555,6 +557,7 @@ async def tarife(request, k):
 @seite()
 async def finanzen(request, k):
     import aufkommen
+    import gold
     con = request.app["db"]
     seit = int(time.time()) - 30 * 86400
     kasse = geld.sonder(con, "reichskasse")
@@ -563,7 +566,8 @@ async def finanzen(request, k):
     verteilung = con.execute("SELECT art, COUNT(*) n, SUM(saldo) s FROM gk_konten WHERE art!='sonder' GROUP BY art").fetchall()
     staaten = con.execute("SELECT name, saldo FROM gk_konten WHERE art='teilstaat' ORDER BY name").fetchall()
     kz = [("Geldmenge im Umlauf", mark(geld.geldmenge(con))), ("Reichskasse", mark(kasse["saldo"])),
-          ("Reichsversicherung", mark(geld.sonder(con, "sozialkasse")["saldo"])), ("Leitzins", f'{geld.einstellung(con, "leitzins")} %')]
+          ("Reichsversicherung", mark(geld.sonder(con, "sozialkasse")["saldo"])), ("Leitzins", f'{geld.einstellung(con, "leitzins")} %'),
+          ("Wechselkurs", f'1 Kr = {geld.einstellung(con, "wechselkurs")} €')]
     inhalt = (f'<h1>{amt.ic("chart-column")} Reichsfinanzen</h1><p class="az">Öffentliche Übersicht über Geldmenge und Reichskasse '
               '(Einnahmen und Ausgaben der letzten 30 Tage).</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
@@ -572,7 +576,7 @@ async def finanzen(request, k):
               + '<h2>Verteilung der Geldmenge</h2>' + amt.tabelle(["Kontoart", "Konten", "Guthaben"],
                                                                   [(esc(geld.KONTOART[r["art"]][0]), r["n"], mark(r["s"])) for r in verteilung])
               + '<h2>Staatskassen der Teilstaaten</h2>' + amt.tabelle(["Teilstaat", "Guthaben"], [(esc(r["name"]), mark(r["saldo"])) for r in staaten], "Keine Staatskassen.")
-              + aufkommen.finanzen_html(con))
+              + gold.finanzen_html(con) + aufkommen.finanzen_html(con))
     return ant(request, k, "Reichsfinanzen", "sa-finanzen", inhalt)
 
 
@@ -661,7 +665,7 @@ async def amt_konto(request, k):
                          '<div><label for="r">Richtung</label><select id="r" name="richtung"><option value="gut">Gutschrift</option><option value="last">Lastschrift</option></select></div>'
                          '<div><label for="gk">Gegenkonto</label><select id="gk" name="gegen"><option value="reichskasse">Reichskasse</option>'
                          '<option value="zentralbank">Zentralbank (Geldschöpfung/-vernichtung)</option></select></div>'
-                         '<div><label for="kb">Betrag in Mark</label><input type="text" id="kb" name="betrag" required></div></div>'
+                         '<div><label for="kb">Betrag in Kronen</label><input type="text" id="kb" name="betrag" required></div></div>'
                          '<div><label for="kg">Begründung</label><input type="text" id="kg" name="grund" required maxlength="160"></div>'
                          f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("pencil")}Buchen</button></div></form>')
     bs = umsaetze(con, r["id"], 200)
@@ -746,12 +750,12 @@ async def amt_geldpolitik(request, k):
               'Jede Maßnahme wird mit Begründung protokolliert.</p>'
               f'<h2>Geldschöpfung</h2><form class="sa-formular" method="post" action="{PFAD}amt/geldpolitik/schoepfung">{amt.csrf_feld(request)}<div class="zeilen">'
               f'<div><label for="z">Zielkonto</label><select id="z" name="ziel">{opts}</select></div>'
-              '<div><label for="b">Betrag in Mark</label><input type="text" id="b" name="betrag" required></div></div>'
+              '<div><label for="b">Betrag in Kronen</label><input type="text" id="b" name="betrag" required></div></div>'
               '<div><label for="g">Begründung</label><input type="text" id="g" name="grund" required maxlength="160"></div>'
               f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("coins")}Geld schöpfen</button></div></form>'
               f'<h2>Geldvernichtung</h2><form class="sa-formular" method="post" action="{PFAD}amt/geldpolitik/vernichtung">{amt.csrf_feld(request)}<div class="zeilen">'
               f'<div><label for="q">Quellkonto</label><select id="q" name="ziel">{opts}</select></div>'
-              '<div><label for="b2">Betrag in Mark</label><input type="text" id="b2" name="betrag" required></div></div>'
+              '<div><label for="b2">Betrag in Kronen</label><input type="text" id="b2" name="betrag" required></div></div>'
               '<div><label for="g2">Begründung</label><input type="text" id="g2" name="grund" required maxlength="160"></div>'
               f'<div class="aktionen"><button class="btn zweit gefahr" type="submit">{amt.ic("trash-2")}Geld vernichten</button></div></form>'
               f'<h2>Leitzins</h2><form class="sa-leiste" method="post" action="{PFAD}amt/geldpolitik/leitzins">{amt.csrf_feld(request)}'
