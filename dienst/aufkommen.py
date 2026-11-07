@@ -2,7 +2,8 @@
 
 Einnahmen: Jeden Monat zahlt die Bevölkerung jedes Teilstaats Steuern: BIP (Mio. €, karte_daten/bip.json) ÷ 12 × Steuerquote (24 %),
 umgerechnet in Kronen zum Wechselkurs. Verteilung wie in einem Bundesstaat: Reichsanteil (43 % ≈ Bund + EU) an die Reichskasse,
-Rest (57 % ≈ Länder + Gemeinden) an die Staatskasse; in den unmittelbaren Reichsgebieten (geld.REICHSGEBIETE) erhält das Reich beides.
+Rest (57 % ≈ Länder + Gemeinden) an die Staatskasse; die Freien Reichsgebiete (geld.ist_reichsgebiet) sind kein Teilstaat, sondern das
+Reich selbst – dort erhält die Reichskasse alles.
 Ausgaben: Pflichtausgaben (Soziales, Verteidigung, Infrastruktur, Bildung, Verwaltung der nicht spielenden Bevölkerung) als Quote der
 Einnahmen (Vorgabe 97 %) gehen zurück an die Volkswirtschaft; die übrigen 3 % sind der frei verfügbare Spielraum für Reich und Landesherren.
 Gegenkonto ist das Sonderkonto „volkswirtschaft“ (außerhalb des Geldumlaufs). Läuft automatisch einmal je Kalendermonat
@@ -72,10 +73,10 @@ def berechnen(con, p=None):
     out = []
     for s, bip, ew in staaten_bip(con):
         summe = int(round(bip / 12 * quote * kr * 100))
-        reich_direkt = s["id"] in geld.REICHSGEBIETE
+        reich_direkt = geld.ist_reichsgebiet(s)
         reich = summe if reich_direkt else int(round(summe * anteil))
         land = summe - reich
-        out.append({"staat": s["id"], "name": s["name"], "bip": bip, "ew": ew, "summe": summe, "reich": reich, "land": land,
+        out.append({"staat": s["id"], "name": s["name"], "reichsgebiet": reich_direkt, "bip": bip, "ew": ew, "summe": summe, "reich": reich, "land": land,
                     "ausgaben_reich": int(round(reich * aq)), "ausgaben_land": int(round(land * aq)),
                     "kasse": None if reich_direkt else geld.stellenkonto(con, "ts-" + s["id"])})
     return sorted(out, key=lambda x: -x["summe"])
@@ -84,7 +85,7 @@ def berechnen(con, p=None):
 def _buchen_posten(con, x, k, monat, bezug, faktor=1):
     """Bucht Einnahmen und Pflichtausgaben eines Teilstaats (faktor −1 = Gegenbuchung bei Differenzen)."""
     vw, kasse = geld.sonder(con, "volkswirtschaft"), geld.sonder(con, "reichskasse")
-    paare = [(kasse, x["reich"], x["ausgaben_reich"], "Reichsanteil")]
+    paare = [(kasse, x["reich"], x["ausgaben_reich"], "Reich" if x.get("reichsgebiet") else "Reichsanteil")]
     if x["kasse"]:
         paare.append((x["kasse"], x["land"], x["ausgaben_land"], "Landesanteil"))
     for ziel, ein, aus, was in paare:
@@ -166,6 +167,10 @@ async def automatik(app):
 
 # ---------------------------------------------------------------- Seiten
 
+def _gebiet(sid, name):
+    return name + " (Reich)" if geld.ist_reichsgebiet({"id": sid, "name": name}) else name
+
+
 def summen(liste):
     s = lambda f: sum(x[f] for x in liste)
     return {"ein": s("summe"), "reich": s("reich"), "land": s("land"), "aus_reich": s("ausgaben_reich"), "aus_land": s("ausgaben_land")}
@@ -197,8 +202,8 @@ async def seite(request, k):
              f'<form method="post" action="{PFAD}amt/aufkommen/buchen">{amt.csrf_feld(request)}<div class="aktionen">'
              f'<button class="btn" type="submit">{amt.ic("check")}Haushalt {esc(sa._monatsname(periode))} jetzt buchen</button></div></form>')
     eur = lambda h: f'{h / 100 * geld.wechselkurs(con) / 1e9:,.2f} Mrd. €'.replace(",", "X").replace(".", ",").replace("X", ".")
-    zeilen = [(esc(x["name"]), f'{x["bip"]:,.0f}'.replace(",", "."), f'{(x["bip"] * 1e6 / x["ew"] if x["ew"] else 0):,.0f} €'.replace(",", "."),
-               geld.mark_kurz(x["summe"]), geld.mark_kurz(x["reich"]), geld.mark_kurz(x["land"]) if x["kasse"] else "– (Reichsgebiet)",
+    zeilen = [(esc(_gebiet(x["staat"], x["name"])), f'{x["bip"]:,.0f}'.replace(",", "."), f'{(x["bip"] * 1e6 / x["ew"] if x["ew"] else 0):,.0f} €'.replace(",", "."),
+               geld.mark_kurz(x["summe"]), geld.mark_kurz(x["reich"]), geld.mark_kurz(x["land"]) if x["kasse"] else "– (alles ans Reich)",
                geld.mark_kurz(x["land"] - x["ausgaben_land"]) if x["kasse"] else "–") for x in liste]
     laeufe = con.execute("SELECT * FROM ak_laeufe ORDER BY id DESC LIMIT 24").fetchall()
     c = amt.csrf_feld(request)
@@ -218,7 +223,8 @@ async def seite(request, k):
               '<p class="sa-hinweis">Richtwerte Deutschland: Steuerquote rund 24 % des BIP; Verteilung etwa 43 % Bund/EU, 57 % Länder und Gemeinden. '
               'Die Pflichtausgaben bilden Sozialleistungen, Verteidigung, Infrastruktur, Bildung und Verwaltung für die Bevölkerung ab; '
               'was übrig bleibt, steht Reich und Landesherren frei zur Verfügung.</p>'
-              '<h2>Haushalt je Teilstaat (Monat)</h2>' + amt.tabelle(["Teilstaat", "BIP (Mio. €)", "BIP je Einwohner", "Einnahmen", "Reich", "Teilstaat",
+              '<h2>Haushalt je Gebiet (Monat)</h2><p class="sa-hinweis">Die Freien Reichsgebiete sind kein Teilstaat, sondern das Reich selbst: '
+              'ihre Einnahmen gehen vollständig an die Reichskasse.</p>' + amt.tabelle(["Gebiet", "BIP (Mio. €)", "BIP je Einwohner", "Einnahmen", "Reich", "Teilstaat",
                                                                     "Teilstaat frei"], zeilen)
               + '<h2>Gebuchte Monate</h2>' + amt.tabelle(["Monat", "Einnahmen", "Reich", "Teilstaaten", "Pflichtausgaben", "Gebucht"],
                                                          [(esc(sa._monatsname(l["periode"])), geld.mark_kurz(l["summe"]), geld.mark_kurz(l["reich"]),
@@ -268,8 +274,8 @@ def finanzen_html(con):
     return (f'<h2>Staatshaushalt · {esc(sa._monatsname(l["periode"]))}</h2>'
             f'<p class="az">Steuereinnahmen {mark(l["summe"])} (Reich {mark(l["reich"])}, Teilstaaten {mark(l["laender"])}); '
             f'Pflichtausgaben {mark(l["ausgaben"])}</p>'
-            + amt.tabelle(["Teilstaat", "Einnahmen", "an das Reich", "an den Teilstaat", "frei verfügbar (Teilstaat)"],
-                          [(esc(x["name"]), geld.mark_kurz(x["summe"]), geld.mark_kurz(x["reich"]), geld.mark_kurz(x["land"]) if x["land"] else "–",
+            + amt.tabelle(["Gebiet", "Einnahmen", "an das Reich", "an den Teilstaat", "frei verfügbar (Teilstaat)"],
+                          [(esc(_gebiet(x["staat"], x["name"])), geld.mark_kurz(x["summe"]), geld.mark_kurz(x["reich"]), geld.mark_kurz(x["land"]) if x["land"] else "–",
                             geld.mark_kurz(x["land"] - x["ausgaben_land"]) if x["land"] else "–") for x in posten]))
 
 

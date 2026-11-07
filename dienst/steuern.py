@@ -100,7 +100,7 @@ def laenderanteil_buchen(con, konto_id, steuer, k, bezug):
     """Länderanteil von der Reichskasse an die Staatskasse des Wohnsitzes; gibt (Staatskasse, Betrag) zurück."""
     sid = wohnsitz_staat(con, konto_id)
     anteil = int(round(steuer * float(geld.einstellung(con, "laenderanteil")) / 100))
-    if not sid or anteil <= 0:
+    if not sid or anteil <= 0 or geld.ist_reichsgebiet(sid):   # Freie Reichsgebiete: Anteil bleibt beim Reich
         return None, 0
     ziel = geld.stellenkonto(con, "ts-" + sid)
     if not ziel:

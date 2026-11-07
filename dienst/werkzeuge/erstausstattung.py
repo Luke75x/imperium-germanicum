@@ -54,7 +54,7 @@ def plan(con):
         faktor = min(FAKTOR[1], max(FAKTOR[0], (x["bip"] / x["ew"]) / schnitt if x["ew"] else 1))
         flaeche = round(x["km2"] * JE_KM2 * faktor)
         wirtschaft = round(x["bip"] * JE_MIO_BIP)
-        reich = s["id"] in geld.REICHSGEBIETE
+        reich = geld.ist_reichsgebiet(s)
         konto = geld.sonder(con, "reichskasse") if reich else geld.stellenkonto(con, "ts-" + s["id"])
         betrag = round(((0 if reich else SOCKEL) + flaeche + wirtschaft) / 100) * 100   # auf ganze Mark
         text = ("" if reich else f"Sockel {geld.mark(SOCKEL)} + ") + (

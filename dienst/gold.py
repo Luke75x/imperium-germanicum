@@ -1,12 +1,14 @@
-"""Goldreserven der Teilstaaten und der Zentralbank.
+"""Goldreserven des Reiches, der Teilstaaten und der Zentralbank.
 
-Bestand in kg (gr_bestand je Stelle: 'ts-<sid>' Staatskasse eines Teilstaats, 'zentralbank' Reichsgoldreserve der Reichsgebiete);
+Bestand in kg (gr_bestand je Stelle: 'reichskasse' Gold des Reiches – dazu gehören die Freien Reichsgebiete, die kein Teilstaat sind –,
+'ts-<sid>' Staatskasse eines Teilstaats, 'zentralbank' Ankäufe der Zentralbank);
 jede Bewegung in gr_buchungen. Erstausstattung: werkzeuge/goldreserven.py (Goldbestände der Nationalbanken nach World Gold Council,
 anteilig nach dem BIP-Anteil der Gebiete am jeweiligen Land).
 Bewertung: kg × Goldpreis (€/kg, Einstellung „gold“) ÷ Wechselkurs (Echtmaßstab) – Gold ist Vermögen, kein Geld.
 Handel nur mit der Zentralbank: Verkauf → Zentralbank zahlt den Gegenwert in Kronen auf die Staatskasse (Geldschöpfung, goldgedeckt),
 Kauf → Staatskasse zahlt an die Zentralbank (Geld verlässt den Umlauf). Ankaufsabschlag/Verkaufsaufschlag je 1 % (Einstellung).
-Berechtigt: Landesherr für die eigene Staatskasse (geld.regierte_staatskassen), Leitung des Schatzamts für alle; Goldpreis setzt die Leitung.
+Berechtigt: Landesherr für die eigene Staatskasse (geld.regierte_staatskassen), Leitung des Schatzamts für alle und die Reichskasse;
+Goldpreis setzt die Leitung.
 Seite /schatzamt/gold/ (öffentlich: Bestände, Wert, Golddeckung der Krone).
 """
 import time
@@ -27,7 +29,16 @@ CREATE TABLE IF NOT EXISTS gr_bestand (stelle TEXT PRIMARY KEY, name TEXT NOT NU
 CREATE TABLE IF NOT EXISTS gr_buchungen (id INTEGER PRIMARY KEY AUTOINCREMENT, zeit INTEGER NOT NULL, stelle TEXT NOT NULL, kg REAL NOT NULL,
     art TEXT NOT NULL, betrag INTEGER NOT NULL DEFAULT 0, preis_kg REAL NOT NULL DEFAULT 0, zweck TEXT NOT NULL DEFAULT '', autor_name TEXT NOT NULL);
 """
-ARTEN = {"erstausstattung": "Erstausstattung", "verkauf": "Verkauf an die Zentralbank", "kauf": "Kauf von der Zentralbank"}
+ARTEN = {"erstausstattung": "Erstausstattung", "verkauf": "Verkauf an die Zentralbank", "kauf": "Kauf von der Zentralbank", "umbuchung": "Umbuchung"}
+
+
+def handelbar(con, k):
+    """Kassen, für die das Konto Gold handeln darf: regierte Staatskassen; Leitung: alle Staatskassen und die Reichskasse."""
+    out = {r["stelle"]: r for r in geld.regierte_staatskassen(con, k)}
+    if geld.ist_leitung(k):
+        out.update({r["stelle"]: r for r in con.execute("SELECT * FROM gk_konten WHERE art='teilstaat'")})
+        out["reichskasse"] = geld.sonder(con, "reichskasse")
+    return out
 
 
 def einrichten(con):
@@ -101,9 +112,7 @@ async def seite(request, k):
     menge = geld.geldmenge(con)
     gw = wert(con, gesamt)
     g = geld.einstellung(con, "gold")
-    eigene = {r["stelle"]: r for r in geld.regierte_staatskassen(con, k)}
-    if geld.ist_leitung(k):
-        eigene.update({r["stelle"]: r for r in con.execute("SELECT * FROM gk_konten WHERE art='teilstaat'")})
+    eigene = handelbar(con, k)
     kz = [("Goldreserven gesamt", _t(gesamt)), ("Wert", mark(gw)), ("Golddeckung der Krone", f"{gw / menge * 100:.1f} %".replace(".", ",") if menge else "–"),
           ("Goldpreis", f"{preis(con):,.0f} € je kg".replace(",", "."))]
     zeilen = [(esc(r["name"]), _t(r["kg"]), mark(wert(con, r["kg"])), f"{r['kg'] / gesamt * 100:.1f} %".replace(".", ",") if gesamt else "–") for r in rows]
@@ -111,12 +120,12 @@ async def seite(request, k):
     if eigene:
         opts = "".join(f'<option value="{r["id"]}">{esc(r["name"])} · {_kg(bestand(con, s))} · {mark(r["saldo"])}</option>' for s, r in sorted(eigene.items(), key=lambda x: x[1]["name"]))
         handel = (f'<h2>Gold handeln</h2><form class="sa-formular" method="post" action="{PFAD}gold/handeln">{amt.csrf_feld(request)}<div class="zeilen">'
-                  f'<div><label for="ka">Staatskasse</label><select id="ka" name="kasse">{opts}</select></div>'
+                  f'<div><label for="ka">Kasse</label><select id="ka" name="kasse">{opts}</select></div>'
                   '<div><label for="kg">Menge (kg)</label><input type="text" id="kg" name="kg" required inputmode="decimal"></div>'
                   '<div><label for="ri">Geschäft</label><select id="ri" name="richtung"><option value="verkauf">An die Zentralbank verkaufen</option>'
                   '<option value="kauf">Von der Zentralbank kaufen</option></select></div></div>'
                   f'<p class="sa-hinweis">1 kg entspricht derzeit {mark(wert(con, 1))}. Die Zentralbank kauft mit {g["abschlag"]} % Abschlag an und verkauft mit '
-                  f'{g["abschlag"]} % Aufschlag. Ein Verkauf bringt neues, goldgedecktes Geld in die Staatskasse.</p>'
+                  f'{g["abschlag"]} % Aufschlag. Ein Verkauf bringt neues, goldgedecktes Geld in die Kasse.</p>'
                   f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Ausführen</button></div></form>')
     preisform = ""
     if geld.ist_leitung(k):
@@ -124,14 +133,15 @@ async def seite(request, k):
                      f'<div><label for="p">€ je kg</label><input type="text" id="p" name="preis" value="{preis(con):.0f}"></div>'
                      f'<div><label for="a">Ab-/Aufschlag %</label><input type="text" id="a" name="abschlag" value="{esc(str(g["abschlag"]))}"></div>'
                      f'<button class="btn zweit" type="submit">Speichern</button></form>')
+    namen = {r["stelle"]: r["name"] for r in rows}
     bew = con.execute("SELECT * FROM gr_buchungen WHERE art!='erstausstattung' ORDER BY id DESC LIMIT 30").fetchall()
     inhalt = (f'<h1>{amt.ic("coins")} Goldreserven</h1>{amt.meldung(request)}'
-              '<p class="az">Goldbestände der Teilstaaten und der Zentralbank (Reichsgoldreserve der unmittelbaren Reichsgebiete). '
+              '<p class="az">Goldbestände des Reiches (Reichskasse, einschließlich der Freien Reichsgebiete), der Teilstaaten und der Zentralbank. '
               'Ausgangsbestand nach den Goldreserven der Nationalbanken, anteilig nach der Wirtschaftsleistung der Gebiete.</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>{handel}'
               '<h2>Bestände</h2>' + amt.tabelle(["Halter", "Bestand", "Wert", "Anteil"], zeilen, "Noch keine Goldreserven.") + preisform
               + '<h2>Letzte Goldgeschäfte</h2>' + amt.tabelle(["Zeit", "Halter", "Menge", "Geschäft", "Betrag", "Durch"],
-                                                            [(amt._zeit(b["zeit"]), esc(b["stelle"]), _kg(b["kg"]), esc(ARTEN.get(b["art"], b["art"])), mark(b["betrag"]),
+                                                            [(amt._zeit(b["zeit"]), esc(namen.get(b["stelle"], b["stelle"])), _kg(b["kg"]), esc(ARTEN.get(b["art"], b["art"])), mark(b["betrag"]),
                                                               esc(b["autor_name"])) for b in bew], "Noch keine Geschäfte."))
     return sa.ant(request, k, "Goldreserven", "sa-gold", inhalt)
 
@@ -143,9 +153,9 @@ async def handeln_post(request):
     form = await sa.formular(request)
     con = request.app["db"]
     kasse = geld.konto(con, form.get("kasse")) if str(form.get("kasse", "")).isdigit() else None
-    erlaubt = {r["id"] for r in geld.regierte_staatskassen(con, k)} | ({kasse["id"]} if kasse and geld.ist_leitung(k) and kasse["art"] == "teilstaat" else set())
+    erlaubt = {r["id"] for r in handelbar(con, k).values() if r}
     if not kasse or kasse["id"] not in erlaubt:
-        sa.weiter(f"{PFAD}gold/", "Über diese Staatskasse darfst du nicht verfügen.", True)
+        sa.weiter(f"{PFAD}gold/", "Über diese Kasse darfst du nicht verfügen.", True)
     try:
         roh = str(form.get("kg", "")).replace(" ", "")
         kg = float(roh.replace(".", "").replace(",", ".") if "," in roh else roh)

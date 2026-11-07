@@ -29,7 +29,8 @@ BUCHUNGSART = {"ueberweisung": "Überweisung", "gehalt": "Gehalt", "lohnsteuer":
                "steuer": "Steuerzahlung", "gebuehr": "Gebühr", "laenderanteil": "Länderanteil", "umsatzsteuer": "Umsatzsteuer",
                "ueberweisungssteuer": "Überweisungssteuer", "geldschoepfung": "Geldschöpfung", "geldvernichtung": "Geldvernichtung",
                "korrektur": "Korrekturbuchung", "pfaendung": "Pfändung", "startguthaben": "Startguthaben", "erstattung": "Erstattung",
-               "zuweisung": "Haushaltszuweisung", "steueraufkommen": "Steueraufkommen der Bevölkerung"}
+               "zuweisung": "Haushaltszuweisung", "steueraufkommen": "Steueraufkommen der Bevölkerung",
+               "umbuchung": "Umbuchung"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS gk_konten (
@@ -94,7 +95,16 @@ def einrichten(con):
     con.commit()
 
 
-REICHSGEBIETE = {"s2"}   # Freie Reichsgebiete: verwaltet das Reich direkt (Reichskasse), keine eigene Staatskasse
+REICHSGEBIETE = {"s2"}   # Freie Reichsgebiete = das Reich selbst (kein Teilstaat): alles läuft über die Reichskasse, keine Staatskasse
+
+
+def ist_reichsgebiet(s):
+    """True für die Freien Reichsgebiete der Reichskarte (Staat-Eintrag als dict oder Teilstaat-ID). Sie sind kein Teilstaat,
+    sondern das Reich selbst: keine Staatskasse, keine Reich/Land-Teilung, Einnahmen und Bestände gehören der Reichskasse."""
+    import karte
+    if isinstance(s, str):
+        return s in REICHSGEBIETE
+    return s.get("id") in REICHSGEBIETE or s.get("name") == karte.REICHSGEBIETE
 
 
 def teilstaaten_sichern(con):
@@ -102,7 +112,7 @@ def teilstaaten_sichern(con):
     import karte
     import landespolizei
     for s in karte.aktuell(con)["stand"]["staaten"]:
-        if s["id"] not in REICHSGEBIETE:
+        if not ist_reichsgebiet(s):
             _anlegen(con, "teilstaat", "Staatskasse " + landespolizei._kurzname(s["name"]), stelle="ts-" + s["id"])
     con.commit()
 
@@ -207,7 +217,7 @@ def sonder(con, schl):
 def stellenkonto(con, stelle):
     """Konto einer Stelle: 'reichskasse', 'kanzlei', Behörden-Schlüssel, 'ts-<sid>'."""
     r = con.execute("SELECT * FROM gk_konten WHERE stelle=? ORDER BY (art='sonder') DESC LIMIT 1", (stelle,)).fetchone()
-    if r is None and stelle.startswith("ts-"):
+    if r is None and stelle.startswith("ts-") and not ist_reichsgebiet(stelle[3:]):
         teilstaaten_sichern(con)
         r = con.execute("SELECT * FROM gk_konten WHERE stelle=?", (stelle,)).fetchone()
     return r
@@ -363,7 +373,7 @@ def regierte_staatskassen(con, k):
     kanzler = amt.ROLLE_KANZLER in rollen or bereiche._alle(k)
     out = []
     for s in karte.aktuell(con)["stand"]["staaten"]:
-        if s["id"] in REICHSGEBIETE:
+        if ist_reichsgebiet(s):
             continue
         f = s["fraktion"]
         if (f and f in rollen and (regent or f in karte.ROLLEN_AEMTER)) or (not f and kanzler):

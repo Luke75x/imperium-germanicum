@@ -2,7 +2,8 @@
 
 Goldbestände der Nationalbanken (World Gold Council, Stand Ende 2024, Tonnen) werden auf die Gebiete der Reichskarte verteilt:
 Anteil eines Gebiets = BIP des Gebiets ÷ BIP des ganzen Landes (Eurostat nama_10r_3gdp, NUTS 0; für Länder ohne Eurostat-Wert
-siehe LAND_BIP). Summe je Teilstaat → gr_bestand 'ts-<sid>'; unmittelbare Reichsgebiete → Reichsgoldreserve der Zentralbank.
+siehe LAND_BIP). Summe je Teilstaat → gr_bestand 'ts-<sid>'; Freie Reichsgebiete (= Reich) → Reichskasse
+(bis 07.11.2026 bei der Zentralbank, umgebucht mit werkzeuge/reichsgebiete_reich.py).
 Aufruf: .venv/bin/python werkzeuge/goldreserven.py [--ausfuehren]
 """
 import json
@@ -49,8 +50,8 @@ def plan(con):
         kg[sid] = kg.get(sid, 0) + TONNEN.get(land, 0) * 1000 * anteil
     out = []
     for s in a["stand"]["staaten"]:
-        if s["id"] in geld.REICHSGEBIETE:
-            out.append(("zentralbank", "Zentralbank des Reiches", s["name"], kg.get(s["id"], 0)))
+        if geld.ist_reichsgebiet(s):   # Freie Reichsgebiete = Reich: Bestand der Reichskasse
+            out.append(("reichskasse", "Reichskasse", s["name"], kg.get(s["id"], 0)))
         else:
             k = geld.stellenkonto(con, "ts-" + s["id"])
             out.append((k["stelle"], k["name"], s["name"], kg.get(s["id"], 0)))
