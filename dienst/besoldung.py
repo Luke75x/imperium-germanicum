@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS bs_rueckstaende (id INTEGER PRIMARY KEY AUTOINCREMENT
     zulage_text TEXT NOT NULL DEFAULT '', brutto INTEGER NOT NULL, lohnsteuer INTEGER NOT NULL, abgaben INTEGER NOT NULL, netto INTEGER NOT NULL,
     zahlstelle TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'offen', erstellt INTEGER NOT NULL, gezahlt INTEGER);
 CREATE INDEX IF NOT EXISTS bs_rueckstaende_s ON bs_rueckstaende (status, zahlstelle);
+CREATE TABLE IF NOT EXISTS bs_zuschlaege (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, art TEXT NOT NULL DEFAULT 'prozent', wert REAL NOT NULL DEFAULT 0,
+    zahlstelle TEXT NOT NULL DEFAULT 'grund', rollen TEXT NOT NULL DEFAULT '[]', aktiv INTEGER NOT NULL DEFAULT 1, rang INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS bs_zuschlag_personen (zuschlag INTEGER NOT NULL, konto_id TEXT NOT NULL, PRIMARY KEY (zuschlag, konto_id));
 """
 
 M = 100   # Heller je Krone
@@ -103,6 +106,16 @@ def einrichten(con):
         # 07.11.2026: Die Behörden zahlen ihre Mitarbeiter selbst – bisherige Vorgabe „Reichskasse“ wird „nach Dienststelle“
         con.execute("UPDATE bs_rollen SET zahlstelle='auto' WHERE zahlstelle='reichskasse'")
         con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('zahlstelle_auto', '1')")
+    if not con.execute("SELECT 1 FROM bs_meta WHERE schl='zuschlaege'").fetchone():
+        # 07.11.2026: Zuschläge auf Amtspositionen. Vorgaben: Stabschefs 20 % (Reichsverteidigungskasse), Oberbefehlshaber 15 % (Reichsverteidigungskasse),
+        # Privatsekretär Seiner Majestät 20 % für den Kanzler (Crown Estates); der Kanzler erhält sein Grundgehalt aus der Reichskasse.
+        for i, (n, art, w, z, rl) in enumerate((
+                ("Stabschef", "prozent", 20, "verteidigung", ["1522721092127555666", "1522912530446684190", "1522913031456034938"]),
+                ("Oberbefehlshaber", "prozent", 15, "verteidigung", ["1522707672808292586"]),
+                ("Privatsekretär Seiner Majestät", "prozent", 20, "crown_estates", [amt.ROLLE_KANZLER]))):
+            con.execute("INSERT INTO bs_zuschlaege (name, art, wert, zahlstelle, rollen, rang) VALUES (?,?,?,?,?,?)", (n, art, w, z, json.dumps(rl), i))
+        con.execute("UPDATE bs_rollen SET zahlstelle='reichskasse' WHERE rolle_id=? AND zahlstelle='auto'", (amt.ROLLE_KANZLER,))
+        con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('zuschlaege', '1')")
     if not con.execute("SELECT 1 FROM bs_meta WHERE schl='crown'").fetchone():
         # 07.11.2026: Der Monarch (Imperator Rex, Imperatrix Regina) wird aus den Crown Estates des Kaisers bezahlt
         for r in ("1522685953054081054", "1535795611599638638"):
@@ -221,21 +234,80 @@ def einstufung(con, konto_id, rollen, rollennamen=None):
     return g, quelle, zahl, zulage, ztext
 
 
+amt.ICONS.setdefault("plus", '<path d="M5 12h14"/><path d="M12 5v14"/>')
+ROLLEN_MONARCH = ("1522685953054081054", "1535795611599638638")   # Imperator Rex, Imperatrix Regina – zahlen keine Kronsteuer
+
+
+def zuschlaege(con, nur_aktiv=True):
+    return [dict(r, rollen=json.loads(r["rollen"] or "[]")) for r in con.execute("SELECT * FROM bs_zuschlaege" + (" WHERE aktiv=1" if nur_aktiv else "") + " ORDER BY rang, id")]
+
+
+def zuschlaege_von(con, konto_id, rollen, grund):
+    """[(Zuschlag, Betrag in Heller)] der Amtspositionen des Kontos: über die Discord-Rollen oder die persönliche Zuordnung; Prozentzuschläge
+    beziehen sich auf das Grundgehalt der Besoldungsgruppe `grund` (Heller)."""
+    rollen = set(rollen or ())
+    zugeordnet = {r["zuschlag"] for r in con.execute("SELECT zuschlag FROM bs_zuschlag_personen WHERE konto_id=?", (konto_id,))}
+    out = []
+    for z in zuschlaege(con):
+        if z["id"] in zugeordnet or rollen & set(z["rollen"]):
+            betrag = int(round(grund * float(z["wert"]) / 100)) if z["art"] == "prozent" else int(round(float(z["wert"])))
+            if betrag > 0:
+                out.append((z, betrag))
+    return out
+
+
+def _zahlstelle_aufloesen(con, z, rollen, grundzahl):
+    if z == "grund":
+        return grundzahl
+    if z == "auto":
+        return dienststelle(rollen)
+    if z == "vt-land":
+        import verteidigung
+        return verteidigung.zahlstelle_land(con, rollen)
+    return z
+
+
 def berechnen_einzeln(con, konto_id, name, rollen, rollennamen=None):
+    """Bezüge eines Kontos als Liste von Abrechnungsteilen, einer je Zahlstelle: das Grundgehalt der Besoldungsgruppe (mit individueller Zulage) und die
+    Zuschläge der Amtspositionen. Lohnsteuer, Sozialabgabe und Kronsteuer werden auf die Summe berechnet und anteilig auf die Teile verteilt.
+    Leere Liste, wenn keine Besoldung besteht."""
     e = einstufung(con, konto_id, rollen, rollennamen)
     if not e:
-        return None
+        return []
     g, quelle, zahl, zulage, ztext = e
     grund = g["grundgehalt"] if g else 0
-    brutto = grund + zulage
-    if brutto <= 0:
-        return None
-    lst = steuern.lohnsteuer(con, brutto)
-    abg = int(round(brutto * float(geld.einstellung(con, "sozialabgabe")) / 100))
-    kst = 0 if zahl == "crown_estates" else int(round(brutto * float(geld.einstellung(con, "kronsteuer")) / 100))   # Monarch zahlt keine Kronsteuer
-    return {"konto_id": konto_id, "name": name, "gruppe": g["schl"] if g else "–", "gruppe_name": g["name"] if g else "Zulage",
-            "quelle": quelle, "grundgehalt": grund, "zulage": zulage, "zulage_text": ztext, "brutto": brutto, "lohnsteuer": lst,
-            "abgaben": abg, "kronsteuer": kst, "netto": brutto - lst - abg - kst, "zahlstelle": zahl}
+    teile = {zahl: {"grund": grund, "zulage": zulage, "texte": [ztext] if ztext else [], "namen": []}}
+    for z, betrag in (zuschlaege_von(con, konto_id, rollen, grund) if g else []):
+        zs = _zahlstelle_aufloesen(con, z["zahlstelle"], rollen, zahl)
+        t = teile.setdefault(zs, {"grund": 0, "zulage": 0, "texte": [], "namen": []})
+        t["zulage"] += betrag
+        t["texte"].append(f'Zuschlag {z["name"]}' + (f' {float(z["wert"]):g} %'.replace(".", ",") if z["art"] == "prozent" else ""))
+        t["namen"].append(z["name"])
+    gesamt = sum(t["grund"] + t["zulage"] for t in teile.values())
+    if gesamt <= 0:
+        return []
+    lst = steuern.lohnsteuer(con, gesamt)
+    abg = int(round(gesamt * float(geld.einstellung(con, "sozialabgabe")) / 100))
+    monarch = konto_id == config.KAISER_ID or bool(set(rollen or ()) & set(ROLLEN_MONARCH))
+    kst = 0 if monarch else int(round(gesamt * float(geld.einstellung(con, "kronsteuer")) / 100))
+    out, rest = [], {"lst": lst, "abg": abg, "kst": kst}
+    items = list(teile.items())          # Grundgehalts-Zahlstelle zuerst (Reihenfolge des Einfügens)
+    for i, (zs, t) in enumerate(items):
+        brutto = t["grund"] + t["zulage"]
+        if brutto <= 0:
+            continue
+        if i == len(items) - 1:
+            a, b, c = rest["lst"], rest["abg"], rest["kst"]
+        else:
+            a, b, c = (int(round(v * brutto / gesamt)) for v in (lst, abg, kst))
+            rest["lst"] -= a; rest["abg"] -= b; rest["kst"] -= c
+        haupt = i == 0
+        out.append({"konto_id": konto_id, "name": name, "gruppe": (g["schl"] if g else "–") if haupt else "ZUS",
+                    "gruppe_name": (g["name"] if g else "Zulage") if haupt else ", ".join(t["namen"]),
+                    "quelle": quelle if haupt else "Amtsposition: " + ", ".join(t["namen"]),
+                    "grundgehalt": t["grund"], "zulage": t["zulage"], "zulage_text": ", ".join(t["texte"]), "brutto": brutto, "lohnsteuer": a, "abgaben": b,
+                    "kronsteuer": c, "netto": brutto - a - b - c, "zahlstelle": zs})
+    return out
 
 
 async def berechnen(app, con):
@@ -244,9 +316,7 @@ async def berechnen(app, con):
     namen = {r["id"]: r["name"] for r in await app["discord"].rollen_liste()}
     out = []
     for m in await app["discord"].mitglieder():
-        x = berechnen_einzeln(con, m["id"], geld.anzeigename(con, m["id"], m["name"]), m["rollen"], namen)
-        if x:
-            out.append(x)
+        out.extend(berechnen_einzeln(con, m["id"], geld.anzeigename(con, m["id"], m["name"]), m["rollen"], namen))
     out.sort(key=lambda x: (-x["brutto"], x["name"].lower()))
     return out
 
@@ -261,6 +331,14 @@ def tabelle_html(con):
         zeilen.append((esc(g["laufbahn"]) if g["laufbahn"] != lb else "", f'<b>{esc(g["schl"])}</b>', esc(g["name"]), f'<span class="sa-betrag">{mark(g["grundgehalt"])}</span>'))
         lb = g["laufbahn"]
     return amt.tabelle(["Laufbahn", "Gruppe", "Bezeichnung", "Grundgehalt / Monat"], zeilen)
+
+
+def zuschlag_tabelle_html(con):
+    """Öffentliche Übersicht der Zuschläge auf Amtspositionen (Tarife & Sätze)."""
+    zs = dict(zahlstellen(con))
+    zeilen = [(esc(z["name"]), (f'{float(z["wert"]):g} % des Grundgehalts'.replace(".", ",") if z["art"] == "prozent" else mark(int(z["wert"])) + " im Monat"),
+               esc("Kasse des Grundgehalts" if z["zahlstelle"] == "grund" else zs.get(z["zahlstelle"], z["zahlstelle"]))) for z in zuschlaege(con)]
+    return ("<h2>Zuschläge auf Amtspositionen</h2>" + amt.tabelle(["Amtsposition", "Zuschlag", "Gezahlt von"], zeilen, "Keine Zuschläge.")) if zeilen else ""
 
 
 def _monat(periode):
@@ -288,14 +366,22 @@ async def mein_gehalt(request, k):
     con = request.app["db"]
     namen = {r["id"]: r["name"] for r in await request.app["discord"].rollen_liste()}
     await raenge_sichern(request.app, con)
-    x = berechnen_einzeln(con, k["id"], k["name"], k["rollen"], namen)
+    teile = berechnen_einzeln(con, k["id"], k["name"], k["rollen"], namen)
     rows = con.execute("SELECT * FROM bs_abrechnungen WHERE konto_id=? ORDER BY id DESC", (k["id"],)).fetchall()
-    if x:
-        einst = (amt.daten_tabelle([("Besoldungsgruppe", f'{esc(x["gruppe"])} · {esc(x["gruppe_name"])}'), ("Grundlage", esc(x["quelle"])),
-                                    ("Brutto", mark(x["brutto"])), ("Lohnsteuer", "− " + mark(x["lohnsteuer"])), ("Sozialabgabe", "− " + mark(x["abgaben"]))]
-                                   + ([("Kronsteuer (Crown Estates)", "− " + mark(x["kronsteuer"]))] if x["kronsteuer"] else []) + [
-                                    ("Voraussichtlich netto", f'<b>{mark(x["netto"])}</b>')])
-                 + '<p class="sa-hinweis">Die Auszahlung erfolgt mit dem monatlichen Lohnlauf des Schatzamts.</p>')
+    if teile:
+        x = teile[0]
+        zsn = dict(zahlstellen(con))
+        summe_t = lambda f: sum(t[f] for t in teile)
+        posten = [("Besoldungsgruppe", f'{esc(x["gruppe"])} · {esc(x["gruppe_name"])}'), ("Grundlage", esc(x["quelle"])), ("Grundgehalt", mark(x["grundgehalt"]))]
+        for t in teile:
+            if t["zulage"]:
+                posten.append(((t["zulage_text"] or "Zulage") + f' (gezahlt von {zsn.get(t["zahlstelle"], t["zahlstelle"])})', mark(t["zulage"])))
+        posten += [("Brutto gesamt", f'<b>{mark(summe_t("brutto"))}</b>'), ("Lohnsteuer", "− " + mark(summe_t("lohnsteuer"))), ("Sozialabgabe", "− " + mark(summe_t("abgaben")))]
+        if summe_t("kronsteuer"):
+            posten.append(("Kronsteuer (Crown Estates)", "− " + mark(summe_t("kronsteuer"))))
+        posten.append(("Voraussichtlich netto", f'<b>{mark(summe_t("netto"))}</b>'))
+        einst = (amt.daten_tabelle(posten) + '<p class="sa-hinweis">Die Auszahlung erfolgt mit dem monatlichen Lohnlauf des Schatzamts.'
+                 + (" Grundgehalt und Zuschläge kommen aus verschiedenen Kassen und erscheinen als getrennte Abrechnungen." if len(teile) > 1 else "") + '</p>')
     else:
         einst = '<p class="leer">Du erhältst derzeit keine Besoldung aus dem Reichshaushalt.</p>'
     zs_namen = dict(zahlstellen(con))
@@ -363,10 +449,55 @@ async def verwaltung(request, k):
     c = amt.csrf_feld(request)
     reiter = request.query.get("reiter", "gruppen")
     tabs = '<p class="reiter">' + " ".join(f'<a href="?reiter={s}" class="{"aktiv" if s == reiter else ""}">{t}</a>' for s, t in
-                                          [("gruppen", "Besoldungsordnung"), ("rollen", "Rollenzuordnung"), ("personen", "Individuelle Einstufung")]) + "</p>"
+                                          [("gruppen", "Besoldungsordnung"), ("rollen", "Rollenzuordnung"), ("zuschlaege", "Zuschläge"), ("personen", "Individuelle Einstufung")]) + "</p>"
     gopts = lambda sel="": "".join(f'<option value="{esc(s)}"{" selected" if s == sel else ""}>{esc(s)} · {esc(g["name"])} ({mark(g["grundgehalt"])})</option>' for s, g in gs.items())
     zopts = lambda sel="auto": "".join(f'<option value="{esc(s)}"{" selected" if s == sel else ""}>{esc(n)}</option>' for s, n in zs.items())
-    if reiter == "rollen":
+    if reiter == "zuschlaege":
+        zopt_g = lambda sel: (f'<option value="grund"{" selected" if sel == "grund" else ""}>Wie das Grundgehalt</option>' + zopts(sel))
+        ropts = lambda sel: "".join(f'<option value="{r["id"]}"{" selected" if r["id"] in sel else ""}>{esc(r["name"])}</option>' for r in rollen)
+        mopts = "".join(f'<option value="{m["id"]}">{esc(m["name"])}</option>' for m in mit)
+
+        def formular(z=None):
+            z = z or {"id": "", "name": "", "art": "prozent", "wert": 10, "zahlstelle": "grund", "rollen": [], "aktiv": 1}
+            wert = f'{float(z["wert"]):g}'.replace(".", ",") if z["art"] == "prozent" else mark(int(z["wert"]), einheit=False)
+            return (f'<form class="sa-formular" method="post" action="{PFAD}amt/besoldung/zuschlag">{c}<input type="hidden" name="id" value="{z["id"]}"><div class="zeilen">'
+                    f'<div><label>Bezeichnung der Amtsposition</label><input type="text" name="name" value="{esc(z["name"])}" required maxlength="60"></div>'
+                    f'<div><label>Art</label><select name="art"><option value="prozent"{" selected" if z["art"] == "prozent" else ""}>Prozent des Grundgehalts</option>'
+                    f'<option value="betrag"{" selected" if z["art"] == "betrag" else ""}>Fester Betrag (Kr/Monat)</option></select></div>'
+                    f'<div><label>Wert (% bzw. Kr)</label><input type="text" name="wert" value="{esc(wert)}" required></div>'
+                    f'<div><label>Gezahlt von</label><select name="zahlstelle">{zopt_g(z["zahlstelle"])}</select></div></div>'
+                    f'<div><label>Discord-Rollen dieser Amtsposition (Mehrfachauswahl)</label><select name="rollen" multiple size="6">{ropts(set(z["rollen"]))}</select></div>'
+                    f'<label><input type="checkbox" name="aktiv" value="1"{" checked" if z["aktiv"] else ""}> aktiv</label>'
+                    f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button>'
+                    + (f'<button class="btn zweit gefahr" name="loeschen" value="1" type="submit" onclick="return confirm(\'Zuschlag löschen?\')">Löschen</button>' if z["id"] else "")
+                    + '</div></form>')
+        blöcke = []
+        for z in zuschlaege(con, nur_aktiv=False):
+            pers = con.execute("SELECT konto_id FROM bs_zuschlag_personen WHERE zuschlag=?", (z["id"],)).fetchall()
+            pz = "".join(f'<form method="post" action="{PFAD}amt/besoldung/zuschlag-person" style="display:inline">{c}<input type="hidden" name="id" value="{z["id"]}">'
+                         f'<input type="hidden" name="konto" value="{p["konto_id"]}"><input type="hidden" name="loeschen" value="1">'
+                         f'<button class="btn zweit klein" type="submit">{esc(mitnamen.get(p["konto_id"], p["konto_id"]))} ✕</button></form> ' for p in pers)
+            satz = f'{float(z["wert"]):g} %'.replace(".", ",") if z["art"] == "prozent" else mark(int(z["wert"]))
+            blöcke.append(f'<details class="sa-auf"><summary>{esc(z["name"])} · {satz} · von {esc(zs.get(z["zahlstelle"], "dem Grundgehalts-Zahler") if z["zahlstelle"] != "grund" else "dem Grundgehalts-Zahler")}'
+                          f'{"" if z["aktiv"] else " · inaktiv"}</summary>{formular(z)}'
+                          f'<h3>Persönlich zugeordnet</h3><p>{pz or "<span class=\"az\">Niemand persönlich zugeordnet.</span>"}</p>'
+                          f'<form class="sa-leiste" method="post" action="{PFAD}amt/besoldung/zuschlag-person">{c}<input type="hidden" name="id" value="{z["id"]}">'
+                          f'<div><label>Person ergänzen</label><select name="konto">{mopts}</select></div>'
+                          f'<button class="btn zweit" type="submit">Zuordnen</button></form></details>')
+        # Vorschau: wer bekommt welche Zuschläge
+        vor = []
+        for m in mit:
+            e = einstufung(con, m["id"], m["rollen"], namen)
+            if not e or not e[0]:
+                continue
+            for z, b in zuschlaege_von(con, m["id"], m["rollen"], e[0]["grundgehalt"]):
+                vor.append((esc(m["name"]), esc(z["name"]), mark(b), esc(zs.get(_zahlstelle_aufloesen(con, z["zahlstelle"], m["rollen"], e[2]), z["zahlstelle"]))))
+        teil = ('<p class="az">Zuschläge gibt es auf Amtspositionen: Wer eine der Rollen einer Amtsposition trägt (oder ihr persönlich zugeordnet ist), erhält zum Grundgehalt '
+                'seiner höchsten Besoldungsgruppe den Zuschlag – als Prozentsatz des Grundgehalts oder als fester Betrag. Jeder Zuschlag hat seine eigene zahlende Kasse '
+                '(z. B. Crown Estates oder Reichsverteidigungskasse). Der Kaiser bezieht das Kaisergehalt als Grundgehalt und die Zuschläge seiner übrigen Positionen.</p>'
+                + "".join(blöcke) + f'<details class="sa-auf"><summary>{amt.ic("plus")}Neue Amtsposition mit Zuschlag</summary>{formular()}</details>'
+                + '<h2>Aktuelle Zuschläge</h2>' + amt.tabelle(["Person", "Amtsposition", "Zuschlag / Monat", "Gezahlt von"], vor, "Derzeit erhält niemand einen Zuschlag."))
+    elif reiter == "rollen":
         rows = con.execute("SELECT * FROM bs_rollen").fetchall()
         rows = sorted(rows, key=lambda r: (-(gs[r["gruppe"]]["grundgehalt"] if r["gruppe"] in gs else 0), namen.get(r["rolle_id"], "")))
         zeilen = [(esc(namen.get(r["rolle_id"], "unbekannte Rolle " + r["rolle_id"])), f'{esc(r["gruppe"])} · {esc(gs[r["gruppe"]]["name"]) if r["gruppe"] in gs else "?"}',
@@ -424,6 +555,70 @@ async def _leitung(request):
     if not geld.ist_leitung(k):
         raise web.HTTPForbidden()
     return k, await sa.formular(request), request.app["db"]
+
+
+async def zuschlag_speichern(request):
+    k = await anmeldung.konto(request)
+    if not geld.ist_leitung(k):
+        raise web.HTTPForbidden()
+    form = await request.post()
+    if not secrets_ok(request, form):
+        raise web.HTTPForbidden(text="Ungültige Anfrage (Sitzung abgelaufen?). Bitte Seite neu laden.")
+    con = request.app["db"]
+    pfad = f"{PFAD}amt/besoldung/?reiter=zuschlaege"
+    zid = int(form["id"]) if str(form.get("id", "")).isdigit() else None
+    if form.get("loeschen") and zid:
+        z = con.execute("SELECT name FROM bs_zuschlaege WHERE id=?", (zid,)).fetchone()
+        con.execute("DELETE FROM bs_zuschlag_personen WHERE zuschlag=?", (zid,))
+        con.execute("DELETE FROM bs_zuschlaege WHERE id=?", (zid,))
+        geld.protokoll(con, k, "Zuschlag gelöscht", z["name"] if z else str(zid))
+        con.commit()
+        sa.weiter(pfad, "Zuschlag gelöscht.")
+    name, art = sa._f(form, "name", 60), form.get("art")
+    roh = str(form.get("wert", "")).strip()
+    if art == "prozent":
+        wert = geld.prozent_lesen(roh)
+    else:
+        wert = geld.betrag_lesen(roh)
+    zahlstelle = str(form.get("zahlstelle", "grund"))
+    if not name or art not in ("prozent", "betrag") or not wert or (zahlstelle != "grund" and zahlstelle not in dict(zahlstellen(con))):
+        sa.weiter(pfad, "Bitte Bezeichnung, Art, Wert (größer 0) und zahlende Kasse angeben.", True)
+    rollen = sorted(set(str(r) for r in form.getall("rollen", []) if str(r).isdigit()))
+    aktiv = 1 if form.get("aktiv") == "1" else 0
+    if zid:
+        con.execute("UPDATE bs_zuschlaege SET name=?, art=?, wert=?, zahlstelle=?, rollen=?, aktiv=? WHERE id=?", (name, art, float(wert), zahlstelle, json.dumps(rollen), aktiv, zid))
+    else:
+        rang = (con.execute("SELECT MAX(rang) FROM bs_zuschlaege").fetchone()[0] or 0) + 1
+        con.execute("INSERT INTO bs_zuschlaege (name, art, wert, zahlstelle, rollen, aktiv, rang) VALUES (?,?,?,?,?,?,?)", (name, art, float(wert), zahlstelle, json.dumps(rollen), aktiv, rang))
+    geld.protokoll(con, k, "Zuschlag gespeichert", f'{name}: {wert:g} {"%" if art == "prozent" else "Heller"}, zahlende Kasse {zahlstelle}, {len(rollen)} Rolle(n)')
+    con.commit()
+    sa.weiter(pfad, f"Zuschlag „{name}“ gespeichert; er gilt ab dem nächsten Lohnlauf.")
+
+
+async def zuschlag_person(request):
+    k = await anmeldung.konto(request)
+    if not geld.ist_leitung(k):
+        raise web.HTTPForbidden()
+    form = await request.post()
+    if not secrets_ok(request, form):
+        raise web.HTTPForbidden(text="Ungültige Anfrage (Sitzung abgelaufen?). Bitte Seite neu laden.")
+    con = request.app["db"]
+    pfad = f"{PFAD}amt/besoldung/?reiter=zuschlaege"
+    zid, kid = form.get("id", ""), str(form.get("konto", ""))
+    if not str(zid).isdigit() or not kid.isdigit() or not con.execute("SELECT 1 FROM bs_zuschlaege WHERE id=?", (int(zid),)).fetchone():
+        sa.weiter(pfad, "Ungültige Angaben.", True)
+    if form.get("loeschen"):
+        con.execute("DELETE FROM bs_zuschlag_personen WHERE zuschlag=? AND konto_id=?", (int(zid), kid))
+    else:
+        con.execute("INSERT OR IGNORE INTO bs_zuschlag_personen (zuschlag, konto_id) VALUES (?,?)", (int(zid), kid))
+    geld.protokoll(con, k, "Zuschlag-Zuordnung", f"Zuschlag {zid}, Konto {kid}: {'entfernt' if form.get('loeschen') else 'zugeordnet'}")
+    con.commit()
+    sa.weiter(pfad, "Gespeichert.")
+
+
+def secrets_ok(request, form):
+    import secrets
+    return secrets.compare_digest(str(form.get("csrf", "")), request["csrf"])
 
 
 async def gruppe_speichern(request):
@@ -497,7 +692,8 @@ def _bedarf(con, liste):
     out = {}
     for x in liste:
         r = geld.stellenkonto(con, x["zahlstelle"]) or geld.sonder(con, "reichskasse")
-        bedarf = x["netto"] + x["abgaben"] + x.get("kronsteuer", 0) + (0 if r["stelle"] == "reichskasse" else x["lohnsteuer"])
+        bedarf = (x["netto"] + x["abgaben"] + (0 if r["stelle"] == "crown_estates" else x.get("kronsteuer", 0))   # Kronsteuer bleibt bei den Crown Estates im Haus
+                  + (0 if r["stelle"] == "reichskasse" else x["lohnsteuer"]))
         out.setdefault(r["id"], [r, 0])[1] += bedarf
     return out
 
@@ -514,7 +710,7 @@ def _auszahlen(con, x, periode, lauf, k, bezug, zs, nachzahlung=False):
         geld.buchen(con, quelle["id"], sozial["id"], x["abgaben"], "sozialabgabe", f"Sozialabgabe {x['name']} {_monat(periode)}", k, bezug=bezug, minus=True)
     if x["lohnsteuer"] and quelle["id"] != kasse["id"]:
         geld.buchen(con, quelle["id"], kasse["id"], x["lohnsteuer"], "lohnsteuer", f"Lohnsteuer {x['name']} {_monat(periode)}", k, bezug=bezug, minus=True)
-    if x.get("kronsteuer"):
+    if x.get("kronsteuer") and quelle["stelle"] != "crown_estates":
         geld.buchen(con, quelle["id"], geld.sonder(con, "crown_estates")["id"], x["kronsteuer"], "kronsteuer", f"Kronsteuer {x['name']} {_monat(periode)}", k, bezug=bezug, minus=True)
     staat, anteil = steuern.laenderanteil_buchen(con, x["konto_id"], x["lohnsteuer"], k, bezug) if x["lohnsteuer"] else (None, 0)
     cur = con.execute("INSERT INTO bs_abrechnungen (lauf, periode, konto_id, name, gruppe, gruppe_name, quelle, grundgehalt, zulage, zulage_text, brutto, "
@@ -536,7 +732,8 @@ def nachzahlen(con, k=None):
         quelle = geld.stellenkonto(con, stelle) or kasse
         for rs in con.execute("SELECT * FROM bs_rueckstaende WHERE zahlstelle=? AND status='offen' ORDER BY periode, id", (stelle,)).fetchall():
             quelle = geld.konto(con, quelle["id"])
-            bedarf = rs["netto"] + rs["abgaben"] + rs["kronsteuer"] + (0 if quelle["id"] == kasse["id"] else rs["lohnsteuer"])
+            bedarf = (rs["netto"] + rs["abgaben"] + (0 if quelle["stelle"] == "crown_estates" else rs["kronsteuer"])
+                      + (0 if quelle["id"] == kasse["id"] else rs["lohnsteuer"]))
             if quelle["saldo"] < bedarf:
                 break
             x = dict(rs)
@@ -710,6 +907,8 @@ def registrieren(app):
     r.add_get(PFAD + "amt/besoldung/", verwaltung)
     r.add_post(PFAD + "amt/besoldung/gruppe", gruppe_speichern)
     r.add_post(PFAD + "amt/besoldung/rolle", rolle_speichern)
+    r.add_post(PFAD + "amt/besoldung/zuschlag", zuschlag_speichern)
+    r.add_post(PFAD + "amt/besoldung/zuschlag-person", zuschlag_person)
     r.add_post(PFAD + "amt/besoldung/person", person_speichern)
     r.add_get(PFAD + "amt/lohnlauf/", lohnlauf)
     r.add_post(PFAD + "amt/lohnlauf/", lohnlauf_ausfuehren)

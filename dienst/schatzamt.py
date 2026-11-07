@@ -785,7 +785,7 @@ def tarife_html(con):
     return ("<h2>Lohnsteuer (Stufentarif auf das Monatsbrutto)</h2>" + amt.tabelle(["Einkommensstufe", "Grenzsteuersatz"], stufen)
             + "<h2>Steuern und Abgaben</h2>" + amt.daten_tabelle(saetze)
             + "<h2>Verwaltungsgebühren</h2>" + amt.tabelle(["Leistung", "Gebühr"], geb)
-            + "<h2>Besoldungsordnung</h2>" + besoldung.tabelle_html(con))
+            + "<h2>Besoldungsordnung</h2>" + besoldung.tabelle_html(con) + besoldung.zuschlag_tabelle_html(con))
 
 
 @seite()
