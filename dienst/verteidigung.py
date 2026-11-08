@@ -17,7 +17,7 @@ Leitung des Schatzamts. Gerät beschaffen/ausmustern zusätzlich der Generalstab
 Staatskasse und Kontoumsätze nur Landesherr/Leitung.
 Sehen (sicht): alles – Führungsstab, Kaiser, Kanzler (und Leitung des Schatzamts); General- und Offiziersstab (Rollen Generalstab,
 Offiziersränge; ohne Polizei/Zoll/Katastrophenschutz) und Landesherren nur ihren Teilstaat laut Fraktionsrolle; Stab ohne Fraktion das Reich.
-Unteroffiziere und Mannschaften sehen den Verteidigungsetat nicht. Gerät beschaffen: Generäle (Generalstab) des Teilstaats, Landesherr. Katalog und Sätze: Leitung des Schatzamts und Führungsstab. Seiten unter /schatzamt/verteidigung/ (staatlich).
+Unteroffiziere und Mannschaften sehen den Verteidigungsetat nicht. Gerät beschaffen: Generäle (Generalstab) des Teilstaats, Landesherr. Katalog und Sätze: nur die RP-Leitung. Seiten unter /schatzamt/verteidigung/ (staatlich).
 """
 import json
 import logging
@@ -133,7 +133,7 @@ def darf_reich(k):
 
 
 def darf_katalog(k):
-    return bool(k) and k["mitglied"] and (ist_fuehrungsstab(k) or geld.ist_leitung(k))
+    return bool(k) and k["mitglied"] and sa.ist_rp(k)
 
 
 def regierte(con, k):

@@ -61,9 +61,8 @@ html.bk-lock, html.bk-lock body { overflow: hidden; }
 .bk-face.left::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 4; background: linear-gradient(270deg, rgba(60,40,10,.34), rgba(60,40,10,.08) 7%, transparent 16%), linear-gradient(90deg, rgba(60,40,10,.10), transparent 4%); }
 .bk-book.is-single .bk-face.right::after { background: linear-gradient(90deg, rgba(60,40,10,.22), transparent 8%); }
 /* Schatten, der beim Umblättern über die Seite wandert */
-.bk-leaf.is-turning .bk-face.front::after, .bk-leaf.is-turning .bk-face.back::after { animation: bk-shade 1s ease-in-out; }
-@keyframes bk-shade { 0%, 100% { filter: none; } 50% { filter: brightness(.55) contrast(1.3); } }
-.bk-leaf.is-turning { filter: drop-shadow(0 6px 14px rgba(0,0,0,.35)); }
+.bk-leaf.is-turning .bk-face::before { animation: bk-shade 1s ease-in-out; }
+@keyframes bk-shade { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
 
 /* ---------- Seiteninhalt ---------- */
 .bk-page { position: absolute; inset: 0; display: flex; flex-direction: column; font-family: var(--serif); font-size: var(--bk-fs, 17px); line-height: 1.5; padding: var(--bk-py) var(--bk-px) calc(var(--bk-py) * .8); }
