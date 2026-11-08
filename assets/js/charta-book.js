@@ -294,7 +294,7 @@
     var cs = getComputedStyle(stage);
     var W = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     var H = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-    var sgl = window.innerWidth < 860;
+    var sgl = window.innerWidth < 860 || window.innerHeight < 480;
     var pw, ph;
     if (sgl) {
       ph = Math.min(H, 840);
@@ -306,7 +306,7 @@
       ph = Math.min(ph, pw / 0.6);
     }
     pw = Math.floor(pw); ph = Math.floor(ph);
-    return { single: sgl, pw: pw, ph: ph, fs: Math.max(12.5, Math.min(20, pw * 0.0385)), px: Math.round(pw * 0.095), py: Math.round(ph * 0.06) };
+    return { single: sgl, pw: pw, ph: ph, fs: Math.max(13, Math.min(20, pw * (sgl ? 0.046 : 0.0385))), px: Math.round(pw * 0.095), py: Math.round(ph * 0.06) };
   }
 
   /* ---------- Seiten erzeugen & umbrechen ---------- */
@@ -711,6 +711,8 @@
     rzT = setTimeout(function () {
       var g = computeGeo();
       if (geo && g.single === geo.single && g.pw === geo.pw && g.ph === geo.ph) return;
+      // Handy: Adressleiste ein-/ausgeblendet ändert nur die Höhe leicht – dann nichts neu aufbauen (sonst „verrutscht“ das Buch)
+      if (geo && g.single === geo.single && Math.abs(g.pw - geo.pw) < 4 && Math.abs(g.ph - geo.ph) < Math.max(140, geo.ph * 0.2)) return;
       var anchor = firstAnchorOnView(), wasFront = cur === 0;
       var wasBack = cur >= maxCur() && cur > 0;
       bookEl.style.transition = "none";
