@@ -79,6 +79,11 @@ CSS_VERSION = __import__("hashlib").md5(open(os.path.join(os.path.dirname(os.pat
 JS_VERSION = __import__("hashlib").md5(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "js", "site.js"), "rb").read()).hexdigest()[:8]
 
 
+def _hash(path):
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", path), "rb") as fh:
+        return __import__("hashlib").md5(fh.read()).hexdigest()[:8]
+
+
 def asset(path):
     return Ctx.prefix + "assets/" + path
 
@@ -1221,7 +1226,9 @@ def page_charta():
     </aside>
     <article class="doc" data-progress>{"".join(sections)}</article>
   </div>
-</div>"""
+</div>
+<link rel="stylesheet" href="{asset("css/charta-book.css")}?v={_hash("css/charta-book.css")}">
+<script src="{asset("js/charta-book.js")}?v={_hash("js/charta-book.js")}" defer></script>"""
     render("informationen/imperiale-charta/", "Die Imperiale Charta",
            "Die Imperiale Charta – Verfassung und Satzung des Imperium Germanicum: Grundrechte, Reich und Gliederstaaten, Reichstag, Senat, Souverän, Rechtsprechung und Kriegsrecht.",
            body)
