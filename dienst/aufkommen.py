@@ -303,6 +303,8 @@ def ausfuehren(con, periode, k):
     etatplan.zuf_speichern(con, lauf, liste)   # Bevölkerungszufriedenheit des Monats
     import entwicklung
     entwicklung.speichern(con, periode, liste)   # Entwicklung (Gesundheit, Bildung, Sicherheit, Bevölkerung) des Monats
+    import krisen
+    krisen.pruefen(con, periode, liste)          # Krisen eröffnen: Handlungszwang für die Landesherren
     for kat, _ in etatplan.KATEGORIEN:
         con.execute("INSERT OR REPLACE INTO ep_verteilung (lauf, schl, kategorie, betrag) VALUES (?,?,?,?)",
                     (lauf, "reich", kat, sum(x["verteilung_reich"].get(kat, 0) for x in liste)))

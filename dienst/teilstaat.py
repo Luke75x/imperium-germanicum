@@ -50,6 +50,12 @@ async def seite(request, k):
 
     # Handlungsbedarf
     z = []
+    import krisen
+    for f in krisen.offene(con, schl):   # offene Krisen zuerst: Handlungszwang
+        kd = krisen.KRISEN[f["art"]]
+        frist, knapp = krisen._frist_text(f["frist"])
+        z.append(_zeile("warn", "triangle-alert", f'<b>{esc(kd["name"])}</b> ({esc(f["ausloeser"])}) – der Landesherr muss bis {esc(amt._zeit(f["frist"]))} reagieren ({esc(frist)}).',
+                        f["text"], (sa.PFAD + f"krisen/?ziel={schl}", "Jetzt reagieren")))
     if rk:
         pf = {"steigend": "steigt", "fallend": "sinkt", "stabil": "bleibt stabil"}[rk["trend"]]
         z.append(_zeile("warn" if rk["wert"] < 55 else "", "users", f'<b>{esc(rk["text"])}</b> Rückhalt {etatplan._de(rk["wert"], 0)} / 100, in 3 Monaten voraussichtlich {etatplan._de(rk["prognose3"], 0)}; '

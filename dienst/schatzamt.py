@@ -130,7 +130,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe", "sa-bankkarte")     # Seiten, die nur die Privatperson betreffen
-NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-teilstaat", "sa-reich")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
+NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-krisen", "sa-teilstaat", "sa-reich")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_kassen(con, k):
@@ -219,14 +219,16 @@ def _regierte(con, k):
 
 def _ts_url(tab, sid, regiert):
     z = "ts-" + sid
-    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "entw": f"entwicklung/?ziel={z}", "plan": f"etatplanung/?ziel={z}", "vt": f"verteidigung/{sid}/",
+    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "entw": f"entwicklung/?ziel={z}", "krisen": f"krisen/?ziel={z}", "plan": f"etatplanung/?ziel={z}", "vt": f"verteidigung/{sid}/",
                    "notlage": f"notlagen/?bereich={z}", "kasse": f"konto/?konto={regiert[sid]['id']}"}[tab]
 
 
 def _teilstaat_tabs(con, k, sid):
     import etatplan
     import verteidigung
-    tabs = [("start", "Überblick"), ("etat", "Etat"), ("entw", "Entwicklung")]
+    import krisen
+    n_kr = krisen.offene_anzahl(con, "ts-" + sid)
+    tabs = [("start", "Überblick"), ("etat", "Etat"), ("entw", "Entwicklung"), ("krisen", f"Krisen ({n_kr})" if n_kr else "Krisen")]
     if etatplan.darf_aendern(con, k, "ts-" + sid):
         tabs.append(("plan", "Etat planen"))
     if verteidigung.darf_sehen(con, k, sid):
@@ -236,7 +238,7 @@ def _teilstaat_tabs(con, k, sid):
 
 def _reich_tabs(con, k):
     import etatplan
-    tabs = [("haushalt", "Staatshaushalt", "haushalt/"), ("etat", "Etatverteilung", "etatverteilung/?ziel=reich"), ("entw", "Entwicklung", "entwicklung/?ziel=reich")]
+    tabs = [("haushalt", "Staatshaushalt", "haushalt/"), ("etat", "Etatverteilung", "etatverteilung/?ziel=reich"), ("entw", "Entwicklung", "entwicklung/?ziel=reich"), ("krisen", "Krisen", "krisen/?ziel=reich")]
     if etatplan.darf_aendern(con, k, "reich"):
         tabs.append(("plan", "Etat planen", "etatplanung/?ziel=reich"))
     tabs += [("etats", "Etats der Behörden", "etats/"), ("finanzen", "Reichsfinanzen", "finanzen/"), ("gold", "Goldreserven", "gold/"),
@@ -248,7 +250,7 @@ def _reich_tabs(con, k):
 
 def _reiter_kontext(request, k, con, aktiv):
     """(Bereich, Teilstaat-ID, Reiter) der aktuellen Seite: Bereich 'ts' = Mein Teilstaat, 'reich' = Reichshaushalt; None = Seite gehört zu keinem Bereich."""
-    if aktiv not in ("sa-teilstaat", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-verteidigung", "sa-notlage", "sa-konto",
+    if aktiv not in ("sa-teilstaat", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-krisen", "sa-verteidigung", "sa-notlage", "sa-konto",
                      "sa-staatshaushalt", "sa-finanzen", "sa-etats", "sa-gold"):
         return None
     regiert = _regierte(con, k)
@@ -257,8 +259,8 @@ def _reiter_kontext(request, k, con, aktiv):
     if aktiv == "sa-teilstaat":
         sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regiert else next(iter(regiert), None)
         return ("ts", sid, "start") if sid else None
-    if aktiv in ("sa-etatverteilung", "sa-etatplanung", "sa-entwicklung"):
-        tab = {"sa-etatverteilung": "etat", "sa-etatplanung": "plan", "sa-entwicklung": "entw"}[aktiv]
+    if aktiv in ("sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-krisen"):
+        tab = {"sa-etatverteilung": "etat", "sa-etatplanung": "plan", "sa-entwicklung": "entw", "sa-krisen": "krisen"}[aktiv]
         if ziel.startswith("ts-") and ziel[3:] in regiert:
             return "ts", ziel[3:], tab
         if ziel == "reich" or (ziel.startswith("ts-") and ziel[3:] not in regiert):
@@ -307,7 +309,11 @@ def reiter_html(request, k, con, aktiv):
         links = "".join(f'<a href="{PFAD}{u}"{" class=aktiv aria-current=page" if t == tab else ""}>{esc(n)}</a>' for t, n, u in _reich_tabs(con, k))
         kopf = f'<span class="sa-bereich-name">{amt.ic("landmark")}Reichshaushalt</span>'
         schl = "sa-reich"
-    return f'<div class="sa-bereich"><div class="sa-bereich-kopf">{kopf}</div><nav class="reiter" aria-label="Bereich">{links}</nav></div>', schl
+    banner = ""
+    if bereich == "ts" and tab != "krisen":
+        import krisen
+        banner = krisen.banner_html(con, "ts-" + sid)   # offene Krise: Handlungszwang
+    return f'<div class="sa-bereich"><div class="sa-bereich-kopf">{kopf}</div><nav class="reiter" aria-label="Bereich">{links}</nav></div>{banner}', schl
 
 
 def nav(k, m="privat", schalter=False, aktiv="", con=None):

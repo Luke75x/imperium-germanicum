@@ -303,9 +303,10 @@ def erfuellung(anteile, richt):
 def _schritt(alt, E, ctx):
     """Ein Monat Entwicklung (rein, ohne Datenbank): (neuer Zustand, {id: {alt, ziel, neu}}, Effekte, Summen {bev_pp, kopf, zuf, ruestung})."""
     neu, zust = dict(alt), {}
+    shift = ctx.get("shift", {})   # Verschiebung der Zielwerte durch laufende Krisenmaßnahmen (krisen.wirkungen_fuer)
     for m in MODULE:
         for i in m["indikatoren"]:
-            ziel = i["ziel"](E, neu)
+            ziel = _clamp(i["ziel"](E, neu) + shift.get(i["id"], 0.0), 0, 100)
             n = alt[i["id"]] + (ziel - alt[i["id"]]) * i["traeg"]
             neu[i["id"]] = n
             zust[i["id"]] = {"alt": alt[i["id"]], "ziel": ziel, "neu": n}
@@ -313,6 +314,7 @@ def _schritt(alt, E, ctx):
     for m in MODULE:
         for e in m["wirkungen"](neu, ctx):
             effekte.append(dict(e, modul=m["id"]))
+    effekte += ctx.get("extra", [])   # Wirkungen von Krisen und Krisenmaßnahmen
     summen = {"bev_pp": sum(e["wert"] for e in effekte if e["hebel"] == "bev_pp"),
               "kopf": _clamp(sum(e["wert"] for e in effekte if e["hebel"] == "kopf_pct"), *KOPF_GRENZEN),
               "zuf": sum(e["wert"] for e in effekte if e["hebel"] == "zuf_pt"),
@@ -327,7 +329,9 @@ def entwickeln(con, schl, anteile, richt, periode, kopf_ratio=1.0):
     E = erfuellung(anteile, richt)
     alt = zustand_vor(con, schl, periode)
     zu = etatplan.zuf_letzte(con, schl)
-    neu, zust, effekte, sm = _schritt(alt, E, {"zuf": 80.0 if zu is None else zu})
+    import krisen
+    ex, shift = krisen.wirkungen_fuer(con, schl, periode)
+    neu, zust, effekte, sm = _schritt(alt, E, {"zuf": 80.0 if zu is None else zu, "shift": shift, "extra": ex})
     bev = _clamp(alt["bev_faktor"] * (1 + sm["bev_pp"] / 100), *BEV_GRENZEN)
     einkommen = _clamp(70 + 25 * math.log2(max(0.05, kopf_ratio * (1 + sm["kopf"] / 100))), 0, 100)
     hdi = (neu["gesundheit"] + neu["bildung"] + einkommen) / 300
@@ -605,13 +609,16 @@ def tabelle(liste, ziel_liste, pfad, markiert="", con=None):
             flags.append("Lieferengpässe")
         if min(z["wasser"]["neu"], z["muell"]["neu"], z["strassen"]["neu"]) < 50:
             flags.append("Infrastruktur marode")
+        if con is not None:
+            import krisen
+            flags += [f'Krise: {krisen.KRISEN[a]["name"]}' for a in krisen.offene_arten(con, s)]
         zeilen.append((d["hdi"], f'<tr{" class=fokus" if s == markiert else ""}><td><a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td>'
                                  f'<td class="num">{_de(d["hdi"], 3)}</td><td class="num">{_vz(d["bev_pp"] * 12)}</td>'
                                  f'<td class="num">{rk_text(con, liste, s)}</td>'
-                                 f'<td class="num">{esc(", ".join(flags)) if flags else "–"}</td></tr>'))
+                                 f'<td class="num" style="white-space:normal;max-width:240px">{esc(", ".join(flags)) if flags else "–"}</td></tr>'))
     return ('<p class="zf-meta">HDI aus Gesundheit, Bildung und Einkommen. Bevölkerungswachstum pro Jahr bei der heutigen Gesundheitsversorgung.</p>'
-            '<table class="zf-tab"><thead><tr><th>Haushalt</th><th class="num">HDI</th><th class="num">Wachstum</th><th class="num" title="Wie steht die Bevölkerung voraussichtlich zu ihrem Landesherrn">Rückhalt</th><th class="num">Auffällig</th></tr></thead><tbody>'
-            + "".join(z for _, z in sorted(zeilen, key=lambda t: -t[0])) + '</tbody></table>')
+            '<div style="overflow-x:auto"><table class="zf-tab"><thead><tr><th>Haushalt</th><th class="num">HDI</th><th class="num">Wachstum</th><th class="num" title="Wie steht die Bevölkerung voraussichtlich zu ihrem Landesherrn">Rückhalt</th><th class="num">Auffällig</th></tr></thead><tbody>'
+            + "".join(z for _, z in sorted(zeilen, key=lambda t: -t[0])) + '</tbody></table></div>')
 
 
 def _gewaehlt(request, k, con, liste):
