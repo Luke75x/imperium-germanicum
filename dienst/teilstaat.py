@@ -92,10 +92,11 @@ async def seite(request, k):
     anteile = etatplan.runden100(etatplan.aktuelle(con, schl, liste, monat))
     betr = x["verteilung_land"]
     zeilen = [("Abgabe an das Reich", "–", geld.mark_kurz(x["reich"]))]
-    zeilen += [(esc(etatplan.NAMEN[kat]), f'{etatplan._de(anteile[kat])} %', geld.mark_kurz(betr[kat])) for kat, _ in etatplan.KATEGORIEN]
+    v, r_zeile = etatplan.zeilenwerte(anteile, x["rl_satz_land"])   # Politikfelder und Rücklage als Zeilen, zusammen 100 % des eigenen Etats
+    zeilen += [(esc(etatplan.NAMEN[kat]), f'{etatplan._de(v[kat])} %', geld.mark_kurz(betr[kat])) for kat, _ in etatplan.KATEGORIEN]
     rl = x["land"] - x["pool_land"]
-    zeilen.append(("Rücklage" if rl >= 0 else "Entnahme aus der Staatskasse", f'{etatplan._de(abs(etatplan.haushaltsfuehrung(liste, schl)))} %', geld.mark_kurz(abs(rl))))
-    etat = amt.tabelle(["Posten", "Anteil am Ausgabenbudget", "Betrag / Monat"], zeilen, klasse="sa-haushalt")
+    zeilen.append(("Rücklage der Staatskasse" if rl >= 0 else "Rücklage (Entnahme aus der Staatskasse)", f'{etatplan._de(r_zeile)} %', geld.mark_kurz(rl)))
+    etat = amt.tabelle(["Posten", "Anteil am eigenen Etat", "Betrag / Monat"], zeilen, klasse="sa-haushalt")
 
     umsatz = amt.tabelle(sa.UMSATZ_KOPF, sa.umsatz_zeilen(con, kasse["id"], sa.umsaetze(con, kasse["id"], 6)), "Noch keine Umsätze.")
     inhalt = (f'<h1>{amt.ic("flag")} {esc(x["name"])}</h1>{amt.meldung(request)}'

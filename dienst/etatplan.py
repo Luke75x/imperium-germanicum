@@ -203,6 +203,25 @@ def vorgabe(verteidigung_prozent):
     return {k: out[k] for k, _ in KATEGORIEN}
 
 
+def zeilenwerte(anteile, rl):
+    """Zeilen der Etattabelle: (Anteil am eigenen Etat je Politikfeld in %, Rücklage in %). anteile = Prozent des Ausgabenbudgets (stehen so in der Fassung), rl = Rücklagensatz.
+    Die Rücklage ist eine Zeile wie ein Politikfeld; alle Zeilen ergeben genau 100,0 %: Politikfelder = Anteil × (1 − Rücklage), Rücklage = der Rest (auch nicht zugewiesene
+    Prozente). Auf eine Nachkommastelle gerundet, die Rundung geht nach dem größten Rest, damit die Rücklage nicht vom Runden abhängt."""
+    f = max(0.0, 1 - float(rl) / 100)
+    exakt = {kat: float(anteile.get(kat, 0)) * f for kat, _ in KATEGORIEN}
+    r1 = round(100.0 - sum(exakt.values()), 1)
+    ziel = int(round((100.0 - r1) * 10))   # Summe der Politikfelder in Zehntelprozent
+    zehntel = {k: x * 10 for k, x in exakt.items()}
+    unten = {k: int(max(0, x // 1)) for k, x in zehntel.items()}
+    rest = ziel - sum(unten.values())
+    for k in sorted(zehntel, key=lambda k: -(zehntel[k] - unten[k]))[:max(0, rest)]:
+        unten[k] += 1
+    if rest < 0:   # Summe zu groß (Negativfall): von den größten Zeilen abziehen
+        for k in sorted(unten, key=lambda k: -unten[k])[:(-rest)]:
+            unten[k] = max(0, unten[k] - 1)
+    return {k: unten[k] / 10 for k in unten}, r1
+
+
 def runden100(anteile):
     """Prozentwerte auf eine Nachkommastelle runden; liegt die Summe nur wegen der Rundung knapp neben 100,0, wird sie auf genau 100,0 gebracht
     (Rest bei der größten Nicht-Verteidigungs-Kategorie). Bewusst nicht zugewiesene Prozente (Summe deutlich unter 100) bleiben unverändert."""
@@ -518,9 +537,9 @@ def haushaltsfuehrung(liste, schl):
 
 def _rl_text(pz, betrag, kassen_name, gedeckelt=False):
     if pz > 0.05:
-        return f'Sparen: <b>{_de(pz)} %</b> ({esc(mark(betrag))}) bleiben im Monat in der {esc(kassen_name)}.'
+        return f'Rücklage: <b>{_de(pz)} %</b> ({esc(mark(betrag))}) bleiben im Monat in der {esc(kassen_name)}.'
     if pz < -0.05:
-        return (f'Entnahme: <b>{_de(-pz)} %</b> ({esc(mark(-betrag))}) kommen im Monat zusätzlich aus der {esc(kassen_name)}.'
+        return (f'Entnahme: <b>{_de(-pz)} %</b> ({esc(mark(-betrag))}) kommen im Monat zusätzlich aus der {esc(kassen_name)} – den Politikfeldern zugeordnet.'
                 + (' Begrenzt auf die freien Mittel der Kasse.' if gedeckelt else ''))
     return 'Ausgeglichen: der ganze Steueranteil wird ausgegeben.'
 
@@ -616,26 +635,25 @@ function scheiben(){
  D.kategorien.forEach(function(k,i){
   var f=felder.filter(function(e){return e.dataset.kat===k.id})[0];
   var p=f?(parseFloat(String(f.value).replace(",","."))||0):k.anteil;
-  s.push({id:k.id,name:k.name,betrag:Math.round(D.pool*p/100),farbe:k.farbe,schraffur:k.schraffur,anteil:p});
+  s.push({id:k.id,name:k.name,betrag:Math.round(D.rl?D.rl.basis*p/100*D.adj:D.pool*p/100),farbe:k.farbe,schraffur:k.schraffur,anteil:p});
  });
  D.fest_hinten.forEach(function(f){s.push(f)});
  return s}
 function pfad(a0,a1,r){var x0=100+r*Math.sin(a0),y0=100-r*Math.cos(a0),x1=100+r*Math.sin(a1),y1=100-r*Math.cos(a1),gross=(a1-a0)>Math.PI?1:0;
  return "M100,100 L"+x0+","+y0+" A"+r+","+r+" 0 "+gross+" 1 "+x1+","+y1+" Z"}
+function num(x){return parseFloat(String(x).replace(",","."))||0}
+function sv(){return felder.reduce(function(a,f){return a+num(f.value)},0)}
 function rlRechnen(){var e=document.getElementById("ep-rl");if(!e||!D.rl)return;var R=D.rl;
- var r=parseFloat(String(e.value).replace(",","."));if(isNaN(r))r=0;
- var budget=Math.round(R.basis*Math.max(0,1-r/100-R.w/100)),ged=false;
- if(budget-R.basis>R.frei){budget=R.basis+R.frei;ged=true}
- var sp=felder.reduce(function(a,f){return a+(parseFloat(String(f.value).replace(",","."))||0)},0),
-  unz=Math.round(budget*Math.max(0,100-sp)/100),pool=budget-unz,
-  rl0=R.basis-budget,p=R.basis?rl0/R.basis*100:0,rl=R.basis-pool;
- D.pool=budget;D.fest_hinten[0].betrag=Math.max(0,rl);
+ var rrow=num(e.value),sm=sv(),fr=Math.max(0,sm/100),adj=fr>0?Math.max(0,1-(R.w/100)/fr):0,sc=1,ged=false;
+ var spend=R.basis*sm/100*adj;
+ if(spend-R.basis>R.frei){sc=(R.basis+R.frei)/spend;ged=true}
+ D.adj=adj*sc;var pool=Math.round(spend*sc),rl=R.basis-pool,p=R.basis?rl/R.basis*100:0;
+ D.fest_hinten[0].betrag=Math.max(0,rl);
  function t(id,v){var o=document.getElementById(id);if(o)o.textContent=v}
  t("ep-kz-pool",kurz(pool));t("ep-kz-rl",kurz(Math.abs(rl)));t("ep-kz-rl-t",rl>=0?"Rücklage":"Entnahme aus der "+R.kasse);
  var z=document.getElementById("ep-entnahme-zeile");if(z)z.hidden=rl>=0;t("ep-entnahme-betrag",kurz(Math.max(0,-rl)));t("ep-entnahme-pz",pz(D.gesamt?Math.max(0,-rl)/D.gesamt*100:0));
- var i=document.getElementById("ep-rl-info");if(i)i.innerHTML=(p>0.05?"Sparen: <b>"+pz(p)+"</b> ("+de(rl0)+") bleiben im Monat in der "+R.kasse+".":
-  p<-0.05?"Entnahme: <b>"+pz(-p)+"</b> ("+de(-rl0)+") kommen im Monat zusätzlich aus der "+R.kasse+"."+(ged?" Begrenzt auf die freien Mittel der Kasse.":""):"Ausgeglichen: der ganze Steueranteil wird ausgegeben.")
-  +(unz>0?" Nicht zugewiesen: <b>"+pz(100-sp)+"</b> des Ausgabenbudgets ("+de(unz)+") bleiben zusätzlich als Rücklage in der "+R.kasse+".":"")}
+ var i=document.getElementById("ep-rl-info");if(i)i.innerHTML=(p>0.05?"Rücklage: <b>"+pz(p)+"</b> ("+de(rl)+") bleiben im Monat in der "+R.kasse+".":
+  p<-0.05?"Entnahme: <b>"+pz(-p)+"</b> ("+de(-rl)+") kommen im Monat zusätzlich aus der "+R.kasse+" – den Politikfeldern zugeordnet."+(ged?" Begrenzt auf die freien Mittel der Kasse.":""):"Ausgeglichen: der ganze Steueranteil wird ausgegeben.")}
 function zeichnen(){
  rlRechnen();
  var s=scheiben(), gesamt=D.gesamt||1, w=0;
@@ -671,12 +689,12 @@ function weg(){tipp.classList.remove("an");fokus(null,false)}
 function fokus(id,an){torte.classList.toggle("hat-fokus",!!an);[].forEach.call(svg.querySelectorAll("[data-id]"),function(p){p.classList.toggle("fokus",an&&p.dataset.id===id)});
  [].forEach.call(document.querySelectorAll("[data-zeile]"),function(z){z.classList.toggle("fokus",an&&z.dataset.zeile===id)})}
 function summe(){var o=document.getElementById("ep-summe");if(!o||!felder.length)return;
- var s=felder.reduce(function(a,f){return a+(parseFloat(String(f.value).replace(",","."))||0)},0), rest=Math.round((100-s)*10)/10;
+ var re=document.getElementById("ep-rl"),s=sv()+(re?num(re.value):0), rest=Math.round((100-s)*10)/10;
  var ok=s<=100.05;o.className="ep-summe "+(ok?"richtig":"falsch");
- o.querySelector("span").textContent=!ok?"Summe "+pz(s)+" – "+pz(-rest)+" zu viel (höchstens 100 %)":rest>0.05?"Summe "+pz(s)+" – die übrigen "+pz(rest)+" bleiben als Rücklage in der "+(D.rl?D.rl.kasse:"Staatskasse"):"Summe 100 %";
+ o.querySelector("span").textContent=!ok?"Summe "+pz(s)+" – "+pz(-rest)+" zu viel (höchstens 100 %): die Prozente anderer Zeilen verringern":rest>0.05?"Summe "+pz(s)+" – die übrigen "+pz(rest)+" bleiben zusätzlich in der Rücklage der "+(D.rl?D.rl.kasse:"Staatskasse"):"Summe 100 %";
  var b=document.getElementById("ep-speichern");if(b)b.disabled=!ok;
  var m=document.getElementById("ep-min");if(m){var v=felder.filter(function(f){return f.dataset.kat==="verteidigung"})[0];
-  var pv=v?(parseFloat(String(v.value).replace(",","."))||0):0, bet=D.pool*pv/100;m.style.display=bet<D.vt_min?"block":"none"}}
+  var pv=v?(parseFloat(String(v.value).replace(",","."))||0):0, bet=D.rl?D.rl.basis*pv/100*D.adj:D.pool*pv/100;m.style.display=bet<D.vt_min?"block":"none"}}
 felder.forEach(function(f){f.addEventListener("input",function(){
  var g=document.getElementById("ep-r-"+f.dataset.kat);if(g)g.value=parseFloat(String(f.value).replace(",","."))||0;zeichnen()})});
 regler.forEach(function(r){r.addEventListener("input",function(){var n=document.getElementById("ep-n-"+r.dataset.kat);if(n)n.value=r.value;zeichnen()})});
@@ -686,8 +704,8 @@ regler.forEach(function(r){r.addEventListener("input",function(){var n=document.
  if(n)n.addEventListener("input",function(){if(g)g.value=parseFloat(String(n.value).replace(",","."))||0;zeichnen()});
  if(g)g.addEventListener("input",function(){if(n)n.value=g.value;zeichnen()})})();
 var norm=document.getElementById("ep-normieren");
-if(norm)norm.addEventListener("click",function(){var n=felder,s=n.reduce(function(a,f){return a+(parseFloat(String(f.value).replace(",","."))||0)},0);
- if(!s)return;var neu=n.map(function(f){return Math.round((parseFloat(String(f.value).replace(",","."))||0)/s*1000)/10}),d=Math.round((100-neu.reduce(function(a,b){return a+b},0))*10)/10;
+if(norm)norm.addEventListener("click",function(){var n=felder,s=n.reduce(function(a,f){return a+(parseFloat(String(f.value).replace(",","."))||0)},0),re=document.getElementById("ep-rl"),ziel=100-(re?num(re.value):0);
+ if(!s||ziel<=0)return;var neu=n.map(function(f){return Math.round((parseFloat(String(f.value).replace(",","."))||0)/s*ziel*10)/10}),d=Math.round((ziel-neu.reduce(function(a,b){return a+b},0))*10)/10;
  var gr=0;neu.forEach(function(v,i){if(v>neu[gr])gr=i});neu[gr]=Math.round((neu[gr]+d)*10)/10;
  n.forEach(function(f,i){f.value=neu[i];var r=document.getElementById("ep-r-"+f.dataset.kat);if(r)r.value=neu[i]});zeichnen()});
 zeichnen()})();
@@ -734,7 +752,7 @@ if(e)e.addEventListener("submit",function(ev){
  if(!confirm("Etat jetzt endgültig einreichen? Danach lässt er sich bis zur nächsten Änderungsperiode nicht mehr ändern."))ev.preventDefault()});
 var v=document.getElementById("ep-vorgabe");
 if(v)v.addEventListener("click",function(){
- var R=JSON.parse(v.dataset.richt);
+ var R=JSON.parse(v.dataset.v);
  Object.keys(R).forEach(function(k){var n=document.getElementById("ep-n-"+k),r=document.getElementById("ep-r-"+k);if(n){n.value=R[k];if(r)r.value=R[k];n.dispatchEvent(new Event("input",{bubbles:true}))}});
  var n=document.getElementById("ep-rl"),r=document.getElementById("ep-rl-r");if(n){n.value=v.dataset.rl;if(r)r.value=v.dataset.rl;n.dispatchEvent(new Event("input",{bubbles:true}))}});
 })();
@@ -751,7 +769,7 @@ function stufe(e){if(e<G.malus_ab)return["malus",Math.min(1,(G.malus_ab-e)/(G.ma
 function kurz(h){var k=h/100,a=Math.abs(k),s=k<0?"−":"+";
  if(a>=1e9)return s+zahl(a/1e9)+" Mrd. Kr";if(a>=1e6)return s+zahl(a/1e6)+" Mio. Kr";return s+zahl(a,0)+" Kr"}
 function anteile(){var o={};[].forEach.call(document.querySelectorAll("input[type=number][data-kat]"),function(f){o[f.dataset.kat]=parseFloat(String(f.value).replace(",","."))||0});
- D.kategorien.forEach(function(k){if(!(k.id in o))o[k.id]=k.anteil});return o}
+ D.kategorien.forEach(function(k){if(!(k.id in o))o[k.id]=k.anteil});var S=0;for(var q in o)S+=o[q];if(S>0)for(var q in o)o[q]=o[q]*100/S;return o}
 function rechnen(){
  var a=anteile(),sum={einnahmen:0,ruecklage:0,bereitschaft:0},boni=0,mali=0,ausg=true;
  D.kategorien.forEach(function(k){
@@ -876,7 +894,7 @@ function stufe(w){for(var i=0;i<Z.stufen.length;i++)if(w>=Z.stufen[i][0])return 
 function effekt(w){var x=Z.wirkung;if(w>=x.bonus_ab)return x.bonus;if(w<x.malus_ab)return -Math.min(x.malus_max,(x.malus_ab-w)*x.malus_je_punkt);return 0}
 function rechnen(){
  var a={};[].forEach.call(document.querySelectorAll("input[type=number][data-kat]"),function(f){a[f.dataset.kat]=parseFloat(String(f.value).replace(",","."))||0});
- D.kategorien.forEach(function(k){if(!(k.id in a))a[k.id]=k.anteil});
+ D.kategorien.forEach(function(k){if(!(k.id in a))a[k.id]=k.anteil});var S=0;for(var q in a)S+=a[q];if(S>0)for(var q in a)a[q]=a[q]*100/S;
  var s=0,g=0;Object.keys(Z.gewichte).forEach(function(k){var gw=Z.gewichte[k],r=D.wk.richt[k]||0;if(!gw||r<0.05)return;
   var n=100*(1-Math.exp(-1.6*Math.max(0,a[k]/r)));s+=n*gw;g+=gw;
   var z=document.querySelector('[data-zf="'+k+'"]');if(z){z.querySelector("i").style.width=n.toFixed(1)+"%";z.querySelector(".zf-note").textContent=zahl(n)}});
@@ -1033,19 +1051,23 @@ async def _seite(request, k, planung):
     gebunden = kasse_gebunden(con, kasse_rl, ziel == "reich")
     kassen_name = "Reichskasse" if ziel == "reich" else "Staatskasse"
     anteile = runden100(json.loads(ent["anteile"]) if ent and not eing else aktuelle(con, ziel, liste, ab))
+    rl_wert = rl_satz if rl_satz is not None else liste[0]["rl_vorgabe"]
+    v, r_zeile = zeilenwerte(anteile, rl_wert)   # Tabellenzeilen: Politikfelder und Rücklage, zusammen 100 %
+    v_summe = sum(float(anteile.get(kat, 0)) for kat, _ in KATEGORIEN) * max(0.0, 1 - rl_wert / 100)
+    adj = pool / (basis_rl * v_summe / 100) if basis_rl and v_summe > 0 else 1.0   # tatsächlicher Betrag ÷ Zeilenanteil (Etatwirkung, Deckel durch freie Mittel)
     berechtigt = darf_aendern(con, k, ziel)
     darf = planung and berechtigt and not eing
     in_per = in_aenderungsperiode()
     von, bis = aenderungsperiode()
     n_pers, kosten = (pk or {}).get(vt_stelle, (0, 0))
     vt_min = kosten + vt_ih if pk is not None else 0
-    kat_daten = [{"id": kat, "name": NAMEN[kat], "anteil": anteile[kat], "farbe": PALETTE[i % len(PALETTE)], "schraffur": i >= len(PALETTE)}
+    kat_daten = [{"id": kat, "name": NAMEN[kat], "anteil": v[kat], "farbe": PALETTE[i % len(PALETTE)], "schraffur": i >= len(PALETTE)}
                  for i, (kat, _) in enumerate(KATEGORIEN)]
     fest_hinten = [{"id": "ruecklage", "name": "Rücklage der Staatskasse" if ziel != "reich" else "Rücklage der Reichskasse",
                     "betrag": max(0, ruecklage), "farbe": "#c4c6cb", "schraffur": False}]
     daten = {"gesamt": gesamt, "pool": budget, "vt_min": vt_min, "kategorien": kat_daten, "fest_vorn": fest_vorn, "fest_hinten": fest_hinten, "farben": PALETTE,
              "wk": wirkung_daten(richt, basis_ein, basis_rl), "zuf": zuf_daten(zuf),
-             "rl": {"basis": basis_rl, "w": rl_w, "frei": frei, "kasse": kassen_name}}
+             "rl": {"basis": basis_rl, "w": rl_w, "frei": frei, "kasse": kassen_name}, "adj": adj}
     c = amt.csrf_feld(request)
     zeilen = []
     for f in fest_vorn:
@@ -1055,41 +1077,36 @@ async def _seite(request, k, planung):
     for i, kd in enumerate(kat_daten):
         kat = kd["id"]
         farbe = f'<span class="ep-farbe{" schraffur" if kd["schraffur"] else ""}" style="background-color:{kd["farbe"]}"></span>'
-        wert = f'{anteile[kat]:.1f}'
+        wert = f'{v[kat]:.1f}'
         if darf:
             anteil_zelle = (f'<input type="range" id="ep-r-{kat}" data-kat="{kat}" min="0" max="100" step="0.1" value="{wert}" aria-label="{esc(NAMEN[kat])} Regler"> '
                             f'<input type="number" id="ep-n-{kat}" name="k_{kat}" data-kat="{kat}" min="0" max="100" step="0.1" value="{wert}" aria-label="{esc(NAMEN[kat])} in Prozent"> %')
         else:
-            anteil_zelle = f'{_de(anteile[kat])} %'
+            anteil_zelle = f'{_de(v[kat])} %'
         zeilen.append(f'<tr data-zeile="{kat}"><td>{farbe}{esc(NAMEN[kat])}</td><td class="num">{anteil_zelle}</td>'
                       f'<td class="num ep-anteil-gesamt">{_de(betraege[kat] / gesamt * 100 if gesamt else 0)} %</td>'
                       f'<td class="num"><span class="ep-betrag" title="{mark(betraege[kat])}">{geld.mark_kurz(betraege[kat])}</span></td></tr>')
-    for f in fest_hinten:
-        zeilen.append(f'<tr class="ep-fest" data-zeile="{f["id"]}"><td><span class="ep-farbe" style="background:{f["farbe"]}"></span>{esc(f["name"])}</td>'
-                      f'<td class="num">–</td><td class="num ep-anteil-gesamt">{_de(f["betrag"] / gesamt * 100 if gesamt else 0)} %</td>'
+    for f in fest_hinten:   # die Rücklage ist eine Zeile der Tabelle und funktioniert wie ein Politikfeld
+        if darf:
+            r_zelle = (f'<input type="range" id="ep-rl-r" min="-100" max="100" step="0.1" value="{max(-100, min(100, r_zeile)):.1f}" aria-label="Rücklage Regler"> '
+                       f'<input type="number" id="ep-rl" name="ruecklage" min="-1000" max="100" step="0.1" value="{r_zeile:.1f}" aria-label="Rücklage in Prozent"> %')
+        else:
+            r_zelle = f'{_de(r_zeile)} %'
+        zeilen.append(f'<tr data-zeile="{f["id"]}"><td><span class="ep-farbe" style="background:{f["farbe"]}"></span>{esc(f["name"])}</td>'
+                      f'<td class="num">{r_zelle}</td><td class="num ep-anteil-gesamt">{_de(f["betrag"] / gesamt * 100 if gesamt else 0)} %</td>'
                       f'<td class="num"><span class="ep-betrag" title="{mark(f["betrag"])}">{geld.mark_kurz(f["betrag"])}</span></td></tr>')
     zeilen.append(f'<tr class="ep-fest ep-entnahme" id="ep-entnahme-zeile"{"" if ruecklage < 0 else " hidden"}><td><span class="ep-farbe ep-farbe-leer"></span>'
                   f'Entnahme aus der {kassen_name}</td><td class="num">–</td><td class="num" id="ep-entnahme-pz">{_de(-ruecklage / gesamt * 100 if gesamt else 0)} %</td>'
                   f'<td class="num"><span id="ep-entnahme-betrag">{geld.mark_kurz(max(0, -ruecklage))}</span></td></tr>')
-    tabelle = ('<table class="ep-tab"><thead><tr><th>Kategorie</th><th class="num">Anteil am Ausgabenbudget</th><th class="num">Anteil am Etat</th>'
+    tabelle = ('<table class="ep-tab"><thead><tr><th>Kategorie</th><th class="num">Anteil am eigenen Etat</th><th class="num">Anteil am Etat</th>'
                f'<th class="num">Betrag / Monat</th></tr></thead><tbody>{"".join(zeilen)}</tbody></table>')
-    rl_eff = (basis_rl - budget) / basis_rl * 100 if basis_rl else 0
-    unz = budget - pool
-    rl_wert = rl_satz if rl_satz is not None else liste[0]["rl_vorgabe"]
     kasse_info = (f'<div class="ep-kasse">{amt.ic("landmark")}<span>{esc(kassen_name)}: Kontostand <b>{esc(mark(kasse_rl["saldo"] if kasse_rl else 0))}</b>'
                   f' · im Monat gebunden {esc(mark(gebunden))} · <b>frei verfügbar {esc(mark(frei))}</b></span></div>')
-    if darf:
-        rl_feld = (f'<input type="range" id="ep-rl-r" min="-100" max="100" step="0.5" value="{max(-100, min(100, rl_wert)):.1f}" aria-label="Rücklage Regler"> '
-                   f'<input type="number" id="ep-rl" name="ruecklage" min="-1000" max="100" step="0.1" value="{rl_wert:.1f}" aria-label="Rücklage in Prozent"> %')
-    else:
-        rl_feld = f'<b>{_vz(rl_wert, "%")}</b>'
-    rl_block = (f'<div class="ep-rl"><div class="ep-rl-kopf"><span class="ep-rl-titel">Rücklage</span><span class="ep-rl-feld">{rl_feld}</span></div>'
-                f'<p class="ep-rl-hilfe">In Prozent des eigenen Steueranteils ({esc(mark(basis_rl))}). <b>Plus</b> = sparen: das Geld bleibt in der {esc(kassen_name)}. '
-                f'<b>Minus</b> = entnehmen: zusätzlich zum Monatsetat fließen freie Mittel der {esc(kassen_name)} in die Politikfelder.'
-                + (f' Die Etatwirkung verschiebt die Rücklage um {_vz(rl_w, "Pp")}.' if rl_w else "") + '</p>'
-                f'<p class="ep-rl-info" id="ep-rl-info">{_rl_text(rl_eff, basis_rl - budget, kassen_name, deckel)}'
-                + (f' Nicht zugewiesen: <b>{_de(unz / budget * 100)} %</b> des Ausgabenbudgets ({esc(mark(unz))}) bleiben zusätzlich als Rücklage in der {esc(kassen_name)}.' if unz > 0 and budget else "")
-                + f'</p>{kasse_info}</div>')
+    rl_gesamt = basis_rl - pool   # Rücklage (positiv) bzw. Entnahme (negativ) einschließlich nicht zugewiesener Prozente
+    rl_block = (f'<div class="ep-rl"><p class="ep-rl-hilfe">Alle Zeilen zusammen ergeben <b>100 %</b> des eigenen Etats ({esc(mark(basis_rl))}). Die <b>Rücklage der {esc(kassen_name)}</b> ist eine '
+                f'Zeile wie ein Politikfeld: Wer sie verringert oder sogar ins Minus setzt (Entnahme aus der Kasse), muss die frei werdenden Prozente anderen Politikfeldern zuordnen. '
+                f'Prozente, die keinem Politikfeld zugeordnet sind, bleiben in der Rücklage.' + (f' Die Etatwirkung verschiebt die Rücklage um {_vz(rl_w, "Pp")}.' if rl_w else "") + '</p>'
+                f'<p class="ep-rl-info" id="ep-rl-info">{_rl_text(rl_gesamt / basis_rl * 100 if basis_rl else 0, rl_gesamt, kassen_name, deckel)}</p>{kasse_info}</div>')
     if darf:
         form_in = (f'<form method="post" action="{PFAD_PLAN}entwurf" id="ep-form">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">{rl_block}{tabelle}'
                    '<div class="ep-summe" id="ep-summe"><span></span></div>'
@@ -1097,7 +1114,7 @@ async def _seite(request, k, planung):
                    f'Instandhaltung des Militärs ({mark(vt_min)} im Monat). Die Gehälter werden dann einbehalten, die Einsatzbereitschaft sinkt.</div>'
                    f'<div class="aktionen"><button class="btn zweit" type="submit" id="ep-speichern">{amt.ic("check")}Entwurf speichern</button>'
                    f'<button class="btn zweit" type="button" id="ep-normieren">Auf 100 % bringen</button>'
-                   f'<button class="btn zweit" type="button" id="ep-vorgabe" data-richt="{esc(json.dumps(runden100(richt)))}" data-rl="{liste[0]["rl_vorgabe"]:.1f}">Auf Vorgabe setzen</button></div></form>')
+                   f'<button class="btn zweit" type="button" id="ep-vorgabe" data-v="{esc(json.dumps(zeilenwerte(runden100(richt), liste[0]["rl_vorgabe"])[0]))}" data-rl="{zeilenwerte(runden100(richt), liste[0]["rl_vorgabe"])[1]:.1f}">Auf Vorgabe setzen</button></div></form>')
         if in_per and ent:
             form_in += (f'<form method="post" action="{PFAD_PLAN}einreichen" id="ep-einreichen-form" class="ep-einreichen">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
                         f'<p><b>Etat einreichen</b> – schickt den zuletzt gespeicherten Entwurf (vom {esc(amt._zeit(ent["zeit"]))}) endgültig ab. Er gilt dann ab '
@@ -1142,9 +1159,9 @@ async def _seite(request, k, planung):
                if ziel == "reich" else
                '<li>Der Etat ist das Steueraufkommen des Teilstaats im Monat. Ein Teil davon ist die <b>Abgabe an das Reich</b>; sie richtet sich nach Bevölkerung, '
                'Einkommen und Fläche und lässt sich <b>nicht beeinflussen</b>.</li>')
-            + '<li>Vom eigenen Anteil bleibt die <b>Rücklage</b> in der Kasse; der Rest ist das <b>Ausgabenbudget</b>. Die Rücklage ist frei wählbar: '
-            '<b>sparen</b> (plus) oder <b>entnehmen</b> (minus) – dann fließen zusätzlich freie Mittel der Kasse in die Politikfelder.</li>'
-            '<li>Das Ausgabenbudget verteilt ' + ("das Reich" if ziel == "reich" else "der Teilstaat") + ' in Prozent auf die zwölf Kategorien. '
+            + '<li>Der eigene Etat wird in Prozent auf die zwölf Politikfelder und die <b>Rücklage</b> verteilt, zusammen 100 %. Die Rücklage ist eine Zeile wie ein Politikfeld: '
+            '<b>sparen</b> (plus) oder <b>entnehmen</b> (minus, dann fließen freie Mittel der Kasse in die Politikfelder, denen die Prozente zugeordnet sind).</li>'
+            '<li>Das Ausgabenbudget verteilt ' + ("das Reich" if ziel == "reich" else "der Teilstaat") + ' auf die zwölf Politikfelder. '
             'Was nicht zugewiesen wird, bleibt zusätzlich als <b>Rücklage</b> in der ' + ("Reichskasse" if ziel == "reich" else "Staatskasse") + '. '
             '<b>Verteidigung ist echtes Geld</b>: dieser Anteil fließt jeden Monat in die '
             + ("Reichsverteidigungskasse (Führungsstab)" if ziel == "reich" else "Verteidigungskasse (Gehälter des Militärs, Instandhaltung und Kauf von Gerät)")
@@ -1158,10 +1175,10 @@ async def _seite(request, k, planung):
     for s, n in ziel_liste:
         if s == "reich":
             ver = {kat: sum(x["verteilung_reich"].get(kat, 0) for x in liste) for kat, _ in KATEGORIEN}
-            pl = sum(x["budget_reich"] for x in liste)
+            pl = sum(x["reich"] for x in liste)
         else:
             x2 = next(x for x in liste if "ts-" + x["staat"] == s)
-            ver, pl = x2["verteilung_land"], x2["budget_land"]
+            ver, pl = x2["verteilung_land"], x2["land"]
         bw = liste[0]["wirkung_reich"] if s == "reich" else x2["wirkung_land"]
         vz.append(f'<tr><td><a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a></td><td>{_vz(round(haushaltsfuehrung(liste, s), 1), "%")}</td>'
                   + "".join(f'<td>{_de(ver[kat] / pl * 100 if pl else 0)}</td>' for kat, _ in KATEGORIEN)
@@ -1181,7 +1198,7 @@ async def _seite(request, k, planung):
               + wirkung_html(bew, basis_ein, basis_rl, ziel == "reich")
               + entwicklung.kurz_html(entw_d, f"{sa.PFAD}entwicklung/?ziel={ziel}", entwicklung.rueckhalt_fuer(con, liste, ziel), ziel == "reich")
               + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script><script>{ZUF_JS}</script>' + (f'<script>{PLAN_JS}</script>' if darf else "")
-              + ("" if planung else f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Vergleich aller Haushalte (Anteile am Ausgabenbudget in %)</summary><div class="ep-scroll">'
+              + ("" if planung else f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Vergleich aller Haushalte (Anteile am eigenen Etat in %)</summary><div class="ep-scroll">'
                 f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>')
               + f'<details class="sa-auf"><summary>{amt.ic("clock")}Änderungen ({len(verlauf)})</summary>'
               + amt.tabelle(["Zeit", "Durch", "Änderung"], [(amt._zeit(v["zeit"]), esc(v["autor_name"]), esc(v["text"])) for v in verlauf], "Noch keine Änderungen.") + '</details>')
@@ -1290,27 +1307,37 @@ async def oeffentlich(request, k):
     return sa.ant(request, k, "Etatübersicht", "sa-etatuebersicht", inhalt)
 
 
-def _lesen(form):
-    werte = {}
+def _verteilung_lesen(form):
+    """(Anteile am Ausgabenbudget in %, Rücklage in %, None) oder (None, None, Fehlertext) aus den Zeilen der Tabelle: zwölf Politikfelder (Anteil am eigenen Etat) und die Zeile
+    Rücklage; alle zusammen höchstens 100 %. Was nicht zugeordnet ist, bleibt in der Rücklage (Rücklage = 100 − Summe der Politikfelder)."""
+    v = {}
     for kat, _ in KATEGORIEN:
-        roh = str(form.get("k_" + kat, "")).replace(",", ".").strip()
         try:
-            v = float(roh)
+            x = float(str(form.get("k_" + kat, "")).replace(",", ".").strip())
         except ValueError:
-            return None
-        if not 0 <= v <= 100:
-            return None
-        werte[kat] = v
-    return werte if sum(werte.values()) <= 100.05 else None   # weniger als 100 % ist erlaubt: der Rest bleibt in der Rücklage
-
-
-def _rl_lesen(form):
-    """Rücklagensatz aus dem Formular: Zahl −1000 … 100 oder None, wenn ungültig."""
+            return None, None, "Bitte für alle zwölf Politikfelder und die Rücklage Prozentwerte angeben."
+        if not 0 <= x <= 1100:
+            return None, None, "Die Prozentwerte der Politikfelder müssen zwischen 0 und 1100 liegen."
+        v[kat] = x
     try:
-        v = float(str(form.get("ruecklage", "")).replace(",", ".").strip())
+        r_zeile = float(str(form.get("ruecklage", "")).replace(",", ".").strip())
     except ValueError:
-        return None
-    return v if -1000 <= v <= 100 else None
+        return None, None, "Bitte für die Rücklage einen Prozentwert angeben."
+    if not -1000 <= r_zeile <= 100:
+        return None, None, "Die Rücklage muss zwischen −1000 und 100 % liegen."
+    gesamt = sum(v.values()) + r_zeile
+    if gesamt > 100.05:
+        return None, None, f"Alle Zeilen zusammen ergeben {f'{gesamt:.1f}'.replace('.', ',')} % – höchstens 100 % sind möglich. Bitte Prozente anderer Zeilen verringern."
+    summe = sum(v.values())
+    rl = 100.0 - summe   # nicht zugeordnete Prozente bleiben in der Rücklage
+    if summe <= 0:
+        return {kat: 0.0 for kat, _ in KATEGORIEN}, 100.0, None
+    p = {kat: round(x * 100.0 / summe, 2) for kat, x in v.items()}
+    rest = round(100.0 - sum(p.values()), 2)
+    if rest:
+        ziel = max((k for k in p if k != "verteidigung"), key=lambda k: p[k])
+        p[ziel] = round(p[ziel] + rest, 2)
+    return p, round(rl, 2), None
 
 
 def _zugriff(con, k, ziel):
@@ -1328,12 +1355,9 @@ async def entwurf_post(request):
     _zugriff(con, k, ziel)
     if eingereicht(con, ziel):
         sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Der Etat ist schon eingereicht und bis zur nächsten Änderungsperiode nicht mehr änderbar.", True)
-    werte = _lesen(form)
-    if werte is None:
-        sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Bitte für alle zwölf Kategorien Prozentwerte angeben; die Summe darf höchstens 100 % betragen.", True)
-    rl = _rl_lesen(form)
-    if rl is None:
-        sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Bitte für die Rücklage einen Prozentwert zwischen −1000 und 100 angeben.", True)
+    werte, rl, fehler = _verteilung_lesen(form)
+    if fehler:
+        sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", fehler, True)
     entwurf_speichern(con, ziel, werte, rl, k)
     con.commit()
     sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Entwurf gespeichert. Er hat noch keine Wirkung – eingereicht wird in der Änderungsperiode.")
