@@ -128,6 +128,22 @@ def abgabequoten_beide(daten, p, summen_heller=None, zuschlag=None):
 
 
 def berechnen(con, p=None, periode=None, entwurf=None):
+    """Monatlicher Haushalt je Teilstaat (siehe _berechnen) einschließlich der Entwicklung (entwicklung.py): erst ein Durchlauf ohne Entwicklung für Pläne und
+    Richtwerte, daraus die Faktoren für Einwohner, BIP pro Kopf und Zufriedenheit, dann der eigentliche Durchlauf. Je Posten x["entwicklung"] (Teilstaaten) und
+    x["entwicklung_reich"] (Freie Reichsgebiete)."""
+    import entwicklung
+    import etatplan
+    periode = periode or etatplan.naechster_lauf(con)
+    basis = _berechnen(con, p, periode, entwurf, None)
+    entw = entwicklung.berechne(con, basis, periode)
+    liste = _berechnen(con, p, periode, entwurf, entw)
+    for x in liste:
+        x["entwicklung"] = entw["details"].get("ts-" + x["staat"])
+        x["entwicklung_reich"] = entw["details"].get("reich")
+    return liste
+
+
+def _berechnen(con, p, periode, entwurf, entw):
     """Monatlicher Haushalt je Teilstaat (Heller) im Monat periode (Etatverteilung dieses Monats; Vorgabe: nächster zu buchender Monat; entwurf = probeweise mit einem Etatentwurf, siehe etatplan.plan): Einnahmen summe/reich/land, Pflichtausgaben ausgaben_reich/ausgaben_land und
     Verteidigungsetat vert_reich/vert_land (wird aus den Pflichtausgaben abgezweigt: verteidigung.py)."""
     import etatplan
@@ -137,6 +153,12 @@ def berechnen(con, p=None, periode=None, entwurf=None):
     quote, aq = float(p["steuerquote"]) / 100, float(p.get("ausgabenquote", 97)) / 100
     kr = kronen_je_mio_euro(con)
     daten = staaten_bip(con)
+    roh = {s["id"]: (bip, ew) for s, bip, ew, km in daten}   # Werte der Karte (ohne Entwicklung)
+    if entw:   # Entwicklung: Einwohner × Bevölkerungsfaktor, BIP × Bevölkerungsfaktor × BIP-pro-Kopf-Faktor
+        fa = entw["faktoren"]
+        daten = [(s, bip * f["bev"] * f["kopf"], int(round(ew * f["bev"])), km)
+                 for s, bip, ew, km in daten for f in [fa.get("reich" if geld.ist_reichsgebiet(s) else "ts-" + s["id"], {"bev": 1.0, "kopf": 1.0})]]
+    zpt = lambda schl: (entw["faktoren"].get(schl, {}).get("zuf_pt", 0.0) if entw else 0.0)
     import notlage
     zusch = notlage.zuschlaege(con)
     quoten, quoten_theo = abgabequoten_beide(daten, p, zuschlag=zusch)
@@ -152,7 +174,7 @@ def berechnen(con, p=None, periode=None, entwurf=None):
         vert = int(round(bip / 12 * float(v["quote_bip"]) / 100 * kr * 100))
         vr0 = min(aus_r, int(round(vert * float(v["anteil_reich"]) / 100)))
         vl0 = 0 if reich_direkt else min(aus_l, vert - int(round(vert * float(v["anteil_reich"]) / 100)))
-        basis.append({"s": s, "bip": bip, "ew": ew, "km": km, "q": q, "qt": quoten_theo.get(s["id"], q), "rd": reich_direkt, "summe": summe, "reich": reich, "land": land,
+        basis.append({"s": s, "bip": bip, "ew": ew, "km": km, "bip0": roh[s["id"]][0], "ew0": roh[s["id"]][1], "q": q, "qt": quoten_theo.get(s["id"], q), "rd": reich_direkt, "summe": summe, "reich": reich, "land": land,
                       "aus_r": aus_r, "aus_l": aus_l, "vr0": vr0, "vl0": vl0})
     tot_ar = sum(b["aus_r"] for b in basis)
     vv_reich = sum(b["vr0"] for b in basis) / tot_ar * 100 if tot_ar else 0
@@ -163,7 +185,7 @@ def berechnen(con, p=None, periode=None, entwurf=None):
     rl_r = etatplan.ruecklage_satz(con, "reich", periode, entwurf)
     rl_r = rl_vorgabe if rl_r is None else rl_r
     aq_r = max(0.0, 1 - rl_r / 100 - w_reich["summe"]["ruecklage"] / 100)
-    z_reich = etatplan.zufriedenheit(con, "reich", plan_reich, richt_reich)   # Bevölkerungszufriedenheit (Freie Reichsgebiete)
+    z_reich = etatplan.zufriedenheit(con, "reich", plan_reich, richt_reich, zpt("reich"))   # Bevölkerungszufriedenheit (Freie Reichsgebiete)
     zw = []
     for b in basis:
         s = b["s"]
@@ -172,7 +194,7 @@ def berechnen(con, p=None, periode=None, entwurf=None):
             vv = b["vl0"] / b["aus_l"] * 100 if b["aus_l"] else 0
             plan_l, richt_l = etatplan.plan(con, "ts-" + s["id"], vv, periode, entwurf), etatplan.richtwerte(vv)
             w_l = etatplan.bewerten(plan_l, richt_l)
-            z_l = etatplan.zufriedenheit(con, "ts-" + s["id"], plan_l, richt_l)
+            z_l = etatplan.zufriedenheit(con, "ts-" + s["id"], plan_l, richt_l, zpt("ts-" + s["id"]))
         # Wirkung auf das Steueraufkommen: im Teilstaat dessen eigener Etat, in den Freien Reichsgebieten der Reichsetat; dazu die Zufriedenheit
         f_ein = 1 + ((w_reich if b["rd"] else w_l)["summe"]["einnahmen"] + (z_reich if b["rd"] else z_l)["effekt"]) / 100
         summe = int(round(b["summe"] * f_ein))
@@ -203,7 +225,7 @@ def berechnen(con, p=None, periode=None, entwurf=None):
         aus_r = sum(ver_r.values())                   # nicht zugewiesene Prozente werden nicht ausgegeben, sie bleiben in der Kasse (Rücklage)
         aus_l = sum(ver_l.values()) if plan_l else aus_l
         vr, vl = ver_r["verteidigung"], ver_l.get("verteidigung", 0)
-        out.append({"staat": s["id"], "name": s["name"], "reichsgebiet": b["rd"], "bip": b["bip"], "ew": b["ew"], "km2": b["km"], "quote": b["q"], "quote_theorie": b["qt"],
+        out.append({"staat": s["id"], "name": s["name"], "reichsgebiet": b["rd"], "bip": b["bip"], "ew": b["ew"], "bip_karte": b["bip0"], "ew_karte": b["ew0"], "km2": b["km"], "quote": b["q"], "quote_theorie": b["qt"],
                     "reich_theorie": summe if b["rd"] else int(round(summe * b["qt"] / 100)),
                     "zuschlag": zusch.get(s["id"], 0), "summe": summe, "reich": reich, "land": land, "summe_basis": b["summe"],
                     "ausgaben_reich": aus_r - vr, "ausgaben_land": aus_l - vl, "vert_reich": vr, "vert_land": vl,
@@ -245,7 +267,7 @@ def kronsteuer_buchen(con, periode, k):
     if not l or l["kronsteuer"]:
         return 0
     import karte
-    ew = sum(e for _, _, e, _ in staaten_bip(con))
+    ew = sum(x["ew"] for x in berechnen(con, periode=periode))   # Einwohner einschließlich der Entwicklung
     betrag = int(round(ew * float(geld.einstellung(con, "kronsteuer_bevoelkerung")) * 100))
     if betrag <= 0:
         return 0
@@ -279,6 +301,8 @@ def ausfuehren(con, periode, k):
         if x["reichsgebiet"] or x["verteilung_land"]:
             etatplan.verteilung_speichern(con, lauf, {"staat": x["staat"], "verteilung_land": x["verteilung_land"]})
     etatplan.zuf_speichern(con, lauf, liste)   # Bevölkerungszufriedenheit des Monats
+    import entwicklung
+    entwicklung.speichern(con, periode, liste)   # Entwicklung (Gesundheit, Bildung, Sicherheit, Bevölkerung) des Monats
     for kat, _ in etatplan.KATEGORIEN:
         con.execute("INSERT OR REPLACE INTO ep_verteilung (lauf, schl, kategorie, betrag) VALUES (?,?,?,?)",
                     (lauf, "reich", kat, sum(x["verteilung_reich"].get(kat, 0) for x in liste)))

@@ -450,9 +450,11 @@ def zuf_verlauf(con, schl, n=12):
         "SELECT l.periode, z.wert FROM ep_zufriedenheit z JOIN ak_laeufe l ON l.id=z.lauf WHERE z.schl=? ORDER BY z.lauf DESC LIMIT ?", (schl, n))][::-1]
 
 
-def zufriedenheit(con, schl, anteile, richt):
-    """{"ziel", "alt", "neu", "stufe", "effekt", "teile"}: neu = Wert des nächsten gebuchten Monats (Trägheit gegenüber dem letzten Monat)."""
+def zufriedenheit(con, schl, anteile, richt, extra=0.0):
+    """{"ziel", "alt", "neu", "stufe", "effekt", "teile"}: neu = Wert des nächsten gebuchten Monats (Trägheit gegenüber dem letzten Monat).
+    extra = Punkte aus der Entwicklung (entwicklung.py: unsicher, überwacht, Akademiker ohne Stelle) auf den Zielwert."""
     ziel, teile = zuf_ziel(anteile, richt)
+    ziel = max(0.0, min(100.0, ziel + extra))
     alt = zuf_letzte(con, schl)
     neu = ziel if alt is None else alt + (ziel - alt) * ZUF_TRAEGHEIT
     return {"ziel": round(ziel, 1), "alt": None if alt is None else round(alt, 1), "neu": round(neu, 1), "stufe": zuf_stufe(neu),
@@ -953,6 +955,7 @@ def regeln_html():
 async def _seite(request, k, planung):
     """planung=False: Etatverteilung (geltender Etat im laufenden Monat, nur Ansicht); planung=True: Etat planen (Entwurf und Einreichen für den Folgemonat)."""
     import aufkommen
+    import entwicklung
     import verteidigung
     con = request.app["db"]
     ab = monat_folgend() if planung else monat_heute()   # Monat, den die Seite zeigt
@@ -1004,6 +1007,7 @@ async def _seite(request, k, planung):
         kasse_rl, rl_satz, frei, deckel = geld.sonder(con, "reichskasse"), liste[0]["rl_satz_reich"], liste[0]["frei_reich_kasse"], liste[0]["gedeckelt_reich"]
     else:
         kasse_rl, rl_satz, frei, deckel = x["kasse"], x["rl_satz_land"], x["frei_land"], x["gedeckelt_land"]
+    entw_d = liste[0]["entwicklung_reich"] if ziel == "reich" else x["entwicklung"]
     rl_w = bew["summe"]["ruecklage"]
     gebunden = kasse_gebunden(con, kasse_rl, ziel == "reich")
     kassen_name = "Reichskasse" if ziel == "reich" else "Staatskasse"
@@ -1154,6 +1158,7 @@ async def _seite(request, k, planung):
                 '<div class="ep-tipp" id="ep-tipp"></div></div><div>' + form_in + '</div></div>'
               + zuf_html(zuf, zuf_verlauf(con, ziel), ziel == "reich")
               + wirkung_html(bew, basis_ein, basis_rl, ziel == "reich")
+              + entwicklung.kurz_html(entw_d, f"{sa.PFAD}entwicklung/?ziel={ziel}")
               + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script><script>{ZUF_JS}</script>' + (f'<script>{PLAN_JS}</script>' if darf else "")
               + ("" if planung else f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Vergleich aller Haushalte (Anteile am Ausgabenbudget in %)</summary><div class="ep-scroll">'
                 f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>')
@@ -1198,6 +1203,7 @@ def _torte_daten(x, liste, ziel):
 @sa.seite()
 async def oeffentlich(request, k):
     import aufkommen
+    import entwicklung
     con = request.app["db"]
     liste = aufkommen.berechnen(con, periode=monat_heute())
     ziel_liste = ziele(con, liste)
@@ -1250,12 +1256,16 @@ async def oeffentlich(request, k):
               + f'<script type="application/json" id="ep-daten">{json.dumps(d, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script>'
               + staatl
               + f'<h2>{amt.ic("landmark")} Haushaltsführung</h2>' + hf_tabelle(liste, ziel_liste, PFAD_OEFF, ziel)
+              + f'<h2>{amt.ic("users")} Entwicklung</h2>' + entwicklung.tabelle(liste, ziel_liste, PFAD_OEFF, ziel)
               + f'<h2>{amt.ic("users")} Bevölkerungszufriedenheit im Reich</h2>' + zuf_tabelle(liste, ziel_liste, PFAD_OEFF, ziel)
               + f'<details class="sa-auf"><summary>{amt.ic("scale")}Wie wirkt sich die Verteilung aus?</summary>{regeln_html()}'
                 '<p class="az"><b>Bevölkerungszufriedenheit:</b> Index 0–100 aus den Investitionen (Gewichte: '
               + ", ".join(f'{NAMEN[k]} {g} %' for k, g in sorted(ZUF_GEWICHTE.items(), key=lambda t: -t[1]) if g)
               + f'). Ab {ZUF_WIRKUNG["bonus_ab"]} Punkten +{_de(ZUF_WIRKUNG["bonus"])} % Steueraufkommen, unter {ZUF_WIRKUNG["malus_ab"]} Punkten bis zu '
-                f'−{_de(ZUF_WIRKUNG["malus_max"])} %. Die Stimmung folgt einer neuen Verteilung nur allmählich.</p></details>')
+                f'−{_de(ZUF_WIRKUNG["malus_max"])} %. Die Stimmung folgt einer neuen Verteilung nur allmählich.</p>'
+                '<p class="az"><b>Entwicklung:</b> Dauerhafte Investitionen wirken langfristig. Das Gesundheitswesen bestimmt das Bevölkerungswachstum, Bildung das BIP pro Kopf '
+                'und den HDI (zu viel Bildung: zu viele Akademiker und zu wenige Handwerker), Innere Sicherheit die Kriminalität (zu wenig: Bürger fühlen sich unsicher, zu viel: '
+                'Bürger fühlen sich überwacht).</p></details>')
     return sa.ant(request, k, "Etatübersicht", "sa-etatuebersicht", inhalt)
 
 
