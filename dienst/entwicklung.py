@@ -382,7 +382,13 @@ def rueckhalt_aus(st, zuf, kopf_pct, bev_pp, stufe):
         sc = scores[k]
         beitrag = (sc - neutral) * g
         wert += sc * g
-        teile.append({"schluessel": k, "name": name, "score": sc, "gewicht": g, "beitrag": beitrag, "text": plus if sc >= neutral else minus})
+        if sc >= neutral + 3:
+            text = plus
+        elif sc <= neutral - 15:
+            text = minus
+        else:   # nur leichte Abweichung: nicht „unzufrieden“ sagen, wenn der Wert noch gut ist
+            text = f'{name} liegt {"etwas über" if sc >= neutral else "etwas unter"} dem Normalwert'
+        teile.append({"schluessel": k, "name": name, "score": sc, "gewicht": g, "beitrag": beitrag, "text": text})
     return {"wert": _clamp(wert, 0, 100), "teile": teile}
 
 
@@ -552,7 +558,7 @@ def rueckhalt_html(r, reich=False):
             f'<div class="en-rueck-stufe">{esc(r["stufe"])}</div></div><div><b>Rückhalt beim Volk {wer}</b><br><span class="az">{esc(text)}</span></div></div>'
             f'<div class="en-rueck-zeit"><span>Jetzt<b>{_de(r["wert"], 0)}</b></span><span>in 3 Monaten<b>{_de(r["prognose3"], 0)}</b></span>'
             f'<span>auf Dauer, bei gleichem Etat<b>{_de(r["langfristig"], 0)}</b></span><span>Tendenz<b>{esc(_pfeil(r))}</b></span></div>'
-            + (f'<ul class="sa-hinweis" style="margin:6px 0 0;padding-left:18px">{gruende}</ul>' if gruende else "")
+            + (f'<ul class="sa-hinweis" style="margin:8px 0 0;padding:0;list-style:none">{gruende}</ul>' if gruende else "")
             + f'<details class="sa-auf" style="margin:10px 0 0"><summary>{amt.ic("chart-column")}Woraus der Rückhalt besteht</summary><div class="en-rueck-teile">{teile}</div></details></div>')
 
 
@@ -560,7 +566,7 @@ def kurz_html(d, link=None, r=None, reich=False):
     """Kurzfassung für die Etatseiten: die stärksten Wirkungen."""
     kz = (f'<b>HDI {_de(d["hdi"], 3)}</b> · Lebenserwartung {_de(d["lebenserwartung"], 0)} Jahre · Bevölkerungswachstum {_vz(d["bev_pp"] * 12)} pro Jahr'
           f' · BIP pro Kopf {_vz(d["kopf_pct"])} · Militärgüter {_vz(d["ruestung_pct"])}')
-    return (f'<h2>{amt.ic("users")} Entwicklung</h2>{rueckhalt_html(r, reich)}<p class="az">Langfristige Wirkung der Investitionen. {kz}.'
+    return (CSS + f'<h2>{amt.ic("users")} Entwicklung</h2>{rueckhalt_html(r, reich)}<p class="az">Langfristige Wirkung der Investitionen. {kz}.'
             + (f' <a href="{esc(link)}">Alle Einzelheiten →</a>' if link else "") + f'</p>{effekte_html(d)}')
 
 
