@@ -4,24 +4,27 @@ Verkäuflich ist, was ein Etat tatsächlich hervorbringt (Kategorie → Waren):
   Gesundheitswesen → Arzneimittel, Impfstoffe, Medizintechnik, Spezialpharmazeutika
   Landwirtschaft   → Getreide, Obst und Gemüse, Fleisch, Milchprodukte, Ölsaaten, Zucker, Wein
   Industrie        → Rohstoffe (nur mit Vorkommen im eigenen Gebiet: Steinkohle, Braunkohle, Eisenerz, Bauxit, Kupfer, Erdöl, Erdgas, Salz,
-                     Holz, Seltene Erden, Uran, Baustoffe) und veredelte Güter (Stahl, Aluminium, Treibstoff – aus Rohstoffen im Lager)
+                     Holz, Bernstein, Baustoffe) und veredelte Güter (Stahl, Aluminium, Treibstoff – aus Rohstoffen im Lager)
   Forschung        → Baupläne für Militärgerät, wenn Forschung es im eigenen Land günstiger gemacht hat (entwicklung.ruestung_faktor < 1);
                      der Käufer baut danach zum selben Preisfaktor (hd_lizenzen, verteidigung.beschaffen)
   Verteidigung     → Militärgerät aus dem eigenen Bestand (vt_bestand), nie mehr, als man besitzt
 Nicht verkäuflich: Kultur, Innere Sicherheit, Arbeit und Soziales, Transportwesen, Bildung, Umwelt, Infrastruktur.
 
 Erzeugung: Jeden Haushaltsmonat fließt ein Überschussanteil des jeweiligen Sektor-Etats (Einstellung „handel“: ueberschuss_*) in verkaufbare Waren
-(`produktion`, einmal je Monat, Tabelle hd_produktion/hd_laeufe). Rohstoffe: Anteil des Industrie-Überschusses nach Reichhaltigkeit des Vorkommens
-(hd_vorkommen, 0–100; 0 = keins, dann weder Förderung noch Verkauf als Rohstoff). Die Ware kommt ins Lager (hd_lager), verderbliche Ware verliert
-monatlich einen Teil (hd_waren.verderb).
+(`produktion`, einmal je Monat, Tabelle hd_produktion/hd_laeufe). Rohstoffe: REALE Förderung der Förderstätten und Regionen (handel_daten.py,
+Tabelle hd_lagerstaetten, Jahresmenge in der Einheit der Ware); ein Gebiet liefert, was seine Lagerstätten real fördern (Verteilung nach Fläche, Besitzer
+laut aktueller Karte). Monatsmenge = Jahresmenge ÷ 12 × Industriefaktor (Industrie-Etat im Verhältnis zum Richtwert, 0,5–1,5). Ohne Vorkommen weder Förderung
+noch Verkauf als Rohstoff. Die Ware kommt ins Lager (hd_lager), verderbliche Ware verliert monatlich einen Teil (hd_waren.verderb).
 Markt: Angebote (hd_angebote) mit Preisgrenzen um den Richtpreis; die Ware ist beim Einstellen reserviert. Kauf = Zahlung von Kasse zu Kasse
 (Staatskasse bzw. Reichskasse; Militär und Baupläne: Verteidigungskassen), Buchungsart „handel“, keine Überziehung. Jedes Geschäft steht im Handelsbuch
 (hd_geschaefte). Handelssperren (hd_sperren) verhängt die Leitung des Schatzamts. Rechte wie beim Etat: Landesherr für den Teilstaat,
 Schatzamt-Leitung für das Reich (etatplan.darf_aendern).
 """
 import asyncio
+import json
 import logging
 import math
+import os
 import time
 from datetime import date
 
@@ -30,6 +33,7 @@ from aiohttp import web
 import amt
 import anmeldung
 import geld
+import handel_daten
 import schatzamt as sa
 from geld import mark
 
@@ -54,8 +58,7 @@ NICHT_HANDELBAR = [("Kultur", "Kulturgüter und Ansehen lassen sich nicht liefer
 
 # Rohstoffe: (Schlüssel, Name)
 RESSOURCEN = [("steinkohle", "Steinkohle"), ("braunkohle", "Braunkohle"), ("eisenerz", "Eisenerz"), ("bauxit", "Bauxit"), ("kupfer", "Kupfererz"),
-              ("erdoel", "Erdöl"), ("erdgas", "Erdgas"), ("salz", "Salz und Kali"), ("holz", "Holz"), ("seltene", "Seltene Erden und Lithium"),
-              ("uran", "Uranerz"), ("stein", "Baustoffe")]
+              ("erdoel", "Erdöl"), ("erdgas", "Erdgas"), ("salz", "Salz und Kali"), ("holz", "Holz"), ("bernstein", "Bernstein"), ("stein", "Baustoffe")]
 RESNAME = dict(RESSOURCEN)
 
 # Waren: (Schlüssel, Name, Sektor, Einheit, Richtpreis in €, Anteil am Sektor-Überschuss %, Rohstoff, Verderb % je Monat)
@@ -80,8 +83,7 @@ WAREN = [
     ("erdgas", "Erdgas", "industrie", "1.000 m³", 350, 0, "erdgas", 0),
     ("salz", "Salz und Kali", "industrie", "t", 90, 0, "salz", 0),
     ("holz", "Rundholz", "industrie", "Festmeter", 90, 0, "holz", 0),
-    ("seltene", "Seltene Erden und Lithium", "industrie", "t", 20000, 0, "seltene", 0),
-    ("uran", "Uran-Konzentrat", "industrie", "t", 65000, 0, "uran", 0),
+    ("bernstein", "Bernstein (Rohbernstein)", "industrie", "t", 400000, 0, "bernstein", 0),
     ("stein", "Baustoffe (Kies, Kalk, Naturstein)", "industrie", "t", 15, 0, "stein", 0),
     ("stahl", "Stahl", "industrie", "t", 750, 0, None, 0),
     ("aluminium", "Aluminium", "industrie", "t", 2400, 0, None, 0),
@@ -90,34 +92,11 @@ WAREN = [
 # Veredelung: Erzeugnis → {Einsatzstoff: Menge je Tonne Erzeugnis}
 REZEPTE = {"stahl": {"eisenerz": 1.6, "steinkohle": 0.7}, "aluminium": {"bauxit": 4.0}, "treibstoff": {"erdoel": 1.1}}
 
-# Erste Annahme der Vorkommen (grob nach der Geologie der Regionen), 0–100; die Leitung kann sie unter „Ressourcen“ ändern.
-VORKOMMEN = {
-    "s1": {"erdgas": 25, "erdoel": 15, "salz": 55, "holz": 70, "stein": 80},
-    "s2": {"steinkohle": 60, "braunkohle": 50, "eisenerz": 55, "kupfer": 30, "erdgas": 40, "salz": 50, "holz": 70, "stein": 60, "seltene": 15},
-    "s3": {"erdgas": 35, "erdoel": 20, "salz": 30, "stein": 10},
-    "s4": {"holz": 30, "stein": 50},
-    "s5": {"eisenerz": 25, "holz": 55, "stein": 60},
-    "s6": {"erdoel": 45, "erdgas": 30, "salz": 45, "stein": 20, "holz": 10},
-    "s7": {"erdgas": 30, "salz": 40, "holz": 20, "stein": 40},
-    "s8": {"eisenerz": 25, "erdoel": 5, "salz": 60, "holz": 60, "stein": 70},
-    "s9": {"stein": 5},
-    "s10": {"kupfer": 40, "eisenerz": 45, "erdgas": 5, "salz": 55, "holz": 80, "seltene": 35, "stein": 60},
-    "s11": {"bauxit": 70, "erdoel": 10, "erdgas": 20, "salz": 70, "holz": 5, "stein": 85},
-    "s12": {"steinkohle": 40, "braunkohle": 80, "eisenerz": 30, "kupfer": 15, "salz": 0, "holz": 60, "seltene": 45, "uran": 60, "stein": 55},
-    "s13": {"steinkohle": 5, "braunkohle": 30, "eisenerz": 50, "erdoel": 50, "erdgas": 75, "salz": 85, "holz": 40, "stein": 45},
-    "s14": {"eisenerz": 5, "salz": 60, "holz": 55, "stein": 70},
-    "s15": {"braunkohle": 95, "kupfer": 25, "holz": 40, "seltene": 25, "stein": 25},
-    "s16": {"steinkohle": 85, "eisenerz": 30, "erdoel": 25, "erdgas": 30, "holz": 55, "uran": 20, "stein": 55},
-    "s17": {"stein": 10},
-    "s18": {"salz": 10, "holz": 20, "stein": 15},
-    "s19": {"steinkohle": 25, "braunkohle": 40, "eisenerz": 30, "salz": 20, "holz": 55, "stein": 80},
-    "s20": {"erdoel": 25, "erdgas": 15, "salz": 35, "holz": 70, "seltene": 30, "stein": 60},
-}
-
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS hd_waren (schl TEXT PRIMARY KEY, name TEXT NOT NULL, sektor TEXT NOT NULL, einheit TEXT NOT NULL, preis INTEGER NOT NULL,
     anteil REAL NOT NULL DEFAULT 0, ressource TEXT, verderb REAL NOT NULL DEFAULT 0, aktiv INTEGER NOT NULL DEFAULT 1, rang INTEGER NOT NULL DEFAULT 0);
-CREATE TABLE IF NOT EXISTS hd_vorkommen (schl TEXT NOT NULL, ressource TEXT NOT NULL, wert INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (schl, ressource));
+CREATE TABLE IF NOT EXISTS hd_lagerstaetten (id INTEGER PRIMARY KEY AUTOINCREMENT, ressource TEXT NOT NULL, menge INTEGER NOT NULL, gebiete TEXT NOT NULL,
+    name TEXT NOT NULL, quelle TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS hd_lager (schl TEXT NOT NULL, ware TEXT NOT NULL, menge INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (schl, ware));
 CREATE TABLE IF NOT EXISTS hd_angebote (id INTEGER PRIMARY KEY AUTOINCREMENT, zeit INTEGER NOT NULL, anbieter TEXT NOT NULL, ware TEXT NOT NULL,
     menge INTEGER NOT NULL, preis INTEGER NOT NULL, bereit REAL NOT NULL DEFAULT 100, unbegrenzt INTEGER NOT NULL DEFAULT 0,
@@ -140,10 +119,27 @@ def einrichten(con):
         con.execute("INSERT OR IGNORE INTO hd_waren (schl, name, sektor, einheit, preis, anteil, ressource, verderb, rang) VALUES (?,?,?,?,?,?,?,?,?)",
                     (s, n, sek, einheit, max(1, int(round(eur * 100 / kurs))), anteil, res, verderb, i))
         con.execute("UPDATE hd_waren SET rang=? WHERE schl=?", (i, s))
-    for sid, werte in VORKOMMEN.items():
-        for res, _ in RESSOURCEN:
-            con.execute("INSERT OR IGNORE INTO hd_vorkommen (schl, ressource, wert) VALUES (?,?,?)",
-                        ("reich" if sid == "s2" else "ts-" + sid, res, werte.get(res, 0)))
+    if not con.execute("SELECT 1 FROM hd_lagerstaetten LIMIT 1").fetchone():
+        for res, menge, gebiete, name, quelle in handel_daten.LAGERSTAETTEN:
+            con.execute("INSERT INTO hd_lagerstaetten (ressource, menge, gebiete, name, quelle) VALUES (?,?,?,?,?)", (res, menge, json.dumps(gebiete), name, quelle))
+    # einmalige Umstellung von der erfundenen Skala (0–100) auf reale Förderdaten
+    if not con.execute("SELECT 1 FROM hd_laeufe WHERE periode='reale-daten'").fetchone():
+        con.execute("DROP TABLE IF EXISTS hd_vorkommen")
+        alt = [r["schl"] for r in con.execute("SELECT schl FROM hd_waren WHERE ressource IS NOT NULL")] + ["seltene", "uran"]
+        marks = ",".join("?" * len(alt))
+        con.execute(f"UPDATE hd_waren SET aktiv=0 WHERE schl IN ('seltene','uran')")
+        con.execute(f"DELETE FROM hd_lager WHERE ware IN ({marks})", alt)
+        con.execute(f"DELETE FROM hd_produktion WHERE ware IN ({marks})", alt)
+        laeufe = [r["periode"] for r in con.execute("SELECT periode FROM hd_laeufe WHERE periode LIKE '____-__' ORDER BY periode")]
+        if laeufe:   # Rohstoffe der letzten gebuchten Monate mit den realen Mengen nachbuchen
+            kap = kapazitaeten(con, laeufe[-1])
+            roh = {w["schl"] for w in waren(con, True).values() if w["ressource"]}
+            for schl, o in kap.items():
+                for ware, n in o.items():
+                    if ware in roh:
+                        lager_aendern(con, schl, ware, n)
+                        con.execute("INSERT OR REPLACE INTO hd_produktion (periode, schl, ware, menge) VALUES (?,?,?,?)", (laeufe[-1], schl, ware, n))
+        con.execute("INSERT INTO hd_laeufe (periode, zeit) VALUES ('reale-daten', ?)", (int(time.time()),))
     con.commit()
 
 
@@ -199,8 +195,71 @@ def waren(con, nur_aktiv=False):
     return {r["schl"]: r for r in con.execute("SELECT * FROM hd_waren" + (" WHERE aktiv=1" if nur_aktiv else "") + " ORDER BY rang")}
 
 
+_META = {}
+
+
+def _meta():
+    """{NUTS-Code: (Fläche km², Name)} aus der Kartenrekonstruktion (einmal geladen)."""
+    if not _META:
+        pfad = os.path.join(os.path.dirname(os.path.abspath(__file__)), "karte_daten", "rekonstruktion", "gebiete_meta.json")
+        with open(pfad, encoding="utf-8") as f:
+            for k, v in json.load(f)["gebiete"].items():
+                _META[k] = (v.get("a", 0) or 1, v.get("n", k))
+        _META.setdefault("RU001", (15100, "Kaliningrader Gebiet"))
+    return _META
+
+
+def lagerstaetten(con):
+    return con.execute("SELECT * FROM hd_lagerstaetten ORDER BY ressource, id").fetchall()
+
+
+def verteilung_lagerstaette(con, ls, besitzer=None):
+    """{schl: Anteil 0..1} einer Lagerstätte: nach Fläche auf ihre Gebiete verteilt, jedes Gebiet beim heutigen Besitzer (Reich oder Teilstaat)."""
+    meta = _meta()
+    besitzer = besitzer if besitzer is not None else gebiet_besitzer(con)
+    codes = [c for c in meta if any(c.startswith(p) for p in json.loads(ls["gebiete"]))]
+    gesamt = sum(meta[c][0] for c in codes) or 1
+    out = {}
+    for c in codes:
+        b = besitzer.get(c)
+        if b:
+            out[b] = out.get(b, 0) + meta[c][0] / gesamt
+    return out
+
+
+def gebiet_besitzer(con):
+    import karte
+    out = {}
+    for code, sid in karte.aktuell(con)["stand"]["gebiete"].items():
+        if sid:
+            out[code] = "reich" if geld.ist_reichsgebiet(sid) else "ts-" + sid
+    return out
+
+
+def foerderung(con):
+    """{schl: {Rohstoff: Jahresförderung}} aus den realen Lagerstätten (hd_lagerstaetten) und dem heutigen Besitz der Gebiete."""
+    besitzer = gebiet_besitzer(con)
+    out = {}
+    for ls in lagerstaetten(con):
+        for schl, anteil in verteilung_lagerstaette(con, ls, besitzer).items():
+            d = out.setdefault(schl, {})
+            d[ls["ressource"]] = d.get(ls["ressource"], 0) + ls["menge"] * anteil
+    return {s: {r: int(round(v)) for r, v in d.items()} for s, d in out.items()}
+
+
 def vorkommen(con, schl):
-    return {r["ressource"]: r["wert"] for r in con.execute("SELECT ressource, wert FROM hd_vorkommen WHERE schl=?", (schl,))}
+    """{Rohstoff: reale Jahresförderung im Gebiet} (Einheit der Ware je Jahr)."""
+    return foerderung(con).get(schl, {})
+
+
+def kurz(n):
+    """Mengen kompakt: 28,5 Mio. / 450 Tsd. / 330."""
+    n = float(n)
+    if n >= 1e6:
+        return f"{n / 1e6:,.1f}".replace(",", "X").replace(".", ",").replace("X", ".") + " Mio."
+    if n >= 1e4:
+        return f"{n / 1e3:,.0f}".replace(",", ".") + " Tsd."
+    return f"{round(n):,}".replace(",", ".")
 
 
 def lager(con, schl):
@@ -284,15 +343,18 @@ def kapazitaeten(con, periode):
     e = einstellungen(con)
     ws = waren(con, True)
     out = {}
+    foerd = foerderung(con)
     for schl in halter(con):
         v = ver.get(schl, {})
-        vk = vorkommen(con, schl)
-        summe = max(sum(vk.values()), 300)
-        ind = v.get("industrie", 0) * float(e["ueberschuss_industrie"]) / 100
+        erwartet = (sum(v.values()) - v.get("verteidigung", 0)) * 0.047   # Richtwert Industrie: 4,7 % des Budgets ohne Verteidigung
+        faktor = min(1.5, max(0.5, v.get("industrie", 0) / erwartet)) if erwartet > 0 else 1.0
         o = {}
         for w in ws.values():
             if w["ressource"]:
-                wert = ind * vk.get(w["ressource"], 0) / summe
+                n = int(foerd.get(schl, {}).get(w["ressource"], 0) / 12 * faktor)
+                if n > 0:
+                    o[w["schl"]] = n
+                continue
             elif w["sektor"] in ("gesundheit", "landwirtschaft"):
                 wert = v.get(w["sektor"], 0) * float(e["ueberschuss_" + w["sektor"]]) / 100 * w["anteil"] / 100
             else:
@@ -620,9 +682,9 @@ async def mein(request, k):
     out += ("<h2>Lager</h2>" + amt.tabelle(["Ware", "Bereich", "Bestand", "Richtpreis", "Wert", f"Erzeugt ({per or '–'})", "Verderb / Monat"], zeilen,
                                            "Das Lager ist leer. Waren entstehen jeden Haushaltsmonat aus den Ergebnissen des Etats.")
             + '<p class="sa-hinweis">Erzeugt wird ein Teil der Ausgaben für Gesundheit, Landwirtschaft und Industrie (Rohstoffe nach Vorkommen).</p>')
-    hat = [f'{esc(RESNAME[r])} ({v})' for r, v in sorted(vk.items(), key=lambda x: -x[1]) if v > 0]
+    hat = [f'{esc(RESNAME[r])} ({kurz(v)} {esc(ws[r]["einheit"])} / Jahr)' for r, v in sorted(vk.items(), key=lambda x: -ws[x[0]]["preis"] * x[1]) if v > 0 and r in RESNAME]
     fehlt = [esc(RESNAME[r]) for r, _ in RESSOURCEN if vk.get(r, 0) <= 0]
-    out += (f'<h2>Vorkommen</h2><p>{", ".join(hat) if hat else "Keine nennenswerten Vorkommen."}</p>'
+    out += (f'<h2>Vorkommen (reale Jahresförderung)</h2><p>{", ".join(hat) if hat else "Keine nennenswerten Vorkommen."}</p>'
             + (f'<p class="az">Kein Vorkommen: {", ".join(fehlt)} – diese Rohstoffe können nicht verkauft, wohl aber eingekauft und weiterverarbeitet werden.</p>' if fehlt else ""))
     # Angebot einstellen
     opts = []
@@ -685,26 +747,52 @@ async def mein(request, k):
 async def ressourcen(request, k):
     con = request.app["db"]
     namen = halter(con)
-    vk = {s: vorkommen(con, s) for s in namen}
-    kopf = "".join(f"<th>{esc(n)}</th>" for _, n in RESSOURCEN)
+    ws = waren(con)
+    foerd = foerderung(con)
+    mx = {r: max([foerd.get(s, {}).get(r, 0) for s in namen] + [1]) for r, _ in RESSOURCEN}
+    kopf = "".join(f'<th>{esc(n)}<br><span class="az">{esc(ws[r]["einheit"])} / Jahr</span></th>' for r, n in RESSOURCEN)
     zeilen = ""
     for s, n in namen.items():
-        zeilen += f"<tr><td>{esc(n)}</td>" + "".join(
-            (f'<td style="background:rgba(0,0,0,{0.06 + v / 100 * 0.28:.2f})"><b>{v}</b></td>' if v > 0 else '<td class="n0">–</td>') for v in (vk[s].get(r, 0) for r, _ in RESSOURCEN)) + "</tr>"
-    anz = "".join(f"<td>{sum(1 for s in namen if vk[s].get(r, 0) > 0)}</td>" for r, _ in RESSOURCEN)
-    out = ('<p class="az">Reichhaltigkeit der Vorkommen im Gebiet (1–100; „–“ = kein Vorkommen). Ohne Vorkommen kann ein Rohstoff weder gefördert noch als Rohstoff verkauft '
-           'werden. „Das Reich“ umfasst die Freien Reichsgebiete.</p>'
-           f'<div class="hd-matrix"><table><thead><tr><th>Gebiet</th>{kopf}</tr></thead><tbody>{zeilen}<tr><td><i>Gebiete mit Vorkommen</i></td>{anz}</tr></tbody></table></div>')
-    if verwalter(k):
-        c = amt.csrf_feld(request)
-        sel = request.query.get("bearbeiten", "")
-        sel = sel if sel in namen else next(iter(namen))
-        opt = "".join(f'<option value="{esc(s)}"{" selected" if s == sel else ""}>{esc(n)}</option>' for s, n in namen.items())
-        felder = "".join(f'<div><label>{esc(n)}</label><input type="number" name="r_{r}" min="0" max="100" value="{vk[sel].get(r, 0)}"></div>' for r, n in RESSOURCEN)
-        out += (f'<h2>Vorkommen festlegen</h2><form method="get" class="hd-form" action="{PFAD}ressourcen/"><div><label>Gebiet</label>'
-                f'<select name="bearbeiten" onchange="this.form.submit()">{opt}</select></div></form>'
-                f'<form method="post" action="{PFAD}ressourcen/" class="hd-form">{c}<input type="hidden" name="schl" value="{esc(sel)}">{felder}'
-                f'<button class="btn" type="submit">{amt.ic("check")}Speichern</button></form>')
+        zeilen += f"<tr><td>{esc(n)}</td>"
+        for r, _ in RESSOURCEN:
+            v = foerd.get(s, {}).get(r, 0)
+            zeilen += (f'<td style="background:rgba(0,0,0,{0.05 + v / mx[r] * 0.25:.2f})" title="{zahl(v)} {esc(ws[r]["einheit"])} / Jahr"><b>{kurz(v)}</b></td>' if v > 0 else '<td class="n0">–</td>')
+        zeilen += "</tr>"
+    anz = "".join(f"<td>{sum(1 for s in namen if foerd.get(s, {}).get(r, 0) > 0)}</td>" for r, _ in RESSOURCEN)
+    out = ('<p>Reale Jahresförderung der Gebiete (Größenordnung 2022/23) in der Einheit der Ware pro Jahr. „–“ bedeutet: kein Vorkommen – dort wird der Rohstoff nicht gefördert '
+           'und kann nicht als Rohstoff verkauft werden. Die Mengen folgen den tatsächlichen Lagerstätten (z. B. Rheinisches und Lausitzer Revier, Groningen-Feld, Mittelplate, Erzberg); '
+           'wechselt ein Gebiet den Teilstaat, wechselt die Förderung mit. „Das Reich“ umfasst die Freien Reichsgebiete. Monatliche Erzeugung = Jahresmenge ÷ 12, skaliert mit dem Industrie-Etat.</p>'
+           f'<div class="hd-matrix"><table><thead><tr><th>Gebiet</th>{kopf}</tr></thead><tbody>{zeilen}<tr><td><i>Gebiete mit Vorkommen</i></td>{anz}</tbody></table></div>')
+    sel = request.query.get("rohstoff", "")
+    sel = sel if sel in RESNAME else RESSOURCEN[0][0]
+    chips = '<div class="hd-chips">' + "".join(f'<a href="{PFAD}ressourcen/?rohstoff={r}#lagerstaetten"{" class=aktiv" if r == sel else ""}>{esc(n)}</a>' for r, n in RESSOURCEN) + "</div>"
+    verw = verwalter(k)
+    c = amt.csrf_feld(request)
+    besitzer = gebiet_besitzer(con)
+    z = []
+    for ls in lagerstaetten(con):
+        if ls["ressource"] != sel:
+            continue
+        v = verteilung_lagerstaette(con, ls, besitzer)
+        wem = ", ".join(f'{esc(namen.get(s, s))} {a * 100:.0f} %' for s, a in sorted(v.items(), key=lambda x: -x[1]) if a >= 0.005) or "<span class='az'>keinem Teilstaat zugeordnet</span>"
+        menge = zahl(ls["menge"])
+        if verw:
+            menge = (f'<form class="sa-inline" method="post" action="{PFAD}ressourcen/">{c}<input type="hidden" name="id" value="{ls["id"]}">'
+                     f'<input type="number" name="menge" min="0" value="{ls["menge"]}" style="width:130px" aria-label="Jahresmenge"> '
+                     f'<button class="btn zweit klein" type="submit">Speichern</button></form>')
+        z.append((esc(ls["name"]), menge, wem, esc(ls["quelle"])))
+    out += (f'<h2 id="lagerstaetten">Förderstätten · {esc(RESNAME[sel])}</h2>{chips}'
+            + amt.tabelle(["Förderstätte / Region", f"Jahresförderung ({ws[sel]['einheit']})", "Gebiet / Besitzer", "Quelle"], z, "Keine Förderstätte.")
+            + '<p class="sa-hinweis">Die Zahlen sind gerundete Näherungen aus amtlichen Statistiken und Branchenberichten (Stand 2022/23). '
+              'Die Schatzamt-Leitung kann Mengen berichtigen, etwa bei stillgelegten oder neu erschlossenen Feldern; jede Änderung wird protokolliert.</p>')
+    if verw:
+        opt = "".join(f'<option value="{r}">{esc(n)}</option>' for r, n in RESSOURCEN)
+        out += (f'<details class="sa-auf"><summary>{amt.ic("check")}Neue Förderstätte anlegen</summary><form class="hd-form" method="post" action="{PFAD}ressourcen/">{c}'
+                f'<input type="hidden" name="neu" value="1"><div><label>Rohstoff</label><select name="ressource">{opt}</select></div>'
+                '<div><label>Bezeichnung</label><input type="text" name="name" size="30" required></div>'
+                '<div><label>Jahresförderung</label><input type="number" name="menge" min="1" required></div>'
+                '<div><label>Gebiete (NUTS-Codes, Komma)</label><input type="text" name="gebiete" size="26" placeholder="DE21, DEA27" required></div>'
+                f'<button class="btn" type="submit">{amt.ic("check")}Anlegen</button></form></details>')
     return _seite(request, k, "Handel – Ressourcen", "ressourcen", out)
 
 
@@ -737,7 +825,8 @@ async def regeln(request, k):
            f'Industrie {e["ueberschuss_industrie"]} %. Angebotspreise dürfen {e["preis_min"]} % bis {e["preis_max"]} % des Richtpreises betragen.</p>')
     gruppen = {}
     for w in waren(con).values():
-        gruppen.setdefault(w["sektor"], []).append(w)
+        if w["aktiv"] or not w["ressource"] or w["ressource"] in RESNAME:
+            gruppen.setdefault(w["sektor"], []).append(w)
     for s, n, t in SEKTOREN[:3]:
         z = []
         for w in gruppen.get(s, []):
@@ -849,15 +938,25 @@ async def ressourcen_post(request):
     k, form, con = await _post(request)
     if not verwalter(k):
         raise web.HTTPForbidden()
-    s = str(form.get("schl", ""))
-    if s not in halter(con):
-        raise web.HTTPNotFound()
-    for r, _ in RESSOURCEN:
-        v = max(0, min(100, _int(form.get("r_" + r))))
-        con.execute("INSERT OR REPLACE INTO hd_vorkommen (schl, ressource, wert) VALUES (?,?,?)", (s, r, v))
-    geld.protokoll(con, k, "Handel: Vorkommen geändert", f"{halter(con)[s]}")
+    if form.get("neu"):
+        res = str(form.get("ressource", ""))
+        codes = [t.strip().upper() for t in str(form.get("gebiete", "")).split(",") if t.strip()]
+        name = sa._f(form, "name", 120)
+        menge = _int(form.get("menge"))
+        if res not in RESNAME or not name or menge < 1 or not codes or not any(c.startswith(p) for c in _meta() for p in codes):
+            sa.weiter(PFAD + "ressourcen/", "Bitte Rohstoff, Bezeichnung, Menge und gültige NUTS-Codes angeben.", True)
+        con.execute("INSERT INTO hd_lagerstaetten (ressource, menge, gebiete, name, quelle) VALUES (?,?,?,?,?)", (res, menge, json.dumps(codes), name, "Schatzamt"))
+        geld.protokoll(con, k, "Handel: Förderstätte angelegt", f"{name} ({RESNAME[res]}): {zahl(menge)} / Jahr")
+        con.commit()
+        sa.weiter(f"{PFAD}ressourcen/?rohstoff={res}#lagerstaetten", "Förderstätte angelegt.")
+    ls = con.execute("SELECT * FROM hd_lagerstaetten WHERE id=?", (_int(form.get("id")),)).fetchone()
+    menge = _int(form.get("menge"))
+    if not ls or menge < 0:
+        sa.weiter(PFAD + "ressourcen/", "Bitte eine gültige Menge angeben.", True)
+    con.execute("UPDATE hd_lagerstaetten SET menge=? WHERE id=?", (menge, ls["id"]))
+    geld.protokoll(con, k, "Handel: Förderstätte geändert", f'{ls["name"]} ({RESNAME.get(ls["ressource"])}): {zahl(ls["menge"])} → {zahl(menge)} / Jahr')
     con.commit()
-    sa.weiter(f"{PFAD}ressourcen/?bearbeiten={s}", "Vorkommen gespeichert.")
+    sa.weiter(f'{PFAD}ressourcen/?rohstoff={ls["ressource"]}#lagerstaetten', "Gespeichert.")
 
 
 async def ware_post(request):
