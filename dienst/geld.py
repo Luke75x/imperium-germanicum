@@ -31,7 +31,7 @@ BUCHUNGSART = {"ueberweisung": "Überweisung", "gehalt": "Gehalt", "lohnsteuer":
                "korrektur": "Korrekturbuchung", "pfaendung": "Pfändung", "startguthaben": "Startguthaben", "erstattung": "Erstattung",
                "zuweisung": "Haushaltszuweisung", "steueraufkommen": "Steueraufkommen der Bevölkerung",
                "umbuchung": "Umbuchung", "kronsteuer": "Kronsteuer", "verteidigungsetat": "Verteidigungsetat", "ruestung": "Rüstungsbeschaffung",
-               "instandhaltung": "Instandhaltung (Militärgerät)", "ruestung_erloes": "Erlös aus Ausmusterung"}
+               "instandhaltung": "Instandhaltung (Militärgerät)", "ruestung_erloes": "Erlös aus Ausmusterung", "handel": "Handel"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS gk_konten (
