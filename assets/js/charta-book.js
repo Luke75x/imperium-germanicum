@@ -1,20 +1,22 @@
 /* Imperiale Charta – Buchmodus
-   Baut aus dem vorhandenen Charta-Text (article.doc) ein blätterbares Buch mit
+   Baut aus dem vorhandenen Seitentext (Charta: article.doc, Etiketten-Guide: .guide-group) ein blätterbares Buch mit
    Umblätter-Animation und synthetisiertem Papiergeräusch (Web Audio, keine Dateien). */
 (function () {
   "use strict";
 
   var article = document.querySelector("article.doc");
-  if (!article) return;
+  var guide = !article && document.querySelector(".guide-group");
+  if (!article && !guide) return;
+  var KEY = "ig-book:" + location.pathname.replace(/^\/en\//, "/");
 
   var SCRIPT_SRC = document.currentScript ? document.currentScript.src : "";
   var lang = document.documentElement.getAttribute("lang") === "en" ? "en" : "de";
   var T = {
-    de: { view: "Ansicht", read: "Lesemodus", book: "Buchmodus", hint: "Die Charta als gebundenes Buch zum Blättern.",
+    de: { view: "Ansicht", read: "Lesemodus", book: "Buchmodus", hint: "Wie ein gebundenes Buch zum Blättern.", cont: "(Forts.)",
           close: "Zum Lesemodus", prev: "Zurück blättern", next: "Weiter blättern", toc: "Inhalt", page: "Seite", of: "von",
           cover: "Einband", back: "Rückseite", soundOn: "Ton an", soundOff: "Ton aus", sound: "Papiergeräusch",
           tocTitle: "Inhaltsverzeichnis", dlg: "Die Imperiale Charta als Buch", preamble: "Präambel", section: "Abschnitt" },
-    en: { view: "View", read: "Reading mode", book: "Book mode", hint: "The Charter as a bound book you can page through.",
+    en: { view: "View", read: "Reading mode", book: "Book mode", hint: "Page through it like a bound book.", cont: "(cont.)",
           close: "Reading mode", prev: "Previous page", next: "Next page", toc: "Contents", page: "Page", of: "of",
           cover: "Cover", back: "Back cover", soundOn: "Sound on", soundOff: "Sound off", sound: "Paper sound",
           tocTitle: "Contents", dlg: "The Imperial Charter as a book", preamble: "Preamble", section: "Section" }
@@ -171,14 +173,15 @@
     '<button type="button" data-mode="read" aria-pressed="true">' + ICON.read + T.read + '</button>' +
     '<button type="button" data-mode="book" aria-pressed="false">' + ICON.book + T.book + '</button></span>' +
     '<span class="cv-hint">' + T.hint + '</span>';
-  article.parentNode.insertBefore(bar, article);
+  if (article) article.parentNode.insertBefore(bar, article);
+  else { var gw = guide.closest(".wrap"); gw.insertBefore(bar, gw.firstChild); }
   var btnRead = bar.querySelector('[data-mode="read"]'), btnBook = bar.querySelector('[data-mode="book"]');
   function setPressed(mode) {
     btnRead.setAttribute("aria-pressed", mode === "read" ? "true" : "false");
     btnBook.setAttribute("aria-pressed", mode === "book" ? "true" : "false");
   }
-  btnRead.addEventListener("click", function () { store.set("ig-charta-view", "read"); close(); });
-  btnBook.addEventListener("click", function () { store.set("ig-charta-view", "book"); open(); });
+  btnRead.addEventListener("click", function () { close(); });
+  btnBook.addEventListener("click", function () { open(); });
 
   /* =====================================================================
      Inhalt einlesen
@@ -192,31 +195,77 @@
     return a ? (a.currentSrc || a.src) : "";
   })();
 
-  var sections = [].map.call(article.querySelectorAll(".doc-part"), function (s) {
-    var head = s.querySelector("header");
-    var num = head.querySelector(".num").textContent.trim();
-    var title = head.querySelector("h2").textContent.trim();
-    var isPre = s.classList.contains("preamble");
-    var blocks = [];
-    if (isPre) {
-      var wrap = el("div", "bk-pre");
-      [].forEach.call(s.querySelectorAll(":scope > p"), function (p) { wrap.appendChild(el("p", "", p.innerHTML)); });
-      wrap.appendChild(el("div", "bk-orn", "<i></i>"));
-      blocks.push({ node: wrap });
-    } else {
-      [].forEach.call(s.querySelectorAll(".article-par"), function (ap) {
-        var a = el("div", "bk-art");
-        a.dataset.anchor = ap.id;
-        var n = el("span", "n", "");
-        n.textContent = ap.querySelector(".par").textContent.trim();
-        a.appendChild(n);
-        var body = ap.querySelector(".body").cloneNode(true);
-        while (body.firstChild) a.appendChild(body.firstChild);
-        blocks.push({ node: a, anchor: ap.id });
-      });
+  function plainTable(root) {
+    [].forEach.call(root.querySelectorAll("table"), function (t) { t.className = "bk-table"; });
+    [].forEach.call(root.querySelectorAll(".table-scroll"), function (t) { t.className = "bk-ts"; });
+  }
+
+  function charSections() {
+    return [].map.call(article.querySelectorAll(".doc-part"), function (s) {
+      var head = s.querySelector("header");
+      var num = head.querySelector(".num").textContent.trim();
+      var title = head.querySelector("h2").textContent.trim();
+      var isPre = s.classList.contains("preamble");
+      var blocks = [];
+      if (isPre) {
+        var wrap = el("div", "bk-pre");
+        [].forEach.call(s.querySelectorAll(":scope > p"), function (p) { wrap.appendChild(el("p", "", p.innerHTML)); });
+        wrap.appendChild(el("div", "bk-orn", "<i></i>"));
+        blocks.push({ node: wrap });
+      } else {
+        [].forEach.call(s.querySelectorAll(".article-par"), function (ap) {
+          var a = el("div", "bk-art");
+          var n = el("span", "n", "");
+          n.textContent = ap.querySelector(".par").textContent.trim();
+          a.appendChild(n);
+          var body = ap.querySelector(".body").cloneNode(true);
+          while (body.firstChild) a.appendChild(body.firstChild);
+          plainTable(a);
+          blocks.push({ node: a, anchor: ap.id });
+        });
+      }
+      return { id: s.id, num: num, title: title, pre: isPre, blocks: blocks };
+    });
+  }
+
+  function guideSections() {
+    var out = [];
+    var pre = document.getElementById("praeambel");
+    if (pre) {
+      var sp = pre.closest("section");
+      var pb = [].map.call(sp.querySelectorAll(".prose p"), function (p) { var a = el("div", "bk-art bk-plain", ""); a.appendChild(el("p", "", p.innerHTML)); return { node: a }; });
+      out.push({ id: "praeambel", num: sp.querySelector(".eyebrow").textContent.trim(), title: pre.textContent.trim(), pre: false, blocks: pb });
     }
-    return { id: s.id, num: num, title: title, pre: isPre, blocks: blocks };
-  });
+    [].forEach.call(guide.closest(".wrap").querySelectorAll(".guide-group"), function (g) {
+      var h2 = g.querySelector("h2"), small = h2.querySelector("small");
+      var num = small ? small.textContent.trim() : "";
+      var title = h2.cloneNode(true); var sm = title.querySelector("small"); if (sm) sm.remove();
+      var blocks = [];
+      [].forEach.call(g.querySelectorAll(".title-card"), function (c) {
+        var a = el("div", "bk-art");
+        var n = el("span", "n", "");
+        n.textContent = c.querySelector("h3").textContent.replace(/\u00ad|\u200b/g, "").trim();
+        a.appendChild(n);
+        var rank = c.querySelector(".rank");
+        if (rank) a.appendChild(el("div", "bk-rank", rank.textContent.trim()));
+        [].forEach.call(c.children, function (ch) { if (ch.tagName !== "HEADER") a.appendChild(ch.cloneNode(true)); });
+        plainTable(a);
+        blocks.push({ node: a });
+      });
+      [].forEach.call(g.querySelectorAll(":scope > p"), function (p) { var a = el("div", "bk-art bk-plain bk-hint", ""); a.appendChild(el("p", "", p.innerHTML)); blocks.push({ node: a }); });
+      [].forEach.call(g.querySelectorAll(":scope > ol"), function (ol) {
+        var a = el("div", "bk-art bk-plain");
+        var l = el("ol", ol.classList.contains("ranklist") ? "bk-rank-list" : "bk-rules");
+        [].forEach.call(ol.children, function (li) { l.appendChild(el("li", li.className, li.innerHTML)); });
+        a.appendChild(l);
+        blocks.push({ node: a });
+      });
+      out.push({ id: g.id, num: num, title: title.textContent.trim(), pre: false, blocks: blocks });
+    });
+    return out;
+  }
+
+  var sections = article ? charSections() : guideSections();
 
   /* =====================================================================
      Buch bauen
@@ -234,7 +283,7 @@
     overlay = el("div", "bk-overlay");
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-modal", "true");
-    overlay.setAttribute("aria-label", T.dlg);
+    overlay.setAttribute("aria-label", BOOK_TITLE);
     overlay.tabIndex = -1;
     overlay.innerHTML =
       '<div class="bk-stage"><div class="bk-scene"><div class="bk-shadow"></div><div class="bk-book"></div></div></div>' +
@@ -263,7 +312,7 @@
 
     btnPrev.addEventListener("click", function () { step(-1); });
     btnNext.addEventListener("click", function () { step(1); });
-    overlay.querySelector('[data-act="close"]').addEventListener("click", function () { store.set("ig-charta-view", "read"); close(); });
+    overlay.querySelector('[data-act="close"]').addEventListener("click", function () { close(); });
     btnSound.addEventListener("click", function () { Sound.set(!Sound.enabled); updateSoundBtn(); if (Sound.enabled) Sound.page(); });
     btnToc.addEventListener("click", function (e) { e.stopPropagation(); toggleMenu(); });
     overlay.addEventListener("click", function (e) { if (menu.classList.contains("is-open") && !menu.contains(e.target)) toggleMenu(false); });
@@ -339,13 +388,76 @@
       inner.appendChild(node);
       if (!fits() && cur.nodes.length) {
         inner.removeChild(node);
+        var carry = null, carryAnchors = [];
+        // Überschrift nicht allein am Seitenende stehen lassen
+        if (cur.nodes.length === 1 && cur.nodes[0].classList.contains("bk-sec")) { carry = cur.nodes.pop(); carryAnchors = cur.anchors; }
         flush();
-        cur = { run: sec.title, nodes: [], anchors: [] };
+        cur = { run: sec.title, nodes: [], anchors: carryAnchors };
+        if (carry) { inner.appendChild(carry.cloneNode(true)); cur.nodes.push(carry); }
         inner.appendChild(node);
       }
+      if (!fits() && !node.classList.contains("bk-sec")) { splitAdd(node, sec, anchor); return; }
       cur.nodes.push(node.cloneNode(true));
       if (anchor) cur.anchors.push(anchor);
       // Original bleibt für die Messung stehen
+    }
+    // Ein Block ist länger als der Rest der Seite: Inhalt (Absätze, Tabellenzeilen, Listeneinträge) auf mehrere Seiten verteilen
+    function splitAdd(node, sec, anchor) {
+      inner.removeChild(node);
+      if (anchor) cur.anchors.push(anchor);
+      var units = [].filter.call(node.children, function (c) { return !c.classList.contains("n") && !c.classList.contains("bk-rank"); });
+      function base(first) {
+        var c = node.cloneNode(false);
+        var nn = node.querySelector(".n"), rk = node.querySelector(".bk-rank");
+        if (nn) { var n2 = nn.cloneNode(true); if (!first) n2.textContent += " " + T.cont; c.appendChild(n2); }
+        if (first && rk) c.appendChild(rk.cloneNode(true));
+        return c;
+      }
+      var part = base(true), cnt = 0;
+      inner.appendChild(part);
+      function newPart() {
+        var carry = null, last = part.lastElementChild;
+        if (cnt > 1 && last && /^H[1-6]$/.test(last.tagName)) { carry = last; part.removeChild(last); }
+        cur.nodes.push(part.cloneNode(true));
+        flush();
+        cur = { run: sec.title, nodes: [], anchors: [] };
+        part = base(false); cnt = 0;
+        inner.appendChild(part);
+        if (carry) { part.appendChild(carry); cnt++; }
+      }
+      units.forEach(function (u) {
+        var rows = u.querySelector("tbody") || (/^(OL|UL)$/.test(u.tagName) ? u : u.querySelector("ol,ul"));
+        var splittable = !!rows && rows.children.length > 1;
+        part.appendChild(u.cloneNode(true)); cnt++;
+        if (fits()) return;
+        part.removeChild(part.lastChild); cnt--;
+        if (!splittable) {
+          if (cnt > 0) { newPart(); }
+          part.appendChild(u.cloneNode(true)); cnt++;
+          return;
+        }
+        var items = [].slice.call(rows.children), isOl = rows.tagName === "OL";
+        function mk() {
+          var c = u.cloneNode(true);
+          var rc = c.querySelector("tbody") || (/^(OL|UL)$/.test(c.tagName) ? c : c.querySelector("ol,ul"));
+          rc.innerHTML = "";
+          return { c: c, rc: rc };
+        }
+        var seg = mk();
+        part.appendChild(seg.c); cnt++;
+        items.forEach(function (it, idx) {
+          seg.rc.appendChild(it.cloneNode(true));
+          if (!fits() && seg.rc.children.length > 1) {
+            seg.rc.removeChild(seg.rc.lastChild);
+            newPart();
+            seg = mk();
+            if (isOl) seg.rc.setAttribute("start", String(idx + 1));
+            part.appendChild(seg.c); cnt++;
+            seg.rc.appendChild(it.cloneNode(true));
+          }
+        });
+      });
+      cur.nodes.push(part.cloneNode(true));
     }
     sections.forEach(function (sec) {
       flush();
@@ -556,7 +668,7 @@
   var saveT = null;
   function savePos() {
     clearTimeout(saveT);
-    saveT = setTimeout(function () { store.set("ig-charta-page", String(firstAnchorOnView() || "")); }, 600);
+    saveT = setTimeout(function () { store.set(KEY, String(firstAnchorOnView() || "")); }, 600);
   }
 
   function visiblePages() {
@@ -688,7 +800,7 @@
   function onKey(e) {
     if (!isOpen) return;
     var k = e.key;
-    if (k === "Escape") { if (menu.classList.contains("is-open")) toggleMenu(false); else { store.set("ig-charta-view", "read"); close(); } e.preventDefault(); }
+    if (k === "Escape") { if (menu.classList.contains("is-open")) toggleMenu(false); else { close(); } e.preventDefault(); }
     else if (k === "ArrowRight" || k === "PageDown") { step(1); e.preventDefault(); }
     else if (k === "ArrowLeft" || k === "PageUp") { step(-1); e.preventDefault(); }
     else if (k === " " && document.activeElement && document.activeElement.tagName !== "BUTTON") { step(e.shiftKey ? -1 : 1); e.preventDefault(); }
@@ -747,7 +859,7 @@
       overlay.classList.add("is-open");
       overlay.focus();
     });
-    var anchor = startAnchor || (location.hash && location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : "") || store.get("ig-charta-page") || "";
+    var anchor = startAnchor || (location.hash && location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : "") || store.get(KEY) || "";
     // Einband öffnet sich nach dem Einblenden von selbst
     setTimeout(function () {
       if (!isOpen) return;
@@ -771,11 +883,8 @@
     if (a) { var t = document.getElementById(a); if (t && t.scrollIntoView) t.scrollIntoView({ block: "start" }); }
   }
 
-  // Gespeicherte Vorliebe beachten; URL-Schalter ?ansicht=buch / ?view=book hat Vorrang
-  var q = /[?&](?:ansicht|view)=(buch|book|lesen|read)\b/.exec(location.search);
-  var pref = q ? (/buch|book/.test(q[1]) ? "book" : "read") : store.get("ig-charta-view");
-  if (q) store.set("ig-charta-view", pref);
-  if (pref === "book") {
+  // Standard ist immer der Lesemodus; das Buch öffnet sich nur auf Wunsch (Umschalter oder ?ansicht=buch)
+  if (/[?&](?:ansicht|view)=(?:buch|book)\b/.test(location.search)) {
     var go = function () { setTimeout(function () { open(); }, 200); };
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(go); else go();
   }

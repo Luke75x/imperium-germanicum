@@ -185,3 +185,15 @@ html.bk-lock, html.bk-lock body { overflow: hidden; overscroll-behavior: none; }
   .bk-overlay::before, .bk-leaf.is-turning .bk-face::after { animation: none !important; }
 }
 @media print { .bk-overlay, .charta-view { display: none !important; } }
+
+/* Etiketten-Guide */
+.bk-rank { text-align: center; font: 600 .62em/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: #8c6d1c; margin: -.2em 0 .6em; }
+.bk-art.bk-plain { text-align: left; }
+.bk-art.bk-hint { font-style: italic; color: #4a4d63; }
+.bk-art .bk-ts { overflow: visible; }
+.bk-art table.bk-table { table-layout: fixed; }
+.bk-art table.bk-table th, .bk-art table.bk-table td { font-size: .95em; overflow-wrap: anywhere; hyphens: auto; }
+.bk-art table.bk-table tbody th { font-weight: 600; width: 28%; white-space: normal; }
+.bk-art .bk-rules, .bk-art .bk-rank-list { margin: 0; padding-left: 1.6em; }
+.bk-art .bk-rules li, .bk-art .bk-rank-list li { margin: 0 0 .5em; padding-left: .2em; }
+.bk-art .bk-rank-list li { margin-bottom: .2em; }

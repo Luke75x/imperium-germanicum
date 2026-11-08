@@ -1359,6 +1359,9 @@ def page_etikette():
     </section>
   </div>
 </div>"""
+    body += f"""
+<link rel="stylesheet" href="{asset("css/charta-book.css")}?v={_hash("css/charta-book.css")}">
+<script src="{asset("js/charta-book.js")}?v={_hash("js/charta-book.js")}" defer></script>"""
     render("informationen/etiketten-guide/", "Etiketten-Guide",
            "Der Etiketten-Guide des Imperium Germanicum: korrekte Anrede aller Amts-, Adels- und Kirchentitel, Verhaltensregeln und die Rangliste der Titel.",
            body)
