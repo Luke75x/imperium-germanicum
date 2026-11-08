@@ -173,7 +173,7 @@
     '<button type="button" data-mode="read" aria-pressed="true">' + ICON.read + T.read + '</button>' +
     '<button type="button" data-mode="book" aria-pressed="false">' + ICON.book + T.book + '</button></span>' +
     '<span class="cv-hint">' + T.hint + '</span>';
-  if (article) article.parentNode.insertBefore(bar, article);
+  if (article) article.insertBefore(bar, article.firstChild);
   else { var gw = guide.closest(".wrap"); gw.insertBefore(bar, gw.firstChild); }
   var btnRead = bar.querySelector('[data-mode="read"]'), btnBook = bar.querySelector('[data-mode="book"]');
   function setPressed(mode) {
