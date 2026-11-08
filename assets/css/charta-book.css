@@ -83,7 +83,7 @@ html.bk-lock, html.bk-lock body { overflow: hidden; overscroll-behavior: none; }
 .bk-art p { margin: 0 0 .5em; }
 .bk-art p:last-child { margin-bottom: 0; }
 .bk-art ol.alpha { list-style: lower-alpha; padding-left: 1.5em; margin: .2em 0 .5em; }
-.bk-art blockquote { margin: .4em 0; padding: 0 0 0 .9em; border-left: 2px solid #c9a43a; font-style: italic; }
+.bk-art blockquote, .bk-art .oath { margin: .5em 0; padding: 0 0 0 .9em; background: none; color: inherit; border-left: 2px solid #c9a43a; font-style: italic; font-size: 1em; line-height: inherit; text-align: left; hyphens: auto; }
 .bk-art dl { margin: .3em 0; }
 .bk-art dt { font: 600 .68em/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: #7d7058; margin-top: .6em; }
 .bk-art dd { margin: .15em 0 0; }
