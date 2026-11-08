@@ -7,6 +7,7 @@
   var article = document.querySelector("article.doc");
   if (!article) return;
 
+  var SCRIPT_SRC = document.currentScript ? document.currentScript.src : "";
   var lang = document.documentElement.getAttribute("lang") === "en" ? "en" : "de";
   var T = {
     de: { view: "Ansicht", read: "Lesemodus", book: "Buchmodus", hint: "Die Charta als gebundenes Buch zum Blättern.",
@@ -46,7 +47,7 @@
      Ton: Papier wird mit gefiltertem Rauschen nachgebildet
      ===================================================================== */
   var Sound = (function () {
-    var ctx = null, noise = null, master = null;
+    var ctx = null, noise = null, master = null, sample = null;
     var enabled = store.get("ig-charta-sound") !== "off";
 
     function init() {
@@ -61,6 +62,11 @@
         var len = ctx.sampleRate * 1.5, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0), last = 0;
         for (var i = 0; i < len; i++) { var w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = (w * 0.6 + last * 8); }
         noise = buf;
+        if (SCRIPT_SRC) {
+          fetch(SCRIPT_SRC.replace(/js\/charta-book\.js.*$/, "audio/umblaettern.mp3")).then(function (r) { return r.arrayBuffer(); })
+            .then(function (ab) { return new Promise(function (ok, no) { ctx.decodeAudioData(ab, ok, no); }); })
+            .then(function (b) { sample = b; }).catch(function () { /* Ersatz: erzeugtes Geräusch */ });
+        }
       } catch (e) { ctx = null; return false; }
       return true;
     }
@@ -84,6 +90,17 @@
       g.gain.setValueCurveAtTime(curve, t0, dur);
       src.connect(bp); bp.connect(g); g.connect(master);
       src.start(t0, Math.random() * 0.8, dur + 0.05);
+    }
+
+    function play(t0, dur, rate, vol) {
+      var src = ctx.createBufferSource(), g = ctx.createGain();
+      src.buffer = sample;
+      src.playbackRate.value = rate;
+      g.gain.setValueAtTime(vol, t0);
+      g.gain.setValueAtTime(vol, t0 + Math.max(0, dur - 0.15));
+      g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+      src.connect(g); g.connect(master);
+      src.start(t0, 0, dur * rate);
     }
 
     function click(t0, vol) {
@@ -117,6 +134,7 @@
       /* Seite wird umgeblättert */
       page: function (strong) {
         if (!enabled || !init()) return;
+        if (sample) { play(ctx.currentTime + 0.01, 1.3, 0.95 + Math.random() * 0.15, strong ? 1 : 0.85); return; }
         var t = ctx.currentTime + 0.01, d = 0.42 + Math.random() * 0.12;
         burst(t, d, 1400 + Math.random() * 600, 4600 + Math.random() * 900, 0.7, strong ? 0.5 : 0.38, "bandpass");
         burst(t + 0.04, d * 0.8, 400, 1100, 0.9, 0.22, "bandpass");
@@ -128,6 +146,7 @@
       cover: function () {
         if (!enabled || !init()) return;
         var t = ctx.currentTime + 0.01;
+        if (sample) { play(t, 1.4, 0.85, 1); thump(t + 0.7, 0.4, 100); return; }
         burst(t, 0.55, 300, 900, 0.8, 0.5, "bandpass");
         burst(t + 0.05, 0.5, 1200, 3500, 0.7, 0.25, "bandpass");
         thump(t + 0.5, 0.55, 110);
@@ -137,6 +156,7 @@
       riffle: function () {
         if (!enabled || !init()) return;
         var t = ctx.currentTime + 0.01;
+        if (sample) { for (var k = 0; k < 4; k++) play(t + k * 0.12, 0.5, 1.2 + Math.random() * 0.25, 0.7); return; }
         for (var i = 0; i < 7; i++) { burst(t + i * 0.045, 0.12, 2000 + Math.random() * 1500, 5200, 0.8, 0.22, "bandpass"); click(t + i * 0.045, 0.1); }
       }
     };
