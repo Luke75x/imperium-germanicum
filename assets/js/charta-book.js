@@ -516,6 +516,7 @@
       var f = lf.querySelector(i % 2 === 0 || single ? ".front" : ".back");
       if (f) f.setAttribute("aria-hidden", "false");
     });
+    cull();
     var atFront = cur === 0, atBack = single ? cur >= N - 1 : cur >= N;
     bookEl.classList.toggle("is-front", atFront && !single);
     bookEl.classList.toggle("is-back", atBack && !single);
@@ -540,7 +541,22 @@
     hitNext.disabled = cur >= maxCur();
     var pos = single ? cur / Math.max(1, N - 1) : cur / N;
     prog.style.width = (pos * 100) + "%";
-    store.set("ig-charta-page", String(firstAnchorOnView() || ""));
+    savePos();
+  }
+
+  /* Nur Blätter in der Nähe der aktuellen Stelle rendern – spart Speicher und Rechenzeit beim Umblättern */
+  function cull() {
+    for (var j = 0; j < leaves.length; j++) {
+      var near = single ? (j >= cur - 2 && j <= cur + 2) : (j >= cur - 3 && j <= cur + 2);
+      var lf = leaves[j];
+      lf.style.display = (near || lf.classList.contains("is-turning")) ? "" : "none";
+    }
+  }
+
+  var saveT = null;
+  function savePos() {
+    clearTimeout(saveT);
+    saveT = setTimeout(function () { store.set("ig-charta-page", String(firstAnchorOnView() || "")); }, 600);
   }
 
   function visiblePages() {
@@ -586,6 +602,7 @@
       thisLeaf.classList.remove("is-turning", "is-fast");
       thisLeaf.style.zIndex = (thisLeaf.classList.contains("is-flipped")) ? myIndex : N - myIndex;
       busy = Math.max(0, busy - 1);
+      cull();
     }, fast ? 480 : 1020);
     return true;
   }
@@ -593,13 +610,7 @@
   function applyStateLight() {
     // wie applyState, ohne die Blattklassen zu überschreiben (laufende Animationen behalten ihren Zustand)
     var vis = visiblePages();
-    [].forEach.call(bookEl.querySelectorAll(".bk-face"), function (f) { f.setAttribute("aria-hidden", "true"); });
-    vis.forEach(function (i) {
-      var lf = single ? leaves[i] : leaves[Math.floor(i / 2)];
-      if (!lf) return;
-      var f = lf.querySelector(i % 2 === 0 || single ? ".front" : ".back");
-      if (f) f.setAttribute("aria-hidden", "false");
-    });
+    cull();
     var atFront = cur === 0, atBack = single ? cur >= N - 1 : cur >= N;
     bookEl.classList.toggle("is-front", atFront && !single);
     bookEl.classList.toggle("is-back", atBack && !single);
@@ -617,7 +628,7 @@
     hitPrev.disabled = cur <= 0;
     hitNext.disabled = cur >= maxCur();
     prog.style.width = ((cur / (single ? Math.max(1, N - 1) : N)) * 100) + "%";
-    store.set("ig-charta-page", String(firstAnchorOnView() || ""));
+    savePos();
   }
 
   function targetCur(pageIdx) {
