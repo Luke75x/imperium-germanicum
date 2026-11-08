@@ -23,6 +23,7 @@ def _zeile(klasse, symbol, text, zusatz="", link=None):
 async def seite(request, k):
     import aufkommen
     import etatplan
+    import entwicklung
     import notlage
     import verteidigung
     con = request.app["db"]
@@ -41,11 +42,19 @@ async def seite(request, k):
     zuf = x["zufriedenheit_land"]
     q = x["quote"]
     abgabe = f'{etatplan._de(q)} %'
+    rk = entwicklung.rueckhalt_fuer(con, liste, schl)
     kz = [("Staatskasse", mark(kasse["saldo"])), ("Etat im Monat", mark(x["summe"])), ("Abgabe an das Reich", abgabe),
           ("Zufriedenheit", f'{etatplan._de(zuf["neu"], 0)} / 100')]
+    if rk:
+        kz.insert(0, ("Rückhalt beim Volk", f'{etatplan._de(rk["wert"], 0)} · {rk["stufe"]}'))
 
     # Handlungsbedarf
     z = []
+    if rk:
+        pf = {"steigend": "steigt", "fallend": "sinkt", "stabil": "bleibt stabil"}[rk["trend"]]
+        z.append(_zeile("warn" if rk["wert"] < 55 else "", "users", f'<b>{esc(rk["text"])}</b> Rückhalt {etatplan._de(rk["wert"], 0)} / 100, in 3 Monaten voraussichtlich {etatplan._de(rk["prognose3"], 0)}; '
+                        f'auf Dauer {pf} (bei gleichem Etat {etatplan._de(rk["langfristig"], 0)}).',
+                        "; ".join(t["text"] for t in rk["gruende"]), (sa.PFAD + f"entwicklung/?ziel={schl}", "Einzelheiten")))
     eing, ent = etatplan.eingereicht(con, schl), etatplan.entwurf(con, schl)
     von, bis = etatplan.aenderungsperiode()
     ab = etatplan.monat_folgend()

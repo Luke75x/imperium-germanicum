@@ -1179,7 +1179,7 @@ async def _seite(request, k, planung):
                 '<div class="ep-tipp" id="ep-tipp"></div></div><div>' + form_in + '</div></div>'
               + zuf_html(zuf, zuf_verlauf(con, ziel), ziel == "reich")
               + wirkung_html(bew, basis_ein, basis_rl, ziel == "reich")
-              + entwicklung.kurz_html(entw_d, f"{sa.PFAD}entwicklung/?ziel={ziel}")
+              + entwicklung.kurz_html(entw_d, f"{sa.PFAD}entwicklung/?ziel={ziel}", entwicklung.rueckhalt_fuer(con, liste, ziel), ziel == "reich")
               + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script><script>{ZUF_JS}</script>' + (f'<script>{PLAN_JS}</script>' if darf else "")
               + ("" if planung else f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Vergleich aller Haushalte (Anteile am Ausgabenbudget in %)</summary><div class="ep-scroll">'
                 f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>')
@@ -1277,7 +1277,7 @@ async def oeffentlich(request, k):
               + f'<script type="application/json" id="ep-daten">{json.dumps(d, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script>'
               + staatl
               + f'<h2>{amt.ic("landmark")} Haushaltsführung</h2>' + hf_tabelle(liste, ziel_liste, PFAD_OEFF, ziel)
-              + f'<h2>{amt.ic("users")} Entwicklung</h2>' + entwicklung.tabelle(liste, ziel_liste, PFAD_OEFF, ziel)
+              + f'<h2>{amt.ic("users")} Entwicklung</h2>' + entwicklung.tabelle(liste, ziel_liste, PFAD_OEFF, ziel, con)
               + f'<h2>{amt.ic("users")} Bevölkerungszufriedenheit im Reich</h2>' + zuf_tabelle(liste, ziel_liste, PFAD_OEFF, ziel)
               + f'<details class="sa-auf"><summary>{amt.ic("scale")}Wie wirkt sich die Verteilung aus?</summary>{regeln_html()}'
                 '<p class="az"><b>Bevölkerungszufriedenheit:</b> Index 0–100 aus den Investitionen (Gewichte: '
