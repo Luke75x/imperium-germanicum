@@ -6,7 +6,8 @@ Reichskasse), minus = entnehmen (Ausgabenbudget größer als der Steueranteil, D
 oder Entnehmen; öffentlich als Haushaltsführung angezeigt.
 Etat (Steueraufkommen im Monat) eines Teilstaats = Abgabe an das Reich (nicht beeinflussbar, Reichsabgabe nach Bevölkerung, Einkommen und Fläche)
 + Landesanteil. Vom Landesanteil gehen „ausgabenquote“ % (Vorgabe 97 %) als Ausgabenbudget in die Politikfelder, der Rest ist die Rücklage der
-Staatskasse. Das Ausgabenbudget verteilt der Teilstaat selbst in Prozent auf die Kategorien (Summe 100 %). Das Reich verteilt sein Ausgabenbudget
+Staatskasse. Das Ausgabenbudget verteilt der Teilstaat selbst in Prozent auf die Kategorien (Summe höchstens 100 %; was nicht zugewiesen wird, bleibt zusätzlich
+als Rücklage in der Staatskasse – aufkommen.berechnen: pool_* = tatsächlich verteilter Betrag, budget_* = Ausgabenbudget vor dem Einbehalt). Das Reich verteilt sein Ausgabenbudget
 (Reichsanteil aller Steuern einschließlich der Freien Reichsgebiete) genauso.
 Wirkung: Der Anteil „Verteidigung“ ist echtes Geld – er fließt jeden Monat in die Verteidigungskasse (Teilstaat) bzw. Reichsverteidigungskasse
 (aufkommen.berechnen, verteidigung.py). Die übrigen Kategorien sind simulierte Ausgaben der Bevölkerung (Gegenkonto „Volkswirtschaft“); sie werden je
@@ -184,10 +185,11 @@ def vorgabe(verteidigung_prozent):
 
 
 def runden100(anteile):
-    """Prozentwerte auf eine Nachkommastelle runden, sodass sie genau 100,0 ergeben (Rest bei der größten Nicht-Verteidigungs-Kategorie)."""
+    """Prozentwerte auf eine Nachkommastelle runden; liegt die Summe nur wegen der Rundung knapp neben 100,0, wird sie auf genau 100,0 gebracht
+    (Rest bei der größten Nicht-Verteidigungs-Kategorie). Bewusst nicht zugewiesene Prozente (Summe deutlich unter 100) bleiben unverändert."""
     out = {k: round(float(v), 1) for k, v in anteile.items()}
     rest = round(100.0 - sum(out.values()), 1)
-    if rest:
+    if rest and abs(rest) <= 0.3:
         ziel = max((k for k in out if k != "verteidigung"), key=lambda k: out[k])
         out[ziel] = round(out[ziel] + rest, 1)
     return out
@@ -211,9 +213,11 @@ def plan(con, schl, vorgabe_verteidigung=0.0, periode=None, entwurf=None):
 
 
 def verteilung(pool, anteile):
-    """Beträge (Heller) je Kategorie aus Ausgabenbudget und Prozenten; Summe = pool (Rundungsrest bei der größten Nicht-Verteidigungs-Kategorie)."""
+    """Beträge (Heller) je Kategorie aus Ausgabenbudget und Prozenten. Summe = pool × Summe der Prozente (höchstens 100 %): nicht zugewiesene Prozente
+    werden nicht ausgegeben (Rundungsrest bei der größten Nicht-Verteidigungs-Kategorie)."""
     out = {k: int(round(pool * float(anteile.get(k, 0)) / 100.0)) for k, _ in KATEGORIEN}
-    rest = pool - sum(out.values())
+    summe = min(100.0, sum(float(anteile.get(k, 0)) for k, _ in KATEGORIEN))
+    rest = int(round(pool * summe / 100.0)) - sum(out.values())
     if rest and pool:
         ziel = max((k for k, _ in KATEGORIEN if k != "verteidigung"), key=lambda k: out[k])
         out[ziel] += rest
@@ -597,14 +601,18 @@ function pfad(a0,a1,r){var x0=100+r*Math.sin(a0),y0=100-r*Math.cos(a0),x1=100+r*
  return "M100,100 L"+x0+","+y0+" A"+r+","+r+" 0 "+gross+" 1 "+x1+","+y1+" Z"}
 function rlRechnen(){var e=document.getElementById("ep-rl");if(!e||!D.rl)return;var R=D.rl;
  var r=parseFloat(String(e.value).replace(",","."));if(isNaN(r))r=0;
- var pool=Math.round(R.basis*Math.max(0,1-r/100-R.w/100)),ged=false;
- if(pool-R.basis>R.frei){pool=R.basis+R.frei;ged=true}
- var rl=R.basis-pool,p=R.basis?rl/R.basis*100:0;D.pool=pool;D.fest_hinten[0].betrag=Math.max(0,rl);
+ var budget=Math.round(R.basis*Math.max(0,1-r/100-R.w/100)),ged=false;
+ if(budget-R.basis>R.frei){budget=R.basis+R.frei;ged=true}
+ var sp=felder.reduce(function(a,f){return a+(parseFloat(String(f.value).replace(",","."))||0)},0),
+  unz=Math.round(budget*Math.max(0,100-sp)/100),pool=budget-unz,
+  rl0=R.basis-budget,p=R.basis?rl0/R.basis*100:0,rl=R.basis-pool;
+ D.pool=budget;D.fest_hinten[0].betrag=Math.max(0,rl);
  function t(id,v){var o=document.getElementById(id);if(o)o.textContent=v}
  t("ep-kz-pool",kurz(pool));t("ep-kz-rl",kurz(Math.abs(rl)));t("ep-kz-rl-t",rl>=0?"Rücklage":"Entnahme aus der "+R.kasse);
  var z=document.getElementById("ep-entnahme-zeile");if(z)z.hidden=rl>=0;t("ep-entnahme-betrag",kurz(Math.max(0,-rl)));t("ep-entnahme-pz",pz(D.gesamt?Math.max(0,-rl)/D.gesamt*100:0));
- var i=document.getElementById("ep-rl-info");if(i)i.innerHTML=p>0.05?"Sparen: <b>"+pz(p)+"</b> ("+de(rl)+") bleiben im Monat in der "+R.kasse+".":
-  p<-0.05?"Entnahme: <b>"+pz(-p)+"</b> ("+de(-rl)+") kommen im Monat zusätzlich aus der "+R.kasse+"."+(ged?" Begrenzt auf die freien Mittel der Kasse.":""):"Ausgeglichen: der ganze Steueranteil wird ausgegeben."}
+ var i=document.getElementById("ep-rl-info");if(i)i.innerHTML=(p>0.05?"Sparen: <b>"+pz(p)+"</b> ("+de(rl0)+") bleiben im Monat in der "+R.kasse+".":
+  p<-0.05?"Entnahme: <b>"+pz(-p)+"</b> ("+de(-rl0)+") kommen im Monat zusätzlich aus der "+R.kasse+"."+(ged?" Begrenzt auf die freien Mittel der Kasse.":""):"Ausgeglichen: der ganze Steueranteil wird ausgegeben.")
+  +(unz>0?" Nicht zugewiesen: <b>"+pz(100-sp)+"</b> des Ausgabenbudgets ("+de(unz)+") bleiben zusätzlich als Rücklage in der "+R.kasse+".":"")}
 function zeichnen(){
  rlRechnen();
  var s=scheiben(), gesamt=D.gesamt||1, w=0;
@@ -641,8 +649,8 @@ function fokus(id,an){torte.classList.toggle("hat-fokus",!!an);[].forEach.call(s
  [].forEach.call(document.querySelectorAll("[data-zeile]"),function(z){z.classList.toggle("fokus",an&&z.dataset.zeile===id)})}
 function summe(){var o=document.getElementById("ep-summe");if(!o||!felder.length)return;
  var s=felder.reduce(function(a,f){return a+(parseFloat(String(f.value).replace(",","."))||0)},0), rest=Math.round((100-s)*10)/10;
- var ok=Math.abs(100-s)<=0.05;o.className="ep-summe "+(ok?"richtig":"falsch");
- o.querySelector("span").textContent=ok?"Summe 100 % – bereit zum Speichern":"Summe "+pz(s)+(rest>0?" – es fehlen "+pz(rest):" – "+pz(-rest)+" zu viel");
+ var ok=s<=100.05;o.className="ep-summe "+(ok?"richtig":"falsch");
+ o.querySelector("span").textContent=!ok?"Summe "+pz(s)+" – "+pz(-rest)+" zu viel (höchstens 100 %)":rest>0.05?"Summe "+pz(s)+" – die übrigen "+pz(rest)+" bleiben als Rücklage in der "+(D.rl?D.rl.kasse:"Staatskasse"):"Summe 100 %";
  var b=document.getElementById("ep-speichern");if(b)b.disabled=!ok;
  var m=document.getElementById("ep-min");if(m){var v=felder.filter(function(f){return f.dataset.kat==="verteidigung"})[0];
   var pv=v?(parseFloat(String(v.value).replace(",","."))||0):0, bet=D.pool*pv/100;m.style.display=bet<D.vt_min?"block":"none"}}
@@ -970,6 +978,7 @@ async def _seite(request, k, planung):
     if ziel == "reich":
         gesamt = sum(x["reich"] for x in liste)
         pool = sum(x["pool_reich"] for x in liste)
+        budget = sum(x["budget_reich"] for x in liste)   # Ausgabenbudget vor dem Einbehalt nicht zugewiesener Prozente
         ruecklage = gesamt - pool
         betraege = {kat: sum(x["verteilung_reich"].get(kat, 0) for x in liste) for kat, _ in KATEGORIEN}
         fest_vorn = []
@@ -981,6 +990,7 @@ async def _seite(request, k, planung):
     else:
         x = next(x for x in liste if "ts-" + x["staat"] == ziel)
         gesamt, pool, ruecklage = x["summe"], x["pool_land"], x["land"] - x["pool_land"]
+        budget = x["budget_land"]
         betraege = x["verteilung_land"]
         fest_vorn = [{"id": "abgabe", "name": "Abgabe an das Reich", "betrag": x["reich"], "farbe": "#3a3a3a", "schraffur": False}]
         grenze_hinweis = (f'Die Abgabe an das Reich ist auf {_de(x["quote"])} % des Etats begrenzt. Ohne diese Obergrenze würde dieser Teilstaat '
@@ -1008,7 +1018,7 @@ async def _seite(request, k, planung):
                  for i, (kat, _) in enumerate(KATEGORIEN)]
     fest_hinten = [{"id": "ruecklage", "name": "Rücklage der Staatskasse" if ziel != "reich" else "Rücklage der Reichskasse",
                     "betrag": max(0, ruecklage), "farbe": "#c4c6cb", "schraffur": False}]
-    daten = {"gesamt": gesamt, "pool": pool, "vt_min": vt_min, "kategorien": kat_daten, "fest_vorn": fest_vorn, "fest_hinten": fest_hinten, "farben": PALETTE,
+    daten = {"gesamt": gesamt, "pool": budget, "vt_min": vt_min, "kategorien": kat_daten, "fest_vorn": fest_vorn, "fest_hinten": fest_hinten, "farben": PALETTE,
              "wk": wirkung_daten(richt, basis_ein, basis_rl), "zuf": zuf_daten(zuf),
              "rl": {"basis": basis_rl, "w": rl_w, "frei": frei, "kasse": kassen_name}}
     c = amt.csrf_feld(request)
@@ -1038,7 +1048,8 @@ async def _seite(request, k, planung):
                   f'<td class="num"><span id="ep-entnahme-betrag">{geld.mark_kurz(max(0, -ruecklage))}</span></td></tr>')
     tabelle = ('<table class="ep-tab"><thead><tr><th>Kategorie</th><th class="num">Anteil am Ausgabenbudget</th><th class="num">Anteil am Etat</th>'
                f'<th class="num">Betrag / Monat</th></tr></thead><tbody>{"".join(zeilen)}</tbody></table>')
-    rl_eff = (basis_rl - pool) / basis_rl * 100 if basis_rl else 0
+    rl_eff = (basis_rl - budget) / basis_rl * 100 if basis_rl else 0
+    unz = budget - pool
     rl_wert = rl_satz if rl_satz is not None else liste[0]["rl_vorgabe"]
     kasse_info = (f'<div class="ep-kasse">{amt.ic("landmark")}<span>{esc(kassen_name)}: Kontostand <b>{esc(mark(kasse_rl["saldo"] if kasse_rl else 0))}</b>'
                   f' · im Monat gebunden {esc(mark(gebunden))} · <b>frei verfügbar {esc(mark(frei))}</b></span></div>')
@@ -1051,7 +1062,9 @@ async def _seite(request, k, planung):
                 f'<p class="ep-rl-hilfe">In Prozent des eigenen Steueranteils ({esc(mark(basis_rl))}). <b>Plus</b> = sparen: das Geld bleibt in der {esc(kassen_name)}. '
                 f'<b>Minus</b> = entnehmen: zusätzlich zum Monatsetat fließen freie Mittel der {esc(kassen_name)} in die Politikfelder.'
                 + (f' Die Etatwirkung verschiebt die Rücklage um {_vz(rl_w, "Pp")}.' if rl_w else "") + '</p>'
-                f'<p class="ep-rl-info" id="ep-rl-info">{_rl_text(rl_eff, basis_rl - pool, kassen_name, deckel)}</p>{kasse_info}</div>')
+                f'<p class="ep-rl-info" id="ep-rl-info">{_rl_text(rl_eff, basis_rl - budget, kassen_name, deckel)}'
+                + (f' Nicht zugewiesen: <b>{_de(unz / budget * 100)} %</b> des Ausgabenbudgets ({esc(mark(unz))}) bleiben zusätzlich als Rücklage in der {esc(kassen_name)}.' if unz > 0 and budget else "")
+                + f'</p>{kasse_info}</div>')
     if darf:
         form_in = (f'<form method="post" action="{PFAD_PLAN}entwurf" id="ep-form">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">{rl_block}{tabelle}'
                    '<div class="ep-summe" id="ep-summe"><span></span></div>'
@@ -1107,6 +1120,7 @@ async def _seite(request, k, planung):
             + '<li>Vom eigenen Anteil bleibt die <b>Rücklage</b> in der Kasse; der Rest ist das <b>Ausgabenbudget</b>. Die Rücklage ist frei wählbar: '
             '<b>sparen</b> (plus) oder <b>entnehmen</b> (minus) – dann fließen zusätzlich freie Mittel der Kasse in die Politikfelder.</li>'
             '<li>Das Ausgabenbudget verteilt ' + ("das Reich" if ziel == "reich" else "der Teilstaat") + ' in Prozent auf die elf Kategorien. '
+            'Was nicht zugewiesen wird, bleibt zusätzlich als <b>Rücklage</b> in der ' + ("Reichskasse" if ziel == "reich" else "Staatskasse") + '. '
             '<b>Verteidigung ist echtes Geld</b>: dieser Anteil fließt jeden Monat in die '
             + ("Reichsverteidigungskasse (Führungsstab)" if ziel == "reich" else "Verteidigungskasse (Gehälter des Militärs, Instandhaltung und Kauf von Gerät)")
             + '. Die übrigen Kategorien sind Ausgaben für die Bevölkerung.</li></ol></div>')
@@ -1119,10 +1133,10 @@ async def _seite(request, k, planung):
     for s, n in ziel_liste:
         if s == "reich":
             ver = {kat: sum(x["verteilung_reich"].get(kat, 0) for x in liste) for kat, _ in KATEGORIEN}
-            pl = sum(x["pool_reich"] for x in liste)
+            pl = sum(x["budget_reich"] for x in liste)
         else:
             x2 = next(x for x in liste if "ts-" + x["staat"] == s)
-            ver, pl = x2["verteilung_land"], x2["pool_land"]
+            ver, pl = x2["verteilung_land"], x2["budget_land"]
         bw = liste[0]["wirkung_reich"] if s == "reich" else x2["wirkung_land"]
         vz.append(f'<tr><td><a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a></td><td>{_vz(round(haushaltsfuehrung(liste, s), 1), "%")}</td>'
                   + "".join(f'<td>{_de(ver[kat] / pl * 100 if pl else 0)}</td>' for kat, _ in KATEGORIEN)
@@ -1256,7 +1270,7 @@ def _lesen(form):
         if not 0 <= v <= 100:
             return None
         werte[kat] = v
-    return werte if abs(sum(werte.values()) - 100.0) <= 0.05 else None
+    return werte if sum(werte.values()) <= 100.05 else None   # weniger als 100 % ist erlaubt: der Rest bleibt in der Rücklage
 
 
 def _rl_lesen(form):
@@ -1285,7 +1299,7 @@ async def entwurf_post(request):
         sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Der Etat ist schon eingereicht und bis zur nächsten Änderungsperiode nicht mehr änderbar.", True)
     werte = _lesen(form)
     if werte is None:
-        sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Bitte für alle elf Kategorien Prozentwerte angeben, die zusammen 100 % ergeben.", True)
+        sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Bitte für alle elf Kategorien Prozentwerte angeben; die Summe darf höchstens 100 % betragen.", True)
     rl = _rl_lesen(form)
     if rl is None:
         sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Bitte für die Rücklage einen Prozentwert zwischen −1000 und 100 angeben.", True)

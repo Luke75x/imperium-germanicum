@@ -197,14 +197,17 @@ def berechnen(con, p=None, periode=None, entwurf=None):
     out = []
     for b, s, plan_l, richt_l, w_l, z_l, summe, reich, land, kasse, rl_l, frei_l, deckel_l, aq_l in zw:
         aus_r, aus_l = int(round(reich * aq_r)), int(round(land * aq_l))
+        budget_r, budget_l = aus_r, aus_l
         ver_r = etatplan.verteilung(aus_r, plan_reich)
         ver_l = etatplan.verteilung(aus_l, plan_l) if plan_l else {}
+        aus_r = sum(ver_r.values())                   # nicht zugewiesene Prozente werden nicht ausgegeben, sie bleiben in der Kasse (Rücklage)
+        aus_l = sum(ver_l.values()) if plan_l else aus_l
         vr, vl = ver_r["verteidigung"], ver_l.get("verteidigung", 0)
         out.append({"staat": s["id"], "name": s["name"], "reichsgebiet": b["rd"], "bip": b["bip"], "ew": b["ew"], "km2": b["km"], "quote": b["q"], "quote_theorie": b["qt"],
                     "reich_theorie": summe if b["rd"] else int(round(summe * b["qt"] / 100)),
                     "zuschlag": zusch.get(s["id"], 0), "summe": summe, "reich": reich, "land": land, "summe_basis": b["summe"],
                     "ausgaben_reich": aus_r - vr, "ausgaben_land": aus_l - vl, "vert_reich": vr, "vert_land": vl,
-                    "pool_reich": aus_r, "pool_land": aus_l, "verteilung_reich": ver_r, "verteilung_land": ver_l,
+                    "pool_reich": aus_r, "pool_land": aus_l, "budget_reich": budget_r, "budget_land": budget_l, "verteilung_reich": ver_r, "verteilung_land": ver_l,
                     "plan_land": plan_l, "richt_land": richt_l, "wirkung_land": w_l, "plan_reich": plan_reich, "richt_reich": richt_reich,
                     "wirkung_reich": w_reich, "zufriedenheit_land": z_l, "zufriedenheit_reich": z_reich, "kasse": kasse,
                     "rl_satz_land": rl_l, "frei_land": frei_l, "gedeckelt_land": deckel_l, "rl_satz_reich": rl_r, "frei_reich_kasse": frei_r,
