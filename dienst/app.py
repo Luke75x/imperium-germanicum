@@ -34,6 +34,7 @@ import notlage
 import etatplan
 import teilstaat
 import entwicklung
+import handel
 import krisen
 import bankkarte
 import rpleitung
@@ -77,6 +78,7 @@ def erstellen():
     etatplan.registrieren(app)
     teilstaat.registrieren(app)
     entwicklung.registrieren(app)
+    handel.registrieren(app)
     krisen.registrieren(app)
     bankkarte.registrieren(app)
     rpleitung.registrieren(app)

@@ -296,6 +296,8 @@ def beschaffen(con, stelle, typ, anzahl, k):
     kasse = geld.stellenkonto(con, stelle)
     import entwicklung
     faktor = entwicklung.ruestung_faktor(con, stelle)   # Forschung und Lieferketten verändern die Preise
+    import handel
+    faktor = handel.lizenz_faktor(con, stelle, typ, faktor)   # gekaufter Bauplan: Fertigung zum Preisfaktor des Verkäufers
     einzel = int(round(t["preis"] * faktor))
     preis = einzel * anzahl
     import notlage

@@ -130,7 +130,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe", "sa-bankkarte")     # Seiten, die nur die Privatperson betreffen
-NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-krisen", "sa-teilstaat", "sa-reich")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
+NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-krisen", "sa-teilstaat", "sa-reich", "sa-handel")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_kassen(con, k):
@@ -333,6 +333,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
         # Alles zu einem Haushalt liegt hinter einem Eintrag (Reiter oben auf der Seite): Mein Teilstaat, Reichshaushalt; Verteidigung nur für das Militär ohne Kasse
         haushalt = [e for e, ok in ((("sa-teilstaat", "flag", "Mein Teilstaat", "teilstaat/"), regiert),
                                     (("sa-reich", "landmark", "Reichshaushalt", "haushalt/"), kassen),
+                                    (("sa-handel", "package", "Handel", "handel/"), kassen),
                                     (("sa-verteidigung", "shield", "Verteidigung", "verteidigung/"), vt and not kassen)) if ok]
         gruppen = [("Staatliche Kassen" if kassen else "Dienstlich", mein), ("Haushalt", haushalt),
                    ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
