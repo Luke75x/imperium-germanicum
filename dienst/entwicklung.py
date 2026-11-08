@@ -7,7 +7,8 @@ Aufbau
     · Wirkungen: aus den (neuen) Indikatorwerten Effekte auf drei Hebel:
         bev_pp  = Bevölkerungswachstum in Prozentpunkten je Monat (wirkt kumulativ auf die Einwohnerzahl, Faktor bev_faktor),
         kopf_pct = BIP pro Kopf in Prozent (Niveaueffekt, Faktor kopf_faktor),
-        zuf_pt  = Punkte auf den Zufriedenheitsindex (etatplan.zufriedenheit, Parameter extra).
+        zuf_pt  = Punkte auf den Zufriedenheitsindex (etatplan.zufriedenheit, Parameter extra),
+        ruestung_pct = Preis von Militärgütern in % (Forschung, Lieferketten; verteidigung.beschaffen über ruestung_faktor).
   Ein neues Modul = ein neuer Eintrag in MODULE (Indikatoren und eine Funktion wirkungen(z) → Liste von Effekten); sonst nichts.
 - Neutral: Bei der Vorgabe-Verteilung (E = 1) sind alle Indikatoren auf ihrem Startwert und alle Effekte 0 – die Wirtschaft ändert sich erst, wenn ein Haushalt
   von der Vorgabe abweicht. Faktoren sind begrenzt (BEV_GRENZEN, KOPF_GRENZEN).
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS ep_zustand (periode TEXT NOT NULL, schl TEXT NOT NULL
 
 BEV_GRENZEN = (0.80, 1.40)      # Einwohner im Vergleich zur Karte
 KOPF_GRENZEN = (-15.0, 12.0)    # BIP pro Kopf in % gegenüber der Karte
+RUESTUNG_GRENZEN = (-30.0, 45.0)   # Preis von Militärgütern in % gegenüber dem Katalogpreis
 NEUTRAL = 100.0 * (1 - math.exp(-1.6))   # Teilnote bei Erfüllung 1,0 (≈ 79,8)
 
 
@@ -60,83 +62,214 @@ def _vz(x, einheit="%", st=1):
 
 
 # ---------------------------------------------------------------- Module
+# Reihenfolge = Rechenreihenfolge: spätere Indikatoren dürfen die schon berechneten neuen Werte früherer lesen (z). Wirkungen (E = Erfüllung je Politikfeld) bekommen
+# die neuen Indikatorwerte z und einen Kontext ctx (zuf = letzte Zufriedenheit). Hebel: bev_pp, kopf_pct, zuf_pt, ruestung_pct (Preis von Militärgütern in %).
 
-def _wirk_gesundheit(z):
+def _w(titel, hebel, wert, text):
+    return {"hebel": hebel, "wert": wert, "titel": titel, "text": text}
+
+
+def _wirk_infrastruktur(z, ctx):
+    w, m, st = z["wasser"], z["muell"], z["strassen"]
+    out = [_w("Straßen und Brücken", "kopf_pct", _clamp(0.10 * (st - NEUTRAL), -5, 3),
+              "Gut instand gehaltene Straßen und Brücken sparen Zeit und Kosten" if st >= NEUTRAL else "Marode Straßen und Brücken verteuern jeden Transport")]
+    if w < 65:
+        out.append(_w("Schlechte Wasserversorgung", "zuf_pt", -min(6.0, 0.2 * (65 - w)), "Trinkwasser und Abwasser: Bürger klagen über Ausfälle und Qualität"))
+    if w < 50:
+        out.append(_w("Seuchengefahr", "bev_pp", -min(0.2, 0.01 * (50 - w)), "Verschmutztes Wasser: Krankheitswellen kosten Menschenleben"))
+    if m < 65:
+        out.append(_w("Müllprobleme", "zuf_pt", -min(5.0, 0.15 * (65 - m)), "Müll türmt sich in den Straßen, Ungeziefer und Gestank"))
+    return out
+
+
+def _wirk_transport(z, ctx):
+    t, e = z["transport"], z["engpass"]
+    out = [_w("Handel", "kopf_pct", _clamp(0.12 * (t - NEUTRAL), -6, 4),
+              "Gute Verkehrswege beleben den Handel" if t >= NEUTRAL else "Schwache Verkehrswege behindern den Handel"),
+           _w("Verkehr im Alltag", "zuf_pt", _clamp(0.10 * (t - NEUTRAL), -5, 1), "Pendler, Bahnen, Busse und Staus prägen die Stimmung")]
+    if e > 20:
+        out.append(_w("Lieferengpässe", "kopf_pct", -min(6.0, 0.15 * (e - 20)), "Die Produktion stockt, weil Material und Waren nicht ankommen"))
+        out.append(_w("Leere Regale", "zuf_pt", -min(4.0, 0.10 * (e - 20)), "Händler können nicht liefern, die Bevölkerung merkt es im Alltag"))
+        out.append(_w("Lieferketten", "ruestung_pct", min(10.0, 0.2 * (e - 20)), "Lieferengpässe verteuern auch Rüstungsgüter"))
+    return out
+
+
+def _wirk_umwelt(z, ctx):
+    c = z["co2"]
+    out = []
+    if c > 70:
+        out.append(_w("Klimaschäden", "kopf_pct", -min(5.0, 0.12 * (c - 70)), "Dürren, Überschwemmungen und Ernteschäden belasten die Wirtschaft"))
+        out.append(_w("Smog und Luftverschmutzung", "zuf_pt", -min(5.0, 0.15 * (c - 70)), "Die Bevölkerung leidet unter schlechter Luft"))
+    elif c < 35:
+        out.append(_w("Saubere Umwelt", "kopf_pct", min(1.5, 0.05 * (35 - c)), "Saubere Luft und Landschaft ziehen Fachkräfte an"))
+        out.append(_w("Lebensqualität", "zuf_pt", min(2.0, 0.06 * (35 - c)), "Die Bevölkerung schätzt die Natur und die frische Luft"))
+    return out
+
+
+def _wirk_landwirtschaft(z, ctx):
+    e = z["ernaehrung"]
+    out = []
+    if e < 60:
+        out.append(_w("Hunger", "zuf_pt", -min(8.0, 0.25 * (60 - e)), "Lebensmittel sind knapp und teuer, die Menschen hungern"))
+        out.append(_w("Hungersnot", "bev_pp", -min(0.25, 0.012 * (60 - e)), "Unterernährung kostet Menschenleben"))
+        out.append(_w("Geschwächte Arbeitskräfte", "kopf_pct", -min(3.0, 0.08 * (60 - e)), "Hungernde Menschen arbeiten weniger"))
+    elif e > NEUTRAL:
+        out.append(_w("Überschüsse", "kopf_pct", min(1.0, 0.04 * (e - NEUTRAL)), "Agrarüberschüsse lassen sich exportieren"))
+    return out
+
+
+def _wirk_gesundheit(z, ctx):
     g = z["gesundheit"]
     pp = 0.008 * (g - NEUTRAL)
     jahr = pp * 12
-    return [{"hebel": "bev_pp", "wert": pp, "titel": "Gesundheitsniveau",
-             "text": f'Bevölkerung {"wächst" if pp >= 0 else "schrumpft"} um {_de(abs(jahr))} % pro Jahr' if abs(jahr) >= 0.05 else "Bevölkerung unverändert"}]
+    return [_w("Gesundheitsniveau", "bev_pp", pp,
+               f'Bevölkerung {"wächst" if pp >= 0 else "schrumpft"} um {_de(abs(jahr))} % pro Jahr' if abs(jahr) >= 0.05 else "Bevölkerung unverändert")]
 
 
-def _wirk_bildung(z):
-    b, a, h = z["bildung"], z["akademiker"], z["handwerk"]
-    out = [{"hebel": "kopf_pct", "wert": _clamp(0.20 * (b - NEUTRAL), -8, 8), "titel": "Bildungsniveau",
-            "text": "Qualifizierte Arbeitskräfte erhöhen die Wirtschaftsleistung pro Kopf" if b >= NEUTRAL else "Schlecht ausgebildete Arbeitskräfte drücken die Wirtschaftsleistung pro Kopf"}]
-    if a > 38:
-        out.append({"hebel": "kopf_pct", "wert": -min(8.0, 0.5 * (a - 38)), "titel": "Zu viele Akademiker",
-                    "text": f"Akademikeranteil {_de(a)} %: Überqualifikation, die Wirtschaft braucht mehr Handwerk und Facharbeit"})
-    elif a < 18:
-        out.append({"hebel": "kopf_pct", "wert": -min(5.0, 0.35 * (18 - a)), "titel": "Zu wenige Akademiker",
-                    "text": f"Akademikeranteil {_de(a)} %: es fehlen Forscher, Ärzte und Ingenieure, Innovation stockt"})
-    if h < 38:
-        out.append({"hebel": "kopf_pct", "wert": -min(6.0, 0.4 * (38 - h)), "titel": "Handwerkermangel",
-                    "text": f"Nur {_de(h)} % Handwerker und Facharbeiter: Betriebe finden keine Fachkräfte"})
-    if a > 40:
-        out.append({"hebel": "zuf_pt", "wert": -min(3.0, 0.15 * (a - 40)), "titel": "Akademiker ohne Stelle",
-                    "text": "Viele Hochqualifizierte finden keine passende Arbeit, das drückt die Stimmung"})
-    return out
-
-
-def _wirk_sicherheit(z):
+def _wirk_sicherheit(z, ctx):
     s, u = z["sicherheit"], z["ueberwachung"]
     out = []
     if s < 75:
-        out.append({"hebel": "kopf_pct", "wert": -min(6.0, 0.12 * (75 - s)), "titel": "Hohe Kriminalität",
-                    "text": "Kriminalität schreckt Investoren ab und verursacht Schäden"})
+        out.append(_w("Hohe Kriminalität", "kopf_pct", -min(6.0, 0.12 * (75 - s)), "Kriminalität schreckt Investoren ab und verursacht Schäden"))
     elif s > NEUTRAL:
-        out.append({"hebel": "kopf_pct", "wert": min(1.5, 0.06 * (s - NEUTRAL)), "titel": "Sichere Städte",
-                    "text": "Sicherheit zieht Investitionen und Touristen an"})
+        out.append(_w("Sichere Städte", "kopf_pct", min(1.5, 0.06 * (s - NEUTRAL)), "Sicherheit zieht Investitionen und Touristen an"))
     if u > 25:
-        out.append({"hebel": "kopf_pct", "wert": -min(4.0, 0.07 * (u - 25)), "titel": "Überwachungsstaat",
-                    "text": "Ein Klima der Kontrolle hemmt Gründungen, Forschung und Kultur"})
+        out.append(_w("Überwachungsstaat", "kopf_pct", -min(4.0, 0.07 * (u - 25)), "Ein Klima der Kontrolle hemmt Gründungen, Forschung und Kultur"))
     if s < 60:
-        out.append({"hebel": "zuf_pt", "wert": -min(8.0, 0.2 * (60 - s)), "titel": "Bürger fühlen sich unsicher",
-                    "text": "Zu wenig Polizei und Justiz: die Bevölkerung fürchtet Verbrechen"})
+        out.append(_w("Bürger fühlen sich unsicher", "zuf_pt", -min(8.0, 0.2 * (60 - s)), "Zu wenig Polizei und Justiz: die Bevölkerung fürchtet Verbrechen"))
     if u > 30:
-        out.append({"hebel": "zuf_pt", "wert": -min(8.0, 0.18 * (u - 30)), "titel": "Bürger fühlen sich überwacht",
-                    "text": "Zu viel Kontrolle: die Bevölkerung fühlt sich bevormundet und beobachtet"})
+        out.append(_w("Bürger fühlen sich überwacht", "zuf_pt", -min(8.0, 0.18 * (u - 30)), "Zu viel Kontrolle: die Bevölkerung fühlt sich bevormundet und beobachtet"))
     return out
 
 
+def _wirk_bildung(z, ctx):
+    b, a, h = z["bildung"], z["akademiker"], z["handwerk"]
+    out = [_w("Bildungsniveau", "kopf_pct", _clamp(0.20 * (b - NEUTRAL), -8, 8),
+              "Qualifizierte Arbeitskräfte erhöhen die Wirtschaftsleistung pro Kopf" if b >= NEUTRAL else "Schlecht ausgebildete Arbeitskräfte drücken die Wirtschaftsleistung pro Kopf")]
+    if a > 38:
+        out.append(_w("Zu viele Akademiker", "kopf_pct", -min(8.0, 0.5 * (a - 38)), f"Akademikeranteil {_de(a)} %: Überqualifikation, die Wirtschaft braucht mehr Handwerk und Facharbeit"))
+    elif a < 18:
+        out.append(_w("Zu wenige Akademiker", "kopf_pct", -min(5.0, 0.35 * (18 - a)), f"Akademikeranteil {_de(a)} %: es fehlen Forscher, Ärzte und Ingenieure, Innovation stockt"))
+    if h < 38:
+        out.append(_w("Handwerkermangel", "kopf_pct", -min(6.0, 0.4 * (38 - h)), f"Nur {_de(h)} % Handwerker und Facharbeiter: Betriebe finden keine Fachkräfte"))
+    if a > 40:
+        out.append(_w("Akademiker ohne Stelle", "zuf_pt", -min(3.0, 0.15 * (a - 40)), "Viele Hochqualifizierte finden keine passende Arbeit, das drückt die Stimmung"))
+    return out
+
+
+def _wirk_forschung(z, ctx):
+    f = z["forschung"]
+    return [_w("Innovation", "kopf_pct", _clamp(0.12 * (f - NEUTRAL), -5, 5),
+               "Neue Verfahren und Erfindungen steigern die Produktivität" if f >= NEUTRAL else "Der technische Rückstand bremst die Produktivität"),
+            _w("Rüstungsforschung", "ruestung_pct", _clamp(-0.6 * (f - NEUTRAL), -25, 35),
+               "Gute Forschung macht Militärgüter günstiger" if f >= NEUTRAL else "Schwache Forschung verteuert Militärgüter: veraltete Technik, Abhängigkeit vom Ausland")]
+
+
+def _wirk_industrie(z, ctx):
+    i = z["industrie"]
+    return [_w("Industrieproduktion", "kopf_pct", _clamp(0.35 * (i - NEUTRAL), -10, 10),
+               "Eine starke Industrie erhöht das gesamte BIP" if i >= NEUTRAL else "Eine schwache Industrie senkt das gesamte BIP")]
+
+
+def _wirk_kultur(z, ctx):
+    k, t = z["kultur"], z["tourismus"]
+    return [_w("Tourismus", "kopf_pct", _clamp(0.10 * (t - NEUTRAL), -4, 5),
+               "Besucher bringen Einnahmen in Hotels, Gastronomie und Handel" if t >= NEUTRAL else "Wenige Besucher: Hotels, Gastronomie und Handel verdienen weniger"),
+            _w("Kulturelles Leben", "zuf_pt", _clamp(0.12 * (k - NEUTRAL), -5, 3), "Theater, Museen und Feste prägen die Stimmung" if k >= NEUTRAL else "Das Land wirkt trist: kaum Kultur und Feste")]
+
+
+def _wirk_bevoelkerung(z, ctx):
+    zu = ctx.get("zuf", 80.0)
+    if zu < 45:
+        return [_w("Abwanderung", "bev_pp", -min(0.2, 0.01 * (45 - zu)), "Unzufriedene Menschen verlassen das Land")]
+    if zu > 85:
+        return [_w("Zuzug", "bev_pp", 0.03, "Das Land gilt als lebenswert, Menschen ziehen zu")]
+    return []
+
+
+def _ind(id_, name, einheit, start, traeg, ziel):
+    return {"id": id_, "name": name, "einheit": einheit, "start": start, "traeg": traeg, "ziel": ziel}
+
+
 MODULE = [
-    {"id": "gesundheit", "name": "Gesundheit und Bevölkerung", "icon": "users", "kategorien": ("gesundheit", "umwelt", "soziales"),
-     "beschreibung": "Das Gesundheitsniveau (Gesundheitswesen 80 %, Umwelt 10 %, Arbeit und Soziales 10 %) bestimmt die Lebenserwartung und das "
-                     "Bevölkerungswachstum. Mehr Einwohner bedeuten mehr Steueraufkommen und eine höhere Reichsabgabe.",
+    {"id": "infrastruktur", "name": "Infrastruktur", "icon": "house", "kategorien": ("infrastruktur", "umwelt", "transport"),
+     "beschreibung": "Wasserversorgung und Wasseraufbereitung, Müllentsorgung, Straßenmeisterei, Brücken: alles, was ein Land am Laufen hält. Verfall bleibt lange unbemerkt, "
+                     "wirkt dann aber auf Gesundheit, Umwelt, Verkehr, Tourismus und Stimmung.",
      "indikatoren": [
-         {"id": "gesundheit", "name": "Gesundheitsniveau", "einheit": "Punkte", "start": NEUTRAL, "traeg": 0.18,
-          "ziel": lambda E, z: 0.80 * _t(E, "gesundheit") + 0.10 * _t(E, "umwelt") + 0.10 * _t(E, "soziales")}],
+         _ind("wasser", "Wasserversorgung", "Punkte", NEUTRAL, 0.15, lambda E, z: 0.75 * _t(E, "infrastruktur") + 0.25 * _t(E, "umwelt")),
+         _ind("muell", "Müllentsorgung", "Punkte", NEUTRAL, 0.15, lambda E, z: 0.80 * _t(E, "infrastruktur") + 0.20 * _t(E, "umwelt")),
+         _ind("strassen", "Straßen und Brücken", "Punkte", NEUTRAL, 0.12, lambda E, z: 0.80 * _t(E, "infrastruktur") + 0.20 * _t(E, "transport"))],
+     "wirkungen": _wirk_infrastruktur},
+    {"id": "transport", "name": "Transport und Handel", "icon": "arrow-right-left", "kategorien": ("transport", "infrastruktur", "industrie"),
+     "beschreibung": "Bahnen, Häfen und Verkehrswege (80 %, dazu der Zustand der Straßen 20 %) bestimmen den Handel. Fehlt Transportkapazität für die Industrie, entstehen "
+                     "Lieferengpässe: Produktion und Versorgung stocken, sogar Rüstungsgüter werden teurer.",
+     "indikatoren": [
+         _ind("transport", "Transportniveau", "Punkte", NEUTRAL, 0.15, lambda E, z: 0.80 * _t(E, "transport") + 0.20 * z["strassen"]),
+         _ind("engpass", "Lieferengpässe", "Punkte", 0.0, 0.25, lambda E, z: _clamp(100 * (1 + 0.5 * (E.get("industrie", 1.0) - 1) - z["transport"] / NEUTRAL), 0, 100))],
+     "wirkungen": _wirk_transport},
+    {"id": "umwelt", "name": "Umwelt und Klima", "icon": "circle-alert", "kategorien": ("umwelt", "industrie", "transport", "landwirtschaft"),
+     "beschreibung": "Die CO₂-Belastung steigt mit Industrie, Verkehr und Landwirtschaft und sinkt mit Investitionen in die Umwelt; Müll verschlechtert sie. Hohe Belastung "
+                     "senkt das Gesundheitsniveau, belastet das Klima und die Stimmung.",
+     "indikatoren": [
+         _ind("co2", "CO₂-Belastung", "Punkte", 50.0, 0.12,
+              lambda E, z: _clamp(50 + 22 * (E.get("industrie", 1.0) - 1) + 8 * (E.get("transport", 1.0) - 1) + 6 * (E.get("landwirtschaft", 1.0) - 1)
+                                  - 45 * (E.get("umwelt", 1.0) - 1) + 0.35 * (NEUTRAL - z["muell"]), 0, 100))],
+     "wirkungen": _wirk_umwelt},
+    {"id": "landwirtschaft", "name": "Landwirtschaft und Ernährung", "icon": "file-check", "kategorien": ("landwirtschaft", "transport", "soziales"),
+     "beschreibung": "Die Ernährungssicherheit hängt vor allem von der Landwirtschaft ab, dazu von Transport (Verteilung) und Sozialausgaben. Lieferengpässe und Umweltschäden "
+                     "verschlechtern sie. Unter 60 Punkten herrscht Hunger.",
+     "indikatoren": [
+         _ind("ernaehrung", "Ernährungssicherheit", "Punkte", NEUTRAL, 0.20,
+              lambda E, z: _clamp(0.70 * _t(E, "landwirtschaft") + 0.15 * z["transport"] + 0.15 * _t(E, "soziales")
+                                  - 0.3 * max(0, z["engpass"] - 20) - 0.2 * max(0, z["co2"] - 70), 0, 100))],
+     "wirkungen": _wirk_landwirtschaft},
+    {"id": "gesundheit", "name": "Gesundheit", "icon": "shield-check", "kategorien": ("gesundheit", "soziales", "umwelt", "infrastruktur", "landwirtschaft"),
+     "beschreibung": "Das Gesundheitsniveau besteht zu 55 % aus dem Gesundheitswesen, dazu Sozialausgaben (8 %), Trinkwasser (10 %), Ernährung (12 %) und Umwelt (15 %: "
+                     "hohe CO₂-Belastung macht krank). Es bestimmt die Lebenserwartung und das Bevölkerungswachstum.",
+     "indikatoren": [
+         _ind("gesundheit", "Gesundheitsniveau", "Punkte", NEUTRAL, 0.18,
+              lambda E, z: _clamp(0.55 * _t(E, "gesundheit") + 0.08 * _t(E, "soziales") + 0.10 * z["wasser"] + 0.12 * z["ernaehrung"]
+                                  + 0.15 * (NEUTRAL - 0.8 * (z["co2"] - 50)), 0, 100))],
      "wirkungen": _wirk_gesundheit},
-    {"id": "bildung", "name": "Bildung und Arbeitsmarkt", "icon": "file-text", "kategorien": ("bildung", "forschung", "industrie"),
-     "beschreibung": "Bildung (85 %) und Forschung (15 %) bestimmen das Bildungsniveau und damit das BIP pro Kopf. Die Bildungsausgaben legen auch fest, wie viele "
-                     "Menschen studieren: zu viele Akademiker bedeuten zu wenige Handwerker und Facharbeiter (die Industrie fragt sie nach), zu wenige bremsen die Innovation.",
-     "indikatoren": [
-         {"id": "bildung", "name": "Bildungsniveau", "einheit": "Punkte", "start": NEUTRAL, "traeg": 0.10,
-          "ziel": lambda E, z: 0.85 * _t(E, "bildung") + 0.15 * _t(E, "forschung")},
-         {"id": "akademiker", "name": "Akademikeranteil", "einheit": "%", "start": 26.0, "traeg": 0.09,
-          "ziel": lambda E, z: _clamp(8 + 18 * E.get("bildung", 1.0), 5, 60)},
-         {"id": "handwerk", "name": "Handwerker und Facharbeiter", "einheit": "%", "start": 48.0, "traeg": 0.09,
-          "ziel": lambda E, z: _clamp(48 - 0.7 * (z["akademiker"] - 26) + 8 * (E.get("industrie", 1.0) - 1), 10, 70)}],
-     "wirkungen": _wirk_bildung},
     {"id": "sicherheit", "name": "Innere Sicherheit", "icon": "shield", "kategorien": ("innere_sicherheit", "soziales"),
      "beschreibung": "Innere Sicherheit (75 %) und Arbeit und Soziales (25 %) bestimmen das Sicherheitsgefühl und die Kriminalitätsrate. Zu wenig Sicherheit: die Bürger "
                      "fühlen sich unsicher. Weit über dem Richtwert wächst der Überwachungsgrad: die Bürger fühlen sich überwacht und bevormundet.",
      "indikatoren": [
-         {"id": "sicherheit", "name": "Sicherheitsgefühl", "einheit": "Punkte", "start": NEUTRAL, "traeg": 0.25,
-          "ziel": lambda E, z: 0.75 * _t(E, "innere_sicherheit") + 0.25 * _t(E, "soziales")},
-         {"id": "ueberwachung", "name": "Überwachungsgrad", "einheit": "Punkte", "start": 0.0, "traeg": 0.30,
-          "ziel": lambda E, z: _clamp(60 * (E.get("innere_sicherheit", 1.0) - 1.2), 0, 100)}],
+         _ind("sicherheit", "Sicherheitsgefühl", "Punkte", NEUTRAL, 0.25, lambda E, z: 0.75 * _t(E, "innere_sicherheit") + 0.25 * _t(E, "soziales")),
+         _ind("ueberwachung", "Überwachungsgrad", "Punkte", 0.0, 0.30, lambda E, z: _clamp(60 * (E.get("innere_sicherheit", 1.0) - 1.2), 0, 100))],
      "wirkungen": _wirk_sicherheit},
+    {"id": "bildung", "name": "Bildung und Arbeitsmarkt", "icon": "file-text", "kategorien": ("bildung", "forschung", "industrie"),
+     "beschreibung": "Bildung (85 %) und Forschung (15 %) bestimmen das Bildungsniveau und damit das BIP pro Kopf. Die Bildungsausgaben legen auch fest, wie viele "
+                     "Menschen studieren: zu viele Akademiker bedeuten zu wenige Handwerker und Facharbeiter (die Industrie fragt sie nach), zu wenige bremsen die Innovation.",
+     "indikatoren": [
+         _ind("bildung", "Bildungsniveau", "Punkte", NEUTRAL, 0.10, lambda E, z: 0.85 * _t(E, "bildung") + 0.15 * _t(E, "forschung")),
+         _ind("akademiker", "Akademikeranteil", "%", 26.0, 0.09, lambda E, z: _clamp(8 + 18 * E.get("bildung", 1.0), 5, 60)),
+         _ind("handwerk", "Handwerker und Facharbeiter", "%", 48.0, 0.09,
+              lambda E, z: _clamp(48 - 0.7 * (z["akademiker"] - 26) + 8 * (E.get("industrie", 1.0) - 1), 10, 70))],
+     "wirkungen": _wirk_bildung},
+    {"id": "forschung", "name": "Forschung und Technik", "icon": "search", "kategorien": ("forschung", "bildung"),
+     "beschreibung": "Forschung (80 %, dazu das Bildungsniveau 20 %) bestimmt den Stand der Technik. Er steigert die Produktivität und macht Militärgüter günstiger "
+                     "(Beschaffungspreise der Verteidigung); bei schwacher Forschung werden sie teurer.",
+     "indikatoren": [_ind("forschung", "Innovationsniveau", "Punkte", NEUTRAL, 0.08, lambda E, z: 0.80 * _t(E, "forschung") + 0.20 * z["bildung"])],
+     "wirkungen": _wirk_forschung},
+    {"id": "industrie", "name": "Industrie und Wirtschaft", "icon": "chart-column", "kategorien": ("industrie", "forschung", "transport"),
+     "beschreibung": "Die Industrie (70 %, dazu Forschung und Transport je 15 %) bestimmt das gesamte BIP. Sie verbraucht aber Umwelt (CO₂), braucht Handwerker "
+                     "und überlastet bei schwachem Verkehrsnetz die Lieferwege.",
+     "indikatoren": [_ind("industrie", "Industrieniveau", "Punkte", NEUTRAL, 0.10, lambda E, z: 0.70 * _t(E, "industrie") + 0.15 * _t(E, "forschung") + 0.15 * z["transport"])],
+     "wirkungen": _wirk_industrie},
+    {"id": "kultur", "name": "Kultur und Tourismus", "icon": "landmark", "kategorien": ("kultur", "bildung"),
+     "beschreibung": "Das Kulturangebot (85 %, dazu Bildung 15 %) macht ein Land lebenswert. Der Tourismus hängt außerdem von Sicherheit, Sauberkeit (Müll, CO₂) und "
+                     "Straßen ab; Überwachung schreckt Besucher ab.",
+     "indikatoren": [
+         _ind("kultur", "Kulturniveau", "Punkte", NEUTRAL, 0.12, lambda E, z: 0.85 * _t(E, "kultur") + 0.15 * _t(E, "bildung")),
+         _ind("tourismus", "Attraktivität für Touristen", "Punkte", NEUTRAL, 0.15,
+              lambda E, z: _clamp(0.40 * z["kultur"] + 0.15 * z["sicherheit"] + 0.15 * z["muell"] + 0.15 * z["strassen"]
+                                  + 0.15 * (NEUTRAL - 0.8 * (z["co2"] - 50)) - 0.3 * max(0, z["ueberwachung"] - 30), 0, 100))],
+     "wirkungen": _wirk_kultur},
+    {"id": "bevoelkerung", "name": "Bevölkerungswachstum und Schwund", "icon": "users", "kategorien": (),
+     "beschreibung": "Die Einwohnerzahl ändert sich jeden Monat um die Summe aus Gesundheit, Wasserversorgung, Hunger und der Stimmung (Abwanderung bei Unzufriedenheit, "
+                     "Zuzug bei großer Zufriedenheit). Mehr Einwohner bedeuten mehr Steueraufkommen und eine höhere Reichsabgabe.",
+     "indikatoren": [], "wirkungen": _wirk_bevoelkerung},
 ]
 INDIKATOREN = {i["id"]: i for m in MODULE for i in m["indikatoren"]}
 
@@ -180,9 +313,13 @@ def entwickeln(con, schl, anteile, richt, periode, kopf_ratio=1.0):
             neu[i["id"]] = n
             zust[i["id"]] = {"alt": alt[i["id"]], "ziel": ziel, "neu": n}
     effekte = []
+    import etatplan
+    zu = etatplan.zuf_letzte(con, schl)
+    ctx = {"zuf": 80.0 if zu is None else zu}
     for m in MODULE:
-        for e in m["wirkungen"](neu):
+        for e in m["wirkungen"](neu, ctx):
             effekte.append(dict(e, modul=m["id"]))
+    ruestung = _clamp(sum(e["wert"] for e in effekte if e["hebel"] == "ruestung_pct"), *RUESTUNG_GRENZEN)
     bev_pp = sum(e["wert"] for e in effekte if e["hebel"] == "bev_pp")
     kopf = _clamp(sum(e["wert"] for e in effekte if e["hebel"] == "kopf_pct"), *KOPF_GRENZEN)
     zuf = sum(e["wert"] for e in effekte if e["hebel"] == "zuf_pt")
@@ -190,7 +327,7 @@ def entwickeln(con, schl, anteile, richt, periode, kopf_ratio=1.0):
     einkommen = _clamp(70 + 25 * math.log2(max(0.05, kopf_ratio * (1 + kopf / 100))), 0, 100)
     hdi = (neu["gesundheit"] + neu["bildung"] + einkommen) / 300
     return {"zustand": zust, "effekte": effekte, "bev_pp": bev_pp, "bev_faktor": bev, "bev_faktor_alt": alt["bev_faktor"], "kopf_pct": kopf,
-            "kopf_faktor": 1 + kopf / 100, "zuf_pt": zuf, "hdi": hdi, "lebenserwartung": 55 + 0.35 * neu["gesundheit"],
+            "kopf_faktor": 1 + kopf / 100, "zuf_pt": zuf, "ruestung_pct": ruestung, "hdi": hdi, "lebenserwartung": 55 + 0.35 * neu["gesundheit"],
             "kriminalitaet": 3500 * math.exp((NEUTRAL - neu["sicherheit"]) / 40), "einkommen_index": einkommen}
 
 
@@ -228,6 +365,19 @@ def speichern(con, periode, liste):
         for i, v in d["zustand"].items():
             con.execute("INSERT OR REPLACE INTO ep_zustand (periode, schl, schluessel, wert) VALUES (?,?,?,?)", (periode, schl, i, round(v["neu"], 4)))
         con.execute("INSERT OR REPLACE INTO ep_zustand (periode, schl, schluessel, wert) VALUES (?,?,?,?)", (periode, schl, "bev_faktor", round(d["bev_faktor"], 6)))
+        con.execute("INSERT OR REPLACE INTO ep_zustand (periode, schl, schluessel, wert) VALUES (?,?,?,?)", (periode, schl, "ruestung_pct", round(d["ruestung_pct"], 4)))
+
+
+def ruestung_faktor(con, stelle):
+    """Preisfaktor für Militärgüter einer Verteidigungskasse (vt-<sid> bzw. verteidigung = Reich) aus dem zuletzt gebuchten Stand: Forschung und Lieferketten."""
+    schl = "reich" if stelle == "verteidigung" else "ts-" + stelle[3:] if stelle.startswith("vt-") else None
+    if not schl:
+        return 1.0
+    try:
+        r = con.execute("SELECT wert FROM ep_zustand WHERE schl=? AND schluessel='ruestung_pct' ORDER BY periode DESC LIMIT 1", (schl,)).fetchone()
+    except sqlite3.OperationalError:
+        return 1.0
+    return 1.0 + float(r["wert"]) / 100 if r else 1.0
 
 
 def verlauf(con, schl, n=12):
@@ -274,7 +424,7 @@ def effekte_html(d, leer="Keine besonderen Wirkungen: die Investitionen liegen i
     for e in sorted(d["effekte"], key=lambda e: -abs(e["wert"])):
         if abs(e["wert"]) < 0.05:
             continue
-        einheit = {"bev_pp": "% Bev. p. a.", "kopf_pct": "% BIP/Kopf", "zuf_pt": "Pkt. Zufriedenheit"}[e["hebel"]]
+        einheit = {"bev_pp": "% Bev. p. a.", "kopf_pct": "% BIP/Kopf", "zuf_pt": "Pkt. Zufriedenheit", "ruestung_pct": "% Rüstungspreis"}[e["hebel"]]
         wert = e["wert"] * (12 if e["hebel"] == "bev_pp" else 1)
         zeilen.append(f'<div class="{"plus" if e["wert"] > 0 else "minus"}"><b>{_vz(wert, einheit)}</b><span><em>{esc(e["titel"])}.</em> {esc(e["text"])}</span></div>')
     return f'<div class="en-effekte">{"".join(zeilen)}</div>' if zeilen else f'<p class="sa-hinweis">{esc(leer)}</p>'
@@ -282,8 +432,8 @@ def effekte_html(d, leer="Keine besonderen Wirkungen: die Investitionen liegen i
 
 def kurz_html(d, link=None):
     """Kurzfassung für die Etatseiten: die stärksten Wirkungen."""
-    kz = (f'<b>HDI {_de(d["hdi"], 3)}</b> · Lebenserwartung {_de(d["lebenserwartung"], 0)} Jahre · Bevölkerung {_vz((d["bev_faktor"] - 1) * 100)} gegenüber der Karte'
-          f' · BIP pro Kopf {_vz(d["kopf_pct"])}')
+    kz = (f'<b>HDI {_de(d["hdi"], 3)}</b> · Lebenserwartung {_de(d["lebenserwartung"], 0)} Jahre · Bevölkerungswachstum {_vz(d["bev_pp"] * 12)} pro Jahr'
+          f' · BIP pro Kopf {_vz(d["kopf_pct"])} · Militärgüter {_vz(d["ruestung_pct"])}')
     return (f'<h2>{amt.ic("users")} Entwicklung</h2><p class="az">Langfristige Wirkung der Investitionen. {kz}.'
             + (f' <a href="{esc(link)}">Alle Einzelheiten →</a>' if link else "") + f'</p>{effekte_html(d)}')
 
@@ -310,6 +460,14 @@ def tabelle(liste, ziel_liste, pfad, markiert=""):
             flags.append("Handwerkermangel")
         if z["gesundheit"]["neu"] < 55:
             flags.append("Gesundheitskrise")
+        if z["ernaehrung"]["neu"] < 50:
+            flags.append("Hunger")
+        if z["co2"]["neu"] > 75:
+            flags.append("Umweltbelastung")
+        if z["engpass"]["neu"] > 40:
+            flags.append("Lieferengpässe")
+        if min(z["wasser"]["neu"], z["muell"]["neu"], z["strassen"]["neu"]) < 50:
+            flags.append("Infrastruktur marode")
         zeilen.append((d["hdi"], f'<tr{" class=fokus" if s == markiert else ""}><td><a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td>'
                                  f'<td class="num">{_de(d["hdi"], 3)}</td><td class="num">{_vz(d["bev_pp"] * 12)}</td>'
                                  f'<td class="num">{esc(", ".join(flags)) if flags else "–"}</td></tr>'))
@@ -349,7 +507,8 @@ async def seite(request, k):
     kopf = bip * 1e6 / ew if ew else 0
     kz = [("Einwohner", f'{ew:,}'.replace(",", ".")), ("BIP pro Kopf", f'{kopf:,.0f} €'.replace(",", ".")), ("HDI", _de(d["hdi"], 3)),
           ("Lebenserwartung", f'{_de(d["lebenserwartung"], 1)} Jahre')]
-    kz2 = [("Bevölkerung gegenüber der Karte", _vz((ew / ew0 - 1) * 100 if ew0 else 0)), ("BIP pro Kopf durch Investitionen", _vz(d["kopf_pct"])),
+    kz2 = [("Bevölkerungswachstum pro Jahr", _vz(d["bev_pp"] * 12)), ("Bevölkerung gegenüber der Karte", _vz((ew / ew0 - 1) * 100 if ew0 else 0)),
+           ("BIP pro Kopf durch Investitionen", _vz(d["kopf_pct"])), ("Preise für Militärgüter", _vz(d["ruestung_pct"])),
            ("Straftaten je 100.000 Einwohner", f'{d["kriminalitaet"]:,.0f}'.replace(",", ".")), ("Zufriedenheit", f'{_de(zuf["neu"], 0)} / 100')]
     kz_html = lambda xs: f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in xs)}</div>'
     module = "".join(
@@ -358,7 +517,8 @@ async def seite(request, k):
         + effekte_html({"effekte": [e for e in d["effekte"] if e["modul"] == m["id"]]}, "Keine besondere Wirkung.") + '</div>' for m in MODULE)
     vl = verlauf(con, ziel)
     zeilen = [(sa._monatsname(p), _de(v.get("gesundheit", NEUTRAL)), _de(v.get("bildung", NEUTRAL)), _de(v.get("akademiker", 26)) + " %", _de(v.get("handwerk", 48)) + " %",
-               _de(v.get("sicherheit", NEUTRAL)), _de(v.get("ueberwachung", 0)), _vz((v.get("bev_faktor", 1) - 1) * 100)) for p, v in reversed(vl)]
+               _de(v.get("sicherheit", NEUTRAL)), _de(v.get("ueberwachung", 0)), _de(v.get("co2", 50)), _de(v.get("ernaehrung", NEUTRAL)), _de(v.get("engpass", 0)),
+               _vz((v.get("bev_faktor", 1) - 1) * 100)) for p, v in reversed(vl)]
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in ziele)
     inhalt = (CSS + f'<h1>{amt.ic("users")} Entwicklung · {esc(name)}</h1>{amt.meldung(request)}'
               '<p class="az">Die Investitionen in die Politikfelder wirken langfristig auf Bevölkerung, Wirtschaft und Stimmung. Die Werte folgen der Etatverteilung nur '
@@ -367,7 +527,7 @@ async def seite(request, k):
               + kz_html(kz) + kz_html(kz2) + f'<h2>Was gerade wirkt</h2>{effekte_html(d)}'
               + f'<h2>Die Bereiche im Einzelnen</h2><p class="sa-hinweis">Der Strich markiert den neutralen Wert bei der Vorgabe-Verteilung, der Pfeil die Richtung zum Zielwert.</p>{module}'
               + f'<details class="sa-auf"><summary>{amt.ic("clock")}Verlauf ({len(zeilen)} Monate)</summary>'
-              + amt.tabelle(["Monat", "Gesundheit", "Bildung", "Akademiker", "Handwerker", "Sicherheit", "Überwachung", "Bevölkerung"], zeilen,
+              + amt.tabelle(["Monat", "Gesundheit", "Bildung", "Akademiker", "Handwerker", "Sicherheit", "Überwachung", "CO₂", "Ernährung", "Engpässe", "Bevölkerung"], zeilen,
                             "Noch kein gebuchter Monat mit Entwicklung.", klasse="sa-haushalt") + '</details>'
               + f'<p><a href="{sa.PFAD}etatplanung/?ziel={esc(ziel)}">Etat planen →</a></p>')
     return sa.ant(request, k, "Entwicklung", "sa-entwicklung", inhalt)

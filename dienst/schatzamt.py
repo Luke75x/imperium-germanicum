@@ -922,7 +922,7 @@ def tarife_html(con):
     saetze = [("Währung", f'Krone (Kr) zu 100 Heller · 1 Kr = {e("wechselkurs")} €'),
               ("Staatshaushalt der Bevölkerung", f'Steuern {ak["steuerquote"]} % des BIP je Teilstaat (Echtmaßstab); Reichsabgabe je Teilstaat '
                                                  f'nach Bevölkerung, Einkommen pro Kopf und Fläche (im Schnitt {ak["reichsanteil"]} %, '
-                                                 f'mindestens {ak.get("quote_min", 20)} %, höchstens {ak.get("quote_max", 40)} % des Etats), Rest an den Teilstaat; Pflichtausgaben {ak.get("ausgabenquote", 97)} % der Einnahmen (monatlich)'),
+                                                 f'mindestens {ak.get("quote_min", 20)} %, höchstens {ak.get("quote_max", 33)} % des Etats), Rest an den Teilstaat; Pflichtausgaben {ak.get("ausgabenquote", 97)} % der Einnahmen (monatlich)'),
               ("Verteidigungsetat", (lambda vt: 'Anteil am Ausgabenbudget bestimmen Reich und Teilstaaten in der Etatverteilung (Vorgabe: '
                                                   f'{float(vt["quote_bip"]):g}'.replace(".", ",") + f' % des BIP, davon {vt["anteil_reich"]} % an das Reich/Führungsstab); '
                                                   'der Anteil der Teilstaaten fließt in deren Verteidigungskasse (Militär, Gerät)')(e("verteidigung"))),

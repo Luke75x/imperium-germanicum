@@ -1,4 +1,4 @@
-"""Etatverteilung: Reich und Teilstaaten bestimmen, wie ihr Ausgabenbudget auf elf Politikfelder verteilt wird (/schatzamt/etatverteilung/).
+"""Etatverteilung: Reich und Teilstaaten bestimmen, wie ihr Ausgabenbudget auf zwölf Politikfelder verteilt wird (/schatzamt/etatverteilung/).
 
 Rücklage (Spalte ep_fassungen.ruecklage, % des eigenen Steueranteils; NULL = Vorgabe 100 − ausgabenquote): plus = sparen (bleibt in der Staats- bzw.
 Reichskasse), minus = entnehmen (Ausgabenbudget größer als der Steueranteil, Differenz aus der Kasse), höchstens bis zu den freien Mitteln
@@ -40,11 +40,13 @@ PFAD_PLAN = sa.PFAD + "etatplanung/"
 
 KATEGORIEN = [("innere_sicherheit", "Innere Sicherheit"), ("forschung", "Forschung"), ("gesundheit", "Gesundheitswesen"), ("industrie", "Industrie"),
               ("kultur", "Kultur"), ("verteidigung", "Verteidigung"), ("soziales", "Arbeit und Soziales"), ("umwelt", "Umwelt"),
-              ("transport", "Transportwesen"), ("bildung", "Bildung"), ("landwirtschaft", "Landwirtschaft")]
+              ("transport", "Transportwesen"), ("bildung", "Bildung"), ("landwirtschaft", "Landwirtschaft"),
+              ("infrastruktur", "Infrastruktur")]   # Müllversorgung, Wasseraufbereitung, Straßenmeisterei, Brücken – hinzugekommen am 08.11.2026
 NAMEN = dict(KATEGORIEN)
+INFRA_ANTEIL = 6.0   # Vorgabe-Anteil der Infrastruktur am Ausgabenbudget ohne Verteidigung; die zehn übrigen Felder behalten ihre Verhältnisse (je × 0,94)
 # Vorgabe für alle Kategorien außer Verteidigung (Richtwerte eines Staatshaushalts), Summe 100
-VORGABE_GEWICHT = {"soziales": 41, "gesundheit": 14, "bildung": 12, "transport": 8, "innere_sicherheit": 5, "forschung": 5, "industrie": 5,
-                   "umwelt": 4, "kultur": 3, "landwirtschaft": 3}
+VORGABE_GEWICHT = {"soziales": 38.54, "gesundheit": 13.16, "bildung": 11.28, "transport": 7.52, "innere_sicherheit": 4.7, "forschung": 4.7, "industrie": 4.7,
+                   "umwelt": 3.76, "kultur": 2.82, "landwirtschaft": 2.82, "infrastruktur": INFRA_ANTEIL}
 
 amt.ICONS.setdefault("chart-pie", '<path d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"/>'
                                   '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>')
@@ -90,7 +92,24 @@ def einrichten(con):
                 con.execute("INSERT OR IGNORE INTO ep_entwuerfe (schl, zeit, autor_id, autor_name, anteile, ruecklage) VALUES (?,?,?,?,?,?)",
                             (r["schl"], r["zeit"], "", "Übernahme", r["anteile"], r["ruecklage"]))
             con.execute("DELETE FROM ep_fassungen WHERE schl=? AND ab=?", (r["schl"], r["ab"]))
+    _kategorien_migrieren(con)
     con.commit()
+
+
+def _kategorien_migrieren(con):
+    """Pläne (Fassungen und Entwürfe) aus der Zeit vor der Kategorie „Infrastruktur“ bekommen sie mit dem Richtwert (6 % des Ausgabenbudgets ohne Verteidigung); die übrigen
+    Nicht-Verteidigungsfelder werden um denselben Anteil (× 0,94) verkleinert – so bleibt jedes Feld im Verhältnis zu seinem (ebenfalls × 0,94 verkleinerten) Richtwert gleich."""
+    faktor = 1 - INFRA_ANTEIL / 100
+    for tabelle, schluessel in (("ep_fassungen", ("schl", "ab")), ("ep_entwuerfe", ("schl",))):
+        for r in con.execute(f"SELECT * FROM {tabelle}").fetchall():
+            w = json.loads(r["anteile"] or "{}")
+            if not w or "infrastruktur" in w or any(k not in w for k, _ in KATEGORIEN if k != "infrastruktur"):
+                continue
+            v = float(w.get("verteidigung", 0))
+            neu = {k: (float(x) if k == "verteidigung" else round(float(x) * faktor, 2)) for k, x in w.items()}
+            neu["infrastruktur"] = round(INFRA_ANTEIL * (100 - v) / 100, 2)
+            wo = " AND ".join(f"{c}=?" for c in schluessel)
+            con.execute(f"UPDATE {tabelle} SET anteile=? WHERE {wo}", (json.dumps(neu), *[r[c] for c in schluessel]))
 
 
 # ---------------------------------------------------------------- Fassungen, Gültigkeit und Sperre
@@ -325,6 +344,8 @@ WIRKUNGEN = {
                 {"einnahmen": -1.5}, "Fachkräftemangel"),
     "landwirtschaft": ({"ruecklage": 0.15}, "Selbstversorgung mit Lebensmitteln",
                        {"ruecklage": -0.8}, "Teure Lebensmitteleinfuhren und Ernteausfälle"),
+    "infrastruktur": ({"einnahmen": 0.4}, "Funktionierende Wasserversorgung, Müllentsorgung und Straßen",
+                      {"einnahmen": -2.0, "ruecklage": -0.4}, "Ausfälle bei Wasser, Müll und Straßen: Produktionsausfälle und teure Notreparaturen"),
 }
 AUSGEWOGEN = ({"einnahmen": 0.5}, "Ausgewogener Etat: alle Politikfelder mindestens zu 90 % des Richtwerts versorgt")
 
@@ -401,7 +422,7 @@ def bereitschaft_wirkung(con, periode=None):
 # Trägheit: Die Stimmung bewegt sich je gebuchtem Monat nur um ZUF_TRAEGHEIT des Abstands zum Zielwert (ep_zufriedenheit je Haushaltsmonat).
 # Wirkung auf das Steueraufkommen (zusätzlich zu den Boni/Mali der Felder): ab 85 Bonus, unter 55 Malus (bis −4 %).
 ZUF_GEWICHTE = {"soziales": 24, "gesundheit": 20, "bildung": 12, "innere_sicherheit": 12, "kultur": 8, "umwelt": 8, "transport": 6,
-                "landwirtschaft": 5, "industrie": 3, "forschung": 2, "verteidigung": 0}
+                "landwirtschaft": 5, "industrie": 3, "forschung": 2, "infrastruktur": 8, "verteidigung": 0}
 ZUF_TRAEGHEIT = 0.5
 ZUF_STUFEN = [(85, "Sehr zufrieden"), (70, "Zufrieden"), (55, "Gespalten"), (40, "Unzufrieden"), (0, "Unruhen")]
 ZUF_WIRKUNG = {"bonus_ab": 85, "bonus": 0.5, "malus_ab": 55, "malus_je_punkt": 0.15, "malus_max": 4.0}
@@ -1123,7 +1144,7 @@ async def _seite(request, k, planung):
                'Einkommen und Fläche und lässt sich <b>nicht beeinflussen</b>.</li>')
             + '<li>Vom eigenen Anteil bleibt die <b>Rücklage</b> in der Kasse; der Rest ist das <b>Ausgabenbudget</b>. Die Rücklage ist frei wählbar: '
             '<b>sparen</b> (plus) oder <b>entnehmen</b> (minus) – dann fließen zusätzlich freie Mittel der Kasse in die Politikfelder.</li>'
-            '<li>Das Ausgabenbudget verteilt ' + ("das Reich" if ziel == "reich" else "der Teilstaat") + ' in Prozent auf die elf Kategorien. '
+            '<li>Das Ausgabenbudget verteilt ' + ("das Reich" if ziel == "reich" else "der Teilstaat") + ' in Prozent auf die zwölf Kategorien. '
             'Was nicht zugewiesen wird, bleibt zusätzlich als <b>Rücklage</b> in der ' + ("Reichskasse" if ziel == "reich" else "Staatskasse") + '. '
             '<b>Verteidigung ist echtes Geld</b>: dieser Anteil fließt jeden Monat in die '
             + ("Reichsverteidigungskasse (Führungsstab)" if ziel == "reich" else "Verteidigungskasse (Gehälter des Militärs, Instandhaltung und Kauf von Gerät)")
@@ -1309,7 +1330,7 @@ async def entwurf_post(request):
         sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Der Etat ist schon eingereicht und bis zur nächsten Änderungsperiode nicht mehr änderbar.", True)
     werte = _lesen(form)
     if werte is None:
-        sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Bitte für alle elf Kategorien Prozentwerte angeben; die Summe darf höchstens 100 % betragen.", True)
+        sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Bitte für alle zwölf Kategorien Prozentwerte angeben; die Summe darf höchstens 100 % betragen.", True)
     rl = _rl_lesen(form)
     if rl is None:
         sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", "Bitte für die Rücklage einen Prozentwert zwischen −1000 und 100 angeben.", True)

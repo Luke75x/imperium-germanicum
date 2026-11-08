@@ -4,7 +4,7 @@ Einnahmen: Jeden Monat zahlt die Bevölkerung jedes Teilstaats Steuern: BIP (Mio
 umgerechnet in Kronen zum Wechselkurs. Reichsabgabe: Jeder Teilstaat führt einen eigenen Prozentsatz seiner Steuereinnahmen an das Reich ab
 (abgabequoten): Index aus Bevölkerung, Einkommen pro Kopf und Fläche (je Wurzel des Verhältnisses zum Durchschnitt, gewichtet,
 Vorgabe 40/40/20), so normiert, dass die theoretische Abgabe im Schnitt den „Reichsanteil“ (43 %) ergibt (mindestens quote_min). Die tatsächliche
-Abgabe ist hart auf quote_max (40 % des Etats) begrenzt, auch mit Zuschlag der Haushaltsnotlage; was ein Teilstaat ohne diese Grenze zahlen würde, wird
+Abgabe ist hart auf quote_max (33 % des Etats) begrenzt, auch mit Zuschlag der Haushaltsnotlage; was ein Teilstaat ohne diese Grenze zahlen würde, wird
 mitgeführt (quote_theorie, reich_theorie). Rest an die Staatskasse; die Freien Reichsgebiete (geld.ist_reichsgebiet) sind kein Teilstaat, sondern das
 Reich selbst – dort erhält die Reichskasse alles.
 Ausgaben: Pflichtausgaben (Soziales, Verteidigung, Infrastruktur, Bildung, Verwaltung der nicht spielenden Bevölkerung) als Quote der
@@ -91,10 +91,10 @@ def abgabequoten_beide(daten, p, summen_heller=None, zuschlag=None):
     """(tatsächlich, theoretisch): {Teilstaat-ID: Reichsabgabe in %}. Theoretisch (ohne Obergrenze) – Index aus Bevölkerung, Einkommen pro Kopf und
     Fläche (Wurzel des Verhältnisses zum Durchschnitt der Teilstaaten bzw. zum BIP/Kopf des ganzen Reiches), gewichtet; normiert auf den Reichsanteil
     als nach Einnahmen gewichteten Durchschnitt; mindestens quote_min; dazu der Zuschlag der Haushaltsnotlage (Stufe 3). Tatsächlich: das Ganze, aber
-    höchstens quote_max (Vorgabe 40 %). Freie Reichsgebiete: 100 % (sie sind das Reich)."""
+    höchstens quote_max (Vorgabe 33 %). Freie Reichsgebiete: 100 % (sie sind das Reich)."""
     w = dict(VORGABE_GEWICHTE, **(p.get("gewichte") or {}))
     wsum = sum(float(x) for x in w.values()) or 1
-    lo, hi = float(p.get("quote_min", 20)), float(p.get("quote_max", 40))
+    lo, hi = float(p.get("quote_min", 20)), float(p.get("quote_max", 33))
     basis = float(p["reichsanteil"])
     ts = [(s, bip, ew, km) for s, bip, ew, km in daten if not geld.ist_reichsgebiet(s)]
     if not ts:
@@ -465,7 +465,7 @@ def erklaerung_html(p):
             f'<b>Einkommen pro Kopf ({w["einkommen"]} %)</b> und <b>Fläche ({w["flaeche"]} %)</b> im Vergleich zum Durchschnitt: '
             'große, reiche und weitläufige Teilstaaten zahlen einen höheren Satz.</li>'
             f'<li>Rechnerisch ergibt das im Schnitt <b>{esc(str(p["reichsanteil"]))} %</b>, mindestens {esc(str(p.get("quote_min", 20)))} %. '
-            f'<b>Höchstens {esc(str(p.get("quote_max", 40)))} % des Etats</b> gehen aber an das Reich – diese Obergrenze gilt immer, auch bei einem Zuschlag '
+            f'<b>Höchstens {esc(str(p.get("quote_max", 33)))} % des Etats</b> gehen aber an das Reich – diese Obergrenze gilt immer, auch bei einem Zuschlag '
             'wegen Haushaltsnotlage. Was ein Teilstaat ohne die Grenze zahlen müsste, steht jeweils darunter („ohne Grenze“). '
             'Die Freien Reichsgebiete sind das Reich selbst.</li>'
             f'<li>¹ Pflichtausgaben für die Bevölkerung ({esc(str(p.get("ausgabenquote", 97)))} %) sind abgezogen – ein Teil davon ist als '
@@ -507,7 +507,7 @@ async def seite(request, k):
                  + feld("w", "wechselkurs", "Wechselkurs (€ je Krone)", geld.einstellung(con, "wechselkurs"))
                  + '</div><h3>Reichsabgabe der Teilstaaten</h3><div class="zeilen">'
                  + feld("r", "reichsanteil", "Rechnerischer Durchschnitt an das Reich (%)", p["reichsanteil"])
-                 + feld("mi", "quote_min", "Mindestens (%)", p.get("quote_min", 20)) + feld("ma", "quote_max", "Obergrenze der Abgabe (% des Etats)", p.get("quote_max", 40))
+                 + feld("mi", "quote_min", "Mindestens (%)", p.get("quote_min", 20)) + feld("ma", "quote_max", "Obergrenze der Abgabe (% des Etats)", p.get("quote_max", 33))
                  + '</div><div class="zeilen">'
                  + feld("gb", "g_bevoelkerung", "Gewicht Bevölkerung", w["bevoelkerung"]) + feld("ge", "g_einkommen", "Gewicht Einkommen pro Kopf", w["einkommen"])
                  + feld("gf", "g_flaeche", "Gewicht Fläche", w["flaeche"])

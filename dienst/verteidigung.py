@@ -294,7 +294,10 @@ def beschaffen(con, stelle, typ, anzahl, k):
     if not 1 <= anzahl <= 100000:
         raise geld.Fehler("Bitte eine Anzahl zwischen 1 und 100.000 angeben.")
     kasse = geld.stellenkonto(con, stelle)
-    preis = t["preis"] * anzahl
+    import entwicklung
+    faktor = entwicklung.ruestung_faktor(con, stelle)   # Forschung und Lieferketten verändern die Preise
+    einzel = int(round(t["preis"] * faktor))
+    preis = einzel * anzahl
     import notlage
     if kasse["saldo"] < preis and not notlage.dispo_erlaubt(con, kasse, preis, "ruestung"):
         if kasse["saldo"] < 0:
@@ -308,7 +311,7 @@ def beschaffen(con, stelle, typ, anzahl, k):
     bereit = (n_alt * b_alt + anzahl * 100.0) / (n_alt + anzahl)
     con.execute("INSERT INTO vt_bestand (stelle, typ, anzahl, bereitschaft) VALUES (?,?,?,?) ON CONFLICT(stelle, typ) DO UPDATE SET "
                 "anzahl=excluded.anzahl, bereitschaft=excluded.bereitschaft", (stelle, typ, n_alt + anzahl, round(bereit, 2)))
-    _vorgang(con, stelle, "beschaffung", k, typ, anzahl, preis, f'{anzahl} × {t["name"]} zu je {mark(t["preis"])}')
+    _vorgang(con, stelle, "beschaffung", k, typ, anzahl, preis, f'{anzahl} × {t["name"]} zu je {mark(einzel)}' + (f' (Katalog {mark(t["preis"])}, {(faktor - 1) * 100:+.1f} % durch Forschung und Lieferketten)'.replace(".", ",") if abs(faktor - 1) >= 0.0005 else ""))
     geld.protokoll(con, k, "Rüstungsbeschaffung", f'{kasse["name"]}: {anzahl} × {t["name"]} für {mark(preis)}')
     return preis
 
@@ -524,8 +527,10 @@ async def land(request, k):
         gruppen = {}
         for t in kat.values():
             gruppen.setdefault(t["kategorie"], []).append(t)
+        import entwicklung
+        faktor = entwicklung.ruestung_faktor(con, "vt-" + sid)
         opts = "".join(f'<optgroup label="{esc(g)}">' + "".join(
-            f'<option value="{esc(t["schl"])}" data-preis="{t["preis"]}">{esc(t["name"])} · {geld.mark_kurz(t["preis"])}</option>' for t in ts) + "</optgroup>"
+            f'<option value="{esc(t["schl"])}" data-preis="{int(round(t["preis"] * faktor))}">{esc(t["name"])} · {geld.mark_kurz(int(round(t["preis"] * faktor)))}</option>' for t in ts) + "</optgroup>"
             for g, ts in gruppen.items())
         staatskasse = geld.stellenkonto(con, "ts-" + sid)
         aktionen = (f'<h2>Gerät beschaffen</h2><form class="sa-formular" method="post" action="{PFAD}{esc(sid)}/beschaffen" id="vt-kauf">{c}<div class="zeilen">'

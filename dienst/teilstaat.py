@@ -95,7 +95,7 @@ async def seite(request, k):
               f'<h2>Auf einen Blick</h2><div class="sa-todo">{"".join(z)}</div>'
               f'<div class="sa-spalten"><div><h2>Kassen</h2><div class="sa-karten">{sa._karten(kassen, zusatz)}</div></div>'
               f'<div><h2>Reichsabgabe</h2><p class="sa-hinweis">Der Teilstaat gibt <b>{esc(abgabe)}</b> seines Steueraufkommens an das Reich ab ({esc(mark(x["reich"]))} im Monat), höchstens '
-              f'{esc(str(geld.einstellung(con, "aufkommen").get("quote_max", 40)))} %'
+              f'{esc(str(geld.einstellung(con, "aufkommen").get("quote_max", 33)))} %'
               + (f'. Ohne diese Obergrenze wären es <b>{etatplan._de(x["quote_theorie"])} %</b> ({esc(mark(x["reich_theorie"]))}).' if q + 0.05 < x["quote_theorie"] else ".")
               + f' Die Berechnung steht unter <a href="{sa.PFAD}haushalt/">Reichshaushalt</a>.</p></div></div>'
               f'<h2>Geltender Etat im {esc(sa._monatsname(monat))}</h2>{etat}'
