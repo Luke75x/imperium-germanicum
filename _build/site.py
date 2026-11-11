@@ -1152,11 +1152,11 @@ def page_kanzler():
 <h2>Der Geschäftsbereich des Kronkanzlers</h2>
 <div class="table-scroll"><table class="styles-table"><thead><tr><th>Bereich</th><th>Aufgabe</th></tr></thead><tbody>{zeilen()}</tbody></table></div>
 <p class="callout">Innerhalb der Teilstaaten achtet der Kronkanzler die Hoheit der Landesherren und wirkt dort vor allem, wo Belange des gesamten Reiches berührt sind.</p>
-<h2>Das Reichskanzleramt</h2>
+<h2>Das Kronkanzleramt</h2>
 <div class="prose">
   {paras(
-    "Der Kronkanzler steht dem Reichskanzleramt vor, das ihm als Zentrale der Reichsverwaltung dient: Es bereitet seine Entscheidungen vor, koordiniert die Reichsämter und führt die Aufsicht über das Reichssicherheitsamt.",
-    f'Das Reichskanzleramt hat seinen Sitz im <b>Kronkanzleramt</b> in der Reichshauptstadt Groß-Berlin (<a href="{kartenlink("kanzlei")}">auf der Reichskarte zeigen</a>). Die übrigen <a href="{u("informationen/die-reichsbehoerden/")}">Reichsbehörden</a> und Reichsämter haben ihre eigenen Seiten.',
+    "Der Kronkanzler steht dem Kronkanzleramt vor, das ihm als Zentrale der Reichsverwaltung dient: Es bereitet seine Entscheidungen vor, koordiniert die Reichsämter und führt die Aufsicht über das Reichssicherheitsamt.",
+    f'Das Kronkanzleramt hat seinen Sitz im <b>Kronkanzleramt</b> in der Reichshauptstadt Groß-Berlin (<a href="{kartenlink("kanzlei")}">auf der Reichskarte zeigen</a>). Die übrigen <a href="{u("informationen/die-reichsbehoerden/")}">Reichsbehörden</a> und Reichsämter haben ihre eigenen Seiten.',
   )}
 </div>
 <h2>Stellung und Anrede</h2>

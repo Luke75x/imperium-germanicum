@@ -1,6 +1,6 @@
 {
  "gruppen": {
-  "kanzlei": "Reichskanzleramt",
+  "kanzlei": "Kronkanzleramt",
   "sicherheit": "Sicherheit und Ordnung",
   "amt": "Reichsämter",
   "organ": "Reichsorgane",
@@ -10,7 +10,7 @@
  "typen": [
   {
    "id": "kanzlei",
-   "name": "Reichskanzleramt",
+   "name": "Kronkanzleramt",
    "gruppe": "kanzlei",
    "farbe": 0,
    "seite": "/informationen/die-reichsbehoerden/der-kanzler/"
@@ -202,7 +202,7 @@
   {
    "typ": "kanzlei",
    "name": "Kronkanzleramt",
-   "text": "Sitz des Reichskanzleramts und des Kronkanzlers",
+   "text": "Sitz des Kronkanzleramts und des Kronkanzlers",
    "lon": 13.3693,
    "lat": 52.5199
   },

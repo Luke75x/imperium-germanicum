@@ -2,7 +2,7 @@
 
 `python3 reichsbehoerden.py` schreibt reichsbehoerden.json neu (nach jeder Änderung hier ausführen, danach site.py/deploy.sh).
 
-Aufbau: das Reichskanzleramt an der Spitze, darunter die Behörden für Sicherheit und Ordnung (Generaldirektoren) und die Reichsämter (Staatssekretäre),
+Aufbau: das Kronkanzleramt an der Spitze, darunter die Behörden für Sicherheit und Ordnung (Generaldirektoren) und die Reichsämter (Staatssekretäre),
 angelehnt an die Gliederung der deutschen Bundesregierung. Jede Behörde hat eine eigene Seite und ein Dienstgebäude auf der Reichskarte.
 
 Felder: schl (Schlüssel, zugleich Seitenname und Gebäudetyp auf der Karte), name, kurz, gruppe (kanzlei | sicherheit | amt), leitung (Amtsbezeichnung),
@@ -13,16 +13,16 @@ import json
 import os
 
 KANZLEI = {
-    "schl": "kanzlei", "name": "Das Reichskanzleramt", "kurz": "Kronkanzleramt", "gruppe": "kanzlei",
+    "schl": "kanzlei", "name": "Das Kronkanzleramt", "kurz": "Kronkanzleramt", "gruppe": "kanzlei",
     "leitung": "Der Kronkanzler", "seite": "informationen/die-reichsbehoerden/der-kanzler/",
-    "lead": "Das Reichskanzleramt ist die Zentrale der Reichsverwaltung. Hier laufen die Fäden zwischen dem Souverän und allen Reichsbehörden zusammen.",
+    "lead": "Das Kronkanzleramt ist die Zentrale der Reichsverwaltung. Hier laufen die Fäden zwischen dem Souverän und allen Reichsbehörden zusammen.",
     "aufgaben": [
         "Dient dem Kronkanzler als Privatsekretär des Souveräns und überbringt den Willen der Krone an die Behörden.",
         "Koordiniert die Arbeit der Reichsämter und der Behörden für Sicherheit und Ordnung und bereitet die Entscheidungen des Kronkanzlers vor.",
         "Führt die Aufsicht über das Reichssicherheitsamt, den gemeinsamen Nachrichtendienst des Reiches.",
         "Verwaltet den kaiserlichen Kronbesitz und die Schatzkammer Seiner Majestät.",
     ],
-    "gebaeude": {"name": "Kronkanzleramt", "text": "Sitz des Reichskanzleramts und des Kronkanzlers", "lon": 13.3693, "lat": 52.5199},
+    "gebaeude": {"name": "Kronkanzleramt", "text": "Sitz des Kronkanzleramts und des Kronkanzlers", "lon": 13.3693, "lat": 52.5199},
     "nachgeordnet": ["Kaiserliches Reichssicherheitsamt (Nachrichtendienst)"],
 }
 
@@ -178,7 +178,7 @@ WEITERE_TYPEN = [
     ("reichstag", "Der Reichstag", "organ"), ("senat", "Der Senat", "organ"), ("reichsgerichtshof", "Der Reichsgerichtshof", "organ"),
     ("krone", "Die Krone (Residenzen)", "krone"), ("sonstiges", "Sonstiges Gebäude", "sonst"),
 ]
-GRUPPEN = {"kanzlei": "Reichskanzleramt", "sicherheit": "Sicherheit und Ordnung", "amt": "Reichsämter", "organ": "Reichsorgane", "krone": "Krone", "sonst": "Sonstiges"}
+GRUPPEN = {"kanzlei": "Kronkanzleramt", "sicherheit": "Sicherheit und Ordnung", "amt": "Reichsämter", "organ": "Reichsorgane", "krone": "Krone", "sonst": "Sonstiges"}
 FARBEN = {"kanzlei": 0, "sicherheit": 1, "organ": 2, "krone": 4, "amt": 5, "sonst": 6}   # Farbfeld 0–7 der Karte (siehe wiki.css .bs-geb.t0–t7)
 
 # Bisherige Bauwerke der Karte (Name → Typ), werden auf die neuen Gebäudetypen umgestellt

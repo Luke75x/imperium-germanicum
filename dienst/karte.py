@@ -173,7 +173,7 @@ def reichsbehoerden():
 
 
 def gebaeude_typen():
-    """Gebäudetypen der Reichskarte [{id, name, gruppe, gruppeName, farbe, seite}]: Reichskanzleramt, Behörden und Reichsämter, Reichsorgane, Krone, Sonstiges."""
+    """Gebäudetypen der Reichskarte [{id, name, gruppe, gruppeName, farbe, seite}]: Kronkanzleramt, Behörden und Reichsämter, Reichsorgane, Krone, Sonstiges."""
     d = reichsbehoerden()
     gr = d.get("gruppen", {})
     typen = [{"id": x["id"], "name": x["name"], "gruppe": x["gruppe"], "gruppeName": gr.get(x["gruppe"], ""), "farbe": x["farbe"], "seite": x.get("seite", "")} for x in d.get("typen", [])]
