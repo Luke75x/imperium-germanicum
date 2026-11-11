@@ -1,4 +1,4 @@
-"""Erstausstattung der Behördenkassen (einmalig, 07.11.2026): Jede Reichsbehörde und die Reichskanzlei erhalten ihren Jahresetat
+"""Erstausstattung der Behördenkassen (einmalig, 07.11.2026): Jede Reichsbehörde und die Kronkanzlei erhalten ihren Jahresetat
 (etat.VORGABE, Größenordnung der vergleichbaren deutschen Bundesbehörden × 2,4 ÷ Wechselkurs) als Haushaltszuweisung aus der
 Reichskasse (Buchungsart zuweisung, bezug ETAT-2026). Die Etats werden als Einstellung „etats“ festgeschrieben.
 Sperre: Protokoll „Erstausstattung Behördenetats“.

@@ -1,7 +1,7 @@
 """Haushaltsnotlage: Folgen, wenn eine Staats-, Verteidigungs- oder Behördenkasse ins Minus rutscht (/schatzamt/notlagen/, staatlich).
 
 Überwacht werden Kassen der Kontoarten teilstaat (Staatskasse), verteidigung (Reichsverteidigungs- und Verteidigungskassen der
-Teilstaaten) und behoerde (Behörden, Reichskanzlei). Die Reichskasse selbst ist ausgenommen.
+Teilstaaten) und behoerde (Behörden, Kronkanzlei). Die Reichskasse selbst ist ausgenommen.
 
 Dispo: Diese Kassen dürfen für Beschaffungen, Zuführungen und Überweisungen (DISPO_ARTEN) bis zu „dispo_monate“ Monatsreferenzen ins Minus
 (Staatskasse: Landesanteil des Monats, Verteidigungskasse: Verteidigungsetat des Monats, Behörde: Monatsetat). Alle anderen Zahlungen

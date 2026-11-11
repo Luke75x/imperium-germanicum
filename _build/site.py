@@ -1156,7 +1156,7 @@ def page_kanzler():
 <div class="prose">
   {paras(
     "Der Kronkanzler steht dem Reichskanzleramt vor, das ihm als Zentrale der Reichsverwaltung dient: Es bereitet seine Entscheidungen vor, koordiniert die Reichsämter und führt die Aufsicht über das Reichssicherheitsamt.",
-    f'Das Reichskanzleramt hat seinen Sitz im <b>Bundeskanzleramt</b> in der Reichshauptstadt Groß-Berlin (<a href="{kartenlink("kanzlei")}">auf der Reichskarte zeigen</a>). Die übrigen <a href="{u("informationen/die-reichsbehoerden/")}">Reichsbehörden</a> und Reichsämter haben ihre eigenen Seiten.',
+    f'Das Reichskanzleramt hat seinen Sitz im <b>Kronkanzleramt</b> in der Reichshauptstadt Groß-Berlin (<a href="{kartenlink("kanzlei")}">auf der Reichskarte zeigen</a>). Die übrigen <a href="{u("informationen/die-reichsbehoerden/")}">Reichsbehörden</a> und Reichsämter haben ihre eigenen Seiten.',
   )}
 </div>
 <h2>Stellung und Anrede</h2>

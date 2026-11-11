@@ -1,7 +1,7 @@
 """Geldsystem des Reiches – Kern: Konten, Buchungen, Einstellungen, Rechte, Protokoll.
 
 Währung: Krone (Kr), 1 Kr = 100 Heller, intern Heller (INTEGER); Kurs 1 Kr = 1,21 € (Einstellung „wechselkurs“). Kontonummern IBAN-artig „IG“ + 2 Prüfziffern (mod 97) + 4-stellige Kontoart + 8-stellige Nummer.
-Kontoarten: privat (je Discord-Konto), gewerbe (genehmigte Gewerbe), behoerde (je amt.BEHOERDEN + Reichskanzlei), teilstaat (je
+Kontoarten: privat (je Discord-Konto), gewerbe (genehmigte Gewerbe), behoerde (je amt.BEHOERDEN + Kronkanzlei), teilstaat (je
 Teilstaat der Reichskarte), sonder (zentralbank, reichskasse, sozialkasse).
 Geldschöpfung: nur über das Konto „zentralbank“, das als einziges ins Minus gehen darf – Geldmenge im Umlauf = −Saldo der Zentralbank.
 buchen() ist atomar (kein await zwischen Prüfung und Schreiben; SQLite-Transaktion) und schreibt gk_buchungen + Salden.
@@ -94,7 +94,7 @@ def einrichten(con):
     con.executescript(SCHEMA)
     for schl, name in SONDER.items():
         _anlegen(con, "sonder", name, stelle=schl)
-    _anlegen(con, "behoerde", "Reichskanzlei", stelle="kanzlei")
+    _anlegen(con, "behoerde", "Kronkanzlei", stelle="kanzlei")
     for b in amt.BEHOERDEN:
         _anlegen(con, "behoerde", b["name"], stelle=b["schl"])
     con.commit()
@@ -358,7 +358,7 @@ def ist_leitung(k):
 
 def verfuegbare_konten(con, k):
     """Konten, über die das Konto verfügen (überweisen) darf: eigenes Privatkonto, eigene Gewerbe, Konten der Behörden mit
-    Leitungsrecht, Reichskanzlei für den Kronkanzler; Leitung des Schatzamts zusätzlich Reichskasse und Sozialkasse."""
+    Leitungsrecht, Kronkanzlei für den Kronkanzler; Leitung des Schatzamts zusätzlich Reichskasse und Sozialkasse."""
     out = []
     p = privatkonto(con, k["id"]) if k["mitglied"] else privatkonto(con, k["id"], anlegen=False)
     if p:

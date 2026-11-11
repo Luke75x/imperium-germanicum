@@ -22,7 +22,7 @@ KANZLEI = {
         "Führt die Aufsicht über das Reichssicherheitsamt, den gemeinsamen Nachrichtendienst des Reiches.",
         "Verwaltet den kaiserlichen Kronbesitz und die Schatzkammer Seiner Majestät.",
     ],
-    "gebaeude": {"name": "Bundeskanzleramt", "text": "Sitz des Reichskanzleramts und des Kronkanzlers", "lon": 13.3693, "lat": 52.5199},
+    "gebaeude": {"name": "Kronkanzleramt", "text": "Sitz des Reichskanzleramts und des Kronkanzlers", "lon": 13.3693, "lat": 52.5199},
     "nachgeordnet": ["Kaiserliches Reichssicherheitsamt (Nachrichtendienst)"],
 }
 

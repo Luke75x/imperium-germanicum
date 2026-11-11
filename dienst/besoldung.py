@@ -5,7 +5,7 @@ die Ränge „OR-n …“/„OF-n …“ werden beim ersten Aufruf automatisch i
 höchste Gruppe aller Rollen eines Mitglieds. Individuell (bs_personen): andere Gruppe, „keine Besoldung“, Zulage, Zahlstelle.
 Lohnlauf je Monat (bs_laeufe, eindeutig): Probelauf → Ausführen. Abzüge: Lohnsteuer (Stufentarif, steuern.lohnsteuer) und Sozialabgabe;
 Netto an das Privatkonto, Sozialabgabe an die Reichsversicherungskasse, Lohnsteuer an die Reichskasse, Länderanteil an die Staatskasse
-des Wohnsitzes. Es zahlt die Dienststelle (Zahlstelle „auto“ = dienststelle(): Behörde der Rollen, Reichskanzlei für den Kronkanzler, sonst
+des Wohnsitzes. Es zahlt die Dienststelle (Zahlstelle „auto“ = dienststelle(): Behörde der Rollen, Kronkanzlei für den Kronkanzler, sonst
 Reichskasse); die Behörden finanzieren das aus ihrem Etat (etat.py). Fehlbetrag der Reichskasse auf Wunsch durch Geldschöpfung. Abrechnungen (bs_abrechnungen) mit PDF, DM an jeden.
 """
 import json
@@ -183,7 +183,7 @@ def gruppen(con):
 
 
 def dienststelle(rollen):
-    """Zahlstelle nach Dienststelle: Reichskanzlei für den Kronkanzler, sonst die Behörde der Rollen (amt.BEHOERDEN), sonst die Reichskasse."""
+    """Zahlstelle nach Dienststelle: Kronkanzlei für den Kronkanzler, sonst die Behörde der Rollen (amt.BEHOERDEN), sonst die Reichskasse."""
     rollen = set(rollen or ())
     if amt.ROLLE_KANZLER in rollen:
         return "kanzlei"
@@ -194,7 +194,7 @@ def dienststelle(rollen):
 
 
 def zahlstelle_auto(rolle, rollen, rollennamen=None):
-    """„Nach Dienststelle“: entscheidend ist die Rolle, die das Gehalt begründet – Behördenrolle → diese Behörde, Kronkanzler → Reichskanzlei,
+    """„Nach Dienststelle“: entscheidend ist die Rolle, die das Gehalt begründet – Behördenrolle → diese Behörde, Kronkanzler → Kronkanzlei,
     Dienstgrad (OR/OF, z. B. Polizei- oder Zollrang) → Behörde der übrigen Rollen, sonst (Kaiser, Hof, Reichsverwaltung, Gerichte …) die
     Reichskasse. Ohne Rolle (individuelle Einstufung, nur Zulage) oder ohne Rollennamen: nach den Rollen (dienststelle)."""
     if rolle is None or rollennamen is None:
@@ -211,7 +211,7 @@ def zahlstelle_auto(rolle, rollen, rollennamen=None):
 
 def zahlstellen(con):
     out = [("auto", "Nach Dienststelle (Behörde zahlt)"), ("crown_estates", "Crown Estates des Kaisers (Monarch)"), ("vt-land", "Verteidigungskasse des Teilstaats (Militär, nach Fraktion)"),
-           ("verteidigung", "Reichsverteidigungskasse (Führungsstab)"), ("reichskasse", "Reichskasse"), ("kanzlei", "Reichskanzlei")] + [(b["schl"], b["name"]) for b in amt.BEHOERDEN]
+           ("verteidigung", "Reichsverteidigungskasse (Führungsstab)"), ("reichskasse", "Reichskasse"), ("kanzlei", "Kronkanzlei")] + [(b["schl"], b["name"]) for b in amt.BEHOERDEN]
     out += [(r["stelle"], r["name"]) for r in con.execute("SELECT stelle, name FROM gk_konten WHERE art IN ('teilstaat','verteidigung') "
                                                           "AND stelle!='verteidigung' ORDER BY art, name")]
     return out
@@ -460,13 +460,13 @@ table.ab tr.abzug td.b{color:#7a1212}
 
 
 def abrechnung_stelle(con, a):
-    """(Logo-Schlüssel, Name) der zahlenden Stelle für den Briefkopf: Behörden mit eigenem Logo, Reichskanzlei, Schatzamt (Reichskasse);
+    """(Logo-Schlüssel, Name) der zahlenden Stelle für den Briefkopf: Behörden mit eigenem Logo, Kronkanzlei, Schatzamt (Reichskasse);
     sonst das allgemeine Logo der Reichsbehörden mit dem Namen der Kasse."""
     schl = a["zahlstelle_schl"] if "zahlstelle_schl" in a.keys() else ""
     if not schl:   # ältere Abrechnungen: nur der Kassenname gespeichert
         schl = next((s for s, n in zahlstellen(con) if n == a["zahlstelle"]), "")
     if schl == "kanzlei":
-        return ("kanzler", "Reichskanzlei")
+        return ("kanzler", "Kronkanzlei")
     if schl == "reichskasse":
         return geld.STELLE
     if any(b["schl"] == schl for b in amt.BEHOERDEN):

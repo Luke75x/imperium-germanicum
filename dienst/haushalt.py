@@ -60,7 +60,7 @@ def darf(k):
 
 
 def stellen():
-    return [{"id": "kanzlei", "name": "Reichskanzlei"}, {"id": "rv", "name": "Reichsverwaltung"}] + \
+    return [{"id": "kanzlei", "name": "Kronkanzlei"}, {"id": "rv", "name": "Reichsverwaltung"}] + \
            [{"id": b["schl"], "name": b["name"]} for b in amt.BEHOERDEN]
 
 

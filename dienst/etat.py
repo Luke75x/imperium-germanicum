@@ -5,7 +5,7 @@ Behördenkonto. Davon zahlen sie ihre Mitarbeiter (Lohnlauf, Zahlstelle „nach 
 Monatsetat je Stelle in der Einstellung „etats“ (Heller/Monat). Vorgabe = Größenordnung der vergleichbaren deutschen Bundesbehörden
 (Haushalt 2025, Jahreswerte) × 2,4 (Wirtschaftskraft des Reiches) ÷ Wechselkurs ÷ 12, hier als Jahreswerte genannt: Polizei (Bundespolizei + BKA) 11,7 Mrd. Kr, Zoll 6,9 Mrd.,
 Katastrophenschutz (BBK + THW) 1,6 Mrd., Reichssicherheitsamt (BfV + BND) 3,4 Mrd., Inquisition 0,5 Mrd., Schatzamt 3,0 Mrd.,
-Reichskanzlei 1,0 Mrd. Erstausstattung einmalig über werkzeuge/behoerden_etat.py. Zuweisen und Etat ändern: Leitung des Schatzamts
+Kronkanzlei 1,0 Mrd. Erstausstattung einmalig über werkzeuge/behoerden_etat.py. Zuweisen und Etat ändern: Leitung des Schatzamts
 (dazu Kronkanzler/Kaiser).
 """
 import time
@@ -28,8 +28,8 @@ geld.VORGABEN.setdefault("etats", {s: int(v * MRD) // 12 for s, v in VORGABE.ite
 
 
 def stellen():
-    """[(Schlüssel, Name)] aller Stellen mit Etat: Reichskanzlei und Reichsbehörden."""
-    return [("kanzlei", "Reichskanzlei")] + [(b["schl"], b["name"]) for b in amt.BEHOERDEN]
+    """[(Schlüssel, Name)] aller Stellen mit Etat: Kronkanzlei und Reichsbehörden."""
+    return [("kanzlei", "Kronkanzlei")] + [(b["schl"], b["name"]) for b in amt.BEHOERDEN]
 
 
 def etats(con):
@@ -48,7 +48,7 @@ def zugewiesen(con, jahr=None, monat=None):
 
 
 def zuweisen(con, stelle, betrag, zweck, k, bezug=None):
-    """Haushaltszuweisung aus der Reichskasse an die Stelle (Behörde/Reichskanzlei)."""
+    """Haushaltszuweisung aus der Reichskasse an die Stelle (Behörde/Kronkanzlei)."""
     ziel = geld.stellenkonto(con, stelle)
     if not ziel or ziel["art"] != "behoerde":
         raise geld.Fehler("Unbekannte Stelle.")

@@ -129,7 +129,7 @@ def darf_pruefen(k):
 
 def _stelle_von(k):
     if bereiche._alle(k):
-        return "Reichskanzlei"
+        return "Kronkanzlei"
     for b in amt.BEHOERDEN:
         if b["schl"] in ("zoll", "polizei") and bereiche.darf(k, b):
             return b["name"]
