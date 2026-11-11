@@ -724,3 +724,7 @@
 .ed-gnav { margin-top: 24px; }
 .ed-gnav ul { max-height: 46vh; overflow: auto; }
 .ed-gnav .ed-geb { padding: 7px 8px; margin: 0 -8px; width: calc(100% + 16px); }
+
+/* Sammelzahl mehrerer nahe beieinander liegender Gebäude */
+.bs-gcl circle { fill: #10162e; stroke: #fff; }
+.bs-gcl text { fill: #fff; font-weight: 800; text-anchor: middle; font-family: inherit; }

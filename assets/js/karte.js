@@ -22,7 +22,7 @@
   var stand = clone(cfg.stand);
   if (!stand.gebaeude) stand.gebaeude = [];
   var saved = clone(stand);
-  var gsel = null, gdrag = null, gAlt = null;   // gewähltes Gebäude (Editor), ziehendes Gebäude
+  var gsel = null, gdrag = null, gAlt = null, gebaeudeDraw = [];   // gewähltes Gebäude (Editor), ziehendes Gebäude
   var geo, svg, defs, layer, hilite, paths = {}, full, view = { x: 0, y: 0, w: 1 };
   var raf = 0, kk = null, beschr = null, komp = null, detailTimer = 0, mask, flu, netzEl, schGrob = [], schFein = [], schSeen = null, schSeenF = null, schProv = null, ansicht = null;
 
@@ -132,11 +132,36 @@
   function typName(id) { var t = typen(); for (var i = 0; i < t.length; i++) if (t[i].id === id) return t[i].name; return id; }
   function gebaeudeById(id) { var a = stand.gebaeude || []; for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
   function gebaeudeAn(p) {
-    // nächstes Gebäude in Reichweite (Kartenkoordinaten p)
-    var rad = 11 * (base || view).w / Math.max(1, surface.clientWidth), best = null, bd = rad;
-    (stand.gebaeude || []).forEach(function (g) { var d = Math.hypot(g.x - p.x, g.y - p.y); if (d < bd) { bd = d; best = g; } });
+    // Zeichenobjekt (einzelnes Gebäude oder Sammelzahl) unter der Position p in Kartenkoordinaten; item.m = enthaltene Gebäude
+    var u = (base || view).w / Math.max(1, surface.clientWidth), best = null, bd = Infinity;
+    gebaeudeDraw.forEach(function (c) { var d = Math.hypot(c.x - p.x, c.y - p.y), lim = Math.max(c.r, 7 * u) + 4 * u; if (d < lim && d < bd) { bd = d; best = c; } });
     return best;
   }
+  function sammelZoom(c) {
+    // Sammelzahl: heranzoomen, bis sich die Gebäude trennen; ganz nah (oder fast deckungsgleich) als Auswahlliste
+    var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    c.m.forEach(function (g) { x0 = Math.min(x0, g.x); x1 = Math.max(x1, g.x); y0 = Math.min(y0, g.y); y1 = Math.max(y1, g.y); });
+    var span = Math.max(x1 - x0, (y1 - y0) / Math.max(.2, aspect())), w = Math.max(span * 2.6, view.w / 4);
+    if (stufe() >= 11 || w >= view.w * .85) { gebaeudeAuswahl(c.m); return; }
+    setView((x0 + x1) / 2, (y0 + y1) / 2, w);
+    redraw();
+  }
+  function gebaeudeAuswahl(arr) {
+    if (!infoDlg) infoDlg = document.querySelector("[data-gebiet]");
+    if (!infoDlg) return;
+    var cont = infoDlg.querySelector("[data-gebiet-inhalt]");
+    cont.innerHTML = '<h2 id="karte-gebiet-titel">' + esc(T.buildings || "Gebäude") + " (" + arr.length + ')</h2><ul class="ed-gliste">' + arr.map(function (g) {
+      return '<li><button type="button" class="ed-geb" data-g="' + g.id + '"><span class="ed-geb-pkt t' + typIndex(g.typ) + '"></span><span class="ed-geb-t"><b>' + esc(g.name) + "</b><small>" + esc(typName(g.typ)) + "</small></span></button></li>";
+    }).join("") + "</ul>";
+    cont.querySelectorAll("[data-g]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var g = gebaeudeById(b.getAttribute("data-g"));
+        if (EDIT) { infoDlg.close(); gebaeudeWaehlen(g.id); } else gebaeudeInfo(g);
+      });
+    });
+    if (!infoDlg.open) infoDlg.showModal();
+  }
+
 
   function beschriften() {
     if (!beschr || !geo.orte || !base) return;
@@ -178,19 +203,40 @@
           text(h.name, h.x + r * 1.5, h.y + px * 0.35 * u, px, "bs-ort bs-hs-name", ""));
       });
     }
-    // Behördengebäude (von der RP-Leitung gesetzt): Symbol ab Stufe 4, Name ab Stufe 6 (wo Platz ist)
+    // Behördengebäude: nahe beieinander liegende werden zu einer Zahl zusammengefasst (Klick zoomt hinein); einzeln erst, wo Platz ist
+    gebaeudeDraw = [];
     if (zt >= 4 && !root.classList.contains("ohne-behoerden")) {
-      (stand.gebaeude || []).forEach(function (g) {
-        if (!sichtbar(g.x, g.y)) return;
-        var r = 8 * u, ti = typIndex(g.typ), gew = EDIT && g.id === gsel;
+      var rad = (EDIT ? 15 : 26) * u, gl = [];
+      (stand.gebaeude || []).filter(function (g) { return sichtbar(g.x, g.y); }).sort(function (a, b) { return a.x - b.x || a.y - b.y; }).forEach(function (g) {
+        var c = null;
+        for (var i = 0; i < gl.length && g.id !== gsel; i++) if (gl[i].sel !== true && Math.hypot(gl[i].x - g.x, gl[i].y - g.y) < rad) { c = gl[i]; break; }
+        if (!c) { gl.push({ x: g.x, y: g.y, m: [g], sel: g.id === gsel }); return; }
+        c.m.push(g);
+        c.x = c.m.reduce(function (s, q) { return s + q.x; }, 0) / c.m.length;
+        c.y = c.m.reduce(function (s, q) { return s + q.y; }, 0) / c.m.length;
+      });
+      gl.sort(function (a, b) { return b.m.length - a.m.length; });
+      gl.forEach(function (c) {
+        if (c.m.length > 1) {
+          var rc = (c.m.length > 9 ? 15 : 13) * u;
+          out.push('<g class="bs-gcl"><circle cx="' + c.x.toFixed(1) + '" cy="' + c.y.toFixed(1) + '" r="' + rc.toFixed(1) + '" stroke-width="' + (2 * u).toFixed(2) + '"/>' +
+            '<text x="' + c.x.toFixed(1) + '" y="' + (c.y + 4.2 * u).toFixed(1) + '" font-size="' + (12.5 * u).toFixed(1) + '">' + c.m.length + "</text></g>");
+          belegt.push([c.x - rc, c.y - rc, c.x + rc, c.y + rc]);
+          c.r = rc;
+          gebaeudeDraw.push(c);
+          return;
+        }
+        var g = c.m[0], r = 7.5 * u, ti = typIndex(g.typ), gew = EDIT && g.id === gsel;
         var d = 'M' + (g.x - r * .62).toFixed(1) + ' ' + (g.y - r * .08).toFixed(1) + 'L' + g.x.toFixed(1) + ' ' + (g.y - r * .66).toFixed(1) + 'L' + (g.x + r * .62).toFixed(1) + ' ' + (g.y - r * .08).toFixed(1) + 'Z' +
           [-.4, 0, .4].map(function (k) { return 'M' + (g.x + r * k).toFixed(1) + ' ' + (g.y + r * .02).toFixed(1) + 'V' + (g.y + r * .5).toFixed(1); }).join("") +
           'M' + (g.x - r * .62).toFixed(1) + ' ' + (g.y + r * .62).toFixed(1) + 'H' + (g.x + r * .62).toFixed(1);
         out.push('<g class="bs-geb t' + ti + (gew ? ' gew' : '') + '"><rect x="' + (g.x - r).toFixed(1) + '" y="' + (g.y - r).toFixed(1) + '" width="' + (2 * r).toFixed(1) + '" height="' + (2 * r).toFixed(1) + '" rx="' + (r * .28).toFixed(1) + '" stroke-width="' + ((gew ? 2.6 : 1.5) * u).toFixed(2) + '"/>' +
           '<path d="' + d + '" stroke-width="' + (1.3 * u).toFixed(2) + '"/></g>');
         belegt.push([g.x - r, g.y - r, g.x + r, g.y + r]);
-        if (zt < 6) return;
-        var px = 11.5, w = breite(g.name, px) + r * 3, hh = px * 1.3 * u;
+        c.r = r * 1.15;
+        gebaeudeDraw.push(c);
+        if (zt < 5.5) return;
+        var px = 11, w = breite(g.name, px) + r * 3, hh = px * 1.3 * u;
         if (frei(g.x + r * 1.3, g.y - hh / 2, w, hh)) out.push(text(g.name, g.x + r * 1.9, g.y + px * 0.35 * u, px, "bs-ort bs-geb-name", ""));
       });
     }
@@ -501,9 +547,10 @@
       }
       if (EDIT && tool === "gebaeude" && e.button === 0 && ids.length === 1) {
         var gh = gebaeudeAn(toMap(e.clientX, e.clientY));
+        if (gh && gh.m.length > 1) { sammelZoom(gh); return; }
         if (gh) {   // Gebäude wählen und (beim Ziehen) verschieben
-          gebaeudeWaehlen(gh.id);
-          gdrag = { id: gh.id, vorher: clone(stand.gebaeude), moved: false, x: e.clientX, y: e.clientY };
+          gebaeudeWaehlen(gh.m[0].id);
+          gdrag = { id: gh.m[0].id, vorher: clone(stand.gebaeude), moved: false, x: e.clientX, y: e.clientY };
           surface.setPointerCapture(e.pointerId);
           return;
         }
@@ -566,7 +613,7 @@
         endStroke(); return;
       }
       if (drag && !drag.moved && EDIT && tool === "gebaeude" && e.button === 0 && e.type === "pointerup") gebaeudeSetzen(toMap(e.clientX, e.clientY));
-      if (drag && !drag.moved && !EDIT && e.button !== 1) { var gi = gebaeudeAn(toMap(e.clientX, e.clientY)); if (gi) { gebaeudeInfo(gi); drag = null; surface.classList.remove("is-ziehen"); if (moving && !Object.keys(pointers).length) { moving = false; redraw(); } endStroke(); return; } }
+      if (drag && !drag.moved && !EDIT && e.button !== 1) { var gi = gebaeudeAn(toMap(e.clientX, e.clientY)); if (gi) { if (gi.m.length > 1) sammelZoom(gi); else gebaeudeInfo(gi.m[0]); drag = null; surface.classList.remove("is-ziehen"); if (moving && !Object.keys(pointers).length) { moving = false; redraw(); } endStroke(); return; } }
       if (drag && !drag.moved && EDIT && tool === "hauptstadt" && e.button === 0 && e.type === "pointerup") hauptstadtSetzen(toMap(e.clientX, e.clientY));
       if (drag && !drag.moved && !EDIT && e.button !== 1) { var hit = regionAt(e); hover(hit); if (hit) openInfo(hit); }  // Klick/Antippen: Angaben zum Gebiet
       if (drag) { drag = null; surface.classList.remove("is-ziehen"); }
