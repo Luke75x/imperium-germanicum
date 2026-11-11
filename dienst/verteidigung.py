@@ -414,6 +414,22 @@ def _etat_monat(con):
     return out
 
 
+def rp_html(request, con):
+    """Sätze des Verteidigungsetats für die RP-Leitungssicht."""
+    e = einstellungen(con)
+    c = amt.csrf_feld(request)
+    feld = lambda i, n, t, v: f'<div><label for="{i}">{t}</label><input type="text" id="{i}" name="{n}" value="{esc(str(v))}"></div>'
+    form = (f'<form class="sa-formular" method="post" action="{PFAD}saetze">{c}'
+             '<div class="zeilen">' + feld("q", "quote_bip", "Vorgabe Verteidigungsetat (% des BIP)", e["quote_bip"])
+             + feld("a", "anteil_reich", "Vorgabe Anteil des Reiches (%)", e["anteil_reich"]) + feld("r", "restwert", "Restwert bei Ausmusterung (%)", e["restwert"])
+             + feld("v", "verfall", "Bereitschaftsverlust ohne Instandhaltung (Punkte)", e["verfall"])
+             + feld("h", "erholung", "Bereitschaftsgewinn bei Instandhaltung (Punkte)", e["erholung"]) + '</div>'
+             '<p class="sa-hinweis">Richtwert: NATO-Ziel 2 % des BIP. Änderungen gelten ab dem nächsten gebuchten Monat.</p>'
+             f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button></div></form>')
+
+    return "<h2>Verteidigung</h2>" + form
+
+
 @sa.seite("verteidigung")
 async def uebersicht(request, k):
     con = request.app["db"]
@@ -466,16 +482,6 @@ async def uebersicht(request, k):
             '<li>Ein Landesherr kann seiner Verteidigungskasse zusätzlich Geld aus der Staatskasse zuführen. Wird die Instandhaltung nicht bezahlt, '
             'sinkt die Einsatzbereitschaft des Geräts.</li></ol></div>')
     stell = ""
-    if geld.ist_leitung(k):
-        c = amt.csrf_feld(request)
-        feld = lambda i, n, t, v: f'<div><label for="{i}">{t}</label><input type="text" id="{i}" name="{n}" value="{esc(str(v))}"></div>'
-        stell = (f'<details class="sa-auf"><summary>{amt.ic("pencil")}Sätze ändern</summary><form class="sa-formular" method="post" action="{PFAD}saetze">{c}'
-                 '<div class="zeilen">' + feld("q", "quote_bip", "Vorgabe Verteidigungsetat (% des BIP)", e["quote_bip"])
-                 + feld("a", "anteil_reich", "Vorgabe Anteil des Reiches (%)", e["anteil_reich"]) + feld("r", "restwert", "Restwert bei Ausmusterung (%)", e["restwert"])
-                 + feld("v", "verfall", "Bereitschaftsverlust ohne Instandhaltung (Punkte)", e["verfall"])
-                 + feld("h", "erholung", "Bereitschaftsgewinn bei Instandhaltung (Punkte)", e["erholung"]) + '</div>'
-                 '<p class="sa-hinweis">Richtwert: NATO-Ziel 2 % des BIP. Änderungen gelten ab dem nächsten gebuchten Monat.</p>'
-                 f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button></div></form></details>')
     inhalt = (f'<h1>{amt.ic("shield")} Verteidigung</h1>{amt.meldung(request)}'
               '<p class="az">Verteidigungsetats des Reiches und der Teilstaaten, militärisches Personal und Gerät.</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kzs)}</div>'
@@ -695,14 +701,14 @@ async def katalog_post(request):
 
 async def saetze_post(request):
     k, form, con = await _post(request)
-    if not geld.ist_leitung(k):
+    if not sa.ist_rp(k):
         raise web.HTTPForbidden()
     werte = {n: geld.prozent_lesen(form.get(n)) for n in ("quote_bip", "anteil_reich", "restwert", "verfall", "erholung")}
     if any(v is None for v in werte.values()) or werte["quote_bip"] > 20:
-        sa.weiter(PFAD, "Bitte gültige Werte angeben (Verteidigungsetat höchstens 20 % des BIP).", True)
+        sa.weiter(sa.RP_STELL, "Bitte gültige Werte angeben (Verteidigungsetat höchstens 20 % des BIP).", True)
     geld.einstellung_setzen(con, "verteidigung", {n: (int(v) if v == int(v) else v) for n, v in werte.items()}, k)
     con.commit()
-    sa.weiter(PFAD, "Gespeichert; die Sätze gelten ab dem nächsten gebuchten Monat.")
+    sa.weiter(sa.RP_STELL, "Gespeichert; die Sätze gelten ab dem nächsten gebuchten Monat.")
 
 
 def registrieren(app):

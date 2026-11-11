@@ -85,6 +85,19 @@ def _monate(saldo, kosten):
     return f"{m:,.0f} Monate".replace(",", ".") if m >= 24 else f"{m:,.1f} Monate".replace(".", ",")
 
 
+def rp_html(request, con):
+    """Monatsetats der Behörden für die RP-Leitungssicht."""
+    e = etats(con)
+    c = amt.csrf_feld(request)
+    felder = "".join(f'<div><label for="e-{esc(s)}">{esc(n)}</label><input type="text" id="e-{esc(s)}" name="{esc(s)}" '
+                     f'value="{esc(mark(e.get(s, 0), einheit=False))}" inputmode="decimal"></div>' for s, n in stellen())
+    return "<h2>Behördenetats</h2>" + (
+        f''
+      f'<form class="sa-formular" method="post" action="{PFAD}etats/">{c}<p class="sa-hinweis">Beträge in Kronen je Monat. '
+      'Der Etat ist der Plan; Geld fließt erst mit einer Zuweisung.</p>'
+      f'<div class="zeilen">{felder}</div><div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button></div></form>')
+
+
 @sa.seite("staat")
 async def seite(request, k):
     con = request.app["db"]
@@ -129,10 +142,7 @@ async def seite(request, k):
                       f'<div><label for="zw">Zweck</label><input type="text" id="zw" name="zweck" maxlength="140" value="Haushaltszuweisung {monat_txt}" required></div>'
                       f'<p class="sa-hinweis">Geht aus der Reichskasse ({mark(geld.sonder(con, "reichskasse")["saldo"])}) an die Behördenkasse.</p>'
                       f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("arrow-right-left")}Zuweisen</button></div></form>'
-                      f'<details class="sa-auf"><summary>{amt.ic("pencil")}Monatsetats ändern</summary>'
-                      f'<form class="sa-formular" method="post" action="{PFAD}etats/">{c}<p class="sa-hinweis">Beträge in Kronen je Monat. '
-                      'Der Etat ist der Plan; Geld fließt erst mit einer Zuweisung.</p>'
-                      f'<div class="zeilen">{felder}</div><div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button></div></form></details>')
+)
     inhalt = (f'<h1>{amt.ic("landmark")} Etats der Behörden</h1>{amt.meldung(request)}'
               '<p class="az">Die Behörden erhalten ihr Geld vom Reich (Haushaltszuweisungen aus der Reichskasse) und zahlen davon ihre Mitarbeiter. '
               'Die Etats orientieren sich an vergleichbaren deutschen Bundesbehörden, hochgerechnet auf die Wirtschaftskraft des Reiches.</p>'
@@ -162,7 +172,7 @@ async def zuweisen_post(request):
 
 async def etats_post(request):
     k = await anmeldung.konto(request)
-    if not geld.ist_leitung(k):
+    if not sa.ist_rp(k):
         raise web.HTTPForbidden()
     form = await sa.formular(request)
     con = request.app["db"]
@@ -171,11 +181,11 @@ async def etats_post(request):
         roh = str(form.get(s, "")).strip()
         b = 0 if roh in ("", "0") else geld.betrag_lesen(roh)
         if b is None:
-            sa.weiter(f"{PFAD}etats/", f"Ungültiger Betrag bei {n}.", True)
+            sa.weiter(sa.RP_STELL, f"Ungültiger Betrag bei {n}.", True)
         neu[s] = b
     geld.einstellung_setzen(con, "etats", neu, k)
     con.commit()
-    sa.weiter(f"{PFAD}etats/", "Monatsetats gespeichert.")
+    sa.weiter(sa.RP_STELL, "Monatsetats gespeichert.")
 
 
 def registrieren(app):

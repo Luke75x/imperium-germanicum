@@ -476,6 +476,35 @@ def erklaerung_html(p):
             'Aus dem Anteil des Reiches werden die Etats der Behörden bezahlt, die Behörden zahlen davon ihre Mitarbeiter.</li></ol></div>')
 
 
+def rp_html(request, con):
+    """Stellschrauben des Staatshaushalts für die RP-Leitungssicht (/schatzamt/rp/stellschrauben/)."""
+    p = geld.einstellung(con, "aufkommen")
+    c = amt.csrf_feld(request)
+    w = dict(VORGABE_GEWICHTE, **(p.get("gewichte") or {}))
+    feld = lambda i, n, t, v: f'<div><label for="{i}">{t}</label><input type="text" id="{i}" name="{n}" value="{esc(str(v))}"></div>'
+    periode = date.today().strftime("%Y-%m")
+    gebucht = con.execute("SELECT 1 FROM ak_laeufe WHERE periode=?", (periode,)).fetchone()
+    form = (''
+             f'<form class="sa-formular" method="post" action="{PFAD}haushalt/">{c}'
+             '<h3>Einnahmen und Ausgaben</h3><div class="zeilen">'
+             + feld("q", "steuerquote", "Steuerquote (% des BIP)", p["steuerquote"])
+             + feld("a", "ausgabenquote", "Pflichtausgaben (% der Einnahmen)", p.get("ausgabenquote", 97))
+             + feld("w", "wechselkurs", "Wechselkurs (€ je Krone)", geld.einstellung(con, "wechselkurs"))
+             + '</div><h3>Reichsabgabe der Teilstaaten</h3><div class="zeilen">'
+             + feld("r", "reichsanteil", "Rechnerischer Durchschnitt an das Reich (%)", p["reichsanteil"])
+             + feld("mi", "quote_min", "Mindestens (%)", p.get("quote_min", 20)) + feld("ma", "quote_max", "Obergrenze der Abgabe (% des Etats)", p.get("quote_max", 33))
+             + '</div><div class="zeilen">'
+             + feld("gb", "g_bevoelkerung", "Gewicht Bevölkerung", w["bevoelkerung"]) + feld("ge", "g_einkommen", "Gewicht Einkommen pro Kopf", w["einkommen"])
+             + feld("gf", "g_flaeche", "Gewicht Fläche", w["flaeche"])
+             + f'</div><label><input type="checkbox" name="automatisch" value="1"{" checked" if p.get("automatisch") else ""}> Jeden Monat automatisch buchen</label>'
+             f'<p class="sa-hinweis">Richtwerte Deutschland: Steuerquote rund 24 % des BIP, davon etwa 43 % an Bund und EU. Änderungen gelten ab dem nächsten gebuchten Monat.</p>'
+             f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button></div></form>')
+
+    buchen_form = "" if gebucht else (f'<form method="post" action="{PFAD}haushalt/buchen">{c}<div class="aktionen">'
+                                    f'<button class="btn zweit" type="submit">{amt.ic("check")}Haushalt {esc(sa._monatsname(periode))} jetzt buchen</button></div></form>')
+    return "<h2>Staatshaushalt</h2>" + form + buchen_form
+
+
 @sa.seite("staat")
 async def seite(request, k):
     import besoldung
@@ -495,27 +524,8 @@ async def seite(request, k):
     status = (f'<p class="sa-status ok">{amt.ic("check")}Der Haushalt für {esc(sa._monatsname(periode))} ist gebucht.</p>' if gebucht else
               f'<p class="sa-status">{amt.ic("clock")}Der Haushalt für {esc(sa._monatsname(periode))} ist noch nicht gebucht'
               + (' – er wird automatisch gebucht.' if p.get("automatisch") else '.') + '</p>')
-    if leitung and not gebucht:
-        status += (f'<form method="post" action="{PFAD}haushalt/buchen">{c}<div class="aktionen">'
-                   f'<button class="btn" type="submit">{amt.ic("check")}Haushalt {esc(sa._monatsname(periode))} jetzt buchen</button></div></form>')
     feld = lambda i, n, t, v: f'<div><label for="{i}">{t}</label><input type="text" id="{i}" name="{n}" value="{esc(str(v))}"></div>'
     stell = ""
-    if leitung:
-        stell = (f'<details class="sa-auf"><summary>{amt.ic("pencil")}Stellschrauben ändern</summary>'
-                 f'<form class="sa-formular" method="post" action="{PFAD}haushalt/">{c}'
-                 '<h3>Einnahmen und Ausgaben</h3><div class="zeilen">'
-                 + feld("q", "steuerquote", "Steuerquote (% des BIP)", p["steuerquote"])
-                 + feld("a", "ausgabenquote", "Pflichtausgaben (% der Einnahmen)", p.get("ausgabenquote", 97))
-                 + feld("w", "wechselkurs", "Wechselkurs (€ je Krone)", geld.einstellung(con, "wechselkurs"))
-                 + '</div><h3>Reichsabgabe der Teilstaaten</h3><div class="zeilen">'
-                 + feld("r", "reichsanteil", "Rechnerischer Durchschnitt an das Reich (%)", p["reichsanteil"])
-                 + feld("mi", "quote_min", "Mindestens (%)", p.get("quote_min", 20)) + feld("ma", "quote_max", "Obergrenze der Abgabe (% des Etats)", p.get("quote_max", 33))
-                 + '</div><div class="zeilen">'
-                 + feld("gb", "g_bevoelkerung", "Gewicht Bevölkerung", w["bevoelkerung"]) + feld("ge", "g_einkommen", "Gewicht Einkommen pro Kopf", w["einkommen"])
-                 + feld("gf", "g_flaeche", "Gewicht Fläche", w["flaeche"])
-                 + f'</div><label><input type="checkbox" name="automatisch" value="1"{" checked" if p.get("automatisch") else ""}> Jeden Monat automatisch buchen</label>'
-                 f'<p class="sa-hinweis">Richtwerte Deutschland: Steuerquote rund 24 % des BIP, davon etwa 43 % an Bund und EU. Änderungen gelten ab dem nächsten gebuchten Monat.</p>'
-                 f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button></div></form></details>')
     laeufe = con.execute("SELECT * FROM ak_laeufe ORDER BY id DESC LIMIT 24").fetchall()
     inhalt = (f'<h1>{amt.ic("chart-column")} Staatshaushalt</h1>{amt.meldung(request)}'
               f'<p class="az">Monatliche Steuereinnahmen aus der Wirtschaftsleistung der Bevölkerung – im Jahr {eur(summen(liste)["ein"] * 12)} '
@@ -532,7 +542,7 @@ async def seite(request, k):
 
 async def speichern(request):
     k = await anmeldung.konto(request)
-    if not geld.ist_leitung(k):
+    if not sa.ist_rp(k):
         raise web.HTTPForbidden()
     form = await sa.formular(request)
     con = request.app["db"]
@@ -544,7 +554,7 @@ async def speichern(request):
         w = 0
     if any(v is None for v in werte.values()) or not 0.01 <= w <= 1000 or werte["quote_min"] > werte["reichsanteil"] or werte["quote_max"] < werte["quote_min"] or not 0 < werte["quote_max"] <= 100 \
             or not (werte["g_bevoelkerung"] + werte["g_einkommen"] + werte["g_flaeche"]):
-        sa.weiter(f"{PFAD}haushalt/", "Bitte gültige Werte angeben (Mindestens ≤ Durchschnitt, Mindestens ≤ Obergrenze, mindestens ein Gewicht über 0).", True)
+        sa.weiter(sa.RP_STELL, "Bitte gültige Werte angeben (Mindestens ≤ Durchschnitt, Mindestens ≤ Obergrenze, mindestens ein Gewicht über 0).", True)
     ganz = lambda x: int(x) if x == int(x) else x
     geld.einstellung_setzen(con, "aufkommen", {
         "steuerquote": ganz(werte["steuerquote"]), "reichsanteil": ganz(werte["reichsanteil"]), "ausgabenquote": ganz(werte["ausgabenquote"]),
@@ -553,18 +563,18 @@ async def speichern(request):
         "automatisch": form.get("automatisch") == "1"}, k)
     geld.einstellung_setzen(con, "wechselkurs", f"{w:g}".replace(".", ","), k)
     con.commit()
-    sa.weiter(f"{PFAD}haushalt/", "Gespeichert; die Sätze gelten ab dem nächsten gebuchten Monat.")
+    sa.weiter(sa.RP_STELL, "Gespeichert; die Sätze gelten ab dem nächsten gebuchten Monat.")
 
 
 async def buchen(request):
     k = await anmeldung.konto(request)
-    if not geld.ist_leitung(k):
+    if not sa.ist_rp(k):
         raise web.HTTPForbidden()
     await sa.formular(request)
     con = request.app["db"]
     periode = date.today().strftime("%Y-%m")
     lauf = ausfuehren(con, periode, k)
-    sa.weiter(f"{PFAD}haushalt/", f"Haushalt {sa._monatsname(periode)} gebucht." if lauf else "Dieser Monat ist bereits gebucht.", not lauf)
+    sa.weiter(sa.RP_STELL, f"Haushalt {sa._monatsname(periode)} gebucht." if lauf else "Dieser Monat ist bereits gebucht.", not lauf)
 
 
 def finanzen_html(con):

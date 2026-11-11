@@ -44,6 +44,7 @@ import strafsachen
 import reichstag
 import privatbesitz
 import suche
+import rpstell
 
 
 def erstellen():
@@ -85,6 +86,7 @@ def erstellen():
     bankkarte.registrieren(app)
     privatbesitz.registrieren(app)
     suche.registrieren(app)
+    rpstell.registrieren(app)
     rpleitung.registrieren(app)
     return app
 

@@ -104,6 +104,17 @@ def _t(x):
     return f"{x / 1000:,.2f} t".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def rp_html(request, con):
+    """Goldpreis und Auf-/Abschlag für die RP-Leitungssicht."""
+    g = geld.einstellung(con, "gold")
+    form = (f'<h2>Goldpreis festsetzen</h2><form class="sa-leiste" method="post" action="{PFAD}gold/preis">{amt.csrf_feld(request)}'
+                 f'<div><label for="p">€ je kg</label><input type="text" id="p" name="preis" value="{preis(con):.0f}"></div>'
+                 f'<div><label for="a">Ab-/Aufschlag %</label><input type="text" id="a" name="abschlag" value="{esc(str(g["abschlag"]))}"></div>'
+                 f'<button class="btn zweit" type="submit">Speichern</button></form>')
+
+    return form
+
+
 @sa.seite("staat")
 async def seite(request, k):
     con = request.app["db"]
@@ -128,11 +139,6 @@ async def seite(request, k):
                   f'{g["abschlag"]} % Aufschlag. Ein Verkauf bringt neues, goldgedecktes Geld in die Kasse.</p>'
                   f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Ausführen</button></div></form>')
     preisform = ""
-    if geld.ist_leitung(k):
-        preisform = (f'<h2>Goldpreis festsetzen</h2><form class="sa-leiste" method="post" action="{PFAD}gold/preis">{amt.csrf_feld(request)}'
-                     f'<div><label for="p">€ je kg</label><input type="text" id="p" name="preis" value="{preis(con):.0f}"></div>'
-                     f'<div><label for="a">Ab-/Aufschlag %</label><input type="text" id="a" name="abschlag" value="{esc(str(g["abschlag"]))}"></div>'
-                     f'<button class="btn zweit" type="submit">Speichern</button></form>')
     namen = {r["stelle"]: r["name"] for r in rows}
     bew = con.execute("SELECT * FROM gr_buchungen WHERE art!='erstausstattung' ORDER BY id DESC LIMIT 30").fetchall()
     inhalt = (f'<h1>{amt.ic("coins")} Goldreserven</h1>{amt.meldung(request)}'
@@ -169,7 +175,7 @@ async def handeln_post(request):
 
 async def preis_post(request):
     k = await anmeldung.konto(request)
-    if not geld.ist_leitung(k):
+    if not sa.ist_rp(k):
         raise web.HTTPForbidden()
     form = await sa.formular(request)
     con = request.app["db"]
@@ -178,10 +184,10 @@ async def preis_post(request):
         a = geld.prozent_lesen(form.get("abschlag"))
         assert 1000 <= p <= 10_000_000 and a is not None
     except (ValueError, AssertionError):
-        sa.weiter(f"{PFAD}gold/", "Bitte einen gültigen Goldpreis und Abschlag angeben.", True)
+        sa.weiter(sa.RP_STELL, "Bitte einen gültigen Goldpreis und Abschlag angeben.", True)
     geld.einstellung_setzen(con, "gold", {"preis_kg": round(p), "abschlag": a if a != int(a) else int(a)}, k)
     con.commit()
-    sa.weiter(f"{PFAD}gold/", "Goldpreis festgesetzt.")
+    sa.weiter(sa.RP_STELL, "Goldpreis festgesetzt.")
 
 
 def finanzen_html(con):

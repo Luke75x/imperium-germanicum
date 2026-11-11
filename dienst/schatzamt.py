@@ -26,6 +26,7 @@ from geld import mark, nummer_anzeige
 
 esc = amt.esc
 PFAD = "/schatzamt/"
+RP_STELL = PFAD + "rp/stellschrauben/"   # RP-Leitungssicht: alle Stellschrauben (Sätze, Preise, Prüfungen)
 BRANCHEN = ["Handel", "Handwerk", "Landwirtschaft", "Gastronomie & Beherbergung", "Verkehr & Logistik", "Bank & Versicherung",
             "Medien & Verlag", "Bau", "Industrie & Rüstung", "Dienstleistung", "Kunst & Kultur", "Sonstiges"]
 
@@ -89,8 +90,12 @@ table.liste td.sa-betrag,table.liste th.sa-betrag{text-align:right}
 .sa-bereich-name{display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--grau)}
 .sa-bereich-name .icon{width:16px;height:16px}
 .sa-bereich select{padding:4px 8px;font-size:13.5px;max-width:100%}
-.sa-bereich .reiter{flex-wrap:nowrap;overflow-x:auto;gap:4px 20px;margin:0;scrollbar-width:thin}
+.sa-bereich .reiter{flex-wrap:wrap;gap:0 22px;margin:0;overflow:visible}
 .sa-bereich .reiter a{white-space:nowrap;padding:9px 2px}
+@media (max-width:760px){
+.sa-bereich .reiter{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;gap:0 20px;-webkit-overflow-scrolling:touch;
+ -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);padding-right:28px}
+.sa-bereich .reiter::-webkit-scrollbar{display:none}}
 .sa-todo{display:grid;gap:8px;margin:12px 0 6px}
 .sa-todo>div{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--linie);border-radius:12px;padding:10px 14px;background:#fff;font-size:14px}
 .sa-todo>div.warn{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
@@ -323,7 +328,8 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
                 ("sa-rp-konten", "search", "Konten & Personen", "rp/konten/"), ("sa-rp-protokoll", "scroll-text", "Protokoll", "rp/protokoll/")]
         gruppen = [("RP-Leitung", mein),
                    ("Konfiguration", [("sa-rp-foerder", "package", "Förderstätten", "rp/foerderstaetten/"), ("sa-rp-handel", "percent", "Handel: Waren & Regeln", "rp/handel/"),
-                                      ("sa-rp-besitz", "car", "Besitzkatalog & Kosten", "rp/besitz/")]),
+                                      ("sa-rp-besitz", "car", "Besitzkatalog & Kosten", "rp/besitz/"),
+                                      ("sa-rp-stell", "pencil", "Stellschrauben", "rp/stellschrauben/")]),
                    ("Hilfsmittel", [("sa-amt-bankkarten", "credit-card", "Bankkarten", "amt/bankkarten/"),
                                                           ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/"),
                                                           ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/")])]
@@ -357,8 +363,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
                 ("sa-amt-steuern", "receipt", "Steuerverwaltung", "amt/steuern/"), ("sa-amt-gewerbe", "store", "Gewerberegister", "amt/gewerbe/"),
                 ("sa-amt-bankkarten", "credit-card", "Bankkarten", "amt/bankkarten/")]
         if geld.ist_leitung(k):
-            amtl += [("sa-amt-besoldung", "users", "Besoldung & Lohnlauf", "amt/besoldung/"), ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/"),
-                     ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/")]
+            amtl += [("sa-amt-besoldung", "users", "Besoldung & Lohnlauf", "amt/besoldung/"), ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/")]
         amtl.append(("sa-amt-protokoll", "scroll-text", "Protokoll", "amt/protokoll/"))
         gruppen.append(("Schatzamt", amtl))
     weiter = []

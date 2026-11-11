@@ -234,6 +234,12 @@ main{flex:1;width:100%;max-width:1120px;padding:28px 32px 64px;animation:rein .2
 
 /* ---- Inhalt ---- */
 .reiter{display:flex;flex-wrap:wrap;gap:4px 18px;margin:0 0 16px;border-bottom:1px solid var(--linie)}
+*{scrollbar-width:thin;scrollbar-color:#c3c9d2 transparent}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#c3c9d2;border-radius:999px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:#9aa3b0;background-clip:content-box}
+::-webkit-scrollbar-button,::-webkit-scrollbar-corner{display:none;width:0;height:0}
 .reiter a{padding:8px 2px;color:var(--grau);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
 .reiter a.aktiv{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
 h1{font-size:24px;line-height:1.25;margin:0 0 4px;font-weight:650;letter-spacing:-.01em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}

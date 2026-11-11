@@ -556,7 +556,7 @@ async def steuerlauf_ausfuehren(request):
 
 # ---------------------------------------------------------------- Sätze festlegen
 
-@sa.seite("leitung")
+@sa.seite("rp")
 async def tarife_bearbeiten(request, k):
     con = request.app["db"]
     e = lambda s: geld.einstellung(con, s)
@@ -586,7 +586,7 @@ async def tarife_bearbeiten(request, k):
 
 async def tarife_speichern(request):
     k = await anmeldung.konto(request)
-    if not geld.ist_leitung(k):
+    if not sa.ist_rp(k):
         raise web.HTTPForbidden()
     form = await sa.formular(request)
     con = request.app["db"]

@@ -357,6 +357,23 @@ def _naechster_schritt(f, e, jetzt):
     return f'Zwangsverwaltung in {max(0, math.ceil(float(e["zwang_tage"]) - tage))} Tagen'
 
 
+def rp_html(request, con):
+    """Sätze der Haushaltsnotlage und manuelle Prüfung für die RP-Leitungssicht."""
+    e = einstellungen(con)
+    c = amt.csrf_feld(request)
+    feld = lambda i, n, t, v: f'<div><label for="{i}">{t}</label><input type="text" id="{i}" name="{n}" value="{esc(str(v))}"></div>'
+    form = (''
+             f'<form class="sa-formular" method="post" action="{PFAD}saetze">{c}<div class="zeilen">'
+             + feld("d", "dispo_monate", "Dispo (Monate der Einnahmen/des Etats)", e["dispo_monate"]) + feld("a", "aufschlag", "Strafzins-Aufschlag (Punkte)", e["aufschlag"])
+             + feld("t", "ausgleich_tage", "Zwangsausgleich nach (Tagen)", e["ausgleich_tage"]) + feld("z", "zwang_tage", "Zwangsverwaltung nach (Tagen)", e["zwang_tage"])
+             + feld("p", "abgabe_plus", "Reichsabgabe-Zuschlag (Punkte)", e["abgabe_plus"])
+             + f'</div><label><input type="checkbox" name="automatisch" value="1"{" checked" if e.get("automatisch") else ""}> Automatisch stündlich prüfen</label>'
+             f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button></div></form>'
+             f'<form method="post" action="{PFAD}pruefen">{c}<div class="aktionen"><button class="btn zweit" type="submit">{amt.ic("search")}Jetzt prüfen</button></div></form>')
+
+    return "<h2>Haushaltsnotlage</h2>" + form
+
+
 @sa.seite("staat")
 async def seite(request, k):
     con = request.app["db"]
@@ -411,15 +428,6 @@ async def seite(request, k):
     c = amt.csrf_feld(request)
     feld = lambda i, n, t, v: f'<div><label for="{i}">{t}</label><input type="text" id="{i}" name="{n}" value="{esc(str(v))}"></div>'
     stell = ""
-    if leitung:
-        stell = (f'<details class="sa-auf"><summary>{amt.ic("pencil")}Sätze ändern und Prüfung auslösen</summary>'
-                 f'<form class="sa-formular" method="post" action="{PFAD}saetze">{c}<div class="zeilen">'
-                 + feld("d", "dispo_monate", "Dispo (Monate der Einnahmen/des Etats)", e["dispo_monate"]) + feld("a", "aufschlag", "Strafzins-Aufschlag (Punkte)", e["aufschlag"])
-                 + feld("t", "ausgleich_tage", "Zwangsausgleich nach (Tagen)", e["ausgleich_tage"]) + feld("z", "zwang_tage", "Zwangsverwaltung nach (Tagen)", e["zwang_tage"])
-                 + feld("p", "abgabe_plus", "Reichsabgabe-Zuschlag (Punkte)", e["abgabe_plus"])
-                 + f'</div><label><input type="checkbox" name="automatisch" value="1"{" checked" if e.get("automatisch") else ""}> Automatisch stündlich prüfen</label>'
-                 f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button></div></form>'
-                 f'<form method="post" action="{PFAD}pruefen">{c}<div class="aktionen"><button class="btn zweit" type="submit">{amt.ic("search")}Jetzt prüfen</button></div></form></details>')
     inhalt = (f'<h1>{amt.ic("triangle-alert")} Haushaltsnotlagen</h1>{amt.meldung(request)}'
               '<p class="az">Folgen, wenn eine Staats-, Verteidigungs- oder Behördenkasse ins Minus rutscht.</p>' + status
               + f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>' + erkl
@@ -433,7 +441,7 @@ async def seite(request, k):
 
 async def saetze_post(request):
     k = await anmeldung.konto(request)
-    if not geld.ist_leitung(k):
+    if not sa.ist_rp(k):
         raise web.HTTPForbidden()
     form = await sa.formular(request)
     con = request.app["db"]
@@ -442,23 +450,23 @@ async def saetze_post(request):
         assert 0 <= w["dispo_monate"] <= 12 and 0 <= w["aufschlag"] <= 50 and 1 <= w["ausgleich_tage"] <= 365 and w["ausgleich_tage"] <= w["zwang_tage"] <= 3650 \
             and 0 <= w["abgabe_plus"] <= 50
     except (ValueError, AssertionError):
-        sa.weiter(PFAD, "Bitte gültige Werte angeben (Zwangsverwaltung nicht vor dem Zwangsausgleich).", True)
+        sa.weiter(sa.RP_STELL, "Bitte gültige Werte angeben (Zwangsverwaltung nicht vor dem Zwangsausgleich).", True)
     ganz = lambda x: int(x) if x == int(x) else x
     geld.einstellung_setzen(con, "notlage", {**{n: ganz(v) for n, v in w.items()}, "automatisch": form.get("automatisch") == "1"}, k)
     con.commit()
-    sa.weiter(PFAD, "Gespeichert.")
+    sa.weiter(sa.RP_STELL, "Gespeichert.")
 
 
 async def pruefen_post(request):
     k = await anmeldung.konto(request)
-    if not geld.ist_leitung(k):
+    if not sa.ist_rp(k):
         raise web.HTTPForbidden()
     await sa.formular(request)
     con = request.app["db"]
     ereignisse = pruefen(con)
     await melden(request.app, con, ereignisse)
     nz = await nachzahlungen(request.app, con)
-    sa.weiter(PFAD, f"Prüfung abgeschlossen: {len(ereignisse)} Ereignis(se)" + (f", {len(nz)} einbehaltene Gehälter nachgezahlt." if nz else "."))
+    sa.weiter(sa.RP_STELL, f"Prüfung abgeschlossen: {len(ereignisse)} Ereignis(se)" + (f", {len(nz)} einbehaltene Gehälter nachgezahlt." if nz else "."))
 
 
 def registrieren(app):
