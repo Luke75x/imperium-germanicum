@@ -728,3 +728,16 @@
 /* Sammelzahl mehrerer nahe beieinander liegender Gebäude */
 .bs-gcl circle { fill: #10162e; stroke: #fff; }
 .bs-gcl text { fill: #fff; font-weight: 800; text-anchor: middle; font-family: inherit; }
+
+/* Gebäude: Punkt am Ort, Beschriftungskarte mit Leitlinie */
+.bs-pkt { stroke: #fff; }
+.bs-pkt.gew { stroke: #ffd84a; }
+.bs-kart line { stroke: #10162e; stroke-opacity: .6; }
+.bs-kart .kr { fill: #fff; fill-opacity: .96; stroke: #c3c9d4; }
+.bs-kart.gew .kr { stroke: #ffd84a; }
+.bs-kart .ki { fill: none; stroke: #10162e; stroke-linecap: round; stroke-linejoin: round; }
+.bs-kart .kn { font-weight: 700; fill: #10162e; stroke: none; }
+.bs-kart .kt { font-weight: 400; fill: #5b6070; stroke: none; }
+.bs-pkt.t0, .bs-kart.t0 .kb { fill: #1f3a6b; } .bs-pkt.t1, .bs-kart.t1 .kb { fill: #8a2a2a; } .bs-pkt.t2, .bs-kart.t2 .kb { fill: #2f6b3a; }
+.bs-pkt.t3, .bs-kart.t3 .kb { fill: #7a4a8f; } .bs-pkt.t4, .bs-kart.t4 .kb { fill: #b3661c; } .bs-pkt.t5, .bs-kart.t5 .kb { fill: #1f6f7a; }
+.bs-pkt.t6, .bs-kart.t6 .kb { fill: #4a4f5c; } .bs-pkt.t7, .bs-kart.t7 .kb { fill: #a3265c; }

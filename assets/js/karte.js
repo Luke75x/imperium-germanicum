@@ -132,11 +132,18 @@
   function typName(id) { var t = typen(); for (var i = 0; i < t.length; i++) if (t[i].id === id) return t[i].name; return id; }
   function gebaeudeById(id) { var a = stand.gebaeude || []; for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
   function gebaeudeAn(p) {
-    // Zeichenobjekt (einzelnes Gebäude oder Sammelzahl) unter der Position p in Kartenkoordinaten; item.m = enthaltene Gebäude
+    // Zeichenobjekt unter der Position p (Kartenkoordinaten): Karte oder Punkt eines Gebäudes bzw. eine Sammelzahl; item.m = enthaltene Gebäude
     var u = (base || view).w / Math.max(1, surface.clientWidth), best = null, bd = Infinity;
-    gebaeudeDraw.forEach(function (c) { var d = Math.hypot(c.x - p.x, c.y - p.y), lim = Math.max(c.r, 7 * u) + 4 * u; if (d < lim && d < bd) { bd = d; best = c; } });
+    gebaeudeDraw.forEach(function (c) {
+      var k = c.kart;
+      if (k && p.x >= k.x && p.x <= k.x + k.w && p.y >= k.y && p.y <= k.y + k.h) { bd = -1; best = c; return; }
+      if (bd < 0) return;
+      var d = Math.hypot(c.x - p.x, c.y - p.y), lim = Math.max(c.r, 5 * u) + 5 * u;
+      if (d < lim && d < bd) { bd = d; best = c; }
+    });
     return best;
   }
+
   function sammelZoom(c) {
     // Sammelzahl: heranzoomen, bis sich die Gebäude trennen; ganz nah (oder fast deckungsgleich) als Auswahlliste
     var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -203,10 +210,11 @@
           text(h.name, h.x + r * 1.5, h.y + px * 0.35 * u, px, "bs-ort bs-hs-name", ""));
       });
     }
-    // Behördengebäude: nahe beieinander liegende werden zu einer Zahl zusammengefasst (Klick zoomt hinein); einzeln erst, wo Platz ist
+    // Behördengebäude: Punkt am genauen Ort; ab Stufe 6,5 Beschriftungskarten ringsum mit Leitlinie (weichen einander aus), darunter nur Punkte,
+    // bei weiter Sicht werden nahe beieinander liegende zu einer Zahl zusammengefasst (Klick zoomt hinein)
     gebaeudeDraw = [];
     if (zt >= 4 && !root.classList.contains("ohne-behoerden")) {
-      var rad = (EDIT ? 15 : 26) * u, gl = [];
+      var karten = zt >= 6.5, rad = (karten ? 11 : 26) * u, gl = [];
       (stand.gebaeude || []).filter(function (g) { return sichtbar(g.x, g.y); }).sort(function (a, b) { return a.x - b.x || a.y - b.y; }).forEach(function (g) {
         var c = null;
         for (var i = 0; i < gl.length && g.id !== gsel; i++) if (gl[i].sel !== true && Math.hypot(gl[i].x - g.x, gl[i].y - g.y) < rad) { c = gl[i]; break; }
@@ -215,7 +223,7 @@
         c.x = c.m.reduce(function (s, q) { return s + q.x; }, 0) / c.m.length;
         c.y = c.m.reduce(function (s, q) { return s + q.y; }, 0) / c.m.length;
       });
-      gl.sort(function (a, b) { return b.m.length - a.m.length; });
+      var einzeln = [];
       gl.forEach(function (c) {
         if (c.m.length > 1) {
           var rc = (c.m.length > 9 ? 15 : 13) * u;
@@ -224,21 +232,41 @@
           belegt.push([c.x - rc, c.y - rc, c.x + rc, c.y + rc]);
           c.r = rc;
           gebaeudeDraw.push(c);
-          return;
-        }
-        var g = c.m[0], r = 7.5 * u, ti = typIndex(g.typ), gew = EDIT && g.id === gsel;
-        var d = 'M' + (g.x - r * .62).toFixed(1) + ' ' + (g.y - r * .08).toFixed(1) + 'L' + g.x.toFixed(1) + ' ' + (g.y - r * .66).toFixed(1) + 'L' + (g.x + r * .62).toFixed(1) + ' ' + (g.y - r * .08).toFixed(1) + 'Z' +
-          [-.4, 0, .4].map(function (k) { return 'M' + (g.x + r * k).toFixed(1) + ' ' + (g.y + r * .02).toFixed(1) + 'V' + (g.y + r * .5).toFixed(1); }).join("") +
-          'M' + (g.x - r * .62).toFixed(1) + ' ' + (g.y + r * .62).toFixed(1) + 'H' + (g.x + r * .62).toFixed(1);
-        out.push('<g class="bs-geb t' + ti + (gew ? ' gew' : '') + '"><rect x="' + (g.x - r).toFixed(1) + '" y="' + (g.y - r).toFixed(1) + '" width="' + (2 * r).toFixed(1) + '" height="' + (2 * r).toFixed(1) + '" rx="' + (r * .28).toFixed(1) + '" stroke-width="' + ((gew ? 2.6 : 1.5) * u).toFixed(2) + '"/>' +
-          '<path d="' + d + '" stroke-width="' + (1.3 * u).toFixed(2) + '"/></g>');
-        belegt.push([g.x - r, g.y - r, g.x + r, g.y + r]);
-        c.r = r * 1.15;
-        gebaeudeDraw.push(c);
-        if (zt < 5.5) return;
-        var px = 11, w = breite(g.name, px) + r * 3, hh = px * 1.3 * u;
-        if (frei(g.x + r * 1.3, g.y - hh / 2, w, hh)) out.push(text(g.name, g.x + r * 1.9, g.y + px * 0.35 * u, px, "bs-ort bs-geb-name", ""));
+        } else einzeln.push(c);
       });
+      einzeln.forEach(function (c) { var r = 5 * u; belegt.push([c.x - r, c.y - r, c.x + r, c.y + r]); c.r = r; gebaeudeDraw.push(c); });
+      var punkte = [], blaetter = [];
+      einzeln.sort(function (a, b) { return (a.m[0].typ === "kanzlei" ? 0 : 1) - (b.m[0].typ === "kanzlei" ? 0 : 1) || a.m[0].name.localeCompare(b.m[0].name, "de"); }).forEach(function (c) {
+        var g = c.m[0], ti = typIndex(g.typ), gew = EDIT && g.id === gsel, r = (gew ? 6.5 : 5) * u;
+        var kart = null;
+        if (karten) {
+          var sub = typName(g.typ), pw = Math.max(breite(g.name, 11.5) * 1.04, breite(sub, 9.5)) + 38 * u, ph = 33 * u;
+          var ring = [13, 36, 62, 90, 120], dir = [[1, 0], [-1, 0], [0.7, -0.7], [-0.7, -0.7], [0.7, 0.7], [-0.7, 0.7], [0, -1], [0, 1]];
+          search: for (var ri = 0; ri < ring.length; ri++) {
+            for (var di = 0; di < dir.length; di++) {
+              var d = dir[di], rr = ring[ri] * u, kx, ky;
+              kx = d[0] > 0.3 ? c.x + d[0] * rr : d[0] < -0.3 ? c.x + d[0] * rr - pw : c.x - pw / 2;
+              ky = d[1] > 0.3 ? c.y + d[1] * rr : d[1] < -0.3 ? c.y + d[1] * rr - ph : c.y - ph / 2;
+              if (kx < view.x + 4 * u || kx + pw > view.x + view.w - 4 * u || ky < view.y + 4 * u || ky + ph > view.y + view.h - 4 * u) continue;   // nur im sichtbaren Ausschnitt
+              if (frei(kx, ky, pw, ph)) { kart = { x: kx, y: ky, w: pw, h: ph, ring: ri }; break search; }
+            }
+          }
+        }
+        c.kart = kart;
+        punkte.push('<circle class="bs-pkt t' + ti + (gew ? ' gew' : '') + '" cx="' + g.x.toFixed(1) + '" cy="' + g.y.toFixed(1) + '" r="' + r.toFixed(2) + '" stroke-width="' + ((gew ? 2.4 : 1.6) * u).toFixed(2) + '"/>');
+        if (!kart) return;
+        var lx = Math.max(kart.x, Math.min(g.x, kart.x + kart.w)), ly = Math.max(kart.y, Math.min(g.y, kart.y + kart.h));
+        var s = '<g class="bs-kart t' + ti + (gew ? ' gew' : '') + '">';
+        if (kart.ring > 0 || Math.hypot(lx - g.x, ly - g.y) > 6 * u) s += '<line x1="' + g.x.toFixed(1) + '" y1="' + g.y.toFixed(1) + '" x2="' + lx.toFixed(1) + '" y2="' + ly.toFixed(1) + '" stroke-width="' + (1.4 * u).toFixed(2) + '"/>';
+        s += '<rect class="kr" x="' + kart.x.toFixed(1) + '" y="' + kart.y.toFixed(1) + '" width="' + kart.w.toFixed(1) + '" height="' + kart.h.toFixed(1) + '" rx="' + (5 * u).toFixed(1) + '" stroke-width="' + ((gew ? 2.2 : 1) * u).toFixed(2) + '"/>' +
+          '<rect class="kb" x="' + kart.x.toFixed(1) + '" y="' + kart.y.toFixed(1) + '" width="' + (5 * u).toFixed(1) + '" height="' + kart.h.toFixed(1) + '" rx="' + (2.5 * u).toFixed(1) + '"/>';
+        var ix = kart.x + 17 * u, iy = kart.y + kart.h / 2, k = 7 * u;   // kleines Gebäudesymbol
+        s += '<path class="ki" stroke-width="' + (1.4 * u).toFixed(2) + '" d="M' + (ix - k).toFixed(1) + ' ' + (iy - k * .1).toFixed(1) + 'L' + ix.toFixed(1) + ' ' + (iy - k * .85).toFixed(1) + 'L' + (ix + k).toFixed(1) + ' ' + (iy - k * .1).toFixed(1) + 'Z' +
+          [-.55, 0, .55].map(function (q) { return 'M' + (ix + k * q).toFixed(1) + ' ' + (iy + k * .05).toFixed(1) + 'V' + (iy + k * .62).toFixed(1); }).join("") + 'M' + (ix - k).toFixed(1) + ' ' + (iy + k * .85).toFixed(1) + 'H' + (ix + k).toFixed(1) + '"/>';
+        s += text(g.name, kart.x + 30 * u, kart.y + 14 * u, 11.5, "kn", "", "") + text(typName(g.typ), kart.x + 30 * u, kart.y + 26 * u, 9.5, "kt", "", "") + "</g>";
+        blaetter.push(s);
+      });
+      out.push(blaetter.join("") + punkte.join(""));
     }
     kand.filter(function (o) { return o[4] === 1; }).forEach(ort);
     // Teilstaaten: Name im größten Teil jedes Staats, kleinere Teile erst bei starker Vergrößerung
