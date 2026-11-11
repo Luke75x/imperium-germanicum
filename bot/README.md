@@ -30,7 +30,7 @@ Discord-Bot des Imperium Germanicum (discord.py). Wiederhergestellt am 02.11.202
   Dauer optional = unbefristet). Fälle in `haft.db` (nicht im Repo), Ablauf prüft ein Hintergrundlauf alle 30 s; Haftrolle von Hand entfernen = vorzeitige
   Entlassung. Log jeder Ausführung und jedes Endes in den Thread `HAFT_LOG`.
 - `newsflash.py`: `/newsflash [deckblatt] [artikelbild]` öffnet ein Formular (Zeitungsname, Schlagzeile, Verfasser optional, Inhalt) → Zeitungsartikel in 📰｜news (Zeitungskopf mit automatischem Datum und optionalem Deckblatt-Bild, darunter Schlagzeile, Verfasserzeile, Text, optionales Artikelbild). Landesherren und Admins sofort; Staatsbürger ohne Landesherr müssen
-  einmalig freigeschaltet werden (erste Meldung = Antrag im Prüf-Thread, Knopf „Freischalten und veröffentlichen“); Treffer der Filterliste
+  für jede Meldung genehmigt werden (Prüfkanal, Knopf „Veröffentlichen“; keine dauerhafte Freischaltung mehr); Treffer der Filterliste
   `newsflash_filter.txt` (jederzeit editierbar) gehen vor der Veröffentlichung in den Prüf-Thread. DM an den Verfasser bei jeder Entscheidung.
   Daten in `newsflash.db`, Deckblätter wartender Meldungen in `newsflash_bilder/` (beides nicht im Repo).
 - `einstellen.py` + `dienstgrade.py`: `/einstellen person institution dienstgrad` (Landesherren, Kaiser). Institutionen und Dienstgrade stammen aus der Dienstgrad-Tabelle

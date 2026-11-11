@@ -3,8 +3,8 @@ Meldung als Zeitungsartikel im News-Kanal: Zeitungskopf mit Datum (automatisch, 
 darunter der Artikel mit Schlagzeile und Verfasserzeile. Die Bilder (Deckblatt, Artikelbild) kommen als Anhänge des Befehls (Modals können keine Dateien).
 
 - Landesherren (und Administratoren) veröffentlichen sofort.
-- Staatsbürger ohne Landesherr-Rolle müssen vorher freigeschaltet werden: Ihre erste Meldung geht als Antrag in den Kanal
-  NEWSFLASH_PRUEFUNG; mit „Freischalten und veröffentlichen“ ist die Person dauerhaft freigeschaltet (Tabelle freigeschaltet).
+- Staatsbürger ohne Landesherr-Rolle brauchen für JEDE Meldung eine Genehmigung (seit 11.11.2026; keine dauerhafte Freischaltung mehr, die
+  Tabelle freigeschaltet wird nicht mehr ausgewertet): Die Meldung geht in den Kanal NEWSFLASH_PRUEFUNG, bis zu 3 unentschiedene je Person.
 - Enthält Zeitungsname, Schlagzeile oder Inhalt eine Wendung aus newsflash_filter.txt, wird die Meldung (auch von Landesherren)
   nicht sofort veröffentlicht, sondern mit „Veröffentlichen“/„Ablehnen“ in den Prüfkanal geschickt.
 Der Verfasser bekommt zu jeder Entscheidung eine DM. Meldungen liegen in newsflash.db (Betriebsdaten, nicht im Repo).
@@ -30,6 +30,7 @@ HIER = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(HIER, "newsflash.db")
 FILTER_DATEI = os.path.join(HIER, "newsflash_filter.txt")
 PREFIX = "newsflash:"
+MAX_OFFEN = 3   # höchstens so viele unentschiedene Meldungen je Staatsbürger
 BILDER = os.path.join(HIER, "newsflash_bilder")   # Deckblätter wartender Meldungen (Betriebsdaten, nicht im Repo)
 BILD_TYPEN = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif"}
 BILD_MAX = 8 * 1024 * 1024
@@ -181,8 +182,8 @@ class Newsflash(commands.Cog):
         if config.LANDESHERR_ROLLE not in rollen and config.STAATSBUERGER_ROLLE not in rollen and not inter.user.guild_permissions.administrator:
             await inter.response.send_message("Zeitungen können nur Staatsbürger und Landesherren veröffentlichen.", ephemeral=True)
             return
-        if not self.freigeschaltet(inter.user) and self.antrag_offen(inter.user):
-            await inter.response.send_message("Dein Antrag auf Freischaltung liegt der Leitung schon vor. Bitte warte auf die Entscheidung.", ephemeral=True)
+        if not self.freigeschaltet(inter.user) and self.offene_meldungen(inter.user) >= MAX_OFFEN:
+            await inter.response.send_message(f"Du hast bereits {MAX_OFFEN} Meldungen, über die die Leitung noch nicht entschieden hat. Bitte warte auf die Entscheidung.", ephemeral=True)
             return
         if bild_ungueltig(deckblatt) or bild_ungueltig(artikelbild):
             await inter.response.send_message("Deckblatt und Artikelbild müssen Bilder sein (PNG, JPG, WEBP oder GIF) und dürfen höchstens 8 MB groß sein.", ephemeral=True)
@@ -190,11 +191,12 @@ class Newsflash(commands.Cog):
         await inter.response.send_modal(NewsflashModal(self, deckblatt, artikelbild))
 
     def freigeschaltet(self, user: discord.Member) -> bool:
-        return (config.LANDESHERR_ROLLE in {r.id for r in user.roles} or user.guild_permissions.administrator
-                or bool(self.db.execute("SELECT 1 FROM freigeschaltet WHERE user_id = ?", (user.id,)).fetchone()))
+        """Darf ohne Genehmigung veröffentlichen: nur Landesherren und Administratoren. Staatsbürger brauchen für JEDE Meldung eine Genehmigung
+        (die frühere dauerhafte Freischaltung, Tabelle freigeschaltet, gilt nicht mehr)."""
+        return config.LANDESHERR_ROLLE in {r.id for r in user.roles} or user.guild_permissions.administrator
 
-    def antrag_offen(self, user) -> bool:
-        return bool(self.db.execute("SELECT 1 FROM meldungen WHERE user_id = ? AND status = 'offen' AND grund LIKE '%freischaltung%'", (user.id,)).fetchone())
+    def offene_meldungen(self, user) -> int:
+        return self.db.execute("SELECT COUNT(*) FROM meldungen WHERE user_id = ? AND status = 'offen'", (user.id,)).fetchone()[0]
 
     async def kanal(self, kanal_id):
         return self.bot.get_channel(kanal_id) or await self.bot.fetch_channel(kanal_id)
@@ -213,10 +215,10 @@ class Newsflash(commands.Cog):
 
         gruende = []
         if not self.freigeschaltet(inter.user):
-            if self.antrag_offen(inter.user):
-                await inter.followup.send("Dein Antrag auf Freischaltung liegt der Leitung schon vor. Bitte warte auf die Entscheidung.", ephemeral=True)
+            if self.offene_meldungen(inter.user) >= MAX_OFFEN:
+                await inter.followup.send(f"Du hast bereits {MAX_OFFEN} Meldungen, über die die Leitung noch nicht entschieden hat. Bitte warte auf die Entscheidung.", ephemeral=True)
                 return
-            gruende.append("freischaltung")
+            gruende.append("genehmigung")
         if treffer:
             gruende.append("filter")
 
@@ -244,9 +246,8 @@ class Newsflash(commands.Cog):
         self.db.commit()
 
         warum = []
-        if "freischaltung" in gruende:
-            warum.append("**Freischaltung:** Die Person ist Staatsbürger ohne Landesherr-Rolle und noch nicht freigeschaltet. "
-                         "Mit „Freischalten und veröffentlichen“ darf sie künftig ohne Prüfung veröffentlichen.")
+        if "genehmigung" in gruende:
+            warum.append("**Genehmigung:** Die Person ist Staatsbürger ohne Landesherr-Rolle; jede Meldung von Staatsbürgern braucht eine Genehmigung der Leitung.")
         if "filter" in gruende:
             warum.append(f"**Filter:** Treffer bei {', '.join(f'„{t}“' for t in treffer)}.")
         pruef = discord.Embed(title=f"Meldung Nr. {mid} zur Prüfung", color=FARBE_PRUEFUNG,
@@ -254,11 +255,11 @@ class Newsflash(commands.Cog):
         nachricht = await (await self.kanal(config.NEWSFLASH_PRUEFUNG)).send(
             embeds=[pruef] + zeitung_embeds(zeitung, schlagzeile, inhalt, verfasser, *bildnamen(deckblatt, artikelbild)),
             files=bilddateien(deckblatt, artikelbild),
-            view=pruef_view(mid, "freischaltung" in gruende), allowed_mentions=discord.AllowedMentions.none())
+            view=pruef_view(mid, False), allowed_mentions=discord.AllowedMentions.none())
         self.db.execute("UPDATE meldungen SET nachricht_id = ? WHERE id = ?", (nachricht.id, mid))
         self.db.commit()
-        if "freischaltung" in gruende:
-            text = "Du bist noch nicht als Zeitung freigeschaltet. Dein Artikel liegt der Leitung als Antrag vor; du bekommst eine Nachricht, sobald entschieden wurde."
+        if "genehmigung" in gruende:
+            text = "Meldungen von Staatsbürgern brauchen eine Genehmigung. Dein Artikel liegt der Leitung zur Prüfung vor; du bekommst eine Nachricht, sobald entschieden wurde."
         else:
             text = "Dein Artikel wird vor der Veröffentlichung von der Leitung geprüft. Du bekommst eine Nachricht, sobald entschieden wurde."
         await inter.followup.send(text, ephemeral=True)
@@ -305,12 +306,8 @@ class Newsflash(commands.Cog):
             bilder = [self.gespeichertes_bild(m[spalte]) for spalte in ("bild", "artikelbild")]
             veroeffentlicht = await self.veroeffentlichen(m["zeitung"], m["schlagzeile"], m["inhalt"], m["verfasser"], *bilder)
             self.db.execute("UPDATE meldungen SET status = 'veroeffentlicht', nachricht_id = ? WHERE id = ?", (veroeffentlicht.id, mid))
-            freigeschaltet = "freischaltung" in m["grund"]
-            if freigeschaltet:
-                self.db.execute("INSERT OR IGNORE INTO freigeschaltet VALUES (?, ?, ?)", (m["user_id"], inter.user.id, int(time.time())))
-            text = (f"Deine Meldung **„{m['schlagzeile']}“** wurde veröffentlicht: {veroeffentlicht.jump_url}"
-                    + ("\nDu bist außerdem als Zeitung freigeschaltet und kannst künftig ohne Antrag veröffentlichen." if freigeschaltet else ""))
-            stand, farbe = "✅ Veröffentlicht" + (" und freigeschaltet" if freigeschaltet else ""), FARBE_OK
+            text = f"Deine Meldung **„{m['schlagzeile']}“** wurde veröffentlicht: {veroeffentlicht.jump_url}"
+            stand, farbe = "✅ Veröffentlicht", FARBE_OK
         else:
             self.db.execute("UPDATE meldungen SET status = 'abgelehnt' WHERE id = ?", (mid,))
             text = f"Deine Meldung **„{m['schlagzeile']}“** wurde **abgelehnt**." + (f"\n> {begruendung}" if begruendung else "")
