@@ -42,6 +42,8 @@ import organigramme
 import post
 import strafsachen
 import reichstag
+import privatbesitz
+import suche
 
 
 def erstellen():
@@ -81,6 +83,8 @@ def erstellen():
     handel.registrieren(app)
     krisen.registrieren(app)
     bankkarte.registrieren(app)
+    privatbesitz.registrieren(app)
+    suche.registrieren(app)
     rpleitung.registrieren(app)
     return app
 

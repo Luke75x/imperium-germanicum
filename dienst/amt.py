@@ -615,9 +615,9 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
                    f'{ic(sym)}{zahl(schl)}<span>{esc(TAB_KURZ.get(schl, text))}</span></a>' for schl, sym, text, pfad in haupt)
     tabs += (f'<button type="button" id="menue-auf" class="{"aktiv" if im_menue else ""}" aria-controls="menue" aria-expanded="false">'
              f'{ic("layout-grid")}<span>Menü</span></button>')
-    suche = (f'<form class="suche" action="{BASIS}buerger/" method="get" role="search">{ic("search")}'
+    suche = portal["suche"] if portal and portal.get("suche") else ((f'<form class="suche" action="{BASIS}buerger/" method="get" role="search">{ic("search")}'
              f'<input type="search" name="q" value="{esc(q)}" placeholder="Suchen: Name, Aktenzeichen, ID" aria-label="Akten suchen"></form>'
-             f'<button class="knopf-rund such-auf" type="button" aria-label="Suche öffnen" aria-expanded="false">{ic("search")}</button>') if leser else ""
+             f'<button class="knopf-rund such-auf" type="button" aria-label="Suche öffnen" aria-expanded="false">{ic("search")}</button>') if leser else "")
     js = JS % json.dumps(basis)
     return f"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">

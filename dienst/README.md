@@ -91,3 +91,8 @@ Reihenfolge nach Neubau der Karte: karte_welt.py → karte_infra.py. Quellenhinw
 - Amtsseite, Ergänzung 2 (03.11.2026): **Unter Verschluss** (`amt_akten.verschluss`): Kaiser (`config.KAISER_ID`) und Kanzler (Rolle 1561856444913946664) setzen/heben es in der Bürgerakte (`POST buerger/<id>/verschluss`, Eintrag in den Vorgängen).
   Alle anderen sehen die Akte nur als Zeile „Unter Verschluss“ in den Listen/Übersicht; Bürger- und Einbürgerungsakte (gilt für alle Verfahren der Person), PDF, Bearbeiten, Vermerk, Löschen, Verfahren beenden antworten mit 403 und „Sie haben keinen Zugang“.
   **Nur Lesezugriff** (`LESE_IDS`: Rolle 1522913765035606086, KRS): sieht alle nicht verschlossenen Akten, Statistiken und PDFs, aber keine Formulare/Knöpfe; alle POST-Routen prüfen `ist_beamter` (Schreibrecht).
+- `privatbesitz.py` (11.11.2026): Privatwirtschaft – Fahrzeuge, Immobilien, Sonstiges aus einem Katalog (pb_katalog, Preise in €), Besitz pb_besitz, Seite `/schatzamt/besitz/`
+  (privat), Verwaltung `/schatzamt/amt/besitz/` (Leitung). Laufende Kosten monatlich (Steuer → Staatskasse des Standorts, Versicherung/Unterhalt → Volkswirtschaft),
+  Rückstand, Pfändung nach 3 Monaten; Einstellung „privatbesitz“. Details im Modulkopf.
+- `suche.py` (11.11.2026): Stichwortsuche im Schatzamt-Portal (`/schatzamt/suche/`, Vorschläge per `&json=1`), Index je Konto nach Berechtigung; Suchleiste in der Kopfzeile
+  (`amt.rahmen` portal["suche"]). Direktsprung bei klarem Treffer, z. B. „Goldreserve Pfalz-Bayern“ → `/schatzamt/gold/#g-ts-<sid>`.

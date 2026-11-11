@@ -115,7 +115,7 @@ async def seite(request, k):
     eigene = handelbar(con, k)   # Seite ist ohnehin nur staatlich (sa.seite("staat"))
     kz = [("Goldreserven gesamt", _t(gesamt)), ("Wert", mark(gw)), ("Golddeckung der Krone", f"{gw / menge * 100:.1f} %".replace(".", ",") if menge else "–"),
           ("Goldpreis", f"{preis(con):,.0f} € je kg".replace(",", "."))]
-    zeilen = [(esc(r["name"]), _t(r["kg"]), mark(wert(con, r["kg"])), f"{r['kg'] / gesamt * 100:.1f} %".replace(".", ",") if gesamt else "–") for r in rows]
+    zeilen = [(f'<span class="anker" id="g-{esc(r["stelle"])}">{esc(r["name"])}</span>', _t(r["kg"]), mark(wert(con, r["kg"])), f"{r['kg'] / gesamt * 100:.1f} %".replace(".", ",") if gesamt else "–") for r in rows]
     handel = ""
     if eigene:
         opts = "".join(f'<option value="{r["id"]}">{esc(r["name"])} · {_kg(bestand(con, s))} · {mark(r["saldo"])}</option>' for s, r in sorted(eigene.items(), key=lambda x: x[1]["name"]))

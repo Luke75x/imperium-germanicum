@@ -48,6 +48,7 @@ CSS = """<style>
 .kennzahlen b{white-space:nowrap;font-size:22px;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:520px){.kennzahlen{grid-template-columns:repeat(2,minmax(0,1fr))}html .kennzahlen b{font-size:19px!important;letter-spacing:-.01em}}
 .sa-saldo{font-size:34px;font-weight:700;letter-spacing:-.01em;line-height:1.1;margin:4px 0}
+.anker:target{background:#fff3b0;box-shadow:0 0 0 4px #fff3b0;border-radius:3px;scroll-margin-top:90px}
 .sa-plus{color:var(--ok)}.sa-minus{color:var(--rot)}
 .sa-nr{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em}
 .sa-karten{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin:12px 0 4px}
@@ -129,7 +130,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 # ---- Modus „Staatl.“ / „Privat“ (Umschalter unter dem Logo; Cookie, nur für Konten mit staatlichem Zugriff)
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
-NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe", "sa-bankkarte")     # Seiten, die nur die Privatperson betreffen
+NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe", "sa-bankkarte", "sa-besitz")     # Seiten, die nur die Privatperson betreffen
 NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-krisen", "sa-teilstaat", "sa-reich", "sa-handel")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
@@ -342,7 +343,8 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
     else:
         mein = [("sa-start", "layout-dashboard", "Übersicht", ""), ("sa-konto", "wallet", "Konto & Umsätze", "konto/"),
                 ("sa-ueberweisen", "arrow-right-left", "Überweisen", "ueberweisen/"), ("sa-steuern", "receipt", "Steuern & Gebühren", "steuern/"),
-                ("sa-gehalt", "banknote", "Gehalt", "gehalt/"), ("sa-gewerbe", "store", "Gewerbe", "gewerbe/")]
+                ("sa-gehalt", "banknote", "Gehalt", "gehalt/"), ("sa-gewerbe", "store", "Gewerbe", "gewerbe/"),
+                ("sa-besitz", "car", "Besitz", "besitz/")]
         gruppen = [("Bankkarte", [("sa-bankkarte", "credit-card", "Bankkarte & PIN", "bankkarte/")]), ("Mein Geld", mein),
                    ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
     if m == "rp":
@@ -353,7 +355,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
                 ("sa-amt-bankkarten", "credit-card", "Bankkarten", "amt/bankkarten/")]
         if geld.ist_leitung(k):
             amtl += [("sa-amt-besoldung", "users", "Besoldung & Lohnlauf", "amt/besoldung/"), ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/"),
-                     ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/")]
+                     ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/"), ("sa-amt-besitz", "car", "Besitzkatalog", "amt/besitz/")]
         amtl.append(("sa-amt-protokoll", "scroll-text", "Protokoll", "amt/protokoll/"))
         gruppen.append(("Schatzamt", amtl))
     weiter = []
@@ -392,9 +394,12 @@ def ant(request, k, titel, aktiv, inhalt, status=200):
     elif aktiv in NUR_PRIVAT:
         m = "privat"
     reiter, nav_aktiv = reiter_html(request, k, request.app["db"], aktiv)   # Reiter Teilstaat / Reichshaushalt; die Seitenleiste markiert den Bereich
+    portal = nav(k, m, schalter, nav_aktiv, request.app["db"])
+    if k["mitglied"]:
+        import suche
+        portal["suche"] = suche.leiste(request.query.get("q", "") if aktiv == "sa-suche" else "")
     return web.Response(status=status, content_type="text/html", headers={"Cache-Control": "no-store"},
-                        text=amt.rahmen(titel, nav_aktiv, CSS + _kennzahlen_kurz(reiter + inhalt), k, request["csrf"],
-                                        portal=nav(k, m, schalter, nav_aktiv, request.app["db"])))
+                        text=amt.rahmen(titel, nav_aktiv, CSS + _kennzahlen_kurz(reiter + inhalt), k, request["csrf"], portal=portal))
 
 
 def seite(recht=None):
@@ -947,6 +952,7 @@ def tarife_html(con):
               ("Umsatzsteuer", f'{e("umsatzsteuer")} % (im Preis enthalten) bei Zahlungen an Gewerbe'),
               ("Überweisungssteuer", f'{e("ueberweisungssteuer")} % auf private Überweisungen'),
               ("Säumniszuschlag", f'{e("saeumnis")} % je Mahnstufe · Zahlungsfrist {e("frist_tage")} Tage'),
+              ("Privatbesitz", __import__("privatbesitz").tarif_text(con)),
               ("Leitzins", f'{e("leitzins")} %')]
     geb = [(esc(geld.GEBUEHR_NAMEN.get(s, s)), mark(b)) for s, b in e("gebuehren").items()]
     return ("<h2>Lohnsteuer (Stufentarif auf das Monatsbrutto)</h2>" + amt.tabelle(["Einkommensstufe", "Grenzsteuersatz"], stufen)
