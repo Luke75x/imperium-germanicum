@@ -127,7 +127,8 @@
   function stufe() { return Math.log(geo.breite / (base || view).w) / Math.LN2 + Math.log(Math.max(300, surface.clientWidth) / 256) / Math.LN2; }
   // ---------- Behördengebäude ----------
   function typen() { return cfg.gebaeudeTypen || []; }
-  function typIndex(id) { var t = typen(); for (var i = 0; i < t.length; i++) if (t[i].id === id) return i % 8; return 0; }
+  function typIndex(id) { var t = typen(); for (var i = 0; i < t.length; i++) if (t[i].id === id) return (t[i].farbe || 0) % 8; return 6; }
+  function typ(id) { var t = typen(); for (var i = 0; i < t.length; i++) if (t[i].id === id) return t[i]; return null; }
   function typName(id) { var t = typen(); for (var i = 0; i < t.length; i++) if (t[i].id === id) return t[i].name; return id; }
   function gebaeudeById(id) { var a = stand.gebaeude || []; for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
   function gebaeudeAn(p) {
@@ -194,17 +195,6 @@
       });
     }
     kand.filter(function (o) { return o[4] === 1; }).forEach(ort);
-    // Bauwerke aus der Website (Sitze der Institutionen): ab starker Vergrößerung, vor allen anderen Namen
-    if (zt >= 7.2 && !root.classList.contains("ohne-bauwerke")) {
-      (geo.bauwerke || []).forEach(function (b) {
-        if (!sichtbar(b[1], b[2])) return;
-        var px = 12, px2 = 10, r = 5.5 * u, w = Math.max(breite(b[0], px) * 1.08, breite(b[3], px2)) + r * 3.4, h = (px + px2) * 1.3 * u;
-        out.push('<rect class="bs-bau" x="' + (b[1] - r).toFixed(1) + '" y="' + (b[2] - r).toFixed(1) + '" width="' + (2 * r).toFixed(1) + '" height="' + (2 * r).toFixed(1) + '" rx="' + (r * 0.25).toFixed(1) + '" stroke-width="' + (1.6 * u).toFixed(2) + '"/>');
-        belegt.push([b[1] - r, b[2] - r, b[1] + r, b[2] + r]);
-        if (zt < 8.6 || !frei(b[1] + r * 1.2, b[2] - h / 2, w, h)) return;     // Namen nur, wo Platz ist
-        out.push(text(b[0], b[1] + r * 1.9, b[2] - px * 0.1 * u, px, "bs-ort r1", "") + text(b[3], b[1] + r * 1.9, b[2] + px2 * 1.25 * u, px2, "bs-ort bau2", ""));
-      });
-    }
     // Teilstaaten: Name im größten Teil jedes Staats, kleinere Teile erst bei starker Vergrößerung
     komponenten().forEach(function (c) {
       var s = state(c.staat); if (!s || !sichtbar(c.x, c.y)) return;
@@ -398,7 +388,7 @@
     if (cb) { cb.checked = EDIT; cb.addEventListener("change", function () { root.classList.toggle("mit-grenzen", cb.checked); beschriften(); }); }
     fit(Object.keys(stand.gebiete));
     bindView();
-    if (EDIT) initEditor(); else { bindLegend(); bindInfo(); }
+    if (EDIT) initEditor(); else { bindLegend(); bindInfo(); gebaeudeListe(); }
     window.addEventListener("resize", function () { setView(view.x + view.w / 2, view.y + view.h / 2, view.w); });
   }
 
@@ -563,7 +553,7 @@
         startStroke(start);
       }
       if (stroke) { if (e.buttons === 0) endStroke(); else continueStroke(e); return; }
-      if (e.pointerType !== "touch") hoverLater(e);
+      if (e.pointerType !== "touch") { hoverLater(e); gebaeudeHover(e); }
     });
     function up(e) {
       if (pendingTouch && e.type === "pointerup") { startStroke(pendingTouch); hover(regionAt(pendingTouch)); }  // Antippen weist zu
@@ -1069,6 +1059,35 @@
       .catch(function () { say(T.saveError, "err"); updateStatus(); });
   }
 
+  // ---------- Behördengebäude: Hover, Liste in der Ansicht ----------
+  function gebaeudeSichtbar() { return stufe() >= 4 && !root.classList.contains("ohne-behoerden"); }
+  function gebaeudeHover(e) {
+    var an = gebaeudeSichtbar() && !drag && !gdrag && (stand.gebaeude || []).length ? gebaeudeAn(toMap(e.clientX, e.clientY)) : null;
+    surface.classList.toggle("is-ueber-geb", !!an);
+  }
+  function gebaeudeZeigen(g, info) {
+    var w = Math.min(view.w, Math.max(30, (base || view).w / 45));
+    setView(g.x, g.y, w);
+    redraw();
+    if (info) gebaeudeInfo(g);
+  }
+  function gebaeudeListe() {
+    // Ansicht: Verzeichnis aller Gebäude in der Seitenleiste (Klick zoomt heran und öffnet die Angaben); ?typ=<Typ> springt zum Gebäude dieses Typs
+    var nav = document.querySelector("[data-gebaeude-nav]"), ul = nav && nav.querySelector("[data-gebaeude-liste]");
+    var arr = (stand.gebaeude || []).slice().sort(function (a, b) { return typName(a.typ).localeCompare(typName(b.typ), "de") || a.name.localeCompare(b.name, "de"); });
+    if (nav && ul && arr.length) {
+      nav.hidden = false;
+      ul.innerHTML = arr.map(function (g) {
+        return '<li><button type="button" class="karte-legende-item ed-geb" data-geb="' + g.id + '"><span class="ed-geb-pkt t' + typIndex(g.typ) + '"></span><span class="ed-geb-t"><b>' + esc(g.name) + "</b><small>" + esc(typName(g.typ)) + "</small></span></button></li>";
+      }).join("");
+      ul.querySelectorAll("[data-geb]").forEach(function (b) {
+        b.addEventListener("click", function () { var g = gebaeudeById(b.getAttribute("data-geb")); if (g) gebaeudeZeigen(g, true); });
+      });
+    }
+    var q = /[?&]typ=([a-z0-9_-]+)/.exec(location.search);
+    if (q) { var hit = arr.filter(function (g) { return g.typ === q[1]; })[0]; if (hit) setTimeout(function () { gebaeudeZeigen(hit, true); }, 400); }
+  }
+
   // ---------- Behördengebäude: Setzen, Bearbeiten, Liste ----------
   var gf = null;
   function bindGebaeude() {
@@ -1146,7 +1165,9 @@
     if (!infoDlg) infoDlg = document.querySelector("[data-gebiet]");
     if (!infoDlg) return;
     var c = infoDlg.querySelector("[data-gebiet-inhalt]");
-    c.innerHTML = '<h2 id="karte-gebiet-titel">' + esc(g.name) + '</h2><p class="eyebrow">' + esc(typName(g.typ)) + "</p>" + (g.text ? "<p>" + esc(g.text) + "</p>" : "");
+    var ty = typ(g.typ);
+    c.innerHTML = '<h2 id="karte-gebiet-titel">' + esc(g.name) + '</h2><p class="eyebrow">' + esc(typName(g.typ)) + (ty && ty.gruppeName ? " · " + esc(ty.gruppeName) : "") + "</p>" + (g.text ? "<p>" + esc(g.text) + "</p>" : "") +
+      (ty && ty.seite ? '<p><a class="btn btn-navy" href="' + esc(ty.seite) + '">' + esc(T.buildingPage || "Zur Seite") + "</a></p>" : "");
     infoDlg.showModal();
   }
 

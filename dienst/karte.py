@@ -122,7 +122,7 @@ T["de"].update({
     "toolBuilding": "Gebäude", "buildingHint": "Gebäude: Klick auf die Karte setzt ein Gebäude des gewählten Typs. Klick auf ein Gebäude wählt es, Ziehen verschiebt es.",
     "buildings": "Behördengebäude", "buildingType": "Behörde / Typ", "buildingName": "Name", "buildingText": "Beschreibung (optional)",
     "buildingNone": "Noch kein Gebäude gesetzt. Wähle das Werkzeug „Gebäude“ und klicke auf die Karte.", "buildingPick": "Wähle ein Gebäude in der Liste oder auf der Karte, um es zu bearbeiten.",
-    "buildingDelete": "Gebäude entfernen", "buildingShow": "Zeigen", "buildingNew": "Neues Gebäude",
+    "buildingDelete": "Gebäude entfernen", "buildingShow": "Zeigen", "buildingNew": "Neues Gebäude", "buildingPage": "Zur Seite der Behörde",
     "hints": {"malen": "Malen: Klicken oder Ziehen weist Gebiete dem gewählten Teilstaat zu. Mit Umschalt entfernen.",
               "pipette": "Pipette: Klick auf ein Gebiet wählt dessen Teilstaat aus.",
               "hauptstadt": "Hauptstadt: Mit gewähltem Teilstaat auf die Karte klicken setzt dessen Hauptstadt an diese Stelle.",
@@ -134,7 +134,7 @@ T["en"].update({
     "toolBuilding": "Building", "buildingHint": "Building: click the map to place a building of the chosen type. Click a building to select it, drag to move it.",
     "buildings": "Authority buildings", "buildingType": "Authority / type", "buildingName": "Name", "buildingText": "Description (optional)",
     "buildingNone": "No building placed yet. Choose the “Building” tool and click the map.", "buildingPick": "Pick a building from the list or on the map to edit it.",
-    "buildingDelete": "Remove building", "buildingShow": "Show", "buildingNew": "New building",
+    "buildingDelete": "Remove building", "buildingShow": "Show", "buildingNew": "New building", "buildingPage": "Go to the page",
     "hints": {"malen": "Paint: click or drag assigns regions to the selected state. Hold Shift to remove.",
               "pipette": "Pick: click a region to select its state.",
               "hauptstadt": "Capital: with a state selected, click the map to place its capital there.",
@@ -155,13 +155,31 @@ ED_ICONS = {
 }
 
 
+_RB = {"zeit": 0, "daten": None}
+
+
+def reichsbehoerden():
+    """Stammdaten der Reichsbehörden aus dem Website-Repo (_build/reichsbehoerden.json, erzeugt von reichsbehoerden.py), nach Änderung der Datei neu gelesen."""
+    pfad = os.path.join(config.WEBSITE_DIR, "_build", "reichsbehoerden.json")
+    try:
+        m = os.path.getmtime(pfad)
+        if m != _RB["zeit"]:
+            with open(pfad, encoding="utf-8") as fh:
+                _RB["daten"], _RB["zeit"] = json.load(fh), m
+    except (OSError, ValueError):
+        if _RB["daten"] is None:
+            _RB["daten"] = {"gruppen": {}, "typen": [], "gebaeude": [], "bestand_typen": {}, "bestand_seiten": {}}
+    return _RB["daten"]
+
+
 def gebaeude_typen():
-    """Gebäudetypen der Reichskarte: die Behörden (amt.BEHOERDEN) und die Reichskanzlei, dazu ein allgemeiner Typ."""
-    import amt
-    typen = [{"id": "kanzlei", "name": "Reichskanzlei"}]
-    typen += [{"id": b["schl"], "name": b["name"]} for b in amt.BEHOERDEN]
-    typen.append({"id": "behoerde", "name": "Behörde (allgemein)"})
+    """Gebäudetypen der Reichskarte [{id, name, gruppe, gruppeName, farbe, seite}]: Reichskanzleramt, Behörden und Reichsämter, Reichsorgane, Krone, Sonstiges."""
+    d = reichsbehoerden()
+    gr = d.get("gruppen", {})
+    typen = [{"id": x["id"], "name": x["name"], "gruppe": x["gruppe"], "gruppeName": gr.get(x["gruppe"], ""), "farbe": x["farbe"], "seite": x.get("seite", "")} for x in d.get("typen", [])]
+    typen.append({"id": "behoerde", "name": "Behörde (allgemein)", "gruppe": "sonst", "gruppeName": gr.get("sonst", "Sonstiges"), "farbe": 6, "seite": ""})
     return typen
+
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS karte_versionen (
@@ -345,8 +363,7 @@ def seite_html(request, modus, konto, csrf, version, rollen):
               f'<input id="karte-suche" type="search" list="karte-gebiete" autocomplete="off" placeholder="{L("Gebiet suchen, z. B. Heidelberg", "Search a region, e.g. Heidelberg")}">'
               f'<datalist id="karte-gebiete"></datalist></form>'
               f'<label class="field-check karte-grenzen"><input type="checkbox" data-grenzen> {L("Gebietsgrenzen", "Region borders")}</label>'
-              f'<label class="field-check karte-grenzen"><input type="checkbox" data-ebene="bauwerke" checked> {L("Gebäude", "Buildings")}</label>'
-              f'<label class="field-check karte-grenzen"><input type="checkbox" data-ebene="behoerden" checked> {L("Behörden", "Authorities")}</label></div>')
+              f'<label class="field-check karte-grenzen"><input type="checkbox" data-ebene="behoerden" checked> {L("Gebäude", "Buildings")}</label></div>')
     wurzel = (f'<div class="karte karte-cols" data-karte>{leiste}<div class="karte-buehne">'
               f'<div class="karte-flaeche" tabindex="0" aria-label="{titel}"><p class="karte-laden">{L("Karte wird geladen …", "Loading map …")}</p>'
               f'<noscript><img src="/karte/karte.png" alt="{titel}"></noscript></div>'
@@ -361,7 +378,10 @@ def seite_html(request, modus, konto, csrf, version, rollen):
         def werkzeug(schl, symbol, text, taste, an=False):
             return (f'<button type="button" class="ed-werkzeug" data-werkzeug="{schl}" aria-pressed="{str(an).lower()}" title="{text} ({taste})">'
                     f'<svg viewBox="0 0 24 24" aria-hidden="true">{ED_ICONS[symbol]}</svg><span>{text}</span><kbd>{taste}</kbd></button>')
-        typ_opt = "".join(f'<option value="{esc(x["id"])}">{esc(x["name"])}</option>' for x in gebaeude_typen())
+        _gr = {}
+        for x in gebaeude_typen():
+            _gr.setdefault(x["gruppeName"], []).append(x)
+        typ_opt = "".join(f'<optgroup label="{esc(g)}">' + "".join(f'<option value="{esc(x["id"])}">{esc(x["name"])}</option>' for x in xs) + "</optgroup>" for g, xs in _gr.items())
         aside = (f'<aside class="karte-aside karte-editor wiki-aside">'
                  f'<div class="ed-kopf"><div><strong>{T[lang]["editorTitle"]}</strong><span class="ed-stand" data-stand></span></div>'
                  f'<div class="ed-verlauf"><button type="button" class="ed-icon" data-aktion="undo" disabled aria-label="{T[lang]["undo"]}" title="{T[lang]["undo"]} (Strg+Z)"><svg viewBox="0 0 24 24" aria-hidden="true">{ED_ICONS["undo"]}</svg></button>'
@@ -415,6 +435,7 @@ def seite_html(request, modus, konto, csrf, version, rollen):
             aktionen += f'<a class="btn btn-line btn-small" href="/karte/antraege/">{L("Anträge", "Requests")} ({offen})</a>'
         aside = (f'<aside class="karte-aside wiki-aside"><nav class="aside-nav" aria-label="{L("Teilstaaten", "States")}">'
                  f'<h2>{L("Die Teilstaaten", "The states")}</h2><ul class="karte-legende">{legende}</ul></nav>'
+                 + f'<nav class="aside-nav ed-gnav" data-gebaeude-nav hidden aria-label="{L("Gebäude", "Buildings")}"><h2>{L("Gebäude und Dienststellen", "Buildings")}</h2><ul class="karte-legende" data-gebaeude-liste></ul></nav>'
                  + (f'<div class="karte-aktionen">{aktionen}</div>' if aktionen else "")
                  + f'<div class="aside-box"><p>{L("Ein Klick auf einen Teilstaat hebt ihn hervor; ein Klick auf ein Gebiet nennt Regent, Einwohner und Fläche.", "Click a state to highlight it; click a region to see its ruler, population and area.")}</p></div></aside>')
         dialoge = (f'<dialog class="dialog karte-gebiet" data-gebiet aria-labelledby="karte-gebiet-titel"><div data-gebiet-inhalt tabindex="-1"></div>'

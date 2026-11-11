@@ -1,0 +1,360 @@
+{
+ "gruppen": {
+  "kanzlei": "Reichskanzleramt",
+  "sicherheit": "Sicherheit und Ordnung",
+  "amt": "Reichsämter",
+  "organ": "Reichsorgane",
+  "krone": "Krone",
+  "sonst": "Sonstiges"
+ },
+ "typen": [
+  {
+   "id": "kanzlei",
+   "name": "Reichskanzleramt",
+   "gruppe": "kanzlei",
+   "farbe": 0,
+   "seite": "/informationen/die-reichsbehoerden/der-kanzler/"
+  },
+  {
+   "id": "krs",
+   "name": "Kaiserliches Reichssicherheitsamt",
+   "gruppe": "sicherheit",
+   "farbe": 1,
+   "seite": "/informationen/reichssicherheitsamt/"
+  },
+  {
+   "id": "polizei",
+   "name": "Kaiserliche Polizeibehörde",
+   "gruppe": "sicherheit",
+   "farbe": 1,
+   "seite": "/informationen/die-reichsbehoerden/polizei/"
+  },
+  {
+   "id": "zoll",
+   "name": "Kaiserliche Zollverwaltung",
+   "gruppe": "sicherheit",
+   "farbe": 1,
+   "seite": "/informationen/die-reichsbehoerden/zoll/"
+  },
+  {
+   "id": "katastrophenschutz",
+   "name": "Kaiserlicher Katastrophenschutz",
+   "gruppe": "sicherheit",
+   "farbe": 1,
+   "seite": "/informationen/die-reichsbehoerden/katastrophenschutz/"
+  },
+  {
+   "id": "inquisition",
+   "name": "Die Inquisition (Staatsanwaltschaft)",
+   "gruppe": "sicherheit",
+   "farbe": 1,
+   "seite": "/informationen/die-reichsbehoerden/inquisition/"
+  },
+  {
+   "id": "auswaertiges",
+   "name": "Reichsamt für auswärtige Angelegenheiten",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/auswaertiges/"
+  },
+  {
+   "id": "inneres",
+   "name": "Reichsamt des Innern",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/inneres/"
+  },
+  {
+   "id": "justiz",
+   "name": "Reichsjustizamt",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/justiz/"
+  },
+  {
+   "id": "schatzamt",
+   "name": "Kaiserliches Schatz- und Währungsamt",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/schatzamt/"
+  },
+  {
+   "id": "wirtschaft",
+   "name": "Reichsamt für Wirtschaft und Energie",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/wirtschaft/"
+  },
+  {
+   "id": "arbeit",
+   "name": "Reichsamt für Arbeit und Soziales",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/arbeit/"
+  },
+  {
+   "id": "landwirtschaft",
+   "name": "Reichsamt für Landwirtschaft und Ernährung",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/landwirtschaft/"
+  },
+  {
+   "id": "verteidigung",
+   "name": "Reichsamt für Verteidigung",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/verteidigung/"
+  },
+  {
+   "id": "gesundheit",
+   "name": "Reichsamt für Gesundheit",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/gesundheit/"
+  },
+  {
+   "id": "verkehr",
+   "name": "Reichsamt für Verkehr",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/verkehr/"
+  },
+  {
+   "id": "umwelt",
+   "name": "Reichsamt für Umwelt und Naturschutz",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/umwelt/"
+  },
+  {
+   "id": "bildung",
+   "name": "Reichsamt für Bildung und Forschung",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/bildung/"
+  },
+  {
+   "id": "bauwesen",
+   "name": "Reichsamt für Bauwesen und Wohnen",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/bauwesen/"
+  },
+  {
+   "id": "kultur",
+   "name": "Reichsamt für Kultur und Medien",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/kultur/"
+  },
+  {
+   "id": "einwanderung",
+   "name": "Reichsamt für Einwanderung und Staatsangehörigkeit",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/einwanderung/"
+  },
+  {
+   "id": "digital",
+   "name": "Reichsamt für digitale Infrastruktur",
+   "gruppe": "amt",
+   "farbe": 5,
+   "seite": "/informationen/die-reichsbehoerden/digital/"
+  },
+  {
+   "id": "reichstag",
+   "name": "Der Reichstag",
+   "gruppe": "organ",
+   "farbe": 2,
+   "seite": "/informationen/der-reichstag/"
+  },
+  {
+   "id": "senat",
+   "name": "Der Senat",
+   "gruppe": "organ",
+   "farbe": 2,
+   "seite": "/informationen/der-senat/"
+  },
+  {
+   "id": "reichsgerichtshof",
+   "name": "Der Reichsgerichtshof",
+   "gruppe": "organ",
+   "farbe": 2,
+   "seite": "/informationen/der-reichsgerichtshof/"
+  },
+  {
+   "id": "krone",
+   "name": "Die Krone (Residenzen)",
+   "gruppe": "krone",
+   "farbe": 4,
+   "seite": ""
+  },
+  {
+   "id": "sonstiges",
+   "name": "Sonstiges Gebäude",
+   "gruppe": "sonst",
+   "farbe": 6,
+   "seite": ""
+  }
+ ],
+ "gebaeude": [
+  {
+   "typ": "kanzlei",
+   "name": "Bundeskanzleramt",
+   "text": "Sitz des Reichskanzleramts und des Kanzlers",
+   "lon": 13.3693,
+   "lat": 52.5199
+  },
+  {
+   "typ": "polizei",
+   "name": "Reichspolizeipräsidium",
+   "text": "Hauptsitz der Kaiserlichen Polizeibehörde",
+   "lon": 13.3858,
+   "lat": 52.4844
+  },
+  {
+   "typ": "zoll",
+   "name": "Zollhaus an der Oberbaumbrücke",
+   "text": "Hauptsitz der Kaiserlichen Zollverwaltung",
+   "lon": 13.4455,
+   "lat": 52.5015
+  },
+  {
+   "typ": "katastrophenschutz",
+   "name": "Reichsleitstelle des Katastrophenschutzes",
+   "text": "Hauptsitz des Kaiserlichen Katastrophenschutzes",
+   "lon": 13.3517,
+   "lat": 52.549
+  },
+  {
+   "typ": "inquisition",
+   "name": "Strafjustizgebäude Moabit",
+   "text": "Sitz der Inquisition",
+   "lon": 13.3447,
+   "lat": 52.5273
+  },
+  {
+   "typ": "auswaertiges",
+   "name": "Auswärtiges Amt",
+   "text": "Sitz des Reichsamts für auswärtige Angelegenheiten und des Generalkonsulats",
+   "lon": 13.3965,
+   "lat": 52.5136
+  },
+  {
+   "typ": "inneres",
+   "name": "Reichsinnenamt Alt-Moabit",
+   "text": "Sitz des Reichsamts des Innern",
+   "lon": 13.3606,
+   "lat": 52.5232
+  },
+  {
+   "typ": "justiz",
+   "name": "Reichsjustizamt Mohrenstraße",
+   "text": "Sitz des Reichsjustizamts",
+   "lon": 13.3857,
+   "lat": 52.5112
+  },
+  {
+   "typ": "schatzamt",
+   "name": "Detlev-Rohwedder-Haus",
+   "text": "Sitz des Kaiserlichen Schatz- und Währungsamts",
+   "lon": 13.3826,
+   "lat": 52.5084
+  },
+  {
+   "typ": "wirtschaft",
+   "name": "Haus der Wirtschaft",
+   "text": "Sitz des Reichsamts für Wirtschaft und Energie",
+   "lon": 13.4,
+   "lat": 52.513
+  },
+  {
+   "typ": "arbeit",
+   "name": "Reichsarbeitsamt Wilhelmstraße",
+   "text": "Sitz des Reichsamts für Arbeit und Soziales",
+   "lon": 13.3818,
+   "lat": 52.5156
+  },
+  {
+   "typ": "landwirtschaft",
+   "name": "Reichslandwirtschaftsamt",
+   "text": "Sitz des Reichsamts für Landwirtschaft und Ernährung",
+   "lon": 13.3817,
+   "lat": 52.5142
+  },
+  {
+   "typ": "gesundheit",
+   "name": "Reichsgesundheitsamt Friedrichstraße",
+   "text": "Sitz des Reichsamts für Gesundheit",
+   "lon": 13.3875,
+   "lat": 52.5236
+  },
+  {
+   "typ": "verkehr",
+   "name": "Reichsbehörde für Verkehr und Transportwesen",
+   "text": "Sitz des Reichsamts für Verkehr",
+   "lon": 9.9937,
+   "lat": 53.5511
+  },
+  {
+   "typ": "umwelt",
+   "name": "Reichsumweltamt Stresemannstraße",
+   "text": "Sitz des Reichsamts für Umwelt und Naturschutz",
+   "lon": 13.3818,
+   "lat": 52.5057
+  },
+  {
+   "typ": "bildung",
+   "name": "Reichsbildungsamt Kapelle-Ufer",
+   "text": "Sitz des Reichsamts für Bildung und Forschung",
+   "lon": 13.3716,
+   "lat": 52.5234
+  },
+  {
+   "typ": "bauwesen",
+   "name": "Reichsbauamt Krausenstraße",
+   "text": "Sitz des Reichsamts für Bauwesen und Wohnen",
+   "lon": 13.3925,
+   "lat": 52.5086
+  },
+  {
+   "typ": "kultur",
+   "name": "Zeughaus",
+   "text": "Sitz des Reichsamts für Kultur und Medien",
+   "lon": 13.3969,
+   "lat": 52.5177
+  },
+  {
+   "typ": "einwanderung",
+   "name": "Flughafengebäude Tempelhof",
+   "text": "Sitz des Reichsamts für Einwanderung und Staatsangehörigkeit",
+   "lon": 13.4006,
+   "lat": 52.4756
+  },
+  {
+   "typ": "digital",
+   "name": "Berliner Fernsehturm",
+   "text": "Sitz des Reichsamts für digitale Infrastruktur",
+   "lon": 13.4094,
+   "lat": 52.5208
+  }
+ ],
+ "bestand_typen": {
+  "Reichstagsgebäude": "reichstag",
+  "Herrenhausgebäude": "senat",
+  "Kammergerichtsgebäude": "reichsgerichtshof",
+  "Bendlerblock": "verteidigung",
+  "Hauptquartier des KRS": "krs",
+  "Berliner Schloss": "krone",
+  "Schloss Charlottenburg": "krone",
+  "Schloss Mannheim": "sonstiges",
+  "Jesuitenkirche Mannheim": "sonstiges"
+ },
+ "bestand_seiten": {
+  "reichstag": "/informationen/der-reichstag/",
+  "senat": "/informationen/der-senat/",
+  "reichsgerichtshof": "/informationen/der-reichsgerichtshof/",
+  "verteidigung": "/informationen/die-stabschefs/"
+ }
+}

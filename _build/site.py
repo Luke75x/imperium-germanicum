@@ -12,6 +12,7 @@ import os
 import re
 
 import etikette
+import reichsbehoerden as RB
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -854,6 +855,49 @@ def page_krs():
                      article)
 
 
+def kartenlink(typ):
+    return u("karte/") + f"?typ={typ}"
+
+
+def page_behoerde(b):
+    """Eigene Seite einer Reichsbehörde (aus reichsbehoerden.py); Behörden mit eigener Seite (b["seite"]) werden nicht erzeugt."""
+    pfad = RB.seite(b)
+    namen = {x["name"]: RB.seite(x) for x in RB.alle()}
+    namen.update({"Der Reichsgerichtshof": "informationen/der-reichsgerichtshof/", "Der Senat": "informationen/der-senat/", "Inquisition": RB.seite(next(x for x in RB.BEHOERDEN if x["schl"] == "inquisition"))})
+    kurz = {x["kurz"]: RB.seite(x) for x in RB.alle()}
+
+    def verweis(n):
+        p = namen.get(n)
+        return f'<a href="{u(p)}">{esc(n)}</a>' if p else esc(n)
+
+    def article():
+        g = b.get("gebaeude") or {"name": b.get("bestand", ""), "text": ""}
+        zeilen = [("Leitung", esc(b["leitung"])), ("Gruppe", esc(RB.GRUPPEN[b["gruppe"]])), ("Dienstgebäude", f'{esc(g["name"])}, Groß-Berlin')]
+        rows = "".join(f'<tr><th scope="row">{k}</th><td>{v}</td></tr>' for k, v in zeilen)
+        teile = [f"""
+<div class="intro-grid">
+  <div class="prose">{paras(esc(b["lead"]))}</div>
+</div>
+<div class="table-scroll"><table class="styles-table"><tbody>{rows}</tbody></table></div>
+<h2>Aufgaben</h2>
+<ul class="rb-liste">{"".join(f"<li>{esc(x)}</li>" for x in b["aufgaben"])}</ul>"""]
+        if b.get("nachgeordnet"):
+            teile.append(f'<h2>Nachgeordnete Stellen</h2><ul class="rb-liste">{"".join(f"<li>{verweis(x)}</li>" for x in b["nachgeordnet"])}</ul>')
+        if b.get("zusammen"):
+            teile.append(f'<h2>Zusammenarbeit</h2><ul class="rb-liste">{"".join(f"<li>{verweis(x)}</li>" for x in b["zusammen"])}</ul>')
+        teile.append(f"""
+<section class="seat">
+  <span class="eyebrow">Dienstgebäude</span>
+  <div class="prose">{paras(f"{esc(b['kurz'])} hat ihren Sitz im Gebäude <b>{esc(g['name'])}</b> in der Reichshauptstadt Groß-Berlin." if g["name"] else "")}</div>
+  <div class="hero-actions" style="margin-top:18px"><a class="btn btn-navy" href="{kartenlink(b["schl"])}">Auf der Reichskarte zeigen {icon("arrow")}</a></div>
+</section>
+<p><a class="link-arrow" href="{u("informationen/die-reichsbehoerden/")}">Alle Reichsbehörden {icon("arrow")}</a></p>""")
+        return "".join(teile)
+
+    institution_page(pfad, b["kurz"], b["name"], RB.GRUPPEN[b["gruppe"]], f'{b["name"]}: {b["lead"]}', article,
+                     parent=("informationen/die-reichsbehoerden/", "Die Reichsbehörden"))
+
+
 def page_reichsbehoerden():
     def karte(name, kurz, leitung, laufbahn, aufgaben):
         zeilen = [("Leitung", leitung)] + ([("Laufbahn", laufbahn)] if laufbahn else [])
@@ -984,6 +1028,37 @@ def page_reichsbehoerden():
   </div>
 </details>"""
 
+    def kanzleramt_block():
+        k = RB.KANZLEI
+        g = k["gebaeude"]
+        zeilen = [("Leitung", k["leitung"]), ("Dienstgebäude", f'{esc(g["name"])} in der Reichshauptstadt Groß-Berlin'),
+                  ("Nachgeordnet", "<br>".join(esc(x) for x in k["nachgeordnet"]))]
+        rows = "".join(f'<tr><th scope="row">{a}</th><td>{v}</td></tr>' for a, v in zeilen)
+        return f"""
+<section class="seat">
+  <span class="eyebrow">Die Spitze der Reichsverwaltung</span>
+  <h2>{esc(k["name"])}</h2>
+  <div class="prose">{paras(esc(k["lead"]))}<ul>{"".join(f"<li>{esc(x)}</li>" for x in k["aufgaben"])}</ul></div>
+  <div class="table-scroll"><table class="styles-table"><tbody>{rows}</tbody></table></div>
+  <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u(RB.seite(k))}">Der Kanzler {icon("arrow")}</a>
+  <a class="btn btn-line" href="{kartenlink("kanzlei")}">{esc(g["name"])} auf der Reichskarte {icon("arrow")}</a></div>
+</section>"""
+
+    def behoerden_karten(gruppe):
+        out = []
+        for b in RB.BEHOERDEN:
+            if b["gruppe"] != gruppe:
+                continue
+            g = b.get("gebaeude") or {"name": b.get("bestand", "–")}
+            out.append(f"""
+<article class="title-card rb-karte">
+  <header><h3><a href="{u(RB.seite(b))}">{esc(b["name"])}</a></h3><span class="rank">{esc(b["kurz"])}</span></header>
+  <div class="remark"><p>{esc(b["lead"])}</p></div>
+  <p class="rb-meta"><b>Leitung:</b> {esc(b["leitung"])}<br><b>Dienstgebäude:</b> {esc(g["name"])}</p>
+  <p><a class="link-arrow" href="{u(RB.seite(b))}">Zur Seite {icon("arrow")}</a></p>
+</article>""")
+        return "".join(out)
+
     def article():
         return f"""
 <div class="intro-grid">
@@ -1010,25 +1085,16 @@ def page_reichsbehoerden():
   <div class="prose"><p>Die Angehörigen der Reichsbehörden melden sich mit ihrem Discord-Konto an und sehen ihre Dienststelle: Personalverzeichnis, Haftregister und die Statistik des Zollwesens. Jede Behörde sieht nur ihre eigene Dienststelle, der Kanzler sieht alle.</p></div>
   <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u("informationen/die-reichsbehoerden/intern/")}">Zur internen Ansicht {icon("arrow")}</a></div>
 </section>
-<h2>Der Kanzler</h2>
-<div class="prose">
-  {paras(
-    "Der Souverän ernennt mit Beginn seiner Amtszeit einen Privatsekretär und Kanzler für die Reichsbehörden.",
-    "Der Kanzler stellt als Privatsekretär das Bindeglied zwischen den Reichsbehörden und dem Souverän dar und ist für die Verwaltung des kaiserlichen Kronbesitzes und der Schatzkammer seiner Majestät verantwortlich.",
-  )}
-  <p><a class="link-arrow" href="{u("informationen/die-reichsbehoerden/der-kanzler/")}">Mehr über den Kanzler {icon("arrow")}</a></p>
-</div>
-<h2>Die Reichsbehörden</h2>
+{kanzleramt_block()}
+<h2>Die Behörden des Reiches</h2>
 <div class="prose">{paras(
-  "Die Reichsbehörden gliedern sich in die Behörden für Sicherheit und Ordnung, die zivilen Reichsämter und den auswärtigen Dienst.",
+  "Unter dem Kanzleramt arbeiten die Behörden für Sicherheit und Ordnung und die Reichsämter. Jede hat ihre eigene Seite mit Aufgaben, Leitung und Dienstgebäude; die Dienstgebäude sind auf der Reichskarte verzeichnet.",
   "Die Behörden für Sicherheit und Ordnung tragen Uniform und eigene Dienstgrade; ihre Generaldirektoren gehören dem Führungsstab an. Die Reichsämter werden von Staatssekretären geleitet, die dem Kanzler unmittelbar verantwortlich sind.",
 )}</div>
 <span class="eyebrow" style="display:block;margin:32px 0 14px">Sicherheit und Ordnung</span>
-{sicherheit()}
+<div class="rb-grid">{behoerden_karten("sicherheit")}</div>
 <span class="eyebrow" style="display:block;margin:32px 0 14px">Die Reichsämter</span>
-{aemter}
-<span class="eyebrow" style="display:block;margin:32px 0 14px">Auswärtiger Dienst</span>
-{aussen}
+<div class="rb-grid">{behoerden_karten("amt")}</div>
 {rang_matrix}
 <h2 id="reichsvertretung">Die Reichsvertretung</h2>
 <div class="prose">
@@ -1086,6 +1152,13 @@ def page_kanzler():
 <h2>Der Geschäftsbereich des Kanzlers</h2>
 <div class="table-scroll"><table class="styles-table"><thead><tr><th>Bereich</th><th>Aufgabe</th></tr></thead><tbody>{zeilen()}</tbody></table></div>
 <p class="callout">Innerhalb der Teilstaaten achtet der Kanzler die Hoheit der Landesherren und wirkt dort vor allem, wo Belange des gesamten Reiches berührt sind.</p>
+<h2>Das Reichskanzleramt</h2>
+<div class="prose">
+  {paras(
+    "Der Kanzler steht dem Reichskanzleramt vor, das ihm als Zentrale der Reichsverwaltung dient: Es bereitet seine Entscheidungen vor, koordiniert die Reichsämter und führt die Aufsicht über das Reichssicherheitsamt.",
+    f'Das Reichskanzleramt hat seinen Sitz im <b>Bundeskanzleramt</b> in der Reichshauptstadt Groß-Berlin (<a href="{kartenlink("kanzlei")}">auf der Reichskarte zeigen</a>). Die übrigen <a href="{u("informationen/die-reichsbehoerden/")}">Reichsbehörden</a> und Reichsämter haben ihre eigenen Seiten.',
+  )}
+</div>
 <h2>Stellung und Anrede</h2>
 <div class="prose">
   {paras(
@@ -1791,6 +1864,9 @@ def main():
     page_stabschefs()
     page_krs()
     page_reichsbehoerden()
+    for _b in RB.BEHOERDEN:
+        if not _b.get("seite"):
+            page_behoerde(_b)
     page_kanzler()
     page_souveraen()
     page_galerie()

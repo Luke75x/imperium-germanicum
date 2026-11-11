@@ -719,3 +719,8 @@
 .ed-block > h2.wiki-aside-h, .ed-block > summary.wiki-aside-h { margin: 0 0 10px; font: 600 .75rem/1.3 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
 .ed-gform textarea { height: 64px; min-height: 64px; }
 .ed-land { padding-top: 4px; border-top: 1px solid var(--rule); }
+
+.karte-flaeche.is-ueber-geb, .is-editor .karte-flaeche.is-ueber-geb { cursor: pointer; }
+.ed-gnav { margin-top: 24px; }
+.ed-gnav ul { max-height: 46vh; overflow: auto; }
+.ed-gnav .ed-geb { padding: 7px 8px; margin: 0 -8px; width: calc(100% + 16px); }

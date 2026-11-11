@@ -881,3 +881,12 @@ a.zoom:hover .zoom-hint, a.zoom:focus-visible .zoom-hint { opacity: 1; }
 .topbar .konto-menue a:hover, .konto-menue button:hover { background: var(--paper); color: var(--ink); }
 .konto-menue form { border-top: 1px solid var(--rule); margin-top: 6px; padding-top: 6px; }
 @media (max-width: 520px) { .konto-name, .konto-anmelden .lbl { display: none; } }
+
+/* Reichsbehörden: Kartenraster und Listen */
+.rb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 18px; align-items: stretch; }
+.rb-grid .title-card { margin: 0; display: flex; flex-direction: column; }
+.rb-karte .remark { flex: 1; }
+.rb-meta { margin: 8px 0 4px; font-size: .9375rem; color: var(--ink-2); line-height: 1.5; }
+.rb-liste { margin: 0 0 8px; padding-left: 1.2em; line-height: 1.6; }
+.rb-karte > .rb-meta, .rb-karte > p { padding: 0 24px; }
+.rb-karte > p:last-child { padding-bottom: 18px; }
