@@ -408,7 +408,7 @@ def regierte_staatskassen(con, k, mit_zwang=False):
                 if r:
                     out.append(r)
             continue
-        if (f and f in eigene and (regent or f in karte.ROLLEN_AEMTER)) or (not f and kanzler):
+        if (f and f in eigene and (regent or f in karte.ROLLEN_AEMTER)) or ((not f or karte.regent_fehlt(f)) and kanzler):   # ohne Regent: Kanzler/Kaiser
             r = stellenkonto(con, "ts-" + s["id"])
             if r:
                 out.append(r)

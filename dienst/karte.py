@@ -650,8 +650,55 @@ async def _bild_beim_start(app):
         karte_bild.neu_erzeugen(GEO, aktuell(app["db"])["stand"], verzoegerung=1)
 
 
+# Fraktionen mit eingesetztem Regenten (Landesherr oder Amtsrolle + Fraktionsrolle), aus Discord alle 10 Minuten aufgefrischt.
+# None = noch nicht bekannt (dann gilt der Teilstaat als besetzt). Ohne Regent verwalten Kanzler und Kaiser den Teilstaat samt Finanzen
+# (geld.regierte_staatskassen), genau wie die Karte „Souverän, vertreten durch den Kanzler“ anzeigt.
+REGENTEN = {"fraktionen": None, "zeit": 0}
+
+
+def regent_fehlt(fraktion):
+    """True, wenn die Fraktion bekannt ist und niemand sie als Regent führt."""
+    b = REGENTEN["fraktionen"]
+    return b is not None and bool(fraktion) and fraktion not in b
+
+
+async def regenten_auffrischen(app, con=None):
+    con = con or app["db"]
+    stand = aktuell(con)["stand"]
+    fr = {s["fraktion"] for s in stand["staaten"] if s.get("fraktion")}
+    besetzt = set()
+    for m in await app["discord"].mitglieder():
+        if ROLLE_LANDESHERR in m["rollen"] or any(r in ROLLEN_AEMTER for r in m["rollen"]):
+            besetzt |= fraktionen(m["rollen"], stand["staaten"]) & fr
+    REGENTEN["fraktionen"], REGENTEN["zeit"] = besetzt, time.time()
+    log.info("Regenten-Abgleich: %d von %d Fraktionen besetzt; ohne Regent: %s", len(besetzt), len(fr),
+             ", ".join(s["name"] for s in stand["staaten"] if s.get("fraktion") in fr - besetzt) or "–")
+
+
+async def _regenten_schleife(app):
+    await asyncio.sleep(15)
+    while True:
+        try:
+            await regenten_auffrischen(app)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("Regenten-Abgleich fehlgeschlagen")
+        await asyncio.sleep(600)
+
+
+async def _regenten_start(app):
+    app["regenten_aufgabe"] = asyncio.get_event_loop().create_task(_regenten_schleife(app))
+
+
+async def _regenten_stopp(app):
+    app["regenten_aufgabe"].cancel()
+
+
 def registrieren(app):
     einrichten(app["db"])
+    app.on_startup.append(_regenten_start)
+    app.on_cleanup.append(_regenten_stopp)
     app.on_startup.append(_geo_hintergrund)
     app.on_startup.append(_bild_beim_start)
     for p in ("", "/en"):
