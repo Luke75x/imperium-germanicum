@@ -7,7 +7,7 @@ Ein neuer Pass derselben Art ersetzt den alten (wird ungültig). Ungültigkeitse
 Fahndung aus. Abgelaufen ist ein Pass, dessen Gültigkeitsdatum (OOC) vorbei ist.
 
 Rechte: Lesen wie die Akten (amt.ist_leser), Melden/Ausstellen/Ungültig erklären wie Akten schreiben (amt.ist_beamter).
-Passprüfung (nur Nummer → gültig/ungültig, Inhaber, Gültigkeit): Zoll, Polizei (inkl. Landespolizeien), Reichsverwaltung, Kaiser, Kanzler.
+Passprüfung (nur Nummer → gültig/ungültig, Inhaber, Gültigkeit): Zoll, Polizei (inkl. Landespolizeien), Reichsverwaltung, Kaiser, Kronkanzler.
 Jede Prüfung wird protokolliert (pw_abfragen), das Protokoll sieht die Reichsverwaltung.
 Tabellen: mw_meldungen, pw_paesse, pw_eintraege, pw_abfragen. Akten unter Verschluss bleiben für Unbefugte gesperrt.
 """

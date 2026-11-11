@@ -20,7 +20,7 @@ INSTITUTIONEN = {
     "reichsverwaltung": ("Reichsverwaltung", 1526348059984789504),
 }
 ZIVIL = {"reichsverwaltung"}      # Beamtenlaufbahn: keine Stufen OF/OR, keine Sammelrolle „Abteilungen“, keine Gruppenrollen
-NUR_KANZLER = {"reichsverwaltung"}  # einstellen darf nur der Kanzler (oder der Kaiser), sonst jeder Landesherr
+NUR_KANZLER = {"reichsverwaltung"}  # einstellen darf nur der Kronkanzler (oder der Kaiser), sonst jeder Landesherr
 SAMMELROLLE_ABTEILUNGEN = 1526342856438972556     # Rolle „Abteilungen“, kommt mit jeder Institutionsrolle
 GRUPPENROLLEN = {"mannschaften": 1522921421398081689, "unteroffiziere": 1522917239769141428,
                  "offiziere": 1522914146390380636, "generalstab": 1522706926973096057}

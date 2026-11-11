@@ -6,7 +6,7 @@ Monatsetat je Stelle in der Einstellung „etats“ (Heller/Monat). Vorgabe = Gr
 (Haushalt 2025, Jahreswerte) × 2,4 (Wirtschaftskraft des Reiches) ÷ Wechselkurs ÷ 12, hier als Jahreswerte genannt: Polizei (Bundespolizei + BKA) 11,7 Mrd. Kr, Zoll 6,9 Mrd.,
 Katastrophenschutz (BBK + THW) 1,6 Mrd., Reichssicherheitsamt (BfV + BND) 3,4 Mrd., Inquisition 0,5 Mrd., Schatzamt 3,0 Mrd.,
 Reichskanzlei 1,0 Mrd. Erstausstattung einmalig über werkzeuge/behoerden_etat.py. Zuweisen und Etat ändern: Leitung des Schatzamts
-(dazu Kanzler/Kaiser).
+(dazu Kronkanzler/Kaiser).
 """
 import time
 from datetime import date

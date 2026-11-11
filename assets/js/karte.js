@@ -1,8 +1,8 @@
 /* Reichskarte (/karte/): Anzeige und Editor.
    Konfiguration aus #karte-cfg (vom Wiki-Dienst, Modul karte.py), Geodaten aus /karte/geo.json (NUTS-3-Gebiete als SVG-Pfade).
    Anzeige: Zoomen (Mausrad, Knöpfe, Tasten, zwei Finger), Verschieben, Gebiet unter dem Zeiger, Suche, Legende hebt Teilstaaten hervor.
-   Klick auf ein Gebiet (Anzeige): Fenster mit Teilstaat, Regent (Landesherr + Fraktionsrolle bzw. Kanzler), Bevölkerung, Fläche;
-   angemeldete Regenten beantragen dort einen neuen Namen für einen Bezirk ihres Teilstaats (entscheidet der Kanzler per Discord-DM
+   Klick auf ein Gebiet (Anzeige): Fenster mit Teilstaat, Regent (Landesherr + Fraktionsrolle bzw. Kronkanzler), Bevölkerung, Fläche;
+   angemeldete Regenten beantragen dort einen neuen Namen für einen Bezirk ihres Teilstaats (entscheidet der Kronkanzler per Discord-DM
    des Bots). Gebietsnamen im Rollenspiel stehen in stand.namen; der heutige amtliche Name bleibt sichtbar.
    Editor (nur Server-Admins): Gebiete per Klick/Ziehen zuweisen, Pipette, ganze Länder, Teilstaaten anlegen/ändern/löschen,
    Rückgängig/Wiederholen, Speichern mit Bemerkung und Konflikterkennung. Auf dem Handy (bis 900 px): Vollbild-Karte mit Leiste unten
@@ -767,7 +767,7 @@
       return "<strong>" + esc(p.name) + "</strong>" + (t.length ? " <span class=\"karte-titel\">" + esc(t.join(" · ")) + "</span>" : "");
     }).join("<br>");
     if (r.art === "landesherr") return names || esc(T.vacant.replace("{f}", r.fraktion || s.name));
-    // kein eigener Regent: der Souverän, vertreten durch den Kanzler
+    // kein eigener Regent: der Souverän, vertreten durch den Kronkanzler
     var v = (r.vertreter || []).map(function (p) { return "<strong>" + esc(p.name) + "</strong>"; }).join(" " + esc(T.und) + " ");
     return (names || esc(T.noKanzler)) + (v ? '<br><span class="karte-hinweis">' + esc(T.vertreten) + " " + v + "</span>" : "");
   }
@@ -817,7 +817,7 @@
   function renameHtml(id, s, r) {
     var ich = infoData.ich;
     if (ich && ich.kanzler && !cfg.version) {
-      // Kanzler: Namen unmittelbar festlegen (statt Antrag)
+      // Kronkanzler: Namen unmittelbar festlegen (statt Antrag)
       return '<h3 class="karte-gebiet-h">' + esc(T.renameH) + "</h3><p>" + esc(T.kanzlerIntro) + "</p>" +
         '<form class="form karte-antrag" data-kname><div class="field"><label for="kn-name">' + esc(T.nameField) + '</label>' +
         '<input id="kn-name" maxlength="80" value="' + esc(gname(id)) + '"></div><div data-kname-meldung></div>' +

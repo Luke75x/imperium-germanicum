@@ -23,8 +23,8 @@ Neu aufgebaut am 02.11.2026, da der frühere „Wiki-Dienst“ nicht gesichert w
 - `karte.py`: Reichskarte (`/karte/`, `/en/karte/`, karte.js) auf 1352 NUTS-3-Gebieten mit 19 Teilstaaten.
   - Anzeige mit Legende und Gebietsfenster (Regent, Einwohner, Fläche, Anteile), Editor `/karte/bearbeiten/` (nur Admins),
     `daten.json` (Stand), `info.json` (Einwohner, Regenten, eigene Rechte/Anträge), `geo.json`, `karte.png` (Startseite).
-  - Regent = Landesherr mit der Fraktionsrolle des Teilstaats; ohne Fraktionsrolle verwaltet der Kanzler.
-  - Gebietsnamen im Rollenspiel: Regenten beantragen (`POST /karte/antrag`, DM an den Kanzler), der Kanzler entscheidet auf
+  - Regent = Landesherr mit der Fraktionsrolle des Teilstaats; ohne Fraktionsrolle verwaltet der Kronkanzler.
+  - Gebietsnamen im Rollenspiel: Regenten beantragen (`POST /karte/antrag`, DM an den Kronkanzler), der Kronkanzler entscheidet auf
     `/karte/antraege/` (DM an den Antragsteller) oder setzt Namen direkt (`POST /karte/gebietsname`).
   - Versionen in `karte_versionen`, Anträge in `karte_antraege`. Startstand aus der alten Karte rekonstruiert
     (`werkzeuge/karte_rekonstruktion/LIESMICH.md`), Geodaten von `werkzeuge/karte_bauen.py` (Eurostat/GISCO, © EuroGeographics).
@@ -80,7 +80,7 @@ Kartenstufe in `karte.js` (`stufe()`) entspricht Kachelstufen; Orte/Länder/Meer
 Reihenfolge nach Neubau der Karte: karte_welt.py → karte_infra.py. Quellenhinweis: © OpenStreetMap-Mitwirkende (ODbL). karte.js: Autobahnen ab Stufe 5,2, Bahn ab 5,8, Bauwerke ab 7,2 (Namen ab 8,6); ab Stufe 7,2 die feine Fassung; Linien mit butt/miter und optimizeSpeed (sonst ruckelt das Verschieben).
 - `amt.py` + `amt_icons.py` (03.11.2026): Amtsseite der Reichsbehörden unter `/informationen/die-reichsbehoerden/intern/` (nginx `location ^~`, Backup
   `/root/imperium-germanicum.conf.bak-amt`). Eigenständige, schlichte Behördenoptik (eigenes CSS in `amt.py`, eigene Navigation, Lucide-Icons inline aus
-  `amt_icons.py`, erzeugt mit `werkzeuge/lucide_icons.js`), nicht im Website-Rahmen. Zugang: Rollen Zollverwaltung/Kanzler und Admins (`ROLLEN_ZUGANG`).
+  `amt_icons.py`, erzeugt mit `werkzeuge/lucide_icons.js`), nicht im Website-Rahmen. Zugang: Rollen Zollverwaltung/Kronkanzler und Admins (`ROLLEN_ZUGANG`).
   Seiten: Übersicht (Zur Bearbeitung, Kennzahlen, letzte Vorgänge), Bürgerakten (Suche, Filter, Akte mit Stammdaten, Vorgängen, Vermerken), Einbürgerungsakten
   (Phase I/II, Vermerke, Verfahren beenden). Tabellen `amt_akten` (BA-nnnnn, je Staatsbürger; Abgleich mit den Discord-Rollen beim Start und alle 15 Min),
   `amt_verfahren` (EB-jjjj-nnnn, je Einreiseverfahren), `amt_eintraege` (Vorgänge/Vermerke). Der Bot füllt sie über `/intern-api/amt/einreise|einbuergerung|ticket-geschlossen`
@@ -88,7 +88,7 @@ Reihenfolge nach Neubau der Karte: karte_welt.py → karte_infra.py. Quellenhinw
 - Amtsseite, Ergänzung (03.11.2026): Zugang zusätzlich für die IDs 463089934765391872 (Kaiser), 1526348059984789504 und 1522693216053235903 (`ZUGANG_IDS`, gelten als Nutzer- oder Rollen-ID). Neu: Statistiken (`statistik/`: Fraktion, Schicht, Beruf, Ergebnisse, Einbürgerungen je Monat, Dauer),
   Bürgerakte löschen (`buerger/<id>/loeschen/`, Bestätigung per Aktenzeichen + Grund, optional Einbürgerungsakten mit; Protokoll in `amt_loeschungen`, Seite `protokoll/`; der Abgleich legt gelöschte Konten nicht neu an) und
   PDF-Export (`…/pdf` für Bürgerakte, Einbürgerungsakte, Statistiken; Playwright-Chromium aus `.browser`, A4, nacheinander).
-- Amtsseite, Ergänzung 2 (03.11.2026): **Unter Verschluss** (`amt_akten.verschluss`): Kaiser (`config.KAISER_ID`) und Kanzler (Rolle 1561856444913946664) setzen/heben es in der Bürgerakte (`POST buerger/<id>/verschluss`, Eintrag in den Vorgängen).
+- Amtsseite, Ergänzung 2 (03.11.2026): **Unter Verschluss** (`amt_akten.verschluss`): Kaiser (`config.KAISER_ID`) und Kronkanzler (Rolle 1561856444913946664) setzen/heben es in der Bürgerakte (`POST buerger/<id>/verschluss`, Eintrag in den Vorgängen).
   Alle anderen sehen die Akte nur als Zeile „Unter Verschluss“ in den Listen/Übersicht; Bürger- und Einbürgerungsakte (gilt für alle Verfahren der Person), PDF, Bearbeiten, Vermerk, Löschen, Verfahren beenden antworten mit 403 und „Sie haben keinen Zugang“.
   **Nur Lesezugriff** (`LESE_IDS`: Rolle 1522913765035606086, KRS): sieht alle nicht verschlossenen Akten, Statistiken und PDFs, aber keine Formulare/Knöpfe; alle POST-Routen prüfen `ist_beamter` (Schreibrecht).
 - `privatbesitz.py` (11.11.2026): Privatwirtschaft – Fahrzeuge, Immobilien, Sonstiges aus einem Katalog (pb_katalog, Preise in €), Besitz pb_besitz, Seite `/schatzamt/besitz/`

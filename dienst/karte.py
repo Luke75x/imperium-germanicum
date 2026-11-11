@@ -6,12 +6,12 @@
     GET  /karte/daten.json       aktueller Stand (Teilstaaten, Zuordnung, Gebietsnamen)
     GET  /karte/info.json        Einwohner, Regenten je Teilstaat, für Angemeldete: Rechte und eigene Anträge
     POST /karte/speichern        neuer Stand aus dem Editor (Konflikterkennung über basis)
-    POST /karte/antrag           Regent beantragt einen Gebietsnamen → DM an den Kanzler
-    POST /karte/gebietsname      Kanzler setzt einen Gebietsnamen unmittelbar (leer = heutiger Name)
-    GET  /karte/antraege/        Kanzler: offene Anträge entscheiden (POST …/entscheiden) → DM an den Antragsteller
+    POST /karte/antrag           Regent beantragt einen Gebietsnamen → DM an den Kronkanzler
+    POST /karte/gebietsname      Kronkanzler setzt einen Gebietsnamen unmittelbar (leer = heutiger Name)
+    GET  /karte/antraege/        Kronkanzler: offene Anträge entscheiden (POST …/entscheiden) → DM an den Antragsteller
     GET  /karte/karte.png        Bild für die Startseite (karte_bild.py)
 
-Regent eines Teilstaats: Landesherr mit der Fraktionsrolle des Teilstaats; Teilstaaten ohne Fraktionsrolle verwaltet der Kanzler.
+Regent eines Teilstaats: Landesherr mit der Fraktionsrolle des Teilstaats; Teilstaaten ohne Fraktionsrolle verwaltet der Kronkanzler.
 Jeder Stand ist eine Zeile in karte_versionen; der jüngste gilt. Startstand: karte_daten/startstand.json (aus der alten Karte).
 """
 import asyncio
@@ -40,7 +40,7 @@ ROLLE_LANDESHERR = "1522701576295415969"
 ROLLE_SOUVERAEN = "1522685953054081054"      # Imperator Rex
 # Zusatzämter von Regenten (Vizekönig … Bürgermeister), erscheinen in der Gebietsübersicht
 ROLLEN_AEMTER = ("1525947356049309788", "1525947448776986665", "1525947612639793253", "1555971841888223242", "1525948431267532860")
-REICHSGEBIETE = "Freie Reichsgebiete"        # kein Teilstaat: Kanzler und Souverän regieren
+REICHSGEBIETE = "Freie Reichsgebiete"        # kein Teilstaat: Kronkanzler und Souverän regieren
 ROLLE_KANZLER = "1561856444913946664"
 # Fraktionsrollen, die zugleich etwas anderes bedeuten: „Heiliger Stuhl“ ist auch die Rolle des Klerus (Kardinal, Bischof …).
 # Sie zählt nur als Fraktion, wenn die Person keine andere Fraktionsrolle hat (z. B. Kardinal Baier → St. Longinus Orden).
@@ -68,25 +68,25 @@ T = {
            "conflict": "Inzwischen hat {name} einen neueren Stand gespeichert. Bitte lade die Seite neu und übernimm deine Änderungen erneut.",
            "countryPick": "– Land wählen –", "density": "Bevölkerungsdichte", "edit": "Bearbeiten", "editState": "Teilstaat bearbeiten",
            "infoError": "Die Angaben konnten nicht geladen werden.", "inhabitants": "Einwohner",
-           "kanzlerIntro": "Als Kanzler legst du den Namen dieses Gebiets im Rollenspiel unmittelbar fest. Leer lassen oder zurücksetzen stellt den heutigen Namen wieder her.",
-           "kanzlerNote": "Der Teilstaat hat keinen eigenen Regenten; der Kanzler verwaltet ihn als Vertreter des Souveräns.",
+           "kanzlerIntro": "Als Kronkanzler legst du den Namen dieses Gebiets im Rollenspiel unmittelbar fest. Leer lassen oder zurücksetzen stellt den heutigen Namen wieder her.",
+           "kanzlerNote": "Der Teilstaat hat keinen eigenen Regenten; der Kronkanzler verwaltet ihn als Vertreter des Souveräns.",
            "leave": "Es gibt ungespeicherte Änderungen.", "loadError": "Die Karte konnte nicht geladen werden.", "login": "Mit Discord anmelden",
            "loginHint": "Regenten dieses Teilstaats können nach der Anmeldung einen neuen Namen für das Gebiet beantragen.",
            "more": "Teilstaaten und Speichern", "nameEmpty": "Bitte einen Namen angeben.", "nameField": "Name im Rollenspiel",
            "nameSaved": "Name gespeichert.", "nameTaken": "Diesen Namen trägt schon ein anderer Teilstaat.", "newName": "Neuer Name",
            "newState": "Neuer Teilstaat", "noChanges": "Keine Änderungen", "noData": "keine Angabe",
-           "noFaction": "kein Regent hinterlegt", "noKanzler": "Das Amt des Kanzlers ist unbesetzt.", "noState": "keinem Teilstaat zugeordnet",
+           "noFaction": "kein Regent hinterlegt", "noKanzler": "Das Amt des Kronkanzlers ist unbesetzt.", "noState": "keinem Teilstaat zugeordnet",
            "notFound": "Kein Gebiet gefunden.", "notReich": "Nicht Teil des Reiches", "perKm2": "Einwohner je km²", "population": "Bevölkerung",
            "reason": "Begründung", "regent": "Regent", "regionCount": "Gebiete", "renameBtn": "Neuen Namen beantragen",
            "renameH": "Name im Rollenspiel",
-           "renameIntro": "Als Regent dieses Teilstaats kannst du einen neuen Namen für das Gebiet beantragen. Der Kanzler entscheidet darüber; die Antwort erhältst du per Direktnachricht auf Discord.",
+           "renameIntro": "Als Regent dieses Teilstaats kannst du einen neuen Namen für das Gebiet beantragen. Der Kronkanzler entscheidet darüber; die Antwort erhältst du per Direktnachricht auf Discord.",
            "resetName": "Heutigen Namen wiederherstellen", "save": "Speichern", "saved": "Gespeichert.", "saveError": "Speichern fehlgeschlagen.",
            "send": "Antrag senden", "setName": "Namen festlegen", "shareArea": "Anteil an der Fläche des Reiches",
            "sharePop": "Anteil an der Bevölkerung des Reiches", "sheetClose": "Zur Karte",
            "source": "Einwohner: Eurostat, Stand {j}. Grenzen: © EuroGeographics (NUTS 2021).", "state": "Teilstaat", "reich": "Reichsgebiete", "und": "und", "vertreten": "vertreten durch",
            "today": "heute", "todayName": "Heutiger Name", "toolPaint": "Malen", "toolPan": "Verschieben", "toolPick": "Pipette",
            "unassigned": "Kein Teilstaat", "undo": "Rückgängig", "vacant": "unbesetzt (kein Landesherr mit der Rolle „{f}“)",
-           "pending": "Dein Antrag vom {d} auf „{n}“ liegt dem Kanzler vor.", "accepted": "Dein Antrag vom {d} auf „{n}“ wurde angenommen.",
+           "pending": "Dein Antrag vom {d} auf „{n}“ liegt dem Kronkanzler vor.", "accepted": "Dein Antrag vom {d} auf „{n}“ wurde angenommen.",
            "rejected": "Dein Antrag vom {d} auf „{n}“ wurde abgelehnt."},
     "en": {"answer": "Answer", "area": "Area", "capital": "Capital", "loading": "Loading map …", "loadingRetry": "Loading map … (attempt {n})",
            "retry": "Try again",
@@ -96,25 +96,25 @@ T = {
            "conflict": "{name} has saved a newer version in the meantime. Please reload the page and apply your changes again.",
            "countryPick": "– choose a country –", "density": "Population density", "edit": "Edit", "editState": "Edit state",
            "infoError": "The details could not be loaded.", "inhabitants": "inhabitants",
-           "kanzlerIntro": "As Chancellor you set this region's name in the role-play directly. Leave it empty or reset it to restore today's name.",
-           "kanzlerNote": "The state has no ruler of its own; the Chancellor administers it on behalf of the Sovereign.",
+           "kanzlerIntro": "As Crown Chancellor you set this region's name in the role-play directly. Leave it empty or reset it to restore today's name.",
+           "kanzlerNote": "The state has no ruler of its own; the Crown Chancellor administers it on behalf of the Sovereign.",
            "leave": "There are unsaved changes.", "loadError": "The map could not be loaded.", "login": "Sign in with Discord",
            "loginHint": "Rulers of this state can request a new name for the region after signing in.",
            "more": "States and saving", "nameEmpty": "Please enter a name.", "nameField": "Name in the role-play",
            "nameSaved": "Name saved.", "nameTaken": "Another state already has this name.", "newName": "New name",
            "newState": "New state", "noChanges": "No changes", "noData": "no data",
-           "noFaction": "no ruler on record", "noKanzler": "The office of Chancellor is vacant.", "noState": "not assigned to a state",
+           "noFaction": "no ruler on record", "noKanzler": "The office of Crown Chancellor is vacant.", "noState": "not assigned to a state",
            "notFound": "No region found.", "notReich": "Not part of the Empire", "perKm2": "inhabitants per km²", "population": "Population",
            "reason": "Reason", "regent": "Ruler", "regionCount": "Regions", "renameBtn": "Request a new name",
            "renameH": "Name in the role-play",
-           "renameIntro": "As ruler of this state you can request a new name for the region. The Chancellor decides; you will receive the answer as a direct message on Discord.",
+           "renameIntro": "As ruler of this state you can request a new name for the region. The Crown Chancellor decides; you will receive the answer as a direct message on Discord.",
            "resetName": "Restore today's name", "save": "Save", "saved": "Saved.", "saveError": "Saving failed.",
            "send": "Send request", "setName": "Set name", "shareArea": "Share of the Empire's area",
            "sharePop": "Share of the Empire's population", "sheetClose": "To the map",
            "source": "Population: Eurostat, {j}. Boundaries: © EuroGeographics (NUTS 2021).", "state": "State", "reich": "Imperial territories", "und": "and", "vertreten": "represented by",
            "today": "today", "todayName": "Today's name", "toolPaint": "Paint", "toolPan": "Move", "toolPick": "Eyedropper",
            "unassigned": "No state", "undo": "Undo", "vacant": "vacant (no Landesherr with the role “{f}”)",
-           "pending": "Your request of {d} for “{n}” is with the Chancellor.", "accepted": "Your request of {d} for “{n}” was accepted.",
+           "pending": "Your request of {d} for “{n}” is with the Crown Chancellor.", "accepted": "Your request of {d} for “{n}” was accepted.",
            "rejected": "Your request of {d} for “{n}” was rejected."},
 }
 
@@ -373,7 +373,7 @@ def seite_html(request, modus, konto, csrf, version, rollen):
               f'.</p></div>')
 
     if modus == "bearbeiten":
-        rollen_opt = f'<option value="">{L("– keine (verwaltet der Kanzler) –", "– none (administered by the Chancellor) –")}</option>' + "".join(
+        rollen_opt = f'<option value="">{L("– keine (verwaltet der Kronkanzler) –", "– none (administered by the Crown Chancellor) –")}</option>' + "".join(
             f'<option value="{esc(r["id"])}">{esc(r["name"])}</option>' for r in rollen)
         def werkzeug(schl, symbol, text, taste, an=False):
             return (f'<button type="button" class="ed-werkzeug" data-werkzeug="{schl}" aria-pressed="{str(an).lower()}" title="{text} ({taste})">'
@@ -579,7 +579,7 @@ async def info_json(request):
             if personen:
                 regenten[s["id"]] = {"art": "landesherr", "fraktion": rollen.get(s["fraktion"], ""), "personen": personen}
                 continue
-        # ohne eingesetzten Regenten: der Souverän, vertreten durch den Kanzler
+        # ohne eingesetzten Regenten: der Souverän, vertreten durch den Kronkanzler
         regenten[s["id"]] = {"art": art, "personen": souveraen, "vertreter": [{"name": p["name"]} for p in kanzler]}
     ich = None
     if k:
@@ -653,7 +653,7 @@ async def antrag(request):
     if not neu or not grund:
         return web.json_response({"ok": False, "fehler": "Bitte neuen Namen und Begründung angeben."})
     if con.execute("SELECT 1 FROM karte_antraege WHERE gebiet = ? AND status = 'offen'", (gebiet,)).fetchone():
-        return web.json_response({"ok": False, "fehler": "Für dieses Gebiet liegt dem Kanzler bereits ein Antrag vor."})
+        return web.json_response({"ok": False, "fehler": "Für dieses Gebiet liegt dem Kronkanzler bereits ein Antrag vor."})
     jetzt = int(time.time())
     con.execute("INSERT INTO karte_antraege (gebiet, staat, neu, begruendung, nutzer_id, nutzer_name, zeit) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (gebiet, sid, neu, grund, k["id"], k["name"], jetzt))
@@ -669,7 +669,7 @@ async def antrag(request):
     return web.json_response({"ok": True, "antrag": {"status": "offen", "neu": neu, "zeit": jetzt, "antwort": ""}})
 
 
-@anmeldung.angemeldet(_ist_kanzler, "Über Anträge auf Gebietsnamen entscheidet der Kanzler.")
+@anmeldung.angemeldet(_ist_kanzler, "Über Anträge auf Gebietsnamen entscheidet der Kronkanzler.")
 async def antraege_seite(request):
     con = request.app["db"]
     stand = aktuell(con)["stand"]
@@ -697,14 +697,14 @@ async def antraege_seite(request):
                "grund": '<div class="form-status err" role="status">Bitte begründe die Ablehnung in der Antwort.</div>'}.get(request.query.get("m"), "")
     inhalt = ('<div class="page-head"><div class="wrap"><nav class="breadcrumb" aria-label="Brotkrumen"><ol><li><a href="/">Hauptseite</a></li>'
               '<li><a href="/karte/">Die Reichskarte</a></li><li><span aria-current="page">Anträge</span></li></ol></nav>'
-              '<span class="eyebrow">Kanzler</span><h1>Anträge auf Gebietsnamen</h1>'
+              '<span class="eyebrow">Kronkanzler</span><h1>Anträge auf Gebietsnamen</h1>'
               '<p class="wiki-intro rt-lead">Regenten beantragen hier neue Namen für Gebiete ihres Teilstaats. Angenommene Namen erscheinen sofort auf der Karte.</p></div></div>'
               f'<div class="section"><div class="wrap">{meldung}{tabelle}</div></div>')
     return web.Response(text=seite("Anträge auf Gebietsnamen", inhalt, konto=request["konto"], csrf=request["csrf"], pfad=request.path,
                                    kopf='<meta name="robots" content="noindex">'), content_type="text/html", headers={"Cache-Control": "no-store"})
 
 
-@anmeldung.angemeldet(_ist_kanzler, "Über Anträge auf Gebietsnamen entscheidet der Kanzler.")
+@anmeldung.angemeldet(_ist_kanzler, "Über Anträge auf Gebietsnamen entscheidet der Kronkanzler.")
 async def antrag_entscheiden(request):
     form = await request.post()
     if not secrets.compare_digest(form.get("csrf", ""), request["csrf"]):
@@ -727,9 +727,9 @@ async def antrag_entscheiden(request):
         stand["namen"][a["gebiet"]] = a["neu"]
         stand["namen"] = dict(sorted(stand["namen"].items()))
         neue_version(con, stand, f"Antrag von {a['nutzer_name']}: {alt} → {a['neu']}", k)
-        text = f"Dein Antrag, das Gebiet „{alt}“ in **„{a['neu']}“** umzubenennen, wurde vom Kanzler **angenommen**." + (f"\n> {antwort}" if antwort else "")
+        text = f"Dein Antrag, das Gebiet „{alt}“ in **„{a['neu']}“** umzubenennen, wurde vom Kronkanzler **angenommen**." + (f"\n> {antwort}" if antwort else "")
     else:
-        text = f"Dein Antrag, das Gebiet „{alt}“ in „{a['neu']}“ umzubenennen, wurde vom Kanzler **abgelehnt**.\n> {antwort}"
+        text = f"Dein Antrag, das Gebiet „{alt}“ in „{a['neu']}“ umzubenennen, wurde vom Kronkanzler **abgelehnt**.\n> {antwort}"
     await request.app["discord"].dm(a["nutzer_id"], text + f"\n{config.SITE_URL}/karte/")
     raise web.HTTPSeeOther("/karte/antraege/?m=ok")
 
@@ -746,8 +746,8 @@ async def _bild_beim_start(app):
 
 
 # Fraktionen mit eingesetztem Regenten (Landesherr oder Amtsrolle + Fraktionsrolle), aus Discord alle 10 Minuten aufgefrischt.
-# None = noch nicht bekannt (dann gilt der Teilstaat als besetzt). Ohne Regent verwalten Kanzler und Kaiser den Teilstaat samt Finanzen
-# (geld.regierte_staatskassen), genau wie die Karte „Souverän, vertreten durch den Kanzler“ anzeigt.
+# None = noch nicht bekannt (dann gilt der Teilstaat als besetzt). Ohne Regent verwalten Kronkanzler und Kaiser den Teilstaat samt Finanzen
+# (geld.regierte_staatskassen), genau wie die Karte „Souverän, vertreten durch den Kronkanzler“ anzeigt.
 REGENTEN = {"fraktionen": None, "zeit": 0}
 
 

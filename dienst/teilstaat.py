@@ -1,7 +1,7 @@
 """Mein Teilstaat (/schatzamt/teilstaat/): Überblick über alles, was ein Landesherr für seinen Teilstaat braucht – Handlungsbedarf (Etat einreichen,
 Haushaltsnotlage, Militär), Kassen, geltender Etat, Reichsabgabe, letzte Umsätze. Die übrigen Reiter (Etat, Etat planen, Verteidigung, Haushaltsnotlage,
 Kasse & Umsätze) sind bestehende Seiten, die dieselbe Reiterleiste tragen (schatzamt.reiter_html); die Seitenleiste hat nur den Eintrag „Mein Teilstaat“.
-Sichtbar für alle, die einen Teilstaat regieren (geld.regierte_staatskassen); mehrere Teilstaaten (Kanzler) wählt man oben aus.
+Sichtbar für alle, die einen Teilstaat regieren (geld.regierte_staatskassen); mehrere Teilstaaten (Kronkanzler) wählt man oben aus.
 """
 import amt
 import geld

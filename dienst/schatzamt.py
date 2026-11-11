@@ -149,7 +149,7 @@ def hat_kassen(con, k):
 
 
 def hat_verteidigung(con, k):
-    """Sieht etwas aus dem Bereich Verteidigung (Führungsstab/Kaiser/Kanzler alles, Militär und Landesherren ihren Teilstaat)."""
+    """Sieht etwas aus dem Bereich Verteidigung (Führungsstab/Kaiser/Kronkanzler alles, Militär und Landesherren ihren Teilstaat)."""
     import verteidigung
     return bool(k) and k["mitglied"] and verteidigung.sicht(con, k)["irgendwas"]
 
@@ -428,7 +428,7 @@ def seite(recht=None):
                 text = {"mitglied": "Diese Funktion steht nur Mitgliedern unseres Discord-Servers zur Verfügung.",
                         "staat": "Dieser Bereich ist staatlich und nur für Amtsträger mit Verfügung über eine staatliche Kasse einsehbar.",
                         "verteidigung": "Der Bereich Verteidigung ist dem Militär (für den eigenen Teilstaat), den Landesherren, dem Führungsstab, "
-                                        "dem Kanzler und dem Kaiser vorbehalten.",
+                                        "dem Kronkanzler und dem Kaiser vorbehalten.",
                         "rp": "Dieser Bereich ist der Server- und RP-Leitung vorbehalten.",
                         "beamter": "Dieser Bereich ist dem Kaiserlichen Schatz- und Währungsamt vorbehalten.",
                         "leitung": "Dieser Bereich ist der Leitung des Schatz- und Währungsamts vorbehalten."}[recht]
@@ -1025,7 +1025,7 @@ async def amt_uebersicht(request, k):
         zeilen.append((amt._zeit(b["zeit"]), konto_kurz(geld.konto(con, b["von"])) if b["von"] else "–", konto_kurz(geld.konto(con, b["an"])) if b["an"] else "–",
                        esc(geld.BUCHUNGSART.get(b["art"], b["art"])), f'<span class="sa-betrag">{mark(b["betrag"])}</span>'))
     rollen_hinweis = ("" if geld._behoerde()["rollen"] else
-                      '<div class="hinweis">Für das Schatzamt sind noch keine Discord-Rollen hinterlegt – bis dahin verwalten Kanzler und Kaiser.</div>')
+                      '<div class="hinweis">Für das Schatzamt sind noch keine Discord-Rollen hinterlegt – bis dahin verwalten Kronkanzler und Kaiser.</div>')
     inhalt = (f'<h1>{amt.ic("landmark")} Verwaltung</h1><p class="az">{esc(geld.NAME)} · Zentralbank und Finanzverwaltung des Reiches</p>'
               f'{amt.meldung(request)}{rollen_hinweis}<div class="kennzahlen">{"".join(f"<div><b>{esc(str(v))}</b>{esc(t)}</div>" for t, v in kz)}</div>'
               + "<h2>Überfällige Bescheide</h2>" + steuern.bescheid_tabelle(con, con.execute(

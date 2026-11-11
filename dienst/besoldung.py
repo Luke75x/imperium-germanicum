@@ -5,7 +5,7 @@ die Ränge „OR-n …“/„OF-n …“ werden beim ersten Aufruf automatisch i
 höchste Gruppe aller Rollen eines Mitglieds. Individuell (bs_personen): andere Gruppe, „keine Besoldung“, Zulage, Zahlstelle.
 Lohnlauf je Monat (bs_laeufe, eindeutig): Probelauf → Ausführen. Abzüge: Lohnsteuer (Stufentarif, steuern.lohnsteuer) und Sozialabgabe;
 Netto an das Privatkonto, Sozialabgabe an die Reichsversicherungskasse, Lohnsteuer an die Reichskasse, Länderanteil an die Staatskasse
-des Wohnsitzes. Es zahlt die Dienststelle (Zahlstelle „auto“ = dienststelle(): Behörde der Rollen, Reichskanzlei für den Kanzler, sonst
+des Wohnsitzes. Es zahlt die Dienststelle (Zahlstelle „auto“ = dienststelle(): Behörde der Rollen, Reichskanzlei für den Kronkanzler, sonst
 Reichskasse); die Behörden finanzieren das aus ihrem Etat (etat.py). Fehlbetrag der Reichskasse auf Wunsch durch Geldschöpfung. Abrechnungen (bs_abrechnungen) mit PDF, DM an jeden.
 """
 import json
@@ -70,7 +70,7 @@ GRUPPEN = [
     ("P1", "Abgeordneter (Diät)", "Politische Ämter & Justiz", 3000), ("P2", "Präsidium des Reichstags", "Politische Ämter & Justiz", 6000),
     ("P3", "Kurfürst", "Politische Ämter & Justiz", 7000), ("R2", "Reichsrichter", "Politische Ämter & Justiz", 6000),
     ("R4", "Oberster Reichsrichter", "Politische Ämter & Justiz", 8500),
-    ("S1", "Hand des Kaisers", "Höchste Staatsämter", 10000), ("S2", "Kanzler", "Höchste Staatsämter", 12000),
+    ("S1", "Hand des Kaisers", "Höchste Staatsämter", 10000), ("S2", "Kronkanzler", "Höchste Staatsämter", 12000),
     ("KRG", "Kaiserin (Apanage)", "Höchste Staatsämter", 12000), ("KR", "Krondotation des Souveräns", "Höchste Staatsämter", 25000),
 ]
 ROLLEN = {   # Vorbelegung: Discord-Rolle → Besoldungsgruppe (Ränge OR/OF werden über den Rollennamen ergänzt)
@@ -112,7 +112,7 @@ def einrichten(con):
         con.execute("INSERT INTO bs_meta (schl, wert) VALUES ('zahlstelle_auto', '1')")
     if not con.execute("SELECT 1 FROM bs_meta WHERE schl='zuschlaege'").fetchone():
         # 07.11.2026: Zuschläge auf Amtspositionen. Vorgaben: Stabschefs 20 % (Reichsverteidigungskasse), Oberbefehlshaber 15 % (Reichsverteidigungskasse),
-        # Privatsekretär Seiner Majestät 20 % für den Kanzler (Crown Estates); der Kanzler erhält sein Grundgehalt aus der Reichskasse.
+        # Privatsekretär Seiner Majestät 20 % für den Kronkanzler (Crown Estates); der Kronkanzler erhält sein Grundgehalt aus der Reichskasse.
         for i, (n, art, w, z, rl) in enumerate((
                 ("Stabschef", "prozent", 20, "verteidigung", ["1522721092127555666", "1522912530446684190", "1522913031456034938"]),
                 ("Oberbefehlshaber", "prozent", 15, "verteidigung", ["1522707672808292586"]),
@@ -183,7 +183,7 @@ def gruppen(con):
 
 
 def dienststelle(rollen):
-    """Zahlstelle nach Dienststelle: Reichskanzlei für den Kanzler, sonst die Behörde der Rollen (amt.BEHOERDEN), sonst die Reichskasse."""
+    """Zahlstelle nach Dienststelle: Reichskanzlei für den Kronkanzler, sonst die Behörde der Rollen (amt.BEHOERDEN), sonst die Reichskasse."""
     rollen = set(rollen or ())
     if amt.ROLLE_KANZLER in rollen:
         return "kanzlei"
@@ -194,7 +194,7 @@ def dienststelle(rollen):
 
 
 def zahlstelle_auto(rolle, rollen, rollennamen=None):
-    """„Nach Dienststelle“: entscheidend ist die Rolle, die das Gehalt begründet – Behördenrolle → diese Behörde, Kanzler → Reichskanzlei,
+    """„Nach Dienststelle“: entscheidend ist die Rolle, die das Gehalt begründet – Behördenrolle → diese Behörde, Kronkanzler → Reichskanzlei,
     Dienstgrad (OR/OF, z. B. Polizei- oder Zollrang) → Behörde der übrigen Rollen, sonst (Kaiser, Hof, Reichsverwaltung, Gerichte …) die
     Reichskasse. Ohne Rolle (individuelle Einstufung, nur Zulage) oder ohne Rollennamen: nach den Rollen (dienststelle)."""
     if rolle is None or rollennamen is None:
@@ -258,7 +258,7 @@ def einstufung(con, konto_id, rollen, rollennamen=None):
 # das höchste Amt (Dienstgrade sind aufsteigend, Verwaltungslaufbahnen ebenso; Abgeordneter + Präsidium = ein Reichstagsmandat).
 NEBENAMT_SATZ = 50
 AMTSBEREICHE = (("OR", "Dienstgrad"), ("OF", "Dienstgrad"), ("A", "Verwaltung"), ("B", "Verwaltung"), ("P1", "Reichstag"), ("P2", "Reichstag"),
-                ("P3", "Kurfürst"), ("R", "Justiz"), ("S1", "Hand des Kaisers"), ("S2", "Kanzler"), ("KRG", "Monarch"), ("KR", "Monarch"))
+                ("P3", "Kurfürst"), ("R", "Justiz"), ("S1", "Hand des Kaisers"), ("S2", "Kronkanzler"), ("KRG", "Monarch"), ("KR", "Monarch"))
 
 
 def amtsbereich(schl):
@@ -433,7 +433,7 @@ def zuschlag_tabelle_html(con):
                esc("Kasse des Grundgehalts" if z["zahlstelle"] == "grund" else zs.get(z["zahlstelle"], z["zahlstelle"]))) for z in zuschlaege(con)]
     zeilen.append(("Nebenämter (jeder weitere Amtsbereich)", f"{NEBENAMT_SATZ} % des Grundgehalts des höchsten Amtes im Bereich", "Kasse dieses Amtes"))
     return ("<h2>Zuschläge auf Amtspositionen</h2>" + amt.tabelle(["Amtsposition", "Zuschlag", "Gezahlt von"], zeilen, "Keine Zuschläge.")
-            + '<p class="az">Amtsbereiche: Dienstgrad (Militär und Vollzug), Verwaltung, Reichstag, Kurfürst, Justiz, Hand des Kaisers, Kanzler, Monarch. '
+            + '<p class="az">Amtsbereiche: Dienstgrad (Militär und Vollzug), Verwaltung, Reichstag, Kurfürst, Justiz, Hand des Kaisers, Kronkanzler, Monarch. '
               'Innerhalb eines Bereichs zählt nur das höchste Amt; das höchste Amt insgesamt bestimmt das Grundgehalt.</p>')
 
 
@@ -665,7 +665,7 @@ async def verwaltung(request, k):
                 'seiner höchsten Besoldungsgruppe den Zuschlag – als Prozentsatz des Grundgehalts oder als fester Betrag. Jeder Zuschlag hat seine eigene zahlende Kasse '
                 '(z. B. Crown Estates oder Reichsverteidigungskasse). Der Kaiser bezieht das Kaisergehalt als Grundgehalt und die Zuschläge seiner übrigen Positionen.</p>'
                 f'<p class="az"><b>Nebenämter (automatisch):</b> Trägt jemand Ämter aus mehreren Amtsbereichen (Dienstgrad, Verwaltung, Reichstag, Kurfürst, Justiz, '
-                f'Hand des Kaisers, Kanzler, Monarch), gibt es für jeden weiteren Bereich {NEBENAMT_SATZ} % des Grundgehalts des höchsten Amtes in diesem Bereich, '
+                f'Hand des Kaisers, Kronkanzler, Monarch), gibt es für jeden weiteren Bereich {NEBENAMT_SATZ} % des Grundgehalts des höchsten Amtes in diesem Bereich, '
                 'gezahlt von der Kasse dieses Amtes. Innerhalb eines Bereichs zählt nur das höchste Amt.</p>'
                 + "".join(blöcke) + f'<details class="sa-auf"><summary>{amt.ic("plus")}Neue Amtsposition mit Zuschlag</summary>{formular()}</details>'
                 + '<h2>Aktuelle Zuschläge</h2>' + amt.tabelle(["Person", "Amtsposition", "Zuschlag / Monat", "Gezahlt von"], vor, "Derzeit erhält niemand einen Zuschlag."))

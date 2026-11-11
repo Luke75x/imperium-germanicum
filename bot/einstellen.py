@@ -1,7 +1,7 @@
 """/einstellen person institution dienstgrad: Landesherren stellen Personen ein bzw. befördern sie (Dienstgradstrukturen in dienstgrade.py).
 
 - Landesherren (und der Kaiser) dürfen bis einschließlich OF-5 direkt einstellen/befördern; in die Reichsverwaltung (Beamtenlaufbahn) stellen
-  nur der Kanzler und der Kaiser ein; ab OF-6 geht ein Antrag in den
+  nur der Kronkanzler und der Kaiser ein; ab OF-6 geht ein Antrag in den
   Genehmigungs-Thread, den nur der Kaiser mit „Genehmigen“/„Ablehnen“ entscheidet.
 - Eine Person ohne Dienstgrad der Institution wird eingestellt (Institutionsrolle + „Abteilungen“ + Dienstgrad + Gruppenrolle),
   mit niedrigerem Dienstgrad wird sie befördert (alte Dienstgrad-Rollen der Institution entfallen). Herabstufungen gibt es hier nicht.
@@ -34,7 +34,7 @@ def ist_kanzler(user: discord.Member) -> bool:
 
 
 def darf_einstellen(user: discord.Member, schluessel: str) -> bool:
-    """Reichsverwaltung nur Kanzler/Kaiser, alle anderen Institutionen jeder Landesherr (und der Kaiser)."""
+    """Reichsverwaltung nur Kronkanzler/Kaiser, alle anderen Institutionen jeder Landesherr (und der Kaiser)."""
     return ist_kanzler(user) if schluessel in dg.NUR_KANZLER else ist_landesherr(user)
 
 
@@ -118,7 +118,7 @@ class Einstellen(commands.Cog):
     async def einstellen(self, inter: discord.Interaction, person: discord.Member, institution: app_commands.Choice[str], dienstgrad: str):
         schluessel = institution.value
         if not darf_einstellen(inter.user, schluessel):
-            await inter.response.send_message("In die Reichsverwaltung stellen nur der Kanzler und der Kaiser ein." if schluessel in dg.NUR_KANZLER
+            await inter.response.send_message("In die Reichsverwaltung stellen nur der Kronkanzler und der Kaiser ein." if schluessel in dg.NUR_KANZLER
                                               else "Einstellen und Befördern dürfen nur Landesherren.", ephemeral=True)
             return
         index = self.rang_index(schluessel, dienstgrad)

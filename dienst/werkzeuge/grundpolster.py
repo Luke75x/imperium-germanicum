@@ -38,7 +38,7 @@ POSTEN = [
     ("Reichsverwaltung (bis Generaldirektor)", 1_000, ["Reichsverwaltung", "Generaldirektor", "Ministerialdirektor", "Ministerialrat", "Direktor", "Inspektor",
                                                       "Amtsrat", "Amtsmann"]),
     ("Bürgermeister", 2_000, ["Bürgermeister"]), ("Magistrat", 2_500, ["Magistrat"]), ("Gouverneur", 3_000, ["Gouverneur"]),
-    ("Generalgouverneur", 3_500, ["Generalgouverneur"]), ("Vizekönig", 4_000, ["Vizekönig"]), ("Kanzler", 10_000, ["Kanzler"]),
+    ("Generalgouverneur", 3_500, ["Generalgouverneur"]), ("Vizekönig", 4_000, ["Vizekönig"]), ("Kronkanzler", 10_000, ["Kronkanzler"]),
     ("Reichstag", 3_000, ["Reichstag"]), ("Reichsgerichtshof", 3_000, ["Reichsgerichtshof", "Oberster Reichsrichter", "Reichsrichter"]),
     ("Kurfürst", 5_000, ["Kurfürst"]), ("Hand des Kaisers", 7_000, ["Hand des Kaisers"]), ("Kaiser / Kaiserin", 10_000, ["Imperator Rex", "Imperatrix Regina"]),
 ]

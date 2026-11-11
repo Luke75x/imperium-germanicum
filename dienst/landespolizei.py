@@ -6,7 +6,7 @@ UND die Fraktionsrolle des Teilstaats trägt. Der Dienstgrad wird aus den Rollen
 
 Rechte (siehe darf/pruefer/leitung):
 - Ansehen, Einsatzberichte schreiben, Vermerke, Pinnwand: Beamte der Landespolizei; reichsweit Generaldirektor der Polizei,
-  Kanzler, Kaiser.
+  Kronkanzler, Kaiser.
 - Eigenen Bericht ändern, solange er nicht geprüft ist: Verfasser.
 - Berichte prüfen/zurückgeben, jederzeit ändern, fremde Pinnwand-Mitteilungen löschen: OF-8 Polizeidirektor (Stellvertretung) und Leitung.
 - Berichte löschen (mit Grund, Löschprotokoll) und Löschprotokoll sehen: OF-9 Leitender Polizeidirektor des Teilstaats und reichsweite Leitung.

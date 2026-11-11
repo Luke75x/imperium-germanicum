@@ -11,7 +11,7 @@
 
 Jeder Staatsbürger hat eine Bürgerakte (Aktenzeichen BA-nnnnn). Sie wird beim Start und alle 15 Minuten aus den Discord-Rollen angelegt
 (Rolle Staatsbürger); Bewerber erhalten sie mit dem Einreiseantrag. Jedes Einreiseverfahren ist eine Einbürgerungsakte (EB-jjjj-nnnn),
-die der Bot (Modul ticket.py / zollamt.py) befüllt. Zugang: Kaiserliche Zollverwaltung, Kanzler (Admins nicht).
+die der Bot (Modul ticket.py / zollamt.py) befüllt. Zugang: Kaiserliche Zollverwaltung, Kronkanzler (Admins nicht).
 """
 import asyncio
 import html
@@ -39,7 +39,7 @@ ROLLE_KANZLER = "1561856444913946664"
 ROLLE_POLIZEI = "1557800373861753002"
 ROLLE_KATASTROPHENSCHUTZ = "1557187293100515328"
 # Reichsbehörden mit eigenem Untertab („Bereich“) und Logo. Wer eine der Rollen hat, gehört zur Behörde, sieht ihren Untertab
-# und bekommt ihr Logo (Reihenfolge = Vorrang). Kanzler und Kaiser sehen alle Bereiche. Logo-Texte: amt_logos_liste.py,
+# und bekommt ihr Logo (Reihenfolge = Vorrang). Kronkanzler und Kaiser sehen alle Bereiche. Logo-Texte: amt_logos_liste.py,
 # Bilder: werkzeuge/amt_logos.py. leitung = Rollen, die als Leitung der Behörde gelten (dürfen Mitteilungen anderer löschen).
 BEHOERDEN = [
     {"schl": "polizei", "name": "Kaiserliche Polizeibehörde", "kurz": "Polizei", "icon": "siren", "domain": "polizei",
@@ -52,17 +52,17 @@ BEHOERDEN = [
      "rollen": ["1526343577481904379", "1522913765035606086"], "leitung": ["1522913765035606086"]},
     {"schl": "inquisition", "name": "Die Inquisition (Staatsanwaltschaft)", "kurz": "Inquisition", "icon": "scale", "domain": "inquisition",
      "rollen": ["1522700028739584000", "1555987375287574609"], "leitung": ["1522700028739584000"]},
-    # Zentralbank und Finanzverwaltung (schatzamt.py). Discord-Rollen folgen noch – bis dahin verwalten Kanzler/Kaiser (Admins OOC).
+    # Zentralbank und Finanzverwaltung (schatzamt.py). Discord-Rollen folgen noch – bis dahin verwalten Kronkanzler/Kaiser (Admins OOC).
     {"schl": "schatzamt", "name": "Kaiserliches Schatz- und Währungsamt", "kurz": "Schatzamt", "icon": "landmark", "domain": "schatzamt",
      "rollen": [], "leitung": []},
 ]
-LOGOS = [(ROLLE_KANZLER, "kanzler", "Der Kanzler")] + [(r, b["schl"], b["name"]) for b in BEHOERDEN for r in b["rollen"]]
+LOGOS = [(ROLLE_KANZLER, "kanzler", "Der Kronkanzler")] + [(r, b["schl"], b["name"]) for b in BEHOERDEN for r in b["rollen"]]
 LOGO_ORDNER = os.path.join(config.HIER, "amt_logos")
 ROLLE_STAATSBUERGER = "1522929940885143683"
 # Zugang: Rollen oder Nutzer-IDs (Kaiser, Rolle 1526348059984789504, Hand des Kaisers 1522693216053235903); Server-Admins nicht
 # Kategorie „Akten“ (Bürger-/Einbürgerungsakten, Statistik, Löschprotokoll): NUR Rolle „Reichsverwaltung“ (Trenner 1561686761778716762),
 # aber nie zusammen mit einer Amtsrolle der Teilstaaten (Bürgermeister, Magistrat, Gouverneur, Generalgouverneur, Vizekönig).
-# Daneben sehen Kaiser und Kanzler wie überall alles. Server-Admins, Zoll-Rolle u. a. allein reichen nicht.
+# Daneben sehen Kaiser und Kronkanzler wie überall alles. Server-Admins, Zoll-Rolle u. a. allein reichen nicht.
 ROLLE_AKTEN = "1561686761778716762"
 ROLLEN_AKTEN_NIE = {"1525948431267532860", "1555971841888223242", "1525947612639793253", "1525947448776986665", "1525947356049309788"}
 ZUGANG_IDS = {config.KAISER_ID}
@@ -131,7 +131,7 @@ def logo_von(k):
 
 
 def ist_ooc_admin(k):
-    """Serveradministrator (Discord-Berechtigung „Administrator“) ohne Kaiser-/Kanzleramt: darf alles wie Kaiser und Kanzler,
+    """Serveradministrator (Discord-Berechtigung „Administrator“) ohne Kaiser-/Kronkanzleramt: darf alles wie Kaiser und Kronkanzler,
     aber ausdrücklich nur OOC – jede Seite der Amtsseite zeigt dann den OOC-Hinweis."""
     return bool(k) and bool(k["admin"]) and bool(k["mitglied"]) and not (k["id"] == config.KAISER_ID or ROLLE_KANZLER in k["rollen"])
 
@@ -155,7 +155,7 @@ def ist_leser(k):
 
 
 def darf_verschluss(k):
-    """Kaiser und Kanzler (und OOC die Serveradministratoren): Akten unter Verschluss setzen und solche Akten einsehen."""
+    """Kaiser und Kronkanzler (und OOC die Serveradministratoren): Akten unter Verschluss setzen und solche Akten einsehen."""
     return bool(k) and (k["id"] == config.KAISER_ID or ROLLE_KANZLER in k["rollen"] or ist_ooc_admin(k))
 
 
@@ -871,7 +871,7 @@ def schreiben(request):
 def _gesperrt_seite(request, titel, aktiv, az):
     inhalt = (f'<h1>{ic("lock")} {esc(az)}</h1><p class="az">{esc(titel)}</p>'
               f'<div class="warnung">{ic("lock")} Diese Akte steht unter Verschluss. Sie haben keinen Zugang. '
-              'Einsicht ist nur dem Kaiser und dem Kanzler vorbehalten.</div>'
+              'Einsicht ist nur dem Kaiser und dem Kronkanzler vorbehalten.</div>'
               f'<p><a class="btn zweit" href="{BASIS}">{ic("arrow-left")}Zurück zur Übersicht</a></p>')
     return web.Response(status=403, content_type="text/html", text=rahmen(titel, aktiv, inhalt, request["konto"], request["csrf"]))
 
@@ -1012,7 +1012,7 @@ async def buerger_akte(request):
                            f'<button class="btn zweit" type="submit">{ic("lock-open" if z["verschluss"] else "lock")}'
                            f'{"Verschluss aufheben" if z["verschluss"] else "Unter Verschluss setzen"}</button></form>')
     inhalt = (f'<h1>{ic("book-user")} Bürgerakte {az_akte(z["id"])}</h1><p class="az">{esc(anzeige_name(z))}</p>{meldung(request)}'
-              + (f'<div class="warnung">{ic("lock")} Diese Akte steht unter Verschluss; nur Kaiser und Kanzler können sie einsehen.</div>' if z["verschluss"] else "")
+              + (f'<div class="warnung">{ic("lock")} Diese Akte steht unter Verschluss; nur Kaiser und Kronkanzler können sie einsehen.</div>' if z["verschluss"] else "")
               + (f'<div class="hinweis">Nur Lesezugriff: Änderungen sind mit deiner Berechtigung nicht möglich.</div>' if not w else "")
               + f'<div class="aktionen">' + (f'<a class="btn" href="{pfad}bearbeiten/">{ic("pencil")}Akte bearbeiten</a>' if w else "")
               + f'<a class="btn zweit" href="{pfad}pdf">{ic("file-down")}Als PDF exportieren</a>'
@@ -1259,7 +1259,7 @@ def stelle_behoerde(schl):
     return (b["schl"], b["name"]) if b else ("reichsbehoerden", "Die Reichsbehörden")
 
 
-STELLE_KANZLER = ("kanzler", "Der Kanzler")
+STELLE_KANZLER = ("kanzler", "Der Kronkanzler")
 STELLE_REICHSBEHOERDEN = ("reichsbehoerden", "Die Reichsbehörden")
 
 
@@ -1501,7 +1501,7 @@ async def buerger_bearbeiten(request):
 async def verschluss_setzen(request):
     k, form = await _post(request)
     if not darf_verschluss(k):
-        raise web.HTTPForbidden(text="Nur der Kaiser und der Kanzler können Akten unter Verschluss setzen.")
+        raise web.HTTPForbidden(text="Nur der Kaiser und der Kronkanzler können Akten unter Verschluss setzen.")
     con, i = request.app["db"], request.match_info["id"]
     z = con.execute("SELECT * FROM amt_akten WHERE id=?", (i,)).fetchone() if i.isdigit() else None
     if not z:

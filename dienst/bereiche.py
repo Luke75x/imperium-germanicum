@@ -1,7 +1,7 @@
 """Untertabs der Reichsbehörden (amt.BEHOERDEN): je Behörde ein Bereich mit Pinnwand (Mitteilungen) und Mitarbeiterliste.
 
-Wer den Untertab sieht, bestimmen die Discord-Rollen der Behörde (amt.BEHOERDEN[..]["rollen"]); Kanzler und Kaiser
-sehen alle. Löschen fremder Mitteilungen: Leitung (Rollen in "leitung"), Kanzler, Kaiser. Tabelle bereich_mitteilungen.
+Wer den Untertab sieht, bestimmen die Discord-Rollen der Behörde (amt.BEHOERDEN[..]["rollen"]); Kronkanzler und Kaiser
+sehen alle. Löschen fremder Mitteilungen: Leitung (Rollen in "leitung"), Kronkanzler, Kaiser. Tabelle bereich_mitteilungen.
 Neue Behörde: Eintrag in amt.BEHOERDEN, Logo-Text in amt_logos_liste.py, Logos mit werkzeuge/amt_logos.py erzeugen.
 """
 import secrets
@@ -41,7 +41,7 @@ def einrichten(con):
 
 
 def _alle(k):
-    """Sieht alles: Kaiser und Kanzler, dazu die Serveradministratoren – diese nur OOC (Hinweis auf jeder Seite, amt.ist_ooc_admin)."""
+    """Sieht alles: Kaiser und Kronkanzler, dazu die Serveradministratoren – diese nur OOC (Hinweis auf jeder Seite, amt.ist_ooc_admin)."""
     return bool(k) and (k["id"] == amt.config.KAISER_ID or amt.ROLLE_KANZLER in k["rollen"] or amt.ist_ooc_admin(k))
 
 

@@ -4,8 +4,8 @@ Die Unterbehörden sehen gegenseitig nichts (strikte Trennung). Braucht eine Ste
 Personal, Vollzugshilfe …), stellt sie ein Amtshilfeersuchen. Die ersuchte Stelle prüft und entscheidet: gewährt, teilweise gewährt
 oder abgelehnt, jeweils mit Antwort bzw. Begründung. Die Antwort ist der einzige Weg, auf dem Inhalte die Stelle wechseln.
 
-Dienststellen: Reichskanzlei (Kanzler, Kaiser), Reichsverwaltung (Akten-Rolle, wie amt.ist_beamter), jede Reichsbehörde aus amt.BEHOERDEN, jede Landespolizei.
-Sehen: nur Angehörige der ersuchenden und der ersuchten Stelle; Kaiser und Kanzler sehen alle Ersuchen.
+Dienststellen: Reichskanzlei (Kronkanzler, Kaiser), Reichsverwaltung (Akten-Rolle, wie amt.ist_beamter), jede Reichsbehörde aus amt.BEHOERDEN, jede Landespolizei.
+Sehen: nur Angehörige der ersuchenden und der ersuchten Stelle; Kaiser und Kronkanzler sehen alle Ersuchen.
 Stellen: Angehörige der ersuchenden Stelle. Zurückziehen: Antragsteller oder Entscheider der ersuchenden Stelle, solange offen.
 Entscheiden: Entscheider der ersuchten Stelle (Leitungsrollen der Behörde; Landespolizei: OF-9/OF-8 und Generaldirektor;
 ohne festgelegte Leitung jedes Mitglied). Schriftwechsel (Rückfragen, Vermerke): beide Seiten.
@@ -73,7 +73,7 @@ def einrichten(con):
 # ---------------------------------------------------------------- Dienststellen und Rechte
 
 def stellen(con=None):
-    """Alle Dienststellen: Reichskanzlei (Kanzler, Kaiser), Reichsverwaltung, Reichsbehörden, Landespolizeien."""
+    """Alle Dienststellen: Reichskanzlei (Kronkanzler, Kaiser), Reichsverwaltung, Reichsbehörden, Landespolizeien."""
     st = [{"id": "kanzlei", "name": "Reichskanzlei", "art": "kanzlei"}, {"id": "rv", "name": "Reichsverwaltung", "art": "rv"}]
     st += [{"id": b["schl"], "name": b["name"], "art": "behoerde", "b": b} for b in amt.BEHOERDEN]
     st += [{"id": "lp-" + s["id"], "name": "Landespolizei " + s["kurz"], "art": "lp", "s": s} for s in landespolizei.staaten(con or _CON)]
@@ -111,7 +111,7 @@ def alle(k):
 
 
 def meine(k, con=None):
-    """Dienststellen, denen das Konto angehört (der Kaiser handelt über die Reichskanzlei). Kaiser und Kanzler sehen und entscheiden
+    """Dienststellen, denen das Konto angehört (der Kaiser handelt über die Reichskanzlei). Kaiser und Kronkanzler sehen und entscheiden
     darüber hinaus alle Ersuchen (Reiter „Alle Ersuchen“)."""
     if not k or not k["mitglied"]:
         return []
@@ -282,7 +282,7 @@ async def liste(request):
     nav_ = (f'<a href="{basis}&amp;seite={sn - 1}">← Zurück</a>' if sn > 1 else "") + \
            (f'<a href="{basis}&amp;seite={sn + 1}">Weiter →</a>' if sn * SEITE < gesamt else "")
     erkl = {"eingang": "Ersuchen anderer Stellen an deine Dienststelle(n).", "ausgang": "Ersuchen, die deine Dienststelle(n) gestellt haben.",
-            "alle": "Alle Ersuchen im Reich (Kaiser und Kanzler)."}[ansicht]
+            "alle": "Alle Ersuchen im Reich (Kaiser und Kronkanzler)."}[ansicht]
     inhalt = (f'<p class="az">{erkl} {gesamt} Treffer.</p>'
               f'<form class="zeile" method="get"><input type="hidden" name="ansicht" value="{ansicht}">'
               f'<div><label for="q">Suche</label><input type="search" id="q" name="q" value="{esc(q)}" placeholder="Az., Betreff, Person"></div>'

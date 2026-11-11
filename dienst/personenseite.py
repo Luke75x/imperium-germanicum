@@ -8,7 +8,7 @@
                                (nur Akten der eigenen Behörde, strafsachen.lesen_darf), Erwähnungen in Einsatzberichten (eigene Landespolizei),
                                Prüfprotokoll (Akten-Recht).
 - …/intern/pass-foto/<konto>   Discord-Profilbild über den Dienst (die CSP der Website lässt fremde Bilder nicht zu)
-Zugang: wer prüfen darf (meldewesen.darf_pruefen: Zoll, Polizei, Reichsverwaltung, Kanzler, Kaiser) oder Akten-Recht hat.
+Zugang: wer prüfen darf (meldewesen.darf_pruefen: Zoll, Polizei, Reichsverwaltung, Kronkanzler, Kaiser) oder Akten-Recht hat.
 Der Inhaber selbst landet beim Scannen auf seinem digitalen Pass. Jeder Aufruf wird in pw_abfragen protokolliert („QR“).
 Verschlussakten: ohne Verschlussrecht nur Prüfergebnis und Dokument, keine Personendaten.
 """
@@ -240,7 +240,7 @@ def _seite(con, k, z, p, status, request=None):
     if request is not None:
         teile.extend(fn(request, k, p, status) for fn in PASS_ABSCHNITT)
     if gesperrt:
-        teile.append('<div class="warnung">Die Akte des Inhabers steht unter Verschluss. Weitere Angaben nur für Kanzler und Kaiser.</div>')
+        teile.append('<div class="warnung">Die Akte des Inhabers steht unter Verschluss. Weitere Angaben nur für Kronkanzler und Kaiser.</div>')
         return "".join(teile)
     if z:
         tab, fahndung = _paesse(con, z["konto_id"], z["id"], k, p["id"] if p is not None else None)

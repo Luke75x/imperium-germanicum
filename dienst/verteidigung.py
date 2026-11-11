@@ -12,10 +12,10 @@ Militärgerät: Katalog (vt_katalog, Richtpreise in € → Kronen zum Wechselku
 Bestand je Teilstaat (vt_bestand, mit Einsatzbereitschaft 0–100 %), Beschaffung (Kasse → Volkswirtschaft/Rüstungsindustrie),
 Ausmusterung (Restwert zurück), monatliche Instandhaltung (vt_laeufe; reicht das Geld nicht, sinkt die Einsatzbereitschaft,
 bei voller Bezahlung steigt sie wieder). Vorgänge in vt_vorgaenge.
-Rechte: Reichsverteidigungskasse – Führungsstab, Kanzler/Kaiser, Leitung des Schatzamts; Teilstaat – Landesherr (wie Staatskasse),
+Rechte: Reichsverteidigungskasse – Führungsstab, Kronkanzler/Kaiser, Leitung des Schatzamts; Teilstaat – Landesherr (wie Staatskasse),
 Leitung des Schatzamts. Gerät beschaffen/ausmustern zusätzlich der Generalstab des Teilstaats (darf_geraet); Zuführung aus der
 Staatskasse und Kontoumsätze nur Landesherr/Leitung.
-Sehen (sicht): alles – Führungsstab, Kaiser, Kanzler (und Leitung des Schatzamts); General- und Offiziersstab (Rollen Generalstab,
+Sehen (sicht): alles – Führungsstab, Kaiser, Kronkanzler (und Leitung des Schatzamts); General- und Offiziersstab (Rollen Generalstab,
 Offiziersränge; ohne Polizei/Zoll/Katastrophenschutz) und Landesherren nur ihren Teilstaat laut Fraktionsrolle; Stab ohne Fraktion das Reich.
 Unteroffiziere und Mannschaften sehen den Verteidigungsetat nicht. Gerät beschaffen: Generäle (Generalstab) des Teilstaats, Landesherr. Katalog und Sätze: nur die RP-Leitung. Seiten unter /schatzamt/verteidigung/ (staatlich).
 """
@@ -156,7 +156,7 @@ def darf_geraet(con, k, sid, mit_zwang=False):
 
 
 def darf_land(con, k, sid, mit_zwang=False):
-    """Verfügung über die Verteidigungskasse; unter Zwangsverwaltung (Haushaltsnotlage) nur Kanzler, Kaiser und Schatzamt-Leitung."""
+    """Verfügung über die Verteidigungskasse; unter Zwangsverwaltung (Haushaltsnotlage) nur Kronkanzler, Kaiser und Schatzamt-Leitung."""
     import notlage
     if not mit_zwang and notlage.verfuegung_gesperrt(con, k, "vt-" + sid):
         return False

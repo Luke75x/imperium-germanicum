@@ -1,7 +1,7 @@
 """Reichshaushalt: Etat je Behörde und Haushaltsjahr (…/intern/haushalt/).
 
-Sichtbar und bearbeitbar NUR für Kaiser, Kanzler und den Staatssekretär für Finanzen und Wirtschaft (ROLLE_FINANZEN, Discord-Rolle
-wird nachgetragen; solange leer, haben nur Kaiser und Kanzler Zugang). Die Behörden selbst sehen ihren Etat nicht.
+Sichtbar und bearbeitbar NUR für Kaiser, Kronkanzler und den Staatssekretär für Finanzen und Wirtschaft (ROLLE_FINANZEN, Discord-Rolle
+wird nachgetragen; solange leer, haben nur Kaiser und Kronkanzler Zugang). Die Behörden selbst sehen ihren Etat nicht.
 
 Haushaltsjahr: Entwurf → festgestellt. Im Entwurf sind Ansätze frei änderbar; nach der Feststellung nur noch per Nachtrag mit Begründung.
 Buchungen (Kassenanordnungen KA-JJJJ-NNNN) sind Ausgaben oder Einnahmen einer Behörde. Eine Ausgabe über den verfügbaren Ansatz hinaus
@@ -137,7 +137,7 @@ async def _konto(request):
 
 def _kein(request, k):
     return web.Response(status=403, content_type="text/html", text=amt.rahmen(
-        "Kein Zugang", "haushalt", '<div class="warnung">Der Reichshaushalt ist dem Kaiser, dem Kanzler und dem Staatssekretär für Finanzen '
+        "Kein Zugang", "haushalt", '<div class="warnung">Der Reichshaushalt ist dem Kaiser, dem Kronkanzler und dem Staatssekretär für Finanzen '
                                    'und Wirtschaft vorbehalten.</div>', k, request["csrf"]))
 
 

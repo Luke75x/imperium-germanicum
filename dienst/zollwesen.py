@@ -3,8 +3,8 @@
 - Tab Zoll (…/intern/bereich/zoll/, Hook bereiche.ZUSATZ["zoll"]): QR-Scanner (personenseite.scanner, Ziel mit ?von=zoll),
   Passnummer-Eingabe (…/bereich/zoll/grenze?nr=), zuletzt gesetzte Stempel.
 - Prüfseite …/intern/passpruefung/<nr>/ (Hook personenseite.PASS_ABSCHNITT): Sichtvermerke des Passes als Stempelbilder,
-  für Zoll (und Kanzler/Kaiser/Admins OOC) das Formular „Stempel setzen“: Einreise, Ausreise, Durchreise, Visum (mit Gültigkeit, Zweck).
-  POST …/passpruefung/<nr>/stempel, Löschen …/stempel/<id>/loeschen (eigener Stempel binnen 24 h, Zoll-Leitung, Kanzler/Kaiser).
+  für Zoll (und Kronkanzler/Kaiser/Admins OOC) das Formular „Stempel setzen“: Einreise, Ausreise, Durchreise, Visum (mit Gültigkeit, Zweck).
+  POST …/passpruefung/<nr>/stempel, Löschen …/stempel/<id>/loeschen (eigener Stempel binnen 24 h, Zoll-Leitung, Kronkanzler/Kaiser).
 - Nur gültige Passhefte (kein Personalausweis). Jeder Stempel/jede Löschung steht im Pass-Verlauf (pw_eintraege).
 - Darstellung: stempel_html() – SVG mit Doppelrahmen, Reichsadler (Maske pass_bilder/stempel_adler.png aus werkzeuge/stempel_adler.py),
   Art, Datum, Grenzübergangsstelle, Stempelnummer des Beamten; Tintenstruktur per SVG-Filter, leicht gedreht. Erscheint im digitalen

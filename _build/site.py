@@ -140,7 +140,7 @@ def organigramm():
     """Startseite: stets aktuelles Organigramm (gerendert vom Webdienst, Modul staatsaufbau.py, mit den heutigen Amtsträgern),
     führt zum interaktiven Organigramm. Ersetzt das frühere Schaubild i7e284b3dc2b8cebd."""
     caption = "Staatsaufbau des Imperium Germanicum"
-    alt = "Organigramm des Imperium Germanicum: Souverän, Senat mit Kurfürsten und Hand des Kaisers, Reichstag, Reichsgerichtshof, Streitkräfte, Kanzler und Staatsbürger mit ihren Beziehungen"
+    alt = "Organigramm des Imperium Germanicum: Souverän, Senat mit Kurfürsten und Hand des Kaisers, Reichstag, Reichsgerichtshof, Streitkräfte, Kronkanzler und Staatsbürger mit ihren Beziehungen"
     return (f'<figure class="figure"><a class="zoom frame" href="{u("informationen/organigramm/")}"><img src="{u("informationen/organigramm/organigramm.png")}" '
             f'width="5936" height="3376" alt="{esc(alt)}" loading="lazy" decoding="async"><span class="zoom-hint">{icon("zoom")}</span>'
             f'<span class="sr-only"> – Organigramm öffnen</span></a><figcaption>{esc(caption)}</figcaption></figure>')
@@ -938,10 +938,10 @@ def page_reichsbehoerden():
     ])
     aussen = karte("Kaiserliches Generalkonsulat", "Konsulate", "Generalkonsul, dem die Konsuln unterstehen", None,
                    ["Vertritt das Reich und seine Untertanen in der Fremde und pflegt die Verbindungen zu befreundeten Staaten und Gemeinschaften.",
-                    "Der Souverän ernennt und entlässt die Konsuln; der Kanzler verwaltet die Konsulate in seinem Namen."])
+                    "Der Souverän ernennt und entlässt die Konsuln; der Kronkanzler verwaltet die Konsulate in seinem Namen."])
 
     saeulen = [
-        ("Die Kanzlei", "Der Kanzler", "Bindeglied zwischen dem Souverän und der Verwaltung; Kronbesitz und Schatzkammer seiner Majestät."),
+        ("Die Kanzlei", "Der Kronkanzler", "Bindeglied zwischen dem Souverän und der Verwaltung; Kronbesitz und Schatzkammer seiner Majestät."),
         ("Die Reichsbehörden", "Generaldirektoren, Staatssekretäre und der Generalkonsul", "Reichsweite Aufgaben in Sicherheit, Ordnung und Verwaltung sowie der auswärtige Dienst."),
         ("Die Reichsvertretung", "Vizekönige, Generalgouverneure, Gouverneure, Magistrate und Bürgermeister", "Vertretung des Souveräns in Teilstaaten und Städten ohne eigenen Regenten."),
     ]
@@ -958,7 +958,7 @@ def page_reichsbehoerden():
 
     raenge = [
         ("Generaldirektor", "Leitet eine Behörde für Sicherheit und Ordnung und gehört dem Führungsstab an."),
-        ("Staatssekretär", "Leitet ein Reichsamt und ist dem Kanzler unmittelbar verantwortlich."),
+        ("Staatssekretär", "Leitet ein Reichsamt und ist dem Kronkanzler unmittelbar verantwortlich."),
         ("Ministerialdirektor", "Leitet eine Abteilung eines Reichsamts und vertritt den Staatssekretär."),
         ("Ministerialrat", "Leitet ein Referat innerhalb einer Abteilung."),
         ("Direktor", "Leitet eine nachgeordnete Dienststelle eines Reichsamts."),
@@ -1011,7 +1011,7 @@ def page_reichsbehoerden():
     n = len(spalten) + 1
     koerper = [
         f'<tr class="is-crown"><td colspan="{n}"><span class="eyebrow">Souverän</span><strong>Seine Majestät der Kaiser</strong></td></tr>',
-        f'<tr class="is-crown is-second"><td colspan="{n}"><span class="eyebrow">Privatsekretär des Souveräns</span><strong>Der Kanzler</strong></td></tr>',
+        f'<tr class="is-crown is-second"><td colspan="{n}"><span class="eyebrow">Privatsekretär des Souveräns</span><strong>Der Kronkanzler</strong></td></tr>',
         '<tr class="is-lead"><th scope="row">Leitung</th>' + "".join(f"<td><span>{x}</span></td>" for x in leitung) + "</tr>",
     ]
     for gruppe, ebenen in laufbahnen:
@@ -1040,7 +1040,7 @@ def page_reichsbehoerden():
   <h2>{esc(k["name"])}</h2>
   <div class="prose">{paras(esc(k["lead"]))}<ul>{"".join(f"<li>{esc(x)}</li>" for x in k["aufgaben"])}</ul></div>
   <div class="table-scroll"><table class="styles-table"><tbody>{rows}</tbody></table></div>
-  <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u(RB.seite(k))}">Der Kanzler {icon("arrow")}</a>
+  <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u(RB.seite(k))}">Der Kronkanzler {icon("arrow")}</a>
   <a class="btn btn-line" href="{kartenlink("kanzlei")}">{esc(g["name"])} auf der Reichskarte {icon("arrow")}</a></div>
 </section>"""
 
@@ -1067,7 +1067,7 @@ def page_reichsbehoerden():
     {paras(
       "Die Reichsbehörden sind alle Instanzen, die im gesamten Reichsgebiet tätig sind. Ihr Wirken erstreckt sich über das ganze Imperium Germanicum.",
       "Sie dienen dem Reich und seinen Untertanen gleichermaßen: Sie schützen Grenzen und Handel, wahren Sicherheit und Ordnung und leisten Hilfe, wo Not und Gefahr drohen.",
-      "Gemeinsam mit der Kanzlei und der Reichsvertretung bilden sie die Reichsverwaltung, an deren Spitze der Kanzler als Privatsekretär des Souveräns steht.",
+      "Gemeinsam mit der Kanzlei und der Reichsvertretung bilden sie die Reichsverwaltung, an deren Spitze der Kronkanzler als Privatsekretär des Souveräns steht.",
     )}
   </div>
 </div>
@@ -1082,14 +1082,14 @@ def page_reichsbehoerden():
 <section class="seat">
   <span class="eyebrow">Für Angehörige der Reichsbehörden</span>
   <h2>Interne Ansicht</h2>
-  <div class="prose"><p>Die Angehörigen der Reichsbehörden melden sich mit ihrem Discord-Konto an und sehen ihre Dienststelle: Personalverzeichnis, Haftregister und die Statistik des Zollwesens. Jede Behörde sieht nur ihre eigene Dienststelle, der Kanzler sieht alle.</p></div>
+  <div class="prose"><p>Die Angehörigen der Reichsbehörden melden sich mit ihrem Discord-Konto an und sehen ihre Dienststelle: Personalverzeichnis, Haftregister und die Statistik des Zollwesens. Jede Behörde sieht nur ihre eigene Dienststelle, der Kronkanzler sieht alle.</p></div>
   <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u("informationen/die-reichsbehoerden/intern/")}">Zur internen Ansicht {icon("arrow")}</a></div>
 </section>
 {kanzleramt_block()}
 <h2>Die Behörden des Reiches</h2>
 <div class="prose">{paras(
-  "Unter dem Kanzleramt arbeiten die Behörden für Sicherheit und Ordnung und die Reichsämter. Jede hat ihre eigene Seite mit Aufgaben, Leitung und Dienstgebäude; die Dienstgebäude sind auf der Reichskarte verzeichnet.",
-  "Die Behörden für Sicherheit und Ordnung tragen Uniform und eigene Dienstgrade; ihre Generaldirektoren gehören dem Führungsstab an. Die Reichsämter werden von Staatssekretären geleitet, die dem Kanzler unmittelbar verantwortlich sind.",
+  "Unter dem Kronkanzleramt arbeiten die Behörden für Sicherheit und Ordnung und die Reichsämter. Jede hat ihre eigene Seite mit Aufgaben, Leitung und Dienstgebäude; die Dienstgebäude sind auf der Reichskarte verzeichnet.",
+  "Die Behörden für Sicherheit und Ordnung tragen Uniform und eigene Dienstgrade; ihre Generaldirektoren gehören dem Führungsstab an. Die Reichsämter werden von Staatssekretären geleitet, die dem Kronkanzler unmittelbar verantwortlich sind.",
 )}</div>
 <span class="eyebrow" style="display:block;margin:32px 0 14px">Sicherheit und Ordnung</span>
 <div class="rb-grid">{behoerden_karten("sicherheit")}</div>
@@ -1118,7 +1118,7 @@ def page_reichsbehoerden():
 </div>"""
     institution_page("informationen/die-reichsbehoerden/", "Die Reichsbehörden", "Die Reichsbehörden",
                      "Die Reichsverwaltung",
-                     "Die Reichsverwaltung des Imperium Germanicum: der Kanzler, die Reichsbehörden und die Reichsvertretung in den Teilstaaten ohne eigenen Regenten.",
+                     "Die Reichsverwaltung des Imperium Germanicum: der Kronkanzler, die Reichsbehörden und die Reichsvertretung in den Teilstaaten ohne eigenen Regenten.",
                      article)
 
 
@@ -1127,69 +1127,69 @@ def page_kanzler():
     def zeilen():
         bereiche = [
             (f'<a href="{u("informationen/die-reichsbehoerden/")}">Reichsbehörden</a>',
-             "Der Kanzler steht allen Reichsbehörden als oberster Vorsteher vor, von den Behörden für Sicherheit und Ordnung bis zu den Reichsämtern, und trägt Sorge dafür, dass sie in Ordnung, Treue und Pflichterfüllung ihren Dienst versehen."),
+             "Der Kronkanzler steht allen Reichsbehörden als oberster Vorsteher vor, von den Behörden für Sicherheit und Ordnung bis zu den Reichsämtern, und trägt Sorge dafür, dass sie in Ordnung, Treue und Pflichterfüllung ihren Dienst versehen."),
             ("Konsulate",
-             "Die Konsulate vertreten das Reich und seine Untertanen in der Fremde. Der Kanzler verwaltet sie im Namen des Souveräns, der die Konsule des Reiches ernennt und entlässt."),
+             "Die Konsulate vertreten das Reich und seine Untertanen in der Fremde. Der Kronkanzler verwaltet sie im Namen des Souveräns, der die Konsule des Reiches ernennt und entlässt."),
             (f'<a href="{u("informationen/die-reichsbehoerden/")}#reichsvertretung">Reichsvertretung</a>',
-             "Vizekönige, Generalgouverneure, Gouverneure, Magistrate und Bürgermeister vertreten den Souverän in den Teilstaaten ohne eigenen Regenten. Der Kanzler leitet ihre Arbeit an und hält die Verbindung zwischen ihnen und dem Souverän."),
+             "Vizekönige, Generalgouverneure, Gouverneure, Magistrate und Bürgermeister vertreten den Souverän in den Teilstaaten ohne eigenen Regenten. Der Kronkanzler leitet ihre Arbeit an und hält die Verbindung zwischen ihnen und dem Souverän."),
             ("Kronbesitz und Schatzkammer",
-             "Der Kanzler verwaltet den kaiserlichen Kronbesitz sowie die Schatzkammer seiner Majestät."),
+             "Der Kronkanzler verwaltet den kaiserlichen Kronbesitz sowie die Schatzkammer seiner Majestät."),
         ]
         return "".join(f'<tr><th scope="row">{n}</th><td>{t}</td></tr>' for n, t in bereiche)
 
     def article():
         return f"""
 <div class="intro-grid">
-  {emblem("icf5ad018407fe134", "Siegel des Kanzlers", sizes="260px")}
+  {emblem("icf5ad018407fe134", "Siegel des Kronkanzlers", sizes="260px")}
   <div class="prose">
     {paras(
-      "Der Kanzler oder die Kanzlerin ist Privatsekretär des Souveräns und steht als oberster Vorsteher der gesamten Verwaltung des Reiches vor: den Reichsbehörden, den Konsulaten und den Reichsvertretern.",
-      "Der Souverän ernennt mit Beginn seiner Amtszeit einen Privatsekretär und Kanzler für die Reichsbehörden.",
-      "Als Privatsekretär des Souveräns ist der Kanzler das Bindeglied zwischen der Krone und den Reichsbehörden: Er überbringt den Willen des Souveräns an die Ämter, wacht über dessen getreue Ausführung und trägt die Anliegen der Behörden ehrerbietig vor den Thron.",
+      "Der Kronkanzler oder die Kronkanzlerin ist Privatsekretär des Souveräns und steht als oberster Vorsteher der gesamten Verwaltung des Reiches vor: den Reichsbehörden, den Konsulaten und den Reichsvertretern.",
+      "Der Souverän ernennt mit Beginn seiner Amtszeit einen Privatsekretär und Kronkanzler für die Reichsbehörden.",
+      "Als Privatsekretär des Souveräns ist der Kronkanzler das Bindeglied zwischen der Krone und den Reichsbehörden: Er überbringt den Willen des Souveräns an die Ämter, wacht über dessen getreue Ausführung und trägt die Anliegen der Behörden ehrerbietig vor den Thron.",
     )}
   </div>
 </div>
-<h2>Der Geschäftsbereich des Kanzlers</h2>
+<h2>Der Geschäftsbereich des Kronkanzlers</h2>
 <div class="table-scroll"><table class="styles-table"><thead><tr><th>Bereich</th><th>Aufgabe</th></tr></thead><tbody>{zeilen()}</tbody></table></div>
-<p class="callout">Innerhalb der Teilstaaten achtet der Kanzler die Hoheit der Landesherren und wirkt dort vor allem, wo Belange des gesamten Reiches berührt sind.</p>
+<p class="callout">Innerhalb der Teilstaaten achtet der Kronkanzler die Hoheit der Landesherren und wirkt dort vor allem, wo Belange des gesamten Reiches berührt sind.</p>
 <h2>Das Reichskanzleramt</h2>
 <div class="prose">
   {paras(
-    "Der Kanzler steht dem Reichskanzleramt vor, das ihm als Zentrale der Reichsverwaltung dient: Es bereitet seine Entscheidungen vor, koordiniert die Reichsämter und führt die Aufsicht über das Reichssicherheitsamt.",
+    "Der Kronkanzler steht dem Reichskanzleramt vor, das ihm als Zentrale der Reichsverwaltung dient: Es bereitet seine Entscheidungen vor, koordiniert die Reichsämter und führt die Aufsicht über das Reichssicherheitsamt.",
     f'Das Reichskanzleramt hat seinen Sitz im <b>Bundeskanzleramt</b> in der Reichshauptstadt Groß-Berlin (<a href="{kartenlink("kanzlei")}">auf der Reichskarte zeigen</a>). Die übrigen <a href="{u("informationen/die-reichsbehoerden/")}">Reichsbehörden</a> und Reichsämter haben ihre eigenen Seiten.',
   )}
 </div>
 <h2>Stellung und Anrede</h2>
 <div class="prose">
   {paras(
-    f'In der <a href="{u("informationen/etiketten-guide/")}">Rangordnung des Reiches</a> steht der Kanzler unmittelbar nach dem Präsidenten des Reichstages.',
-    "Die Anrede lautet „Herr Kanzler“ beziehungsweise „Frau Kanzlerin“, im Briefkopf „Sehr geehrter Herr Kanzler“ beziehungsweise „Sehr geehrte Frau Kanzlerin“.",
-    "Weil der Kanzler den kaiserlichen Kronbesitz und die Schatzkammer seiner Majestät verwaltet, verlangt das Amt in besonderem Maße Verschwiegenheit, Umsicht und unbedingte Loyalität.",
+    f'In der <a href="{u("informationen/etiketten-guide/")}">Rangordnung des Reiches</a> steht der Kronkanzler unmittelbar nach dem Präsidenten des Reichstages.',
+    "Die Anrede lautet „Herr Kronkanzler“ beziehungsweise „Frau Kronkanzlerin“, im Briefkopf „Sehr geehrter Herr Kronkanzler“ beziehungsweise „Sehr geehrte Frau Kronkanzlerin“.",
+    "Weil der Kronkanzler den kaiserlichen Kronbesitz und die Schatzkammer seiner Majestät verwaltet, verlangt das Amt in besonderem Maße Verschwiegenheit, Umsicht und unbedingte Loyalität.",
   )}
 </div>
 <section class="seat">
   <span class="eyebrow">Standarte</span>
   <div class="split wide-right">
-    {figure("i5a9f8040f8005417", "Standarte des Kanzlers")}
+    {figure("i5a9f8040f8005417", "Standarte des Kronkanzlers")}
     <div class="prose">{paras(
-      "Die Standarte des Kanzlers zeigt den schwarzen Doppeladler mit roter Bewehrung auf goldenem Grund, eingefasst von einem schwarzen Rand.",
-      "Sie weht dort, wo der Kanzler in Ausübung seines Amtes im Namen des Souveräns zugegen ist.",
+      "Die Standarte des Kronkanzlers zeigt den schwarzen Doppeladler mit roter Bewehrung auf goldenem Grund, eingefasst von einem schwarzen Rand.",
+      "Sie weht dort, wo der Kronkanzler in Ausübung seines Amtes im Namen des Souveräns zugegen ist.",
     )}</div>
   </div>
 </section>
 <section class="seat">
   <span class="eyebrow">Amtslogo</span>
   <div class="split wide-right">
-    {figure("i42648ed6ea92d607", "Amtslogo des Kanzlers")}
+    {figure("i42648ed6ea92d607", "Amtslogo des Kronkanzlers")}
     <div class="prose">{paras(
-      "Im Schriftverkehr und in amtlichen Bekanntmachungen führt der Kanzler sein Amtslogo: den Doppeladler der Reichsflagge, daneben einen Balken in den Farben des Reiches, Schwarz und Gold, und die Bezeichnung des Amtes.",
-      "Es kennzeichnet alle Schreiben, die im Namen des Kanzlers an die Reichsbehörden, die Konsulate und die Reichsvertreter ergehen.",
+      "Im Schriftverkehr und in amtlichen Bekanntmachungen führt der Kronkanzler sein Amtslogo: den Doppeladler der Reichsflagge, daneben einen Balken in den Farben des Reiches, Schwarz und Gold, und die Bezeichnung des Amtes.",
+      "Es kennzeichnet alle Schreiben, die im Namen des Kronkanzlers an die Reichsbehörden, die Konsulate und die Reichsvertreter ergehen.",
     )}</div>
   </div>
 </section>"""
-    institution_page("informationen/die-reichsbehoerden/der-kanzler/", "Der Kanzler", "Der Kanzler",
+    institution_page("informationen/die-reichsbehoerden/der-kanzler/", "Der Kronkanzler", "Der Kronkanzler",
                      "Privatsekretär des Souveräns",
-                     "Der Kanzler ist Privatsekretär des Souveräns und Vorsteher der Reichsbehörden, Konsulate und Reichsvertreter des Imperium Germanicum.",
+                     "Der Kronkanzler ist Privatsekretär des Souveräns und Vorsteher der Reichsbehörden, Konsulate und Reichsvertreter des Imperium Germanicum.",
                      article, parent=("informationen/die-reichsbehoerden/", "Die Reichsbehörden"))
 
 
@@ -1743,7 +1743,7 @@ def page_datenschutz():
   <p>Der interne Bereich des Reichstages nutzt dieselbe Anmeldung über Discord. Zugang erhält nur, wer auf unserem Discord-Server eine Rolle des Reichstages (Präsident, Abgeordneter, Landesherr) oder Administratorrechte hat. Gespeichert werden die terminierten Sitzungen sowie eingebrachte Anträge mit Titel, Text, Zeitpunkt, deiner Nutzer-ID und deinem Anzeigenamen. Anträge und Tagesordnungen sind nur für die Mitglieder des Reichstages sichtbar, nicht öffentlich. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Teilnahme am Rollenspiel).</p>
 
   <h2 id="reichsverwaltung-intern">Interne Ansicht der Reichsverwaltung</h2>
-  <p>Die interne Ansicht der Reichsverwaltung nutzt dieselbe Anmeldung über Discord. Zugang erhält nur, wer auf unserem Discord-Server einer Reichsbehörde angehört, Kanzler ist oder Administratorrechte hat; jede Behörde sieht nur ihre eigene Dienststelle. Für die Statistik des Zollwesens halten wir fest, wann jemand unserem Discord-Server beitritt, ihn verlässt, einen Antrag auf Einreise stellt oder eingebürgert wird, jeweils mit Nutzer-ID und Namen, bei Einbürgerungen auch mit Nutzer-ID und Namen des einbürgernden Beamten. Diese Angaben sind nicht öffentlich, sondern nur in der internen Ansicht für die Zollverwaltung und den Kanzler sichtbar. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Teilnahme am Rollenspiel) bzw. lit. f (Nachvollziehbarkeit der Verwaltung).</p>
+  <p>Die interne Ansicht der Reichsverwaltung nutzt dieselbe Anmeldung über Discord. Zugang erhält nur, wer auf unserem Discord-Server einer Reichsbehörde angehört, Kronkanzler ist oder Administratorrechte hat; jede Behörde sieht nur ihre eigene Dienststelle. Für die Statistik des Zollwesens halten wir fest, wann jemand unserem Discord-Server beitritt, ihn verlässt, einen Antrag auf Einreise stellt oder eingebürgert wird, jeweils mit Nutzer-ID und Namen, bei Einbürgerungen auch mit Nutzer-ID und Namen des einbürgernden Beamten. Diese Angaben sind nicht öffentlich, sondern nur in der internen Ansicht für die Zollverwaltung und den Kronkanzler sichtbar. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Teilnahme am Rollenspiel) bzw. lit. f (Nachvollziehbarkeit der Verwaltung).</p>
 
   <h2 id="reichskarte">Reichskarte</h2>
   <p>Die Reichskarte kann jeder ansehen; dabei werden keine Daten über dich gespeichert. Bearbeiten dürfen nur Personen mit Administratorrechten auf unserem Discord-Server, über die Anmeldung mit Discord. Jede gespeicherte Fassung der Karte wird mit Zeitpunkt, Bemerkung, Nutzer-ID und Anzeigenamen des Bearbeitenden festgehalten und ist in der Versionsliste öffentlich einsehbar, damit Änderungen nachvollziehbar bleiben. Rechtsgrundlage ist Art. 6 Abs. 1 S. 1 lit. b DSGVO (Teilnahme am Rollenspiel) bzw. lit. f (Nachvollziehbarkeit). Die Verwaltungsgrenzen stammen von Eurostat (GISCO, © EuroGeographics) und liegen auf unserem Server; beim Ansehen der Karte wird keine Verbindung zu Dritten aufgebaut.</p>

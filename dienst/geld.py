@@ -5,8 +5,8 @@ Kontoarten: privat (je Discord-Konto), gewerbe (genehmigte Gewerbe), behoerde (j
 Teilstaat der Reichskarte), sonder (zentralbank, reichskasse, sozialkasse).
 Geldschöpfung: nur über das Konto „zentralbank“, das als einziges ins Minus gehen darf – Geldmenge im Umlauf = −Saldo der Zentralbank.
 buchen() ist atomar (kein await zwischen Prüfung und Schreiben; SQLite-Transaktion) und schreibt gk_buchungen + Salden.
-Rechte: Schatzamt-Beamte = Rollen der Behörde „schatzamt“ (amt.BEHOERDEN, Rollen folgen) + Kanzler/Kaiser (+ Admins OOC);
-Leitung = Leitungsrollen + Kanzler/Kaiser. Einstellungen (Steuersätze, Tarife, Gebühren …) als JSON in gk_einstellungen mit Vorgaben.
+Rechte: Schatzamt-Beamte = Rollen der Behörde „schatzamt“ (amt.BEHOERDEN, Rollen folgen) + Kronkanzler/Kaiser (+ Admins OOC);
+Leitung = Leitungsrollen + Kronkanzler/Kaiser. Einstellungen (Steuersätze, Tarife, Gebühren …) als JSON in gk_einstellungen mit Vorgaben.
 """
 import json
 import re
@@ -348,7 +348,7 @@ def _behoerde():
 
 
 def ist_beamter(k):
-    """Mitarbeiter des Schatzamts (Rollen der Behörde) sowie Kanzler/Kaiser (+ Admins OOC)."""
+    """Mitarbeiter des Schatzamts (Rollen der Behörde) sowie Kronkanzler/Kaiser (+ Admins OOC)."""
     return bool(k) and k["mitglied"] and bereiche.darf(k, _behoerde())
 
 
@@ -358,7 +358,7 @@ def ist_leitung(k):
 
 def verfuegbare_konten(con, k):
     """Konten, über die das Konto verfügen (überweisen) darf: eigenes Privatkonto, eigene Gewerbe, Konten der Behörden mit
-    Leitungsrecht, Reichskanzlei für den Kanzler; Leitung des Schatzamts zusätzlich Reichskasse und Sozialkasse."""
+    Leitungsrecht, Reichskanzlei für den Kronkanzler; Leitung des Schatzamts zusätzlich Reichskasse und Sozialkasse."""
     out = []
     p = privatkonto(con, k["id"]) if k["mitglied"] else privatkonto(con, k["id"], anlegen=False)
     if p:
@@ -389,7 +389,7 @@ def verfuegbare_konten(con, k):
 
 def regierte_staatskassen(con, k, mit_zwang=False):
     """Staatskassen der Teilstaaten, die das Konto regiert (wie auf der Reichskarte: Fraktionsrolle + Landesherr oder Amtsrolle;
-    Teilstaaten ohne eigene Fraktion verwaltet der Kanzler)."""
+    Teilstaaten ohne eigene Fraktion verwaltet der Kronkanzler)."""
     import karte
     rollen = set(k["rollen"])
     regent = karte.ROLLE_LANDESHERR in rollen or bool(rollen & set(karte.ROLLEN_AEMTER))
@@ -402,13 +402,13 @@ def regierte_staatskassen(con, k, mit_zwang=False):
             continue
         f = s["fraktion"]
         import notlage
-        if not mit_zwang and notlage.zwang(con, "ts-" + s["id"]):   # Zwangsverwaltung: nur Kanzler/Kaiser verfügen
+        if not mit_zwang and notlage.zwang(con, "ts-" + s["id"]):   # Zwangsverwaltung: nur Kronkanzler/Kaiser verfügen
             if kanzler:
                 r = stellenkonto(con, "ts-" + s["id"])
                 if r:
                     out.append(r)
             continue
-        if (f and f in eigene and (regent or f in karte.ROLLEN_AEMTER)) or ((not f or karte.regent_fehlt(f)) and kanzler):   # ohne Regent: Kanzler/Kaiser
+        if (f and f in eigene and (regent or f in karte.ROLLEN_AEMTER)) or ((not f or karte.regent_fehlt(f)) and kanzler):   # ohne Regent: Kronkanzler/Kaiser
             r = stellenkonto(con, "ts-" + s["id"])
             if r:
                 out.append(r)

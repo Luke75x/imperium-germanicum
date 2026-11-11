@@ -17,7 +17,7 @@ Vorgabe, solange nichts gespeichert ist: Verteidigung aus der alten Regel (Einst
 Entwurf speichern (ep_entwuerfe, ein Entwurf je Haushalt, beliebig oft änderbar, noch ohne Wirkung); „Etat einreichen“ schickt den zuletzt gespeicherten
 Entwurf endgültig ab (ep_fassungen mit „ab“ = Folgemonat) und sperrt den Haushalt bis zur nächsten Änderungsperiode. Ein nicht eingereichter Entwurf gilt nicht:
 es bleibt beim bisherigen Etat. Planung unter /schatzamt/etatplanung/, die Seite Etatverteilung zeigt nur den geltenden Etat. Rechte: Teilstaat – Landesherr (geld.regierte_staatskassen, nicht unter Zwangsverwaltung),
-Reich – Schatzamt-Leitung, Kanzler, Kaiser; ansehen darf jeder mit staatlichem Zugriff. Tabellen: ep_fassungen, ep_entwuerfe, ep_log, ep_verteilung
+Reich – Schatzamt-Leitung, Kronkanzler, Kaiser; ansehen darf jeder mit staatlichem Zugriff. Tabellen: ep_fassungen, ep_entwuerfe, ep_log, ep_verteilung
 (ep_plaene = alte, ungenutzte Einzeltabelle, nur noch Quelle der Übernahme).
 """
 import calendar
@@ -1006,7 +1006,7 @@ async def _seite(request, k, planung):
         if not ziel_liste:
             return sa.ant(request, k, "Etat planen", "sa-etatplanung",
                           f'<h1>{amt.ic("pencil")} Etat planen</h1><p class="az">Den Etat planen und einreichen dürfen der Landesherr eines Teilstaats sowie für das Reich '
-                          f'Kanzler, Kaiser und Schatzamt-Leitung. Den geltenden Etat sehen Sie unter <a href="{PFAD}">Etatverteilung</a>.</p>')
+                          f'Kronkanzler, Kaiser und Schatzamt-Leitung. Den geltenden Etat sehen Sie unter <a href="{PFAD}">Etatverteilung</a>.</p>')
     gueltig = {s for s, _ in ziel_liste}
     ziel = request.query.get("ziel", "")
     if ziel not in gueltig:
@@ -1149,7 +1149,7 @@ async def _seite(request, k, planung):
         if berechtigt:
             teile.append(f'<a class="btn zweit" href="{PFAD_PLAN}?ziel={esc(ziel)}">{amt.ic("pencil")}Etat planen</a>')
         else:
-            teile.append('Nur Ansicht – ändern darf den Etat ' + ("das Reich (Kanzler, Kaiser, Schatzamt-Leitung)." if ziel == "reich" else "der Landesherr dieses Teilstaats."))
+            teile.append('Nur Ansicht – ändern darf den Etat ' + ("das Reich (Kronkanzler, Kaiser, Schatzamt-Leitung)." if ziel == "reich" else "der Landesherr dieses Teilstaats."))
     if grenze_hinweis:
         teile.append(amt.ic("scale") + " " + grenze_hinweis)
     rechte = "".join(f'<p class="sa-hinweis">{t}</p>' for t in teile)

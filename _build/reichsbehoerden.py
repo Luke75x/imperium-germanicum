@@ -13,16 +13,16 @@ import json
 import os
 
 KANZLEI = {
-    "schl": "kanzlei", "name": "Das Reichskanzleramt", "kurz": "Kanzleramt", "gruppe": "kanzlei",
-    "leitung": "Der Kanzler", "seite": "informationen/die-reichsbehoerden/der-kanzler/",
+    "schl": "kanzlei", "name": "Das Reichskanzleramt", "kurz": "Kronkanzleramt", "gruppe": "kanzlei",
+    "leitung": "Der Kronkanzler", "seite": "informationen/die-reichsbehoerden/der-kanzler/",
     "lead": "Das Reichskanzleramt ist die Zentrale der Reichsverwaltung. Hier laufen die Fäden zwischen dem Souverän und allen Reichsbehörden zusammen.",
     "aufgaben": [
-        "Dient dem Kanzler als Privatsekretär des Souveräns und überbringt den Willen der Krone an die Behörden.",
-        "Koordiniert die Arbeit der Reichsämter und der Behörden für Sicherheit und Ordnung und bereitet die Entscheidungen des Kanzlers vor.",
+        "Dient dem Kronkanzler als Privatsekretär des Souveräns und überbringt den Willen der Krone an die Behörden.",
+        "Koordiniert die Arbeit der Reichsämter und der Behörden für Sicherheit und Ordnung und bereitet die Entscheidungen des Kronkanzlers vor.",
         "Führt die Aufsicht über das Reichssicherheitsamt, den gemeinsamen Nachrichtendienst des Reiches.",
         "Verwaltet den kaiserlichen Kronbesitz und die Schatzkammer Seiner Majestät.",
     ],
-    "gebaeude": {"name": "Bundeskanzleramt", "text": "Sitz des Reichskanzleramts und des Kanzlers", "lon": 13.3693, "lat": 52.5199},
+    "gebaeude": {"name": "Bundeskanzleramt", "text": "Sitz des Reichskanzleramts und des Kronkanzlers", "lon": 13.3693, "lat": 52.5199},
     "nachgeordnet": ["Kaiserliches Reichssicherheitsamt (Nachrichtendienst)"],
 }
 

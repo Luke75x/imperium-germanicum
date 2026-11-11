@@ -42,7 +42,7 @@ def main():
             g["text"] = g.get("text") or "Sitz des Reichsamts für Verkehr"
             print(f'  ~ {g["id"]} {g["name"]}: Typ verkehr')
     vorhanden = {g["typ"]: g for g in liste}
-    for g in d["gebaeude"]:   # das Kanzleramt heißt auf der Karte wie auf der Website
+    for g in d["gebaeude"]:   # das Kronkanzleramt heißt auf der Karte wie auf der Website
         b = vorhanden.get(g["typ"])
         if b and g["typ"] == "kanzlei" and b["name"] != g["name"]:
             print(f'  ~ {b["id"]} {b["name"]} → {g["name"]}')

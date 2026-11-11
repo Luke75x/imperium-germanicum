@@ -1,7 +1,7 @@
 """Behördenlogos der Reichsbehörden (Amtsseite) erzeugen: amt_logos/<schlüssel>.png (Langform) und <schlüssel>-kurz.png.
 
-Aufbau wie das Logo des Kanzlers (werkzeuge/logo_grundlage/): Reichsadler links, senkrechter Balken (oben schwarz, unten
-Gold) und rechts der Behördenname in Source Sans 3. Formen: lang, -kopf (Kopfleiste), -kurz (Adler + Balken). Maße aus dem Kanzler-Logo (1280×800): Adler 193×174 px, Balken 28×470 px,
+Aufbau wie das Logo des Kronkanzlers (werkzeuge/logo_grundlage/): Reichsadler links, senkrechter Balken (oben schwarz, unten
+Gold) und rechts der Behördenname in Source Sans 3. Formen: lang, -kopf (Kopfleiste), -kurz (Adler + Balken). Maße aus dem Kronkanzler-Logo (1280×800): Adler 193×174 px, Balken 28×470 px,
 Schrift 94 px mit 100 px Zeilenabstand. Neue Behörde = Eintrag in amt.LOGOS (Schlüssel, Rolle, Zeilen) und Skript ausführen:
     .venv/bin/python werkzeuge/amt_logos.py
 """
@@ -28,7 +28,7 @@ def _b64(pfad):
 
 
 def html(zeilen, form):
-    """form: 'lang' (wie das Kanzler-Logo, hoher Balken), 'kopf' (Balken so hoch wie der Text, für die Kopfleiste), 'kurz' (Adler + Balken)."""
+    """form: 'lang' (wie das Kronkanzler-Logo, hoher Balken), 'kopf' (Balken so hoch wie der Text, für die Kopfleiste), 'kurz' (Adler + Balken)."""
     kurz = form == "kurz"
     hoehe = {"lang": 470, "kopf": max(186, len(zeilen) * 100 + 26), "kurz": 186}[form]
     adler, schrift = _b64(os.path.join(GRUND, "adler.png")), _b64(os.path.join(GRUND, "source-sans-3.woff2"))

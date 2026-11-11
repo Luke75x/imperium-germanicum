@@ -14,8 +14,8 @@ Stufen (je offener Fall, nl_faelle; Prüfung stündlich im Hintergrund und über
  2  Strafzinsen: je Kalendermonat Leitzins + „aufschlag“ Punkte p. a. auf das Minus an die Reichskasse.
  3  nach „ausgleich_tage“ Tagen (oder Minus > 1 Monatsreferenz): Teilstaat: Zwangsausgleich aus eigenen Mitteln (Verteidigungskasse:
     zuerst Staatskasse, dann Goldreserven des Teilstaats zum Ankaufskurs der Zentralbank) und Reichsabgabe +„abgabe_plus“ Punkte;
-    Behörde/Reichsverteidigung: das Reich muss entscheiden (Meldung an den Kanzler).
- 4  nach „zwang_tage“ Tagen: Zwangsverwaltung – Landesherr/Generalstab/Leitung verlieren die Verfügung, Kanzler und Schatzamt verwalten.
+    Behörde/Reichsverteidigung: das Reich muss entscheiden (Meldung an den Kronkanzler).
+ 4  nach „zwang_tage“ Tagen: Zwangsverwaltung – Landesherr/Generalstab/Leitung verlieren die Verfügung, Kronkanzler und Schatzamt verwalten.
 Das Reich zahlt nicht für das Minus eines Teilstaats: Reichskasse und Zentralbank buchen nichts auf Konten im Minus (hilfe_pruefen).
 Der Fall endet, sobald die Kasse wieder im Plus ist. Tabellen: nl_faelle, nl_ereignisse.
 """
@@ -88,7 +88,7 @@ def zwang(con, stelle):
 
 
 def verfuegung_gesperrt(con, k, stelle):
-    """Zwangsverwaltung: nur Kanzler, Kaiser und Schatzamt-Leitung verfügen noch über die Kasse."""
+    """Zwangsverwaltung: nur Kronkanzler, Kaiser und Schatzamt-Leitung verfügen noch über die Kasse."""
     if not zwang(con, stelle):
         return False
     return not (bereiche._alle(k) or amt.ROLLE_KANZLER in k["rollen"] or geld.ist_leitung(k))
@@ -151,7 +151,7 @@ def banner(con, r):
     tage = int((time.time() - f["seit"]) // 86400)
     return (f'<div class="warnung">{amt.ic("triangle-alert")} <b>Haushaltsnotlage</b> (Stufe {f["stufe"]}: {esc(STUFEN[f["stufe"]])}) seit {tage} Tagen – '
             f'Minus {mark(-r["saldo"])}. Keine Ausgaben, Gehälter aus dieser Kasse werden einbehalten und bei Ausgleich nachgezahlt'
-            + (", Zwangsverwaltung durch Kanzler und Schatzamt" if f["zwang"] else "") + f'. <a href="{PFAD}">Einzelheiten</a></div>')
+            + (", Zwangsverwaltung durch Kronkanzler und Schatzamt" if f["zwang"] else "") + f'. <a href="{PFAD}">Einzelheiten</a></div>')
 
 
 # ---------------------------------------------------------------- Prüfung und Eskalation
@@ -227,7 +227,7 @@ def _eskalieren(con, r, f, e, jetzt, ereignisse):
         con.execute("UPDATE nl_faelle SET stufe=3 WHERE id=?", (f["id"],))
         _ereignis(con, f["id"], jetzt, "stufe",
                   (f'Stufe 3: Zwangsausgleich aus eigenen Mitteln und Reichsabgabe +{float(e["abgabe_plus"]):g} Punkte, solange das Minus besteht.'
-                   if teilstaat else 'Stufe 3: Reichsaufsicht – Kanzler und Schatzamt entscheiden über Zuweisung oder Kürzung des Etats.'), ereignisse, r)
+                   if teilstaat else 'Stufe 3: Reichsaufsicht – Kronkanzler und Schatzamt entscheiden über Zuweisung oder Kürzung des Etats.'), ereignisse, r)
         f = offener_fall(con, r["id"])
     if f["stufe"] >= 3 and teilstaat:
         _ausgleich(con, r, f, e, jetzt, ereignisse)
@@ -238,7 +238,7 @@ def _eskalieren(con, r, f, e, jetzt, ereignisse):
     if not f["zwang"] and tage >= float(e["zwang_tage"]):
         con.execute("UPDATE nl_faelle SET stufe=4, zwang=1, zwang_seit=? WHERE id=?", (jetzt, f["id"]))
         _ereignis(con, f["id"], jetzt, "zwang", "Stufe 4: Zwangsverwaltung – Landesherr, Generalstab und Behördenleitung verlieren die Verfügung über die Kasse; "
-                                                "Kanzler und Schatzamt verwalten sie bis zum Ausgleich.", ereignisse, r)
+                                                "Kronkanzler und Schatzamt verwalten sie bis zum Ausgleich.", ereignisse, r)
 
 
 def _schliessen(con, r, f, jetzt, ereignisse):
@@ -273,7 +273,7 @@ def pruefen(con, jetzt=None):
 
 
 async def empfaenger(app, con, r):
-    """Konto-IDs, die über eine Meldung zur Kasse informiert werden: Landesherr/Generalstab, Behördenleitung, Führungsstab sowie Kanzler und Kaiser."""
+    """Konto-IDs, die über eine Meldung zur Kasse informiert werden: Landesherr/Generalstab, Behördenleitung, Führungsstab sowie Kronkanzler und Kaiser."""
     import verteidigung
     ids = set()
     try:
@@ -406,7 +406,7 @@ async def seite(request, k):
             f'<li><b>Stufe 3</b> nach {e["ausgleich_tage"]} Tagen oder bei Minus über einem Monat: Ein <b>Teilstaat gleicht es selbst aus</b> – die Verteidigungskasse aus '
             'der Staatskasse, danach durch <b>Verkauf seiner Goldreserven</b> – und zahlt '
             f'<b>{float(e["abgabe_plus"]):g} Punkte mehr Reichsabgabe</b>. Das Reich zahlt nicht für ein Minus.</li>'
-            f'<li><b>Stufe 4</b> nach {e["zwang_tage"]} Tagen: <b>Zwangsverwaltung</b> – Landesherr, Generalstab und Leitung verlieren die Verfügung, Kanzler und Schatzamt '
+            f'<li><b>Stufe 4</b> nach {e["zwang_tage"]} Tagen: <b>Zwangsverwaltung</b> – Landesherr, Generalstab und Leitung verlieren die Verfügung, Kronkanzler und Schatzamt '
             'verwalten die Kasse bis zum Ausgleich.</li></ol></div>')
     # Überziehungsrahmen der sichtbaren Kassen
     import aufkommen

@@ -4,7 +4,7 @@ Ablauf: KRS legt eine Ermittlungsakte an (Beteiligte, Beweismittel, Vermerke), e
 entsteht automatisch ein verknüpftes Strafverfahren (Beteiligte werden übernommen, Mitteilung auf der Pinnwand der Inquisition).
 Die Inquisition prüft, erhebt Anklage, setzt die Hauptverhandlung an, erfasst Urteil, Strafe und Haft und markiert die Rechtskraft.
 Alles wird in einem Aktenprotokoll festgehalten. Akten können als „Geheim“ eingestuft werden (nur Leitung, Bearbeiter, Ersteller,
-Kanzler/Kaiser). Es gibt Suche, Statistik und PDF-Export. Rechte siehe lesen_darf()/schreiben_darf(): jede Behörde nur ihre eigenen Akten; die Abgabe ist eine Übergabe in eine Richtung
+Kronkanzler/Kaiser). Es gibt Suche, Statistik und PDF-Export. Rechte siehe lesen_darf()/schreiben_darf(): jede Behörde nur ihre eigenen Akten; die Abgabe ist eine Übergabe in eine Richtung
 (das KRS sieht das entstandene Strafverfahren danach nicht).
 Tabellen: sa_akten, sa_beteiligte, sa_beweise, sa_eintraege, sa_anhaenge (Dateien in daten/anhaenge, Zufallsnamen, nur Download). Seiten unter …/intern/sachen/<ermittlung|strafverfahren>/.
 Haft wird nur erfasst (Beginn/Ende/Ort); Discord-Rollen (z. B. KRS-Häftling) werden nicht automatisch gesetzt.
@@ -121,7 +121,7 @@ def lesen_darf(k, a):
     if not k or not k["mitglied"]:
         return False
     art = a if isinstance(a, str) else a["art"]
-    # Jede Behörde sieht nur ihre eigenen Akten (KRS: Ermittlungsakten, Inquisition: Strafverfahren); dazu Kanzler/Kaiser.
+    # Jede Behörde sieht nur ihre eigenen Akten (KRS: Ermittlungsakten, Inquisition: Strafverfahren); dazu Kronkanzler/Kaiser.
     ok = bereiche._alle(k) or _mitglied_von(k, ARTEN[art]["behoerde"])
     if ok and not isinstance(a, str) and a["geheim"]:
         ok = bereiche._alle(k) or _leitung(k, art) or k["id"] in (a["bearbeiter_id"], a["ersteller_id"])
