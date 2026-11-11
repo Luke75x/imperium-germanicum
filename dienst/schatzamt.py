@@ -321,7 +321,10 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
     if m == "rp":
         mein = [("sa-rp", "layout-dashboard", "Lagebild", "rp/"), ("sa-rp-faelle", "folder-open", "Fälle", "rp/faelle/"),
                 ("sa-rp-konten", "search", "Konten & Personen", "rp/konten/"), ("sa-rp-protokoll", "scroll-text", "Protokoll", "rp/protokoll/")]
-        gruppen = [("RP-Leitung", mein), ("Hilfsmittel", [("sa-amt-bankkarten", "credit-card", "Bankkarten", "amt/bankkarten/"),
+        gruppen = [("RP-Leitung", mein),
+                   ("Konfiguration", [("sa-rp-foerder", "package", "Förderstätten", "rp/foerderstaetten/"), ("sa-rp-handel", "percent", "Handel: Waren & Regeln", "rp/handel/"),
+                                      ("sa-rp-besitz", "car", "Besitzkatalog & Kosten", "rp/besitz/")]),
+                   ("Hilfsmittel", [("sa-amt-bankkarten", "credit-card", "Bankkarten", "amt/bankkarten/"),
                                                           ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/"),
                                                           ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/")])]
     elif m == "staat":
@@ -355,7 +358,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
                 ("sa-amt-bankkarten", "credit-card", "Bankkarten", "amt/bankkarten/")]
         if geld.ist_leitung(k):
             amtl += [("sa-amt-besoldung", "users", "Besoldung & Lohnlauf", "amt/besoldung/"), ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/"),
-                     ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/"), ("sa-amt-besitz", "car", "Besitzkatalog", "amt/besitz/")]
+                     ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/")]
         amtl.append(("sa-amt-protokoll", "scroll-text", "Protokoll", "amt/protokoll/"))
         gruppen.append(("Schatzamt", amtl))
     weiter = []

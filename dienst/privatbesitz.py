@@ -11,7 +11,7 @@ Steuer (Kfz-/Grundsteuer, an die Staatskasse des Standorts), Versicherung und Un
 rueck_steuer, rueck_monate) und der Eigentümer bekommt eine Nachricht; nach `pfaendung_nach` Monaten pfändet der Staat das Gut zum Pfändungswert
 (Wert − `pfaendung_abschlag` %), tilgt damit den Rückstand und zahlt einen Rest an den Eigentümer aus. **Verkauf** an den Händler zum Wert abzüglich
 `verkaufsabschlag` % – nur wenn der Erlös den Rückstand deckt.
-Der Katalog (Preise, Kostensätze, Wertentwicklung, neue Güter) und die Sätze sind unter /schatzamt/amt/besitz/ von der Leitung des Schatzamts
+Der Katalog (Preise, Kostensätze, Wertentwicklung, neue Güter) und die Sätze sind unter /schatzamt/rp/besitz/ (RP-Leitungssicht, OOC) von der RP-Leitung
 änderbar. Sätze in Einstellung „privatbesitz“ (geld.VORGABEN).
 """
 import asyncio
@@ -318,6 +318,13 @@ CSS = """<style>
 .pb-vorschau{margin:8px 0 0;padding:10px 12px;border:1px dashed var(--linie);border-radius:8px;font-size:14px;background:#fafafa}
 .pb-vorschau:empty{display:none}
 .pb-warn{color:#b3261e;font-weight:600}
+.pb-chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}
+.pb-chips a{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid var(--linie);border-radius:999px;color:var(--ink);text-decoration:none;font-size:14px;background:#fff}
+.pb-chips a.aktiv{background:var(--ink);color:#fff;border-color:var(--ink)}
+.pb-chips .icon{width:16px;height:16px}
+.pb-kauf{margin-top:10px}.pb-kauf summary{cursor:pointer;font-weight:600;color:var(--ink)}
+.pb-kauf form{margin-top:10px}
+.pb-regeln{padding-left:18px;line-height:1.6}
 </style>"""
 
 
@@ -340,66 +347,92 @@ def _stand(b):
     return amt.status_marke("ok", "Bezahlt")
 
 
+def _reiter(aktiv):
+    eintraege = [("mein", "Mein Besitz", PFAD + "besitz/"), ("erwerben", "Erwerben", PFAD + "besitz/erwerben/"), ("kosten", "Kosten & Regeln", PFAD + "besitz/kosten/")]
+    return ('<nav class="reiter" aria-label="Besitz">' + "".join(f'<a href="{u}"{" class=aktiv aria-current=page" if t == aktiv else ""}>{n}</a>' for t, n, u in eintraege) + "</nav>")
+
+
+def _rahmen(request, k, titel, tab, inhalt):
+    return sa.ant(request, k, titel, "sa-besitz", CSS + f'<h1>{amt.ic("car")} Privatbesitz</h1>{_reiter(tab)}{amt.meldung(request)}{inhalt}')
+
+
+def _eigene(con, k):
+    """Aktive Güter des Kontos als [(Zeile, Wert, Kosten)] mit Katalogfeldern."""
+    out = []
+    for b in con.execute("SELECT b.*, k.name AS kname, k.kategorie, k.steuer, k.versicherung, k.unterhalt, k.wert AS kwert FROM pb_besitz b JOIN pb_katalog k ON k.id=b.katalog_id "
+                         "WHERE b.inhaber_id=? AND b.status='aktiv' ORDER BY k.kategorie, b.id", (k["id"],)).fetchall():
+        kat = {"steuer": b["steuer"], "versicherung": b["versicherung"], "unterhalt": b["unterhalt"], "wert": b["kwert"]}
+        out.append((b, wert(con, b, kat), kosten(con, b, kat)))
+    return out
+
+
 @sa.seite("mitglied")
 async def seite(request, k):
+    """Reiter „Mein Besitz“: nur die eigenen Güter in einer Tabelle."""
     con = request.app["db"]
-    c = cfg(con)
-    eigene = con.execute("SELECT b.*, k.name AS kname, k.kategorie, k.steuer, k.versicherung, k.unterhalt, k.wert AS kwert FROM pb_besitz b JOIN pb_katalog k ON k.id=b.katalog_id "
-                         "WHERE b.inhaber_id=? AND b.status='aktiv' ORDER BY b.id DESC", (k["id"],)).fetchall()
-    zeilen, gesamt_wert, gesamt_kosten, gesamt_rueck = [], 0, 0, 0
-    for b in eigene:
-        kat = {"steuer": b["steuer"], "versicherung": b["versicherung"], "unterhalt": b["unterhalt"], "wert": b["kwert"]}
-        w, ko = wert(con, b, kat), kosten(con, b, kat)
-        gesamt_wert += w
-        gesamt_kosten += ko["summe"]
-        gesamt_rueck += b["rueckstand"]
-        zeilen.append((f'<span class="anker" id="b{b["id"]}"><a href="{PFAD}besitz/{b["id"]}/">{amt.ic(ICON[b["kategorie"]])} {esc(b["bezeichnung"] or b["kname"])}</a></span>'
-                       + (f'<br><small class="az">{esc(b["kname"])}</small>' if b["bezeichnung"] else ""),
-                       esc(KATEGORIEN[b["kategorie"]]), esc(b["standort_name"]), mark(w), mark(ko["summe"]), _stand(b),
-                       f'<form method="post" action="{PFAD}besitz/{b["id"]}/verkaufen" onsubmit="return confirm(\'Gut verkaufen? Der Händler zahlt {c["verkaufsabschlag"]} % unter Wert.\')">'
-                       f'{amt.csrf_feld(request)}<button class="btn zweit" type="submit">Verkaufen</button></form>'))
-    kz = [("Güter", str(len(eigene))), ("Gesamtwert", mark(gesamt_wert)), ("Fixkosten je Monat", mark(gesamt_kosten)), ("Rückstand", mark(gesamt_rueck))]
+    eigene = _eigene(con, k)
+    gw, gk, gr = sum(e[1] for e in eigene), sum(e[2]["summe"] for e in eigene), sum(e[0]["rueckstand"] for e in eigene)
+    warn = (f'<div class="warnung">Zahlungsrückstand von {mark(gr)}: Gleiche ihn über dein Privatkonto aus, sonst pfändet der Staat die betroffenen Güter. '
+            f'Auf der Seite „Kosten & Regeln“ siehst du, was fällig ist.</div>') if gr else ""
+    kz = [("Güter", str(len(eigene))), ("Gesamtwert", mark(gw)), ("Fixkosten je Monat", mark(gk))]
+    zeilen = [(f'<a href="{PFAD}besitz/{b["id"]}/">{amt.ic(ICON[b["kategorie"]])} {esc(b["bezeichnung"] or b["kname"])}</a>'
+               + (f'<br><small class="az">{esc(b["kname"])}</small>' if b["bezeichnung"] else ""), esc(b["standort_name"]), mark(w), mark(ko["summe"]), _stand(b))
+              for b, w, ko in eigene]
+    leer = f'<p class="leer">Du besitzt noch nichts. <a href="{PFAD}besitz/erwerben/">Gut erwerben →</a></p>'
+    inhalt = (warn + f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
+              + (amt.tabelle(["Gut", "Standort", "Wert", "Kosten je Monat", "Stand"], zeilen) + f'<p><a class="btn zweit" href="{PFAD}besitz/erwerben/">{amt.ic("check")}Weiteres Gut erwerben</a></p>' if zeilen else leer))
+    return _rahmen(request, k, "Privatbesitz", "mein", inhalt)
+
+
+@sa.seite("mitglied")
+async def erwerben(request, k):
+    """Reiter „Erwerben“: Angebot einer Art (Fahrzeuge, Immobilien, Sonstiges) als Karten; der Kaufdialog klappt erst auf Wunsch auf."""
+    con = request.app["db"]
+    art = request.query.get("art", "fahrzeug")
+    art = art if art in KATEGORIEN else "fahrzeug"
     p = geld.privatkonto(con, k["id"])
-    katalog = con.execute("SELECT * FROM pb_katalog WHERE aktiv=1 ORDER BY CASE kategorie WHEN 'fahrzeug' THEN 0 WHEN 'immobilie' THEN 1 ELSE 2 END, preis").fetchall()
-    gruppen = {}
-    for kat in katalog:
+    chips = '<div class="pb-chips">' + "".join(f'<a href="{PFAD}besitz/erwerben/?art={g}"{" class=aktiv" if g == art else ""}>{amt.ic(ICON[g])}{esc(n)}</a>' for g, n in KATEGORIEN.items()) + "</div>"
+    orte = "".join(f'<option value="{esc(s)}">{esc(n)}</option>' for s, n in standorte(con))
+    karten = ""
+    for kat in con.execute("SELECT * FROM pb_katalog WHERE aktiv=1 AND kategorie=? ORDER BY preis", (art,)).fetchall():
         pr = preis_kr(con, kat)
         erw = int(round(pr * erwerbsatz(con, kat) / 100))
         mon = kosten(con, {"kaufpreis": pr, "kauf_zeit": time.time()}, kat)["summe"]
-        gruppen.setdefault(kat["kategorie"], []).append(
-            f'<option value="{kat["id"]}" data-preis="{pr}" data-erw="{erw}" data-monat="{mon}" data-art="{esc(KATEGORIEN[kat["kategorie"]])}">{esc(kat["name"])} – {mark(pr)}</option>')
-    opts = "".join(f'<optgroup label="{esc(KATEGORIEN[g])}">{"".join(o)}</optgroup>' for g, o in gruppen.items())
-    orte = standorte(con)
-    standort_opts = "".join(f'<option value="{esc(s)}">{esc(n)}</option>' for s, n in orte)
-    tab_kat = ""
-    for g, label in KATEGORIEN.items():
-        rows = []
-        for kat in (x for x in katalog if x["kategorie"] == g):
-            pr = preis_kr(con, kat)
-            ko = kosten(con, {"kaufpreis": pr, "kauf_zeit": time.time()}, kat)
-            rows.append((f'{esc(kat["name"])}<br><small class="az">{esc(kat["beschreibung"])}</small>', mark(pr), mark(ko["summe"]),
-                         _p(kat["wert"])))
-        tab_kat += f"<h3>{esc(label)}</h3>" + amt.tabelle(["Gut", "Preis", "Kosten je Monat", "Wertentwicklung"], rows)
-    js = ("<script>(function(){var s=document.getElementById('pb-gut'),v=document.getElementById('pb-vorschau');if(!s)return;"
-          "function f(n){return (n/100).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' Kr'}"
-          "function u(){var o=s.options[s.selectedIndex];if(!o||!o.dataset.preis){v.textContent='';return}var p=+o.dataset.preis,e=+o.dataset.erw,m=+o.dataset.monat;"
-          "v.innerHTML='<b>Kaufpreis:</b> '+f(p)+(e?' · <b>'+(o.dataset.art==='Immobilien'?'Grunderwerbsteuer':'Zulassung')+':</b> '+f(e):'')+' · <b>Gesamt:</b> '+f(p+e)+'<br><b>Laufende Kosten:</b> ca. '+f(m)+' je Monat (Steuer, Versicherung, Unterhalt)'}"
-          "s.addEventListener('change',u);u()})()</script>")
-    kaufform = (f'<h2>Gut erwerben</h2><form class="sa-formular" method="post" action="{PFAD}besitz/kaufen">{amt.csrf_feld(request)}<div class="zeilen">'
-                f'<div><label for="pb-gut">Gut</label><select id="pb-gut" name="gut" required>{opts}</select></div>'
-                f'<div><label for="pb-ort">Standort / Zulassung</label><select id="pb-ort" name="standort" required>{standort_opts}</select></div>'
-                '<div><label for="pb-bez">Bezeichnung (optional)</label><input type="text" id="pb-bez" name="bezeichnung" maxlength="60" placeholder="z. B. Kennzeichen oder Name"></div></div>'
-                f'<div class="pb-vorschau" id="pb-vorschau" aria-live="polite"></div>'
-                f'<p class="sa-hinweis">Die Zahlung erfolgt von deinem Privatkonto (verfügbar: {mark(p["saldo"])}). Steuer und Zulassung gehen an die Staatskasse des Standorts, '
-                f'der Rest an den Händler. Die laufenden Kosten werden ab dem Folgemonat jeweils zum Monatswechsel von deinem Konto abgebucht.</p>'
-                f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Kaufen</button></div></form>{js}')
-    inhalt = (f'<h1>{amt.ic("car")} Privatbesitz</h1>{amt.meldung(request)}'
-              '<p class="az">Fahrzeuge, Immobilien und weitere Güter im Privatbesitz. Für jedes Gut fallen <b>laufende Kosten</b> an – Kfz- bzw. Grundsteuer, Versicherung und Unterhalt –, '
-              f'die zum Monatswechsel von deinem Privatkonto abgebucht werden. Reicht das Guthaben nicht, wächst ein Rückstand; nach {c["pfaendung_nach"]} Monaten pfändet der Staat das Gut.</p>'
-              f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
-              + amt.tabelle(["Gut", "Art", "Standort", "Wert", "Kosten je Monat", "Stand", ""], zeilen, "Du besitzt noch nichts.") + kaufform
-              + "<h2>Angebot</h2>" + tab_kat)
-    return sa.ant(request, k, "Privatbesitz", "sa-besitz", CSS + inhalt)
+        label = "Grunderwerbsteuer" if kat["kategorie"] == "immobilie" else "Zulassung"
+        karten += (f'<div class="pb-karte"><h3>{esc(kat["name"])}</h3><p class="az">{esc(kat["beschreibung"])}</p>'
+                   f'<dl class="sa-werte"><dt>Preis</dt><dd><b>{mark(pr)}</b></dd><dt>Laufende Kosten</dt><dd>ca. {mark(mon)} / Monat</dd></dl>'
+                   f'<details class="pb-kauf"><summary>Erwerben</summary><form class="sa-formular" method="post" action="{PFAD}besitz/kaufen">{amt.csrf_feld(request)}'
+                   f'<input type="hidden" name="gut" value="{kat["id"]}">'
+                   f'<div><label>Standort / Zulassung</label><select name="standort" required>{orte}</select></div>'
+                   '<div><label>Bezeichnung (optional)</label><input type="text" name="bezeichnung" maxlength="60" placeholder="z. B. Kennzeichen oder Name"></div>'
+                   f'<p class="sa-hinweis">Zu zahlen: {mark(pr)}' + (f' + {label} {mark(erw)} = <b>{mark(pr + erw)}</b>' if erw else "") + f' · verfügbar {mark(p["saldo"])}</p>'
+                   f'<button class="btn" type="submit">{amt.ic("check")}Kaufen</button></form></details></div>')
+    inhalt = (f'<p class="az">Wähle eine Art und klappe bei einem Gut „Erwerben“ auf. Gezahlt wird von deinem Privatkonto (verfügbar: {mark(p["saldo"])}).</p>{chips}'
+              f'<div class="pb-karten">{karten}</div>')
+    return _rahmen(request, k, "Privatbesitz – Erwerben", "erwerben", inhalt)
+
+
+@sa.seite("mitglied")
+async def kosten_seite(request, k):
+    """Reiter „Kosten & Regeln“: Fixkosten je Gut und die Spielregeln auf einen Blick."""
+    con = request.app["db"]
+    c = cfg(con)
+    eigene = _eigene(con, k)
+    zeilen = [(f'<a href="{PFAD}besitz/{b["id"]}/">{esc(b["bezeichnung"] or b["kname"])}</a>', mark(ko["steuer"]), mark(ko["versicherung"]), mark(ko["unterhalt"]), f"<b>{mark(ko['summe'])}</b>",
+               mark(b["rueckstand"]) if b["rueckstand"] else "–") for b, w, ko in eigene]
+    if eigene:
+        zeilen.append(("<b>Summe</b>", mark(sum(e[2]["steuer"] for e in eigene)), mark(sum(e[2]["versicherung"] for e in eigene)), mark(sum(e[2]["unterhalt"] for e in eigene)),
+                       f"<b>{mark(sum(e[2]['summe'] for e in eigene))}</b>", mark(sum(e[0]["rueckstand"] for e in eigene)) or "–"))
+    regeln = (f'<ul class="pb-regeln"><li><b>Abbuchung:</b> Zum Monatswechsel von deinem Privatkonto, erstmals im Monat nach dem Kauf.</li>'
+              f'<li><b>Steuer</b> geht an die Staatskasse des Standorts, <b>Versicherung und Unterhalt</b> an die Wirtschaft.</li>'
+              f'<li><b>Bemessung:</b> Alle Kosten richten sich nach dem aktuellen Wert des Guts. Fahrzeuge verlieren an Wert, Immobilien und Sammlungen gewinnen meist.</li>'
+              f'<li><b>Beim Kauf:</b> {_g(c["grunderwerbsteuer"])} % Grunderwerbsteuer (Immobilien), {_g(c["zulassung"])} % Zulassungsgebühr (Fahrzeuge).</li>'
+              f'<li><b>Verkauf:</b> Der Händler zahlt den Wert abzüglich {_g(c["verkaufsabschlag"])} %. Ein Rückstand wird aus dem Erlös beglichen.</li>'
+              f'<li><b>Rückstand:</b> Reicht das Guthaben nicht, wächst ein Rückstand. Nach {int(c["pfaendung_nach"])} Monaten pfändet der Staat das Gut '
+              f'(Wert abzüglich {_g(c["pfaendung_abschlag"])} %), tilgt den Rückstand und zahlt einen Rest aus.</li></ul>')
+    inhalt = ("<h2>Deine Fixkosten je Monat</h2>" + amt.tabelle(["Gut", "Steuer", "Versicherung", "Unterhalt", "Gesamt", "Rückstand"], zeilen, "Du besitzt noch nichts.")
+              + "<h2>Regeln</h2>" + regeln)
+    return _rahmen(request, k, "Privatbesitz – Kosten & Regeln", "kosten", inhalt)
 
 
 @sa.seite("mitglied")
@@ -468,7 +501,7 @@ def _zahl(form, feld, lo, hi):
     return x
 
 
-@sa.seite("leitung")
+@sa.seite("rp")
 async def verwaltung(request, k):
     con = request.app["db"]
     c = cfg(con)
@@ -477,7 +510,7 @@ async def verwaltung(request, k):
     for x in kat:
         f = f'f{x["id"]}'
         zeilen.append((f'{esc(x["name"])}<br><small class="az">{esc(KATEGORIEN[x["kategorie"]])}</small>',
-                       f'<form method="post" action="{PFAD}amt/besitz/artikel" class="sa-leiste">{amt.csrf_feld(request)}<input type="hidden" name="id" value="{x["id"]}">'
+                       f'<form method="post" action="{PFAD}rp/besitz/artikel" class="sa-leiste">{amt.csrf_feld(request)}<input type="hidden" name="id" value="{x["id"]}">'
                        f'<input type="text" name="preis" value="{x["preis"]}" size="9" aria-label="Preis in €"> '
                        f'<input type="text" name="steuer" value="{x["steuer"]:g}" size="4" aria-label="Steuer %"> '
                        f'<input type="text" name="versicherung" value="{x["versicherung"]:g}" size="4" aria-label="Versicherung %"> '
@@ -485,7 +518,7 @@ async def verwaltung(request, k):
                        f'<input type="text" name="wert" value="{x["wert"]:g}" size="4" aria-label="Wertentwicklung %"> '
                        f'<label><input type="checkbox" name="aktiv" value="1"{" checked" if x["aktiv"] else ""}> im Angebot</label> '
                        f'<button class="btn zweit" type="submit" id="{f}">Speichern</button></form>'))
-    ein = (f'<form class="sa-formular" method="post" action="{PFAD}amt/besitz/saetze">{amt.csrf_feld(request)}<div class="zeilen">'
+    ein = (f'<form class="sa-formular" method="post" action="{PFAD}rp/besitz/saetze">{amt.csrf_feld(request)}<div class="zeilen">'
            f'<div><label>Grunderwerbsteuer % (Immobilien)</label><input type="text" name="grunderwerbsteuer" value="{c["grunderwerbsteuer"]:g}"></div>'
            f'<div><label>Zulassungsgebühr % (Fahrzeuge)</label><input type="text" name="zulassung" value="{c["zulassung"]:g}"></div>'
            f'<div><label>Verkaufsabschlag % (Händler)</label><input type="text" name="verkaufsabschlag" value="{c["verkaufsabschlag"]:g}"></div>'
@@ -494,7 +527,7 @@ async def verwaltung(request, k):
            f'<div><label>Höchstzahl Güter je Person</label><input type="text" name="max_je_person" value="{int(c["max_je_person"])}"></div>'
            f'<div><label><input type="checkbox" name="automatisch" value="1"{" checked" if c.get("automatisch") else ""}> Kosten automatisch zum Monatswechsel buchen</label></div></div>'
            f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Sätze speichern</button></div></form>')
-    neu = (f'<form class="sa-formular" method="post" action="{PFAD}amt/besitz/neu">{amt.csrf_feld(request)}<div class="zeilen">'
+    neu = (f'<form class="sa-formular" method="post" action="{PFAD}rp/besitz/neu">{amt.csrf_feld(request)}<div class="zeilen">'
            '<div><label>Name</label><input type="text" name="name" required maxlength="60"></div>'
            f'<div><label>Art</label><select name="kategorie">{"".join(f"<option value={g}>{esc(n)}</option>" for g, n in KATEGORIEN.items())}</select></div>'
            '<div><label>Preis (€)</label><input type="text" name="preis" required></div>'
@@ -505,9 +538,9 @@ async def verwaltung(request, k):
     laeufe = con.execute("SELECT * FROM pb_laeufe ORDER BY id DESC LIMIT 12").fetchall()
     st = con.execute("SELECT COUNT(*) n, SUM(rueckstand) r FROM pb_besitz WHERE status='aktiv'").fetchone()
     periode = date.today().strftime("%Y-%m")
-    lauf_form = (f'<form method="post" action="{PFAD}amt/besitz/lauf" onsubmit="return confirm(\'Kosten für {periode} jetzt buchen?\')">{amt.csrf_feld(request)}'
+    lauf_form = (f'<form method="post" action="{PFAD}rp/besitz/lauf" onsubmit="return confirm(\'Kosten für {periode} jetzt buchen?\')">{amt.csrf_feld(request)}'
                  f'<button class="btn zweit" type="submit"{" disabled" if con.execute("SELECT 1 FROM pb_laeufe WHERE periode=?", (periode,)).fetchone() else ""}>Kostenlauf {periode} jetzt ausführen</button></form>')
-    inhalt = (f'<h1>{amt.ic("car")} Besitzkatalog &amp; Kosten</h1>{amt.meldung(request)}'
+    inhalt = (f'<h1>{amt.ic("car")} Besitzkatalog &amp; Kostenlauf (RP-Leitung)</h1>{amt.meldung(request)}'
               f'<div class="kennzahlen"><div><b>{st["n"]}</b>Güter im Besitz</div><div><b>{mark(st["r"] or 0)}</b>offene Rückstände</div></div>'
               '<p class="az">Preise in €, umgerechnet zum Wechselkurs. Sätze in % p. a. vom aktuellen Wert. Reihenfolge der Felder: Preis · Steuer · Versicherung · Unterhalt · Wertentwicklung.</p>'
               "<h2>Sätze</h2>" + ein + "<h2>Katalog</h2>" + amt.tabelle(["Gut", "Preis und Sätze"], zeilen) + "<h2>Neues Gut</h2>" + neu
@@ -515,11 +548,11 @@ async def verwaltung(request, k):
               + amt.tabelle(["Monat", "Güter", "Gebucht", "davon Steuer", "Rückstände", "Gepfändet", "Zeit"],
                             [(esc(l["periode"]), str(l["anzahl"]), mark(l["summe"]), mark(l["steuer"]), mark(l["rueckstaende"]), str(l["gepfaendet"]), amt._zeit(l["zeit"])) for l in laeufe],
                             "Noch kein Lauf."))
-    return sa.ant(request, k, "Besitzkatalog", "sa-amt-besitz", CSS + inhalt)
+    return sa.ant(request, k, "Besitzkatalog", "sa-rp-besitz", CSS + inhalt)
 
 
 def _leitung_pruefen(k):
-    if not geld.ist_leitung(k):
+    if not sa.ist_rp(k):
         raise web.HTTPForbidden()
 
 
@@ -535,8 +568,8 @@ async def artikel_post(request):
         geld.protokoll(con, k, "Besitzkatalog geändert", f"Gut {form.get('id')}")
         con.commit()
     except (ValueError, TypeError):
-        sa.weiter(f"{PFAD}amt/besitz/", "Bitte gültige Zahlen angeben.", True)
-    sa.weiter(f"{PFAD}amt/besitz/", "Gut gespeichert.")
+        sa.weiter(f"{PFAD}rp/besitz/", "Bitte gültige Zahlen angeben.", True)
+    sa.weiter(f"{PFAD}rp/besitz/", "Gut gespeichert.")
 
 
 async def neu_post(request):
@@ -554,8 +587,8 @@ async def neu_post(request):
         geld.protokoll(con, k, "Besitzkatalog erweitert", name)
         con.commit()
     except (ValueError, TypeError, AssertionError):
-        sa.weiter(f"{PFAD}amt/besitz/", "Bitte Name, Art und gültige Zahlen angeben.", True)
-    sa.weiter(f"{PFAD}amt/besitz/", f"{name} angelegt.")
+        sa.weiter(f"{PFAD}rp/besitz/", "Bitte Name, Art und gültige Zahlen angeben.", True)
+    sa.weiter(f"{PFAD}rp/besitz/", f"{name} angelegt.")
 
 
 async def saetze_post(request):
@@ -568,10 +601,10 @@ async def saetze_post(request):
                "pfaendung_nach": int(_zahl(form, "pfaendung_nach", 1, 24)), "pfaendung_abschlag": _zahl(form, "pfaendung_abschlag", 0, 90),
                "max_je_person": int(_zahl(form, "max_je_person", 1, 1000)), "automatisch": bool(form.get("automatisch"))}
     except (ValueError, TypeError):
-        sa.weiter(f"{PFAD}amt/besitz/", "Bitte gültige Zahlen angeben.", True)
+        sa.weiter(f"{PFAD}rp/besitz/", "Bitte gültige Zahlen angeben.", True)
     geld.einstellung_setzen(con, "privatbesitz", neu, k)
     con.commit()
-    sa.weiter(f"{PFAD}amt/besitz/", "Sätze gespeichert.")
+    sa.weiter(f"{PFAD}rp/besitz/", "Sätze gespeichert.")
 
 
 async def lauf_post(request):
@@ -580,9 +613,9 @@ async def lauf_post(request):
     await sa.formular(request)
     erg = lauf(request.app["db"], date.today().strftime("%Y-%m"), k)
     if not erg:
-        sa.weiter(f"{PFAD}amt/besitz/", "Dieser Monat ist bereits gebucht.", True)
+        sa.weiter(f"{PFAD}rp/besitz/", "Dieser Monat ist bereits gebucht.", True)
     await _senden(request.app, erg[1])
-    sa.weiter(f"{PFAD}amt/besitz/", f"Kostenlauf {erg[0]['periode']}: {erg[0]['anzahl']} Güter, {mark(erg[0]['summe'])} gebucht.")
+    sa.weiter(f"{PFAD}rp/besitz/", f"Kostenlauf {erg[0]['periode']}: {erg[0]['anzahl']} Güter, {mark(erg[0]['summe'])} gebucht.")
 
 
 def tarif_text(con):
@@ -597,14 +630,16 @@ def registrieren(app):
                              "privatsteuer": "Kfz-/Grundsteuer (Besitz)", "erwerbsteuer": "Grunderwerbsteuer / Zulassung"})
     r = app.router
     r.add_get(PFAD + "besitz/", seite)
+    r.add_get(PFAD + "besitz/erwerben/", erwerben)
+    r.add_get(PFAD + "besitz/kosten/", kosten_seite)
     r.add_post(PFAD + "besitz/kaufen", kaufen_post)
     r.add_get(PFAD + "besitz/{id:\\d+}/", detail)
     r.add_post(PFAD + "besitz/{id:\\d+}/verkaufen", verkaufen_post)
-    r.add_get(PFAD + "amt/besitz/", verwaltung)
-    r.add_post(PFAD + "amt/besitz/artikel", artikel_post)
-    r.add_post(PFAD + "amt/besitz/neu", neu_post)
-    r.add_post(PFAD + "amt/besitz/saetze", saetze_post)
-    r.add_post(PFAD + "amt/besitz/lauf", lauf_post)
+    r.add_get(PFAD + "rp/besitz/", verwaltung)
+    r.add_post(PFAD + "rp/besitz/artikel", artikel_post)
+    r.add_post(PFAD + "rp/besitz/neu", neu_post)
+    r.add_post(PFAD + "rp/besitz/saetze", saetze_post)
+    r.add_post(PFAD + "rp/besitz/lauf", lauf_post)
 
     async def start(app_):
         app_["besitz_aufgabe"] = asyncio.get_event_loop().create_task(automatik(app_))

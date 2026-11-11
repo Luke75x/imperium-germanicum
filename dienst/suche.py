@@ -117,6 +117,8 @@ def index(con, k):
         add("Steuern & Gebühren", "Mein Geld", PFAD + "steuern/", "bescheid steuerbescheid lohnsteuer kopfsteuer vermoegensteuer gewerbesteuer mahnung saeumnis finanzamt")
         add("Gehalt", "Mein Geld", PFAD + "gehalt/", "besoldung abrechnung lohn gehaltsabrechnung sold einkommen netto brutto")
         add("Gewerbe", "Mein Geld", PFAD + "gewerbe/", "gewerbeanmeldung firma unternehmen betrieb selbststaendig gewerbekonto")
+        add("Besitz erwerben", "Privatwirtschaft", PFAD + "besitz/erwerben/", "kaufen fahrzeug auto immobilie haus wohnung villa schloss kaufpreis", 2)
+        add("Besitz: Kosten & Regeln", "Privatwirtschaft", PFAD + "besitz/kosten/", "fixkosten laufende kosten steuer versicherung unterhalt pfaendung rueckstand regeln")
         add("Besitz (Fahrzeuge, Immobilien, Güter)", "Privatwirtschaft", PFAD + "besitz/",
             "privatbesitz privateigentum eigentum auto fahrzeug kfz motorrad boot yacht flugzeug haus wohnung immobilie grundstueck villa schloss kaufen verkaufen "
             "laufende kosten fixkosten versicherung unterhalt grundsteuer kfzsteuer pfaendung privatwirtschaft", 2)
@@ -150,7 +152,7 @@ def index(con, k):
         add("Handel – Mein Lager", "Handel", PFAD + "handel/mein/", "lager bestand waren eigenes")
         add("Handel – Rohstoffvorkommen", "Handel", PFAD + "handel/ressourcen/", "ressourcen rohstoffe lagerstaetten foerderung vorkommen")
         add("Handelsbuch", "Handel", PFAD + "handel/buch/", "geschaefte handelsbuch protokoll")
-        add("Handelsregeln & Richtpreise", "Handel", PFAD + "handel/regeln/", "richtpreise preise sperren regeln")
+        add("Handel: Waren & Regeln", "Handel", PFAD + "handel/regeln/", "richtpreise preise regeln waren verderb herkunft")
         for r in con.execute("SELECT name, sektor FROM hd_waren WHERE aktiv=1").fetchall():
             add(f"Handel – {r['name']}", "Handelsware", PFAD + "handel/", f"{r['sektor']} ware angebot", 0)
         for b in amt.BEHOERDEN:
@@ -186,8 +188,10 @@ def index(con, k):
         add("Besoldung & Lohnlauf", "Schatzamt", PFAD + "amt/besoldung/", "gehaelter gruppen rollen zuschlaege lohnlauf")
         add("Geldpolitik", "Schatzamt", PFAD + "amt/geldpolitik/", "geldschoepfung geldvernichtung leitzins zentralbank")
         add("Sätze festlegen", "Schatzamt", PFAD + "amt/tarife/", "tarife saetze steuersaetze gebuehren")
-        add("Besitzkatalog & Kostenlauf", "Schatzamt", PFAD + "amt/besitz/", "privatbesitz katalog fahrzeuge immobilien preise kostenlauf privatwirtschaft", 1)
     if mitglied and k["admin"]:
+        add("Förderstätten anlegen & verwalten", "RP-Konfiguration", PFAD + "rp/foerderstaetten/", "foerderstaette lagerstaette rohstoffe foerderung ressourcen vorkommen anlegen bearbeiten", 2)
+        add("Handel: Waren, Richtpreise, Sätze, Sperren", "RP-Konfiguration", PFAD + "rp/handel/", "handel konfiguration richtpreise waren saetze handelssperre embargo regeln", 1)
+        add("Besitzkatalog & Kostenlauf", "RP-Konfiguration", PFAD + "rp/besitz/", "privatbesitz katalog fahrzeuge immobilien preise kostenlauf privatwirtschaft konfiguration", 1)
         add("RP-Lagebild", "RP-Leitung", PFAD + "rp/", "rp leitung lagebild")
         add("RP-Fälle", "RP-Leitung", PFAD + "rp/faelle/", "faelle untersuchungen")
         add("RP: Konten & Personen", "RP-Leitung", PFAD + "rp/konten/", "konten personen suche")

@@ -186,7 +186,8 @@ def sperre(con, schl):
 
 
 def verwalter(k):
-    return geld.ist_leitung(k) or sa.ist_rp(k)
+    """Förderstätten, Richtpreise, Sätze und Sperren sind OOC-Konfiguration: nur in der RP-Leitungssicht (/schatzamt/rp/…)."""
+    return sa.ist_rp(k)
 
 
 # ---------------------------------------------------------------- Waren, Lager, Preise
@@ -759,15 +760,13 @@ async def ressourcen(request, k):
             zeilen += (f'<td style="background:rgba(0,0,0,{0.05 + v / mx[r] * 0.25:.2f})" title="{zahl(v)} {esc(ws[r]["einheit"])} / Jahr"><b>{kurz(v)}</b></td>' if v > 0 else '<td class="n0">–</td>')
         zeilen += "</tr>"
     anz = "".join(f"<td>{sum(1 for s in namen if foerd.get(s, {}).get(r, 0) > 0)}</td>" for r, _ in RESSOURCEN)
-    out = ('<p>Reale Jahresförderung der Gebiete (Größenordnung 2022/23) in der Einheit der Ware pro Jahr. „–“ bedeutet: kein Vorkommen – dort wird der Rohstoff nicht gefördert '
-           'und kann nicht als Rohstoff verkauft werden. Die Mengen folgen den tatsächlichen Lagerstätten (z. B. Rheinisches und Lausitzer Revier, Groningen-Feld, Mittelplate, Erzberg); '
-           'wechselt ein Gebiet den Teilstaat, wechselt die Förderung mit. „Das Reich“ umfasst die Freien Reichsgebiete. Monatliche Erzeugung = Jahresmenge ÷ 12, skaliert mit dem Industrie-Etat.</p>'
+    out = ('<p>Jahresförderung der Gebiete je Rohstoff, in der Einheit der Ware pro Jahr. „–“ bedeutet: kein Vorkommen – dort wird der Rohstoff nicht gefördert '
+           'und kann nicht als Rohstoff verkauft werden. Wechselt ein Gebiet den Teilstaat, wechselt die Förderung mit. „Das Reich“ umfasst die Freien Reichsgebiete. '
+           'Monatliche Erzeugung = Jahresmenge ÷ 12, skaliert mit dem Industrie-Etat.</p>'
            f'<div class="hd-matrix"><table><thead><tr><th>Gebiet</th>{kopf}</tr></thead><tbody>{zeilen}<tr><td><i>Gebiete mit Vorkommen</i></td>{anz}</tbody></table></div>')
     sel = request.query.get("rohstoff", "")
     sel = sel if sel in RESNAME else RESSOURCEN[0][0]
     chips = '<div class="hd-chips">' + "".join(f'<a href="{PFAD}ressourcen/?rohstoff={r}#lagerstaetten"{" class=aktiv" if r == sel else ""}>{esc(n)}</a>' for r, n in RESSOURCEN) + "</div>"
-    verw = verwalter(k)
-    c = amt.csrf_feld(request)
     besitzer = gebiet_besitzer(con)
     z = []
     for ls in lagerstaetten(con):
@@ -775,24 +774,9 @@ async def ressourcen(request, k):
             continue
         v = verteilung_lagerstaette(con, ls, besitzer)
         wem = ", ".join(f'{esc(namen.get(s, s))} {a * 100:.0f} %' for s, a in sorted(v.items(), key=lambda x: -x[1]) if a >= 0.005) or "<span class='az'>keinem Teilstaat zugeordnet</span>"
-        menge = zahl(ls["menge"])
-        if verw:
-            menge = (f'<form class="sa-inline" method="post" action="{PFAD}ressourcen/">{c}<input type="hidden" name="id" value="{ls["id"]}">'
-                     f'<input type="number" name="menge" min="0" value="{ls["menge"]}" style="width:130px" aria-label="Jahresmenge"> '
-                     f'<button class="btn zweit klein" type="submit">Speichern</button></form>')
-        z.append((esc(ls["name"]), menge, wem, esc(ls["quelle"])))
+        z.append((esc(ls["name"]), zahl(ls["menge"]), wem))
     out += (f'<h2 id="lagerstaetten">Förderstätten · {esc(RESNAME[sel])}</h2>{chips}'
-            + amt.tabelle(["Förderstätte / Region", f"Jahresförderung ({ws[sel]['einheit']})", "Gebiet / Besitzer", "Quelle"], z, "Keine Förderstätte.")
-            + '<p class="sa-hinweis">Die Zahlen sind gerundete Näherungen aus amtlichen Statistiken und Branchenberichten (Stand 2022/23). '
-              'Die Schatzamt-Leitung kann Mengen berichtigen, etwa bei stillgelegten oder neu erschlossenen Feldern; jede Änderung wird protokolliert.</p>')
-    if verw:
-        opt = "".join(f'<option value="{r}">{esc(n)}</option>' for r, n in RESSOURCEN)
-        out += (f'<details class="sa-auf"><summary>{amt.ic("check")}Neue Förderstätte anlegen</summary><form class="hd-form" method="post" action="{PFAD}ressourcen/">{c}'
-                f'<input type="hidden" name="neu" value="1"><div><label>Rohstoff</label><select name="ressource">{opt}</select></div>'
-                '<div><label>Bezeichnung</label><input type="text" name="name" size="30" required></div>'
-                '<div><label>Jahresförderung</label><input type="number" name="menge" min="1" required></div>'
-                '<div><label>Gebiete (NUTS-Codes, Komma)</label><input type="text" name="gebiete" size="26" placeholder="DE21, DEA27" required></div>'
-                f'<button class="btn" type="submit">{amt.ic("check")}Anlegen</button></form></details>')
+            + amt.tabelle(["Förderstätte / Region", f"Jahresförderung ({ws[sel]['einheit']})", "Gebiet / Besitzer"], z, "Keine Förderstätte."))
     return _seite(request, k, "Handel – Ressourcen", "ressourcen", out)
 
 
@@ -833,33 +817,97 @@ async def regeln(request, k):
             rez = REZEPTE.get(w["schl"])
             herk = (" + ".join(f'{str(je).replace(".", ",")} t {RESNAME.get(st, st)}' for st, je in rez.items()) + " (Veredelung)") if rez else (
                 f'Vorkommen: {RESNAME[w["ressource"]]}' if w["ressource"] else f'{w["anteil"]:g} % des Überschusses'.replace(".", ","))
-            if verwalter(k):
-                pv = f'{w["preis"] / 100:.2f}'.replace(".", ",")
-                form = (f'<form class="sa-inline" method="post" action="{PFAD}ware">{c}<input type="hidden" name="schl" value="{esc(w["schl"])}">'
-                        f'<input type="text" name="preis" value="{pv}" size="9" aria-label="Richtpreis">'
-                        f'<label><input type="checkbox" name="aktiv" value="1"{" checked" if w["aktiv"] else ""}> aktiv</label> <button class="btn zweit klein" type="submit">Speichern</button></form>')
-            else:
-                form = _pk(w["preis"])
-            z.append((esc(w["name"]), esc(w["einheit"]), form, f'≈ {w["preis"] * kurs / 100:,.0f} €'.replace(",", "."), esc(herk), f'{w["verderb"]:g} %'.replace(".", ",") if w["verderb"] else "–"))
-        out += f"<h2>{esc(n)}: {esc(t)}</h2>" + amt.tabelle(["Ware", "Einheit", "Richtpreis", "in Euro", "Herkunft", "Verderb / Monat"], z)
-    if verwalter(k):
-        out += (f'<h2>Sätze</h2><form class="hd-form" method="post" action="{PFAD}saetze">{c}'
-                + "".join(f'<div><label>{t}</label><input type="text" name="{n}" value="{e[n]}" size="6"></div>' for n, t in
-                          (("ueberschuss_gesundheit", "Überschuss Gesundheit %"), ("ueberschuss_landwirtschaft", "Überschuss Landwirtschaft %"),
-                           ("ueberschuss_industrie", "Überschuss Industrie %"), ("preis_min", "Preis mind. % des Richtpreises"),
-                           ("preis_max", "Preis höchstens %"), ("veredelung_kosten", "Veredelungskosten %")))
-                + f'<button class="btn" type="submit">{amt.ic("check")}Speichern</button></form>')
-        sp = con.execute("SELECT * FROM hd_sperren ORDER BY zeit DESC").fetchall()
-        namen = halter(con)
-        opt = "".join(f'<option value="{esc(s)}">{esc(n)}</option>' for s, n in namen.items())
-        out += ("<h2>Handelssperren</h2>" + amt.tabelle(["Gebiet", "Grund", "Seit", ""],
-                [(esc(namen.get(s["schl"], s["schl"])), esc(s["grund"]), amt._zeit(s["zeit"]),
-                  f'<form class="sa-inline" method="post" action="{PFAD}sperre">{c}<input type="hidden" name="schl" value="{esc(s["schl"])}"><input type="hidden" name="aktion" value="aufheben">'
-                  f'<button class="btn zweit klein" type="submit">Aufheben</button></form>') for s in sp], "Keine Sperren.")
-                + f'<form class="hd-form" method="post" action="{PFAD}sperre">{c}<input type="hidden" name="aktion" value="verhaengen">'
-                  f'<div><label>Gebiet</label><select name="schl">{opt}</select></div><div><label>Grund</label><input type="text" name="grund" size="30"></div>'
-                  '<button class="btn zweit" type="submit">Handelssperre verhängen</button></form>')
+            z.append((esc(w["name"]), esc(w["einheit"]), _pk(w["preis"]), esc(herk), f'{w["verderb"]:g} %'.replace(".", ",") if w["verderb"] else "–"))
+        out += f"<h2>{esc(n)}: {esc(t)}</h2>" + amt.tabelle(["Ware", "Einheit", "Richtpreis", "Herkunft", "Verderb / Monat"], z)
     return _seite(request, k, "Handel – Waren & Regeln", "regeln", out)
+
+
+# ---------------------------------------------------------------- RP-Leitung: Konfiguration (OOC)
+
+RPF = sa.PFAD + "rp/foerderstaetten/"
+RPH = sa.PFAD + "rp/handel/"
+
+
+@sa.seite("rp")
+async def rp_foerderstaetten(request, k):
+    """Förderstätten anlegen, ändern und löschen – nur in der RP-Leitungssicht."""
+    con = request.app["db"]
+    namen = halter(con)
+    ws = waren(con)
+    c = amt.csrf_feld(request)
+    sel = request.query.get("rohstoff", "")
+    sel = sel if sel in RESNAME else RESSOURCEN[0][0]
+    chips = '<div class="hd-chips">' + "".join(f'<a href="{RPF}?rohstoff={r}"{" class=aktiv" if r == sel else ""}>{esc(n)}</a>' for r, n in RESSOURCEN) + "</div>"
+    besitzer = gebiet_besitzer(con)
+    z = []
+    for ls in lagerstaetten(con):
+        if ls["ressource"] != sel:
+            continue
+        v = verteilung_lagerstaette(con, ls, besitzer)
+        wem = ", ".join(f'{esc(namen.get(s, s))} {a * 100:.0f} %' for s, a in sorted(v.items(), key=lambda x: -x[1]) if a >= 0.005) or "<span class='az'>keinem Teilstaat zugeordnet</span>"
+        codes = ", ".join(json.loads(ls["gebiete"]))
+        z.append((f'<form class="hd-form" method="post" action="{RPF}">{c}<input type="hidden" name="id" value="{ls["id"]}">'
+                  f'<div><label>Bezeichnung</label><input type="text" name="name" value="{esc(ls["name"])}" size="26" required></div>'
+                  f'<div><label>Jahresförderung ({esc(ws[sel]["einheit"])})</label><input type="number" name="menge" min="0" value="{ls["menge"]}" style="width:130px"></div>'
+                  f'<div><label>Gebiete (NUTS-Codes)</label><input type="text" name="gebiete" value="{esc(codes)}" size="22"></div>'
+                  f'<button class="btn zweit klein" type="submit" name="aktion" value="speichern">Speichern</button> '
+                  f'<button class="btn zweit gefahr klein" type="submit" name="aktion" value="loeschen" onclick="return confirm(\'Förderstätte löschen?\')">Löschen</button></form>'
+                  f'<small class="az">Zugeordnet: {wem} · Quelle: {esc(ls["quelle"] or "–")}</small>',))
+    opt = "".join(f'<option value="{r}"{" selected" if r == sel else ""}>{esc(n)}</option>' for r, n in RESSOURCEN)
+    neu = (f'<h2>Neue Förderstätte</h2><form class="hd-form" method="post" action="{RPF}">{c}<input type="hidden" name="neu" value="1">'
+           f'<div><label>Rohstoff</label><select name="ressource">{opt}</select></div><div><label>Bezeichnung</label><input type="text" name="name" size="30" required></div>'
+           '<div><label>Jahresförderung</label><input type="number" name="menge" min="1" required></div>'
+           '<div><label>Gebiete (NUTS-Codes, Komma)</label><input type="text" name="gebiete" size="26" placeholder="DE21, DEA27" required></div>'
+           f'<button class="btn" type="submit">{amt.ic("check")}Anlegen</button></form>')
+    inhalt = (f'<h1>{amt.ic("package")} Förderstätten</h1>{amt.meldung(request)}'
+              '<p class="az">RP-Konfiguration: Lagerstätten und Jahresmengen je Rohstoff. Die Mengen sind gerundete Näherungen aus amtlichen Statistiken und Branchenberichten (Stand 2022/23, '
+              'nicht einzeln geprüft); die Gebiete sind NUTS-Präfixe (z. B. DE21 = Oberbayern), die Förderung verteilt sich nach Fläche auf den heutigen Besitzer. '
+              'Änderungen wirken ab dem nächsten Haushaltsmonat und werden protokolliert.</p>' + chips + f'<h2>{esc(RESNAME[sel])}</h2>'
+              + (amt.tabelle(["Förderstätte"], z) if z else '<p class="leer">Keine Förderstätte für diesen Rohstoff.</p>') + neu)
+    return sa.ant(request, k, "Förderstätten", "sa-rp-foerder", CSS + inhalt)
+
+
+@sa.seite("rp")
+async def rp_handel(request, k):
+    """Richtpreise, Sätze und Handelssperren – nur in der RP-Leitungssicht."""
+    con = request.app["db"]
+    c = amt.csrf_feld(request)
+    e = einstellungen(con)
+    kurs = geld.wechselkurs(con)
+    gruppen = {}
+    for w in waren(con).values():
+        if w["aktiv"] or not w["ressource"] or w["ressource"] in RESNAME:
+            gruppen.setdefault(w["sektor"], []).append(w)
+    out = ""
+    for s, n, t in SEKTOREN[:3]:
+        z = []
+        for w in gruppen.get(s, []):
+            pv = f'{w["preis"] / 100:.2f}'.replace(".", ",")
+            z.append((esc(w["name"]), esc(w["einheit"]),
+                      f'<form class="sa-inline" method="post" action="{PFAD}ware">{c}<input type="hidden" name="schl" value="{esc(w["schl"])}">'
+                      f'<input type="text" name="preis" value="{pv}" size="9" aria-label="Richtpreis">'
+                      f'<label><input type="checkbox" name="aktiv" value="1"{" checked" if w["aktiv"] else ""}> aktiv</label> <button class="btn zweit klein" type="submit">Speichern</button></form>',
+                      f'≈ {w["preis"] * kurs / 100:,.0f} €'.replace(",", ".")))
+        out += f"<h2>{esc(n)}: {esc(t)}</h2>" + amt.tabelle(["Ware", "Einheit", "Richtpreis (Kr)", "in Euro"], z)
+    out += (f'<h2>Sätze</h2><form class="hd-form" method="post" action="{PFAD}saetze">{c}'
+            + "".join(f'<div><label>{t}</label><input type="text" name="{n}" value="{e[n]}" size="6"></div>' for n, t in
+                      (("ueberschuss_gesundheit", "Überschuss Gesundheit %"), ("ueberschuss_landwirtschaft", "Überschuss Landwirtschaft %"),
+                       ("ueberschuss_industrie", "Überschuss Industrie %"), ("preis_min", "Preis mind. % des Richtpreises"),
+                       ("preis_max", "Preis höchstens %"), ("veredelung_kosten", "Veredelungskosten %")))
+            + f'<button class="btn" type="submit">{amt.ic("check")}Speichern</button></form>')
+    sp = con.execute("SELECT * FROM hd_sperren ORDER BY zeit DESC").fetchall()
+    namen = halter(con)
+    opt = "".join(f'<option value="{esc(s)}">{esc(n)}</option>' for s, n in namen.items())
+    out += ("<h2>Handelssperren</h2>" + amt.tabelle(["Gebiet", "Grund", "Seit", ""],
+            [(esc(namen.get(s["schl"], s["schl"])), esc(s["grund"]), amt._zeit(s["zeit"]),
+              f'<form class="sa-inline" method="post" action="{PFAD}sperre">{c}<input type="hidden" name="schl" value="{esc(s["schl"])}"><input type="hidden" name="aktion" value="aufheben">'
+              f'<button class="btn zweit klein" type="submit">Aufheben</button></form>') for s in sp], "Keine Sperren.")
+            + f'<form class="hd-form" method="post" action="{PFAD}sperre">{c}<input type="hidden" name="aktion" value="verhaengen">'
+              f'<div><label>Gebiet</label><select name="schl">{opt}</select></div><div><label>Grund</label><input type="text" name="grund" size="30"></div>'
+              '<button class="btn zweit" type="submit">Handelssperre verhängen</button></form>')
+    return sa.ant(request, k, "Handel: Waren & Regeln (RP)", "sa-rp-handel",
+                  CSS + f'<h1>{amt.ic("package")} Handel: Waren &amp; Regeln</h1>{amt.meldung(request)}'
+                  '<p class="az">RP-Konfiguration: Richtpreise, Erzeugungsanteile, Preisgrenzen und Handelssperren. Im IC-Bereich sind diese Werte nur lesbar.</p>' + out)
 
 
 # ---------------------------------------------------------------- Aktionen
@@ -944,19 +992,29 @@ async def ressourcen_post(request):
         name = sa._f(form, "name", 120)
         menge = _int(form.get("menge"))
         if res not in RESNAME or not name or menge < 1 or not codes or not any(c.startswith(p) for c in _meta() for p in codes):
-            sa.weiter(PFAD + "ressourcen/", "Bitte Rohstoff, Bezeichnung, Menge und gültige NUTS-Codes angeben.", True)
-        con.execute("INSERT INTO hd_lagerstaetten (ressource, menge, gebiete, name, quelle) VALUES (?,?,?,?,?)", (res, menge, json.dumps(codes), name, "Schatzamt"))
+            sa.weiter(f"{RPF}?rohstoff={res}", "Bitte Rohstoff, Bezeichnung, Menge und gültige NUTS-Codes angeben.", True)
+        con.execute("INSERT INTO hd_lagerstaetten (ressource, menge, gebiete, name, quelle) VALUES (?,?,?,?,?)", (res, menge, json.dumps(codes), name, "RP-Leitung"))
         geld.protokoll(con, k, "Handel: Förderstätte angelegt", f"{name} ({RESNAME[res]}): {zahl(menge)} / Jahr")
         con.commit()
-        sa.weiter(f"{PFAD}ressourcen/?rohstoff={res}#lagerstaetten", "Förderstätte angelegt.")
+        sa.weiter(f"{RPF}?rohstoff={res}", "Förderstätte angelegt.")
     ls = con.execute("SELECT * FROM hd_lagerstaetten WHERE id=?", (_int(form.get("id")),)).fetchone()
+    if not ls:
+        sa.weiter(RPF, "Förderstätte nicht gefunden.", True)
+    back = f'{RPF}?rohstoff={ls["ressource"]}'
+    if form.get("aktion") == "loeschen":
+        con.execute("DELETE FROM hd_lagerstaetten WHERE id=?", (ls["id"],))
+        geld.protokoll(con, k, "Handel: Förderstätte gelöscht", f'{ls["name"]} ({RESNAME.get(ls["ressource"])}): {zahl(ls["menge"])} / Jahr')
+        con.commit()
+        sa.weiter(back, "Förderstätte gelöscht.")
     menge = _int(form.get("menge"))
-    if not ls or menge < 0:
-        sa.weiter(PFAD + "ressourcen/", "Bitte eine gültige Menge angeben.", True)
-    con.execute("UPDATE hd_lagerstaetten SET menge=? WHERE id=?", (menge, ls["id"]))
-    geld.protokoll(con, k, "Handel: Förderstätte geändert", f'{ls["name"]} ({RESNAME.get(ls["ressource"])}): {zahl(ls["menge"])} → {zahl(menge)} / Jahr')
+    name = sa._f(form, "name", 120)
+    codes = [t.strip().upper() for t in str(form.get("gebiete", "")).split(",") if t.strip()]
+    if menge < 0 or not name or not codes or not any(c.startswith(p) for c in _meta() for p in codes):
+        sa.weiter(back, "Bitte Bezeichnung, Menge und gültige NUTS-Codes angeben.", True)
+    con.execute("UPDATE hd_lagerstaetten SET menge=?, name=?, gebiete=? WHERE id=?", (menge, name, json.dumps(codes), ls["id"]))
+    geld.protokoll(con, k, "Handel: Förderstätte geändert", f'{name} ({RESNAME.get(ls["ressource"])}): {zahl(ls["menge"])} → {zahl(menge)} / Jahr, Gebiete {", ".join(codes)}')
     con.commit()
-    sa.weiter(f'{PFAD}ressourcen/?rohstoff={ls["ressource"]}#lagerstaetten', "Gespeichert.")
+    sa.weiter(back, "Gespeichert.")
 
 
 async def ware_post(request):
@@ -966,11 +1024,11 @@ async def ware_post(request):
     w = waren(con).get(str(form.get("schl", "")))
     preis = geld.betrag_lesen(form.get("preis", ""))
     if not w or not preis:
-        sa.weiter(PFAD + "regeln/", "Bitte einen gültigen Preis angeben.", True)
+        sa.weiter(RPH, "Bitte einen gültigen Preis angeben.", True)
     con.execute("UPDATE hd_waren SET preis=?, aktiv=? WHERE schl=?", (preis, 1 if form.get("aktiv") == "1" else 0, w["schl"]))
     geld.protokoll(con, k, "Handel: Richtpreis geändert", f'{w["name"]}: {mark(w["preis"])} → {mark(preis)}')
     con.commit()
-    sa.weiter(PFAD + "regeln/", f'{w["name"]} gespeichert.')
+    sa.weiter(RPH, f'{w["name"]} gespeichert.')
 
 
 async def saetze_post(request):
@@ -987,11 +1045,11 @@ async def saetze_post(request):
                 v = None
             v = v if v is not None and 100 <= v <= 1000 else None
         if v is None:
-            sa.weiter(PFAD + "regeln/", "Bitte gültige Werte angeben (Prozent, Höchstpreis 100–1000 %).", True)
+            sa.weiter(RPH, "Bitte gültige Werte angeben (Prozent, Höchstpreis 100–1000 %).", True)
         neu[n] = int(v) if v == int(v) else v
     geld.einstellung_setzen(con, "handel", neu, k)
     con.commit()
-    sa.weiter(PFAD + "regeln/", "Gespeichert.")
+    sa.weiter(RPH, "Gespeichert.")
 
 
 async def sperre_post(request):
@@ -1010,7 +1068,7 @@ async def sperre_post(request):
         geld.protokoll(con, k, "Handelssperre verhängt", f'{halter(con)[s]}: {sa._f(form, "grund", 200)}')
         msg = "Handelssperre verhängt."
     con.commit()
-    sa.weiter(PFAD + "regeln/", msg)
+    sa.weiter(RPH, msg)
 
 
 def registrieren(app):
@@ -1026,6 +1084,9 @@ def registrieren(app):
     r.add_post(PFAD + "zurueck", zurueck_post)
     r.add_post(PFAD + "veredeln", veredeln_post)
     r.add_post(PFAD + "ressourcen/", ressourcen_post)
+    r.add_get(RPF, rp_foerderstaetten)
+    r.add_post(RPF, ressourcen_post)
+    r.add_get(RPH, rp_handel)
     r.add_post(PFAD + "ware", ware_post)
     r.add_post(PFAD + "saetze", saetze_post)
     r.add_post(PFAD + "sperre", sperre_post)
