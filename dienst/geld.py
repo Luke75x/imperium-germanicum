@@ -77,11 +77,11 @@ VORGABEN = {
     "privatbesitz": {"grunderwerbsteuer": 5, "zulassung": 1, "verkaufsabschlag": 10, "pfaendung_nach": 3, "pfaendung_abschlag": 30, "max_je_person": 60,
                      "automatisch": True},   # Privatbesitz (privatbesitz.py): Erwerbsteuer %, Händlerabschlag %, Pfändung nach n Monaten Rückstand
     "gebuehren": {"reisepass": 5000, "personalausweis": 2500, "dienstpass": 0, "vorlaeufig": 2000, "fremdenpass": 4000,
-                  "visum": 3000, "meldebescheinigung": 500},
+                  "visum": 3000, "meldebescheinigung": 500, "zeitungsartikel": 1200},
 }
 GEBUEHR_NAMEN = {"reisepass": "Reisepass", "personalausweis": "Personalausweis", "dienstpass": "Dienstpass",
                  "vorlaeufig": "Vorläufiger Reisepass", "fremdenpass": "Fremdenpass", "visum": "Visum (Sichtvermerk)",
-                 "meldebescheinigung": "Meldebescheinigung"}
+                 "meldebescheinigung": "Meldebescheinigung", "zeitungsartikel": "Zeitungsartikel (Newsflash)"}
 
 
 class Fehler(Exception):

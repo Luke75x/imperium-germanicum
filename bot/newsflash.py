@@ -7,6 +7,7 @@ darunter der Artikel mit Schlagzeile und Verfasserzeile. Die Bilder (Deckblatt, 
   Tabelle freigeschaltet wird nicht mehr ausgewertet): Die Meldung geht in den Kanal NEWSFLASH_PRUEFUNG, bis zu 3 unentschiedene je Person.
 - Enthält Zeitungsname, Schlagzeile oder Inhalt eine Wendung aus newsflash_filter.txt, wird die Meldung (auch von Landesherren)
   nicht sofort veröffentlicht, sondern mit „Veröffentlichen“/„Ablehnen“ in den Prüfkanal geschickt.
+Jeder Artikel kostet 12 Kr (Einstellung „gebuehren“ → „zeitungsartikel“ im Imperium-Dienst, Privatkonto → Reichskasse; bei Ablehnung erstattet).
 Der Verfasser bekommt zu jeder Entscheidung eine DM. Meldungen liegen in newsflash.db (Betriebsdaten, nicht im Repo).
 """
 import io
@@ -23,6 +24,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+import amt_api
 import config
 
 log = logging.getLogger("imperium-bot.newsflash")
@@ -74,9 +76,9 @@ def datenbank():
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, zeitung TEXT NOT NULL, schlagzeile TEXT NOT NULL,
             inhalt TEXT NOT NULL, status TEXT NOT NULL, grund TEXT NOT NULL DEFAULT '', treffer TEXT NOT NULL DEFAULT '',
             zeit INTEGER NOT NULL, nachricht_id INTEGER);""")
-    for spalte in ("verfasser", "bild", "artikelbild"):   # später ergänzt
+    for spalte, typ in (("verfasser", "TEXT"), ("bild", "TEXT"), ("artikelbild", "TEXT"), ("gebuehr", "INTEGER")):   # später ergänzt (gebuehr = abgebuchte Gebühr in Heller)
         try:
-            con.execute(f"ALTER TABLE meldungen ADD COLUMN {spalte} TEXT NOT NULL DEFAULT ''")
+            con.execute(f"ALTER TABLE meldungen ADD COLUMN {spalte} {typ} NOT NULL DEFAULT {0 if typ == 'INTEGER' else repr('')}")
         except sqlite3.OperationalError:
             pass
     return con
@@ -127,14 +129,19 @@ def pruef_view(meldung_id: int, freischalten: bool) -> discord.ui.View:
     return v
 
 
+def kr(heller: int) -> str:
+    m, p = divmod(int(heller), 100)
+    return f"{m:,}".replace(",", ".") + (f",{p:02d}" if p else "") + " Kr"
+
+
 class NewsflashModal(discord.ui.Modal, title="Newsflash"):
     zeitung = discord.ui.TextInput(label="Zeitungsname", min_length=2, max_length=80)
     schlagzeile = discord.ui.TextInput(label="Schlagzeile", min_length=3, max_length=200)
     verfasser = discord.ui.TextInput(label="Verfasser (optional)", required=False, max_length=80)
     inhalt = discord.ui.TextInput(label="Inhalt des Artikels", style=discord.TextStyle.paragraph, min_length=10, max_length=3500)
 
-    def __init__(self, cog: "Newsflash", deckblatt: discord.Attachment | None, artikelbild: discord.Attachment | None):
-        super().__init__()
+    def __init__(self, cog: "Newsflash", deckblatt: discord.Attachment | None, artikelbild: discord.Attachment | None, gebuehr: int = 0):
+        super().__init__(title=f"Newsflash (Gebühr {kr(gebuehr)})" if gebuehr else "Newsflash")
         self.cog, self.deckblatt, self.artikelbild = cog, deckblatt, artikelbild
 
     async def on_submit(self, inter: discord.Interaction):
@@ -188,7 +195,14 @@ class Newsflash(commands.Cog):
         if bild_ungueltig(deckblatt) or bild_ungueltig(artikelbild):
             await inter.response.send_message("Deckblatt und Artikelbild müssen Bilder sein (PNG, JPG, WEBP oder GIF) und dürfen höchstens 8 MB groß sein.", ephemeral=True)
             return
-        await inter.response.send_modal(NewsflashModal(self, deckblatt, artikelbild))
+        pruef = await amt_api.gebuehr("pruefen", inter.user.id, "zeitungsartikel")
+        if pruef is None:
+            await inter.response.send_message("Die Gebührenabrechnung ist gerade nicht erreichbar. Bitte versuche es später erneut.", ephemeral=True)
+            return
+        if not pruef.get("ok"):
+            await inter.response.send_message(f"Zeitungsartikel kosten {kr(pruef.get('betrag', 0))}. {pruef.get('fehler', '')}", ephemeral=True)
+            return
+        await inter.response.send_modal(NewsflashModal(self, deckblatt, artikelbild, pruef["betrag"]))
 
     def freigeschaltet(self, user: discord.Member) -> bool:
         """Darf ohne Genehmigung veröffentlichen: nur Landesherren und Administratoren. Staatsbürger brauchen für JEDE Meldung eine Genehmigung
@@ -222,17 +236,26 @@ class Newsflash(commands.Cog):
         if treffer:
             gruende.append("filter")
 
+        # Gebühr abbuchen (bei Ablehnung wird sie erstattet); scheitert die Buchung, wird nichts veröffentlicht
+        abbuchung = await amt_api.gebuehr("buchen", inter.user.id, "zeitungsartikel", f"„{schlagzeile[:80]}“", "NEWSFLASH")
+        if abbuchung is None or not abbuchung.get("ok"):
+            await inter.followup.send("Die Gebühr konnte nicht abgebucht werden: " + (abbuchung.get("fehler", "") if abbuchung else "Die Abrechnung ist gerade nicht erreichbar.")
+                                      + " Dein Artikel wurde nicht eingereicht.", ephemeral=True)
+            return
+        gebuehr = int(abbuchung.get("betrag", 0))
+        hinweis = f"\nGebühr: {kr(gebuehr)} abgebucht." if gebuehr else ""
+
         if not gruende:   # sofort veröffentlichen
             nachricht = await self.veroeffentlichen(zeitung, schlagzeile, inhalt, verfasser, deckblatt, artikelbild)
-            self.db.execute("INSERT INTO meldungen (user_id, zeitung, schlagzeile, inhalt, verfasser, status, zeit, nachricht_id) VALUES (?, ?, ?, ?, ?, 'veroeffentlicht', ?, ?)",
-                            (inter.user.id, zeitung, schlagzeile, inhalt, verfasser, int(time.time()), nachricht.id))
+            self.db.execute("INSERT INTO meldungen (user_id, zeitung, schlagzeile, inhalt, verfasser, status, zeit, nachricht_id, gebuehr) VALUES (?, ?, ?, ?, ?, 'veroeffentlicht', ?, ?, ?)",
+                            (inter.user.id, zeitung, schlagzeile, inhalt, verfasser, int(time.time()), nachricht.id, gebuehr))
             self.db.commit()
-            await inter.followup.send(f"Dein Artikel wurde veröffentlicht: {nachricht.jump_url}", ephemeral=True)
+            await inter.followup.send(f"Dein Artikel wurde veröffentlicht: {nachricht.jump_url}{hinweis}", ephemeral=True)
             return
 
         # Prüfung durch die Leitung: Meldung (und Deckblatt) werden bis zur Entscheidung gespeichert
-        cur = self.db.execute("INSERT INTO meldungen (user_id, zeitung, schlagzeile, inhalt, verfasser, status, grund, treffer, zeit) VALUES (?, ?, ?, ?, ?, 'offen', ?, ?, ?)",
-                              (inter.user.id, zeitung, schlagzeile, inhalt, verfasser, ",".join(gruende), ", ".join(treffer), int(time.time())))
+        cur = self.db.execute("INSERT INTO meldungen (user_id, zeitung, schlagzeile, inhalt, verfasser, status, grund, treffer, zeit, gebuehr) VALUES (?, ?, ?, ?, ?, 'offen', ?, ?, ?, ?)",
+                              (inter.user.id, zeitung, schlagzeile, inhalt, verfasser, ",".join(gruende), ", ".join(treffer), int(time.time()), gebuehr))
         mid = cur.lastrowid
         dateien = {}
         for spalte, (daten, endung) in (("bild", deckblatt), ("artikelbild", artikelbild)):
@@ -262,7 +285,7 @@ class Newsflash(commands.Cog):
             text = "Meldungen von Staatsbürgern brauchen eine Genehmigung. Dein Artikel liegt der Leitung zur Prüfung vor; du bekommst eine Nachricht, sobald entschieden wurde."
         else:
             text = "Dein Artikel wird vor der Veröffentlichung von der Leitung geprüft. Du bekommst eine Nachricht, sobald entschieden wurde."
-        await inter.followup.send(text, ephemeral=True)
+        await inter.followup.send(text + hinweis + ("\nWird der Artikel abgelehnt, bekommst du die Gebühr erstattet." if gebuehr else ""), ephemeral=True)
 
     # ---------------------------------------------------------------- Prüfung
 
@@ -302,6 +325,7 @@ class Newsflash(commands.Cog):
             return
         embeds = nachricht.embeds
         embed = embeds[0]
+        embed_hinweis = ""
         if ja:
             bilder = [self.gespeichertes_bild(m[spalte]) for spalte in ("bild", "artikelbild")]
             veroeffentlicht = await self.veroeffentlichen(m["zeitung"], m["schlagzeile"], m["inhalt"], m["verfasser"], *bilder)
@@ -311,12 +335,21 @@ class Newsflash(commands.Cog):
         else:
             self.db.execute("UPDATE meldungen SET status = 'abgelehnt' WHERE id = ?", (mid,))
             text = f"Deine Meldung **„{m['schlagzeile']}“** wurde **abgelehnt**." + (f"\n> {begruendung}" if begruendung else "")
+            if m["gebuehr"]:
+                erst = await amt_api.gebuehr("erstatten", m["user_id"], "zeitungsartikel", f"„{m['schlagzeile'][:80]}“ abgelehnt", f"NEWSFLASH-{mid}", m["gebuehr"])
+                if erst and erst.get("ok"):
+                    text += f"\nDie Gebühr von {kr(m['gebuehr'])} wurde dir erstattet."
+                else:
+                    text += f"\nDie Gebühr von {kr(m['gebuehr'])} konnte nicht automatisch erstattet werden; wende dich an die Leitung."
+                    embed_hinweis = f"⚠️ Erstattung von {kr(m['gebuehr'])} fehlgeschlagen – bitte manuell im Schatzamt-Portal erstatten."
             stand, farbe = "❌ Abgelehnt", FARBE_NEIN
         self.db.commit()
         embed.color = farbe
         embed.add_field(name="Entscheidung", value=f"{stand} von {inter.user.mention}", inline=False)
         if begruendung:
             embed.add_field(name="Begründung", value=begruendung, inline=False)
+        if embed_hinweis:
+            embed.add_field(name="Hinweis", value=embed_hinweis, inline=False)
         try:
             user = self.bot.get_user(m["user_id"]) or await self.bot.fetch_user(m["user_id"])
             await user.send(text)

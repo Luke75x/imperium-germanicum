@@ -45,6 +45,7 @@ import reichstag
 import privatbesitz
 import suche
 import rpstell
+import geld_api
 
 
 def erstellen():
@@ -87,6 +88,7 @@ def erstellen():
     privatbesitz.registrieren(app)
     suche.registrieren(app)
     rpstell.registrieren(app)
+    geld_api.registrieren(app)
     rpleitung.registrieren(app)
     return app
 
