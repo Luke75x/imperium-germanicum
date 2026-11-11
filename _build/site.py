@@ -1139,8 +1139,8 @@ def page_kanzler():
 
     def article():
         return f"""
+{figure("icf5ad018407fe134", "", "Siegel des Kronkanzlers", cls="emblem wide", sizes="(min-width: 900px) 860px, 100vw", frame=False, zoom=False)}
 <div class="intro-grid">
-  {emblem("icf5ad018407fe134", "Siegel des Kronkanzlers", sizes="260px")}
   <div class="prose">
     {paras(
       "Der Kronkanzler oder die Kronkanzlerin ist Privatsekretär des Souveräns und steht als oberster Vorsteher der gesamten Verwaltung des Reiches vor: den Reichsbehörden, den Konsulaten und den Reichsvertretern.",
