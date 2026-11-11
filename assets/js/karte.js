@@ -20,7 +20,9 @@
   var surface = root.querySelector(".karte-flaeche");
   var info = root.querySelector(".karte-info");
   var stand = clone(cfg.stand);
-  var saved = clone(cfg.stand);
+  if (!stand.gebaeude) stand.gebaeude = [];
+  var saved = clone(stand);
+  var gsel = null, gdrag = null, gAlt = null;   // gewähltes Gebäude (Editor), ziehendes Gebäude
   var geo, svg, defs, layer, hilite, paths = {}, full, view = { x: 0, y: 0, w: 1 };
   var raf = 0, kk = null, beschr = null, komp = null, detailTimer = 0, mask, flu, netzEl, schGrob = [], schFein = [], schSeen = null, schSeenF = null, schProv = null, ansicht = null;
 
@@ -123,6 +125,18 @@
   }
   // Kartenstufe wie bei Kacheln: 0 = ganze Welt auf 256 px … je höher, desto näher
   function stufe() { return Math.log(geo.breite / (base || view).w) / Math.LN2 + Math.log(Math.max(300, surface.clientWidth) / 256) / Math.LN2; }
+  // ---------- Behördengebäude ----------
+  function typen() { return cfg.gebaeudeTypen || []; }
+  function typIndex(id) { var t = typen(); for (var i = 0; i < t.length; i++) if (t[i].id === id) return i % 8; return 0; }
+  function typName(id) { var t = typen(); for (var i = 0; i < t.length; i++) if (t[i].id === id) return t[i].name; return id; }
+  function gebaeudeById(id) { var a = stand.gebaeude || []; for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
+  function gebaeudeAn(p) {
+    // nächstes Gebäude in Reichweite (Kartenkoordinaten p)
+    var rad = 11 * (base || view).w / Math.max(1, surface.clientWidth), best = null, bd = rad;
+    (stand.gebaeude || []).forEach(function (g) { var d = Math.hypot(g.x - p.x, g.y - p.y); if (d < bd) { bd = d; best = g; } });
+    return best;
+  }
+
   function beschriften() {
     if (!beschr || !geo.orte || !base) return;
     var zt = stufe();
@@ -161,6 +175,22 @@
         for (var i = 0; i < 10; i++) { var a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r; pts.push((h.x + Math.cos(a) * rr).toFixed(1) + "," + (h.y + Math.sin(a) * rr).toFixed(1)); }
         out.push('<polygon class="bs-hs" points="' + pts.join(" ") + '" stroke-width="' + (1.4 * u).toFixed(2) + '"/>' +
           text(h.name, h.x + r * 1.5, h.y + px * 0.35 * u, px, "bs-ort bs-hs-name", ""));
+      });
+    }
+    // Behördengebäude (von der RP-Leitung gesetzt): Symbol ab Stufe 4, Name ab Stufe 6 (wo Platz ist)
+    if (zt >= 4 && !root.classList.contains("ohne-behoerden")) {
+      (stand.gebaeude || []).forEach(function (g) {
+        if (!sichtbar(g.x, g.y)) return;
+        var r = 8 * u, ti = typIndex(g.typ), gew = EDIT && g.id === gsel;
+        var d = 'M' + (g.x - r * .62).toFixed(1) + ' ' + (g.y - r * .08).toFixed(1) + 'L' + g.x.toFixed(1) + ' ' + (g.y - r * .66).toFixed(1) + 'L' + (g.x + r * .62).toFixed(1) + ' ' + (g.y - r * .08).toFixed(1) + 'Z' +
+          [-.4, 0, .4].map(function (k) { return 'M' + (g.x + r * k).toFixed(1) + ' ' + (g.y + r * .02).toFixed(1) + 'V' + (g.y + r * .5).toFixed(1); }).join("") +
+          'M' + (g.x - r * .62).toFixed(1) + ' ' + (g.y + r * .62).toFixed(1) + 'H' + (g.x + r * .62).toFixed(1);
+        out.push('<g class="bs-geb t' + ti + (gew ? ' gew' : '') + '"><rect x="' + (g.x - r).toFixed(1) + '" y="' + (g.y - r).toFixed(1) + '" width="' + (2 * r).toFixed(1) + '" height="' + (2 * r).toFixed(1) + '" rx="' + (r * .28).toFixed(1) + '" stroke-width="' + ((gew ? 2.6 : 1.5) * u).toFixed(2) + '"/>' +
+          '<path d="' + d + '" stroke-width="' + (1.3 * u).toFixed(2) + '"/></g>');
+        belegt.push([g.x - r, g.y - r, g.x + r, g.y + r]);
+        if (zt < 6) return;
+        var px = 11.5, w = breite(g.name, px) + r * 3, hh = px * 1.3 * u;
+        if (frei(g.x + r * 1.3, g.y - hh / 2, w, hh)) out.push(text(g.name, g.x + r * 1.9, g.y + px * 0.35 * u, px, "bs-ort bs-geb-name", ""));
       });
     }
     kand.filter(function (o) { return o[4] === 1; }).forEach(ort);
@@ -452,7 +482,7 @@
     return el && el.parentNode === layer ? el.getAttribute("data-id") : null;
   }
   function panMode(e) {
-    return !EDIT || spaceDown || e.button === 1 || tool === "verschieben" || tool === "hauptstadt" || e.pointerType === "touch" && Object.keys(pointers).length > 1;
+    return !EDIT || spaceDown || e.button === 1 || tool === "verschieben" || tool === "hauptstadt" || tool === "gebaeude" || e.pointerType === "touch" && Object.keys(pointers).length > 1;
   }
 
   function bindView() {
@@ -479,6 +509,15 @@
         moving = true;
         return;
       }
+      if (EDIT && tool === "gebaeude" && e.button === 0 && ids.length === 1) {
+        var gh = gebaeudeAn(toMap(e.clientX, e.clientY));
+        if (gh) {   // Gebäude wählen und (beim Ziehen) verschieben
+          gebaeudeWaehlen(gh.id);
+          gdrag = { id: gh.id, vorher: clone(stand.gebaeude), moved: false, x: e.clientX, y: e.clientY };
+          surface.setPointerCapture(e.pointerId);
+          return;
+        }
+      }
       if (panMode(e)) {
         drag = { x: e.clientX, y: e.clientY, moved: false };
         moving = true;
@@ -503,6 +542,14 @@
         pinch.d = d; pinch.mx = mx; pinch.my = my;
         return;
       }
+      if (gdrag) {
+        if (Math.abs(e.clientX - gdrag.x) + Math.abs(e.clientY - gdrag.y) > 3) gdrag.moved = true;
+        if (gdrag.moved) {
+          var gg = gebaeudeById(gdrag.id), pm = toMap(e.clientX, e.clientY);
+          if (gg) { gg.x = Math.round(pm.x * 10) / 10; gg.y = Math.round(pm.y * 10) / 10; detailsNeu(); }
+        }
+        return;
+      }
       if (drag) {
         var k = view.w / surface.clientWidth, dx = e.clientX - drag.x, dy = e.clientY - drag.y;
         if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
@@ -523,6 +570,13 @@
       pendingTouch = null;
       delete pointers[e.pointerId];
       if (Object.keys(pointers).length < 2) pinch = null;
+      if (gdrag) {
+        var gs = gdrag; gdrag = null;
+        if (gs.moved) { var st = newStep(); st.gVorher = gs.vorher; st.gNachher = clone(stand.gebaeude); commit(st); }
+        endStroke(); return;
+      }
+      if (drag && !drag.moved && EDIT && tool === "gebaeude" && e.button === 0 && e.type === "pointerup") gebaeudeSetzen(toMap(e.clientX, e.clientY));
+      if (drag && !drag.moved && !EDIT && e.button !== 1) { var gi = gebaeudeAn(toMap(e.clientX, e.clientY)); if (gi) { gebaeudeInfo(gi); drag = null; surface.classList.remove("is-ziehen"); if (moving && !Object.keys(pointers).length) { moving = false; redraw(); } endStroke(); return; } }
       if (drag && !drag.moved && EDIT && tool === "hauptstadt" && e.button === 0 && e.type === "pointerup") hauptstadtSetzen(toMap(e.clientX, e.clientY));
       if (drag && !drag.moved && !EDIT && e.button !== 1) { var hit = regionAt(e); hover(hit); if (hit) openInfo(hit); }  // Klick/Antippen: Angaben zum Gebiet
       if (drag) { drag = null; surface.classList.remove("is-ziehen"); }
@@ -806,9 +860,13 @@
       var typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) || document.querySelector("dialog[open]");
       if ((e.ctrlKey || e.metaKey) && !typing && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) doRedo(); else doUndo(); }
       else if ((e.ctrlKey || e.metaKey) && !typing && e.key.toLowerCase() === "y") { e.preventDefault(); doRedo(); }
+      else if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey && { m: "malen", p: "pipette", h: "hauptstadt", g: "gebaeude", v: "verschieben" }[e.key.toLowerCase()]) {
+        setTool({ m: "malen", p: "pipette", h: "hauptstadt", g: "gebaeude", v: "verschieben" }[e.key.toLowerCase()]);
+      }
       else if (e.key === " " && (document.activeElement === surface || document.activeElement === document.body)) { e.preventDefault(); spaceDown = true; surface.classList.add("is-verschieben"); }
     });
     document.addEventListener("keyup", function (e) { if (e.key === " ") { spaceDown = false; surface.classList.toggle("is-verschieben", tool === "verschieben"); } });
+    bindGebaeude();
     bindDialog();
     updateStatus();
     setupMobile();
@@ -855,7 +913,7 @@
     var s = state(active), d = dirty().n;
     bar.querySelector('[data-m="staaten"]').innerHTML = swatch(s, 22) + "<span>" + esc(s ? s.name : T.unassigned) + "</span>";
     var w = bar.querySelector('[data-m="werkzeug"]');
-    w.textContent = tool === "verschieben" ? T.toolPan : tool === "pipette" ? T.toolPick : T.toolPaint;
+    w.textContent = tool === "verschieben" ? T.toolPan : tool === "pipette" ? T.toolPick : tool === "hauptstadt" ? T.toolCapital : tool === "gebaeude" ? T.toolBuilding : T.toolPaint;
     w.setAttribute("aria-pressed", String(tool !== "verschieben"));
     bar.querySelector('[data-m="undo"]').disabled = !undo.length;
     bar.querySelector('[data-m="speichern"]').textContent = T.save + (d ? " (" + d + ")" : "");
@@ -864,8 +922,15 @@
   function setTool(t) {
     tool = t;
     side.querySelectorAll("[data-werkzeug]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-werkzeug") === t)); });
-    surface.classList.toggle("is-verschieben", t === "verschieben" || t === "hauptstadt");
+    surface.classList.toggle("is-verschieben", t === "verschieben" || t === "hauptstadt" || t === "gebaeude");
     surface.classList.toggle("is-pipette", t === "pipette");
+    surface.classList.toggle("is-gebaeude", t === "gebaeude");
+    var hin = side.querySelector("[data-hinweis]");
+    if (hin && T.hints) hin.textContent = T.hints[t] || "";
+    var sb = side.querySelector('[data-block="staaten"]'), gb = side.querySelector('[data-block="gebaeude"]');
+    if (sb) sb.hidden = t === "gebaeude";   // je Werkzeug nur der passende Abschnitt
+    if (gb) gb.hidden = t !== "gebaeude";
+    if (t !== "gebaeude") gsel = null;
     updateBar();
   }
 
@@ -914,7 +979,7 @@
     paint(id);
   }
   function commit(step) {
-    if (!Object.keys(step.gebiete).length && !step.nachher) return;
+    if (!Object.keys(step.gebiete).length && !step.nachher && !step.gNachher) return;
     undo.push(step);
     if (undo.length > 200) undo.shift();
     redo = [];
@@ -922,6 +987,7 @@
   }
   function after() {
     renderStates();
+    renderGebaeude();
     if (hoverId) { var h = hoverId; hoverId = null; hover(h); }
     updateStatus();
   }
@@ -932,6 +998,7 @@
       if (v) stand.gebiete[k] = v; else delete stand.gebiete[k];
       paint(k);
     });
+    if (step.gNachher) { stand.gebaeude = clone(back ? step.gVorher : step.gNachher); if (gsel && !gebaeudeById(gsel)) gsel = null; detailsNeu(); }
     if (step.nachher) paintAll();
     if (active && !state(active)) active = null;
   }
@@ -964,6 +1031,12 @@
     Object.keys(a).forEach(function (k) { seen[k] = 1; if (a[k] !== b[k]) n++; });
     Object.keys(b).forEach(function (k) { if (!seen[k]) n++; });
     if (JSON.stringify(stand.staaten) !== JSON.stringify(saved.staaten)) n++;
+    (function () {   // Gebäude: neue, geänderte und entfernte zählen
+      var alt = {}, neu = {};
+      (saved.gebaeude || []).forEach(function (g) { alt[g.id] = JSON.stringify(g); });
+      (stand.gebaeude || []).forEach(function (g) { neu[g.id] = JSON.stringify(g); if (alt[g.id] !== neu[g.id]) n++; });
+      Object.keys(alt).forEach(function (id) { if (!(id in neu)) n++; });
+    })();
     return { n: n };
   }
   function updateStatus() {
@@ -994,6 +1067,87 @@
         updateStatus();
       })
       .catch(function () { say(T.saveError, "err"); updateStatus(); });
+  }
+
+  // ---------- Behördengebäude: Setzen, Bearbeiten, Liste ----------
+  var gf = null;
+  function bindGebaeude() {
+    gf = { form: side.querySelector("[data-g-form]"), typ: side.querySelector("[data-g-typ]"), name: side.querySelector("[data-g-name]"), text: side.querySelector("[data-g-text]"),
+           liste: side.querySelector("[data-g-liste]"), leer: side.querySelector("[data-g-leer]"), zahl: side.querySelector("[data-g-zahl]"), del: side.querySelector("[data-g-loeschen]") };
+    function geaendert() {
+      var g = gebaeudeById(gsel);
+      if (!g) return;
+      var name = gf.name.value.trim();
+      if (!name) { gf.name.value = g.name; return; }
+      var step = newStep();
+      step.gVorher = clone(stand.gebaeude);
+      g.typ = gf.typ.value; g.name = name; g.text = gf.text.value.trim();
+      step.gNachher = clone(stand.gebaeude);
+      detailsNeu();
+      commit(step);
+    }
+    [gf.typ, gf.name, gf.text].forEach(function (el) { el.addEventListener("change", geaendert); });
+    gf.del.addEventListener("click", function () {
+      var g = gebaeudeById(gsel);
+      if (!g || !confirm(T.buildingDelete + ": " + g.name + "?")) return;
+      var step = newStep();
+      step.gVorher = clone(stand.gebaeude);
+      stand.gebaeude = stand.gebaeude.filter(function (x) { return x.id !== g.id; });
+      step.gNachher = clone(stand.gebaeude);
+      gsel = null;
+      detailsNeu();
+      commit(step);
+    });
+    renderGebaeude();
+  }
+  function gebaeudeWaehlen(id) {
+    gsel = id;
+    renderGebaeude();
+    detailsNeu();
+  }
+  function gebaeudeSetzen(p) {
+    var typ = gf.typ.value || (typen()[0] || {}).id || "behoerde";
+    var max = stand.gebaeude.reduce(function (m, x) { return Math.max(m, parseInt(x.id.slice(1), 10) || 0); }, 0);
+    var g = { id: "b" + (max + 1), typ: typ, name: typName(typ), text: "", x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 };
+    var step = newStep();
+    step.gVorher = clone(stand.gebaeude);
+    stand.gebaeude.push(g);
+    step.gNachher = clone(stand.gebaeude);
+    gsel = g.id;
+    detailsNeu();
+    commit(step);
+    gf.name.focus(); gf.name.select();
+  }
+  function renderGebaeude() {
+    if (!gf) return;
+    var arr = (stand.gebaeude || []).slice().sort(function (a, b) { return typName(a.typ).localeCompare(typName(b.typ), "de") || a.name.localeCompare(b.name, "de"); });
+    gf.zahl.textContent = arr.length ? "(" + arr.length + ")" : "";
+    var g = gebaeudeById(gsel);
+    gf.form.hidden = !g;
+    if (g) { gf.typ.value = g.typ; gf.name.value = g.name; gf.text.value = g.text || ""; }
+    gf.leer.textContent = !arr.length ? T.buildingNone : !g ? T.buildingPick : "";
+    gf.liste.innerHTML = arr.map(function (x) {
+      return '<li><button type="button" class="ed-geb' + (x.id === gsel ? " gew" : "") + '" data-geb="' + x.id + '" aria-pressed="' + (x.id === gsel) + '"><span class="ed-geb-pkt t' + typIndex(x.typ) + '"></span>' +
+        '<span class="ed-geb-t"><b>' + esc(x.name) + "</b><small>" + esc(typName(x.typ)) + "</small></span></button></li>";
+    }).join("");
+    gf.liste.querySelectorAll("[data-geb]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var x = gebaeudeById(b.getAttribute("data-geb"));
+        gebaeudeWaehlen(x.id);
+        var w = Math.min(view.w, Math.max(30, (base || view).w / 45));   // heranzoomen, damit Symbol und Name sichtbar sind
+        setView(x.x, x.y, w);
+        redraw();
+        if (root.classList.contains("is-mobil")) closeSheet();
+      });
+    });
+  }
+  function gebaeudeInfo(g) {
+    // Ansicht: Angaben zum Gebäude im vorhandenen Fenster
+    if (!infoDlg) infoDlg = document.querySelector("[data-gebiet]");
+    if (!infoDlg) return;
+    var c = infoDlg.querySelector("[data-gebiet-inhalt]");
+    c.innerHTML = '<h2 id="karte-gebiet-titel">' + esc(g.name) + '</h2><p class="eyebrow">' + esc(typName(g.typ)) + "</p>" + (g.text ? "<p>" + esc(g.text) + "</p>" : "");
+    infoDlg.showModal();
   }
 
   // ---------- Hauptstädte ----------
