@@ -375,6 +375,8 @@ def verfuegbare_konten(con, k):
         out.append(stellenkonto(con, "kanzlei"))
     if k["id"] == amt.config.KAISER_ID:   # Crown Estates: Kronvermögen des Kaisers
         out.append(sonder(con, "crown_estates"))
+    if amt.ROLLE_KANZLER in k["rollen"] or k["id"] == amt.config.KAISER_ID or bereiche._alle(k):   # Kasse des Reichsgerichtshofs: Kronkanzler und Kaiser
+        out.append(sonder(con, "reichsgerichtshof"))
     out += regierte_staatskassen(con, k)
     import verteidigung
     out += verteidigung.verfuegbare(con, k)
