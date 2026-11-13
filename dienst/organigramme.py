@@ -48,13 +48,13 @@ ORGANIGRAMME = {
         "brotkrumen": [("/informationen/", ("Staatsaufbau", "Structure of the state"))],
     },
     "verwaltung": {
-        "pfad": "/informationen/die-reichsbehoerden/organigramm/", "js": "organigramm.js", "cfg": "org-cfg", "praefix": "org",
+        "pfad": "/informationen/die-reichsbehoerden/organigramm/", "js": "staatsaufbau.js", "cfg": "og-cfg", "praefix": "og",
         "titel": ("Organigramm der Reichsverwaltung", "Organisation chart of the Imperial Administration"),
         "eyebrow": ("Die Reichsbehörden", "The Imperial Authorities"),
-        "lead": ("Alle Ämter und Behörden der Reichsverwaltung mit ihren gegenwärtigen Amtsträgern. Zweige lassen sich auf- und "
-                 "zuklappen; ein Klick auf ein Amt nennt Leitung, Amtsträger und Aufgaben.",
-                 "All offices and authorities of the Imperial Administration with their current office holders. Branches can be "
-                 "expanded and collapsed; click an office to see its leadership, office holders and tasks."),
+        "lead": ("Alle Ämter und Behörden der Reichsverwaltung mit ihren gegenwärtigen Amtsträgern und wie sie gegliedert sind. "
+                 "Ein Klick auf ein Amt nennt Amtsträger, Aufgaben und alle Beziehungen.",
+                 "All offices and authorities of the Imperial Administration with their current office holders and how they are organised. "
+                 "Click an office to see its office holders, tasks and all relations."),
         "brotkrumen": [("/informationen/", ("Staatsaufbau", "Structure of the state")),
                        ("/informationen/die-reichsbehoerden/", ("Die Reichsbehörden", "The Imperial Authorities"))],
     },
@@ -115,11 +115,17 @@ T_VERWALTUNG = {
 }
 
 
+def graph(name):
+    """Organigramme mit frei gesetzten Organen und Beziehungen (staatsaufbau.js) statt Baumansicht."""
+    return ORGANIGRAMME[name]["js"] == "staatsaufbau.js"
+
+
 def texte(name, lang):
     t = dict(T_GEMEINSAM[lang])
-    if name == "staatsaufbau":
+    if graph(name):
         s = dict(T_STAATSAUFBAU[lang])
         s["arten"] = {a: {"aktiv": v[0], "passiv": v[1]} for a, v in s["arten"].items()}
+        s["png"] = ORGANIGRAMME[name]["titel"][lang == "en"]
         t.update(s)
     else:
         t.update(T_VERWALTUNG[lang])
@@ -198,14 +204,14 @@ def pruefen(name, stand):
             raise Ungueltig("Ungültige oder doppelte Kennung.")
         ids.add(k["id"])
         n = {"id": k["id"]}
-        felder = ["titel", "titel_en", "kurz", "kurz_en", "text", "text_en"] + (["leitung", "leitung_en"] if name == "verwaltung" else [])
+        felder = ["titel", "titel_en", "kurz", "kurz_en", "text", "text_en"] + (["leitung", "leitung_en"] if not graph(name) else [])
         for f in felder:
             n[f] = _text(k.get(f), 4000 if f.startswith("text") else 200)
         if not n["titel"]:
             raise Ungueltig("Jedes Organ braucht einen Namen.")
         n.update(rollen=[_rolle(r) for r in _ids(k.get("rollen", []))], zusatz=_rolle(k.get("zusatz")),
                  nutzer=_ids(k.get("nutzer", [])), angehoerige=_rolle(k.get("angehoerige")), link=_link(k.get("link")))
-        if name == "staatsaufbau":
+        if graph(name):
             n["form"] = k.get("form") if k.get("form") in FORMEN else "organ"
             n["bild"] = _text(k.get("bild"), 40)
             if n["bild"] and not re.match(r"^i[0-9a-f]{16}-(640|1280)$", n["bild"]):
@@ -220,7 +226,7 @@ def pruefen(name, stand):
             n["eltern"] = _text(k.get("eltern"), 10)
         knoten.append(n)
 
-    if name == "verwaltung":
+    if not graph(name):
         for n in knoten:
             if n["eltern"] and n["eltern"] not in ids:
                 raise Ungueltig("Übergeordnetes Amt fehlt.")
@@ -306,14 +312,14 @@ def _editor_dialog(name, lang, rollen, bilder):
             + _feld("titel_en", L("Name (englisch)", "Name (English)"), extra='maxlength="200"')
             + _feld("kurz", L("Kurzbezeichnung (über dem Namen)", "Label (above the name)"), extra='maxlength="200"')
             + _feld("kurz_en", L("Kurzbezeichnung (englisch)", "Label (English)"), extra='maxlength="200"'))
-    if name == "verwaltung":
+    if not graph(name):
         kopf += (_feld("leitung", L("Leitung", "Leadership"), extra='maxlength="200"')
                  + _feld("leitung_en", L("Leitung (englisch)", "Leadership (English)"), extra='maxlength="200"'))
     kopf += (_feld("text", L("Beschreibung (Absätze durch Leerzeile)", "Description (blank line between paragraphs)"),
                    '<textarea id="of-text" rows="5" maxlength="4000"></textarea>')
              + _feld("text_en", L("Beschreibung (englisch)", "Description (English)"),
                      '<textarea id="of-text_en" rows="5" maxlength="4000"></textarea>'))
-    if name == "staatsaufbau":
+    if graph(name):
         kopf += (_feld("form", L("Darstellung", "Display"),
                        f'<select id="of-form">{_optionen([(k, v[1] if en else v[0]) for k, v in FORMEN.items()])}</select>')
                  + '<div class="org-felder" style="grid-template-columns:1fr auto;gap:0 12px">'
@@ -342,7 +348,7 @@ def _editor_dialog(name, lang, rollen, bilder):
         + _feld("link", L("Verweis auf eine Seite", "Link to a page"), extra='maxlength="300" placeholder="/informationen/der-senat/"')
         + "</div>")
     kanten = ""
-    if name == "staatsaufbau":
+    if graph(name):
         arten = [(a, texte(name, lang)["arten"][a]["aktiv"]) for a in ARTEN]
         kanten = (f'<h3 class="karte-gebiet-h">{esc(L("Beziehungen", "Relations"))}</h3><ul class="og-beziehungen" data-kanten></ul>'
                   '<div class="og-neue-kante">'
@@ -423,7 +429,7 @@ def seite_html(request, name, modus, konto, csrf, version, rollen):
            "version": None, "info": basis_pfad + "info.json", "speichern": basis_pfad + "speichern",
            "csrf": csrf or "", "prefix": prefix, "stand_datum": stand_datum,
            "rollen": {r["id"]: r["name"] for r in rollen} if modus == "bearbeiten" else {}}
-    if name == "staatsaufbau":
+    if graph(name):
         cfg.update(arten=ARTEN, bilder="/assets/img/", sichtbar=SICHTBAR)
     cfg_json = json.dumps(cfg, ensure_ascii=False).replace("</", "<\\/")
 
@@ -441,22 +447,22 @@ def seite_html(request, name, modus, konto, csrf, version, rollen):
             f'<button type="button" class="btn btn-line" data-zoom="fit">{L("Ganz zeigen", "Fit")}</button></div>')
     suche = (f'<form class="karte-suche field" role="search"><label class="sr-only" for="{p}-suche">{L("Suchen", "Search")}</label>'
              f'<input id="{p}-suche" type="search" list="{p}-liste" autocomplete="off" '
-             f'placeholder="{L("Organ oder Amtsträger suchen", "Search body or office holder") if name == "staatsaufbau" else L("Amt oder Amtsträger suchen", "Search office or office holder")}">'
+             f'placeholder="{L("Organ oder Amtsträger suchen", "Search body or office holder") if graph(name) else L("Amt oder Amtsträger suchen", "Search office or office holder")}">'
              f'<datalist id="{p}-liste"></datalist></form>')
     extra = ""
-    if name == "verwaltung":
+    if not graph(name):
         extra = (f'<button type="button" class="btn btn-line" data-alle="auf">{L("Alle aufklappen", "Expand all")}</button>'
                  f'<button type="button" class="btn btn-line" data-alle="zu">{L("Alle zuklappen", "Collapse all")}</button>')
     bild = f'<button type="button" class="btn btn-line" data-bild>{L("Als Bild herunterladen", "Download as image")}</button>'
     werkzeuge = ""
     if modus == "bearbeiten":
-        neu = L("Neues Organ", "New body") if name == "staatsaufbau" else L("Neues Amt", "New office")
+        neu = L("Neues Organ", "New body") if graph(name) else L("Neues Amt", "New office")
         werkzeuge = (f'<div class="org-werkzeuge"><span class="karte-stand" data-stand></span>'
                      f'<button type="button" class="btn btn-line" data-aktion="neu">{neu}</button>'
                      f'<button type="button" class="btn btn-line" data-aktion="undo" title="{L("Rückgängig", "Undo")}" disabled>↶</button>'
                      f'<button type="button" class="btn btn-line" data-aktion="redo" title="{L("Wiederholen", "Redo")}" disabled>↷</button>'
                      f'<button type="button" class="btn btn-navy" data-aktion="speichern" disabled>{L("Speichern", "Save")}</button></div>')
-    wurzel_klasse = ("og og-cols karte-cols karte" if name == "staatsaufbau" else "org karte-cols karte") + (" is-editor" if modus == "bearbeiten" else "")
+    wurzel_klasse = ("og og-cols karte-cols karte" if graph(name) else "org karte-cols karte") + (" is-editor" if modus == "bearbeiten" else "")
     wurzel = (f'<div class="{wurzel_klasse}" data-{p}><div class="karte-leiste">{zoom}{suche}{extra}{bild}{werkzeuge}</div>'
               f'<div class="karte-buehne"><div class="karte-flaeche org-flaeche" tabindex="0" aria-label="{esc(titel)}">'
               f'<p class="karte-laden">{L("Organigramm wird geladen …", "Loading chart …")}</p></div>'
@@ -464,7 +470,7 @@ def seite_html(request, name, modus, konto, csrf, version, rollen):
               f'<p class="karte-quelle">{L("Stand", "As of")} {stand_datum}. {L("Amtsträger live aus den Rollen unseres Discord-Servers.", "Office holders live from the roles on our Discord server.")}</p></div>')
 
     # Seitenleiste
-    if name == "staatsaufbau":
+    if graph(name):
         t = texte(name, lang)
         nav = (f'<nav class="aside-nav" aria-label="{L("Legende", "Legend")}"><h2>{L("Beziehungen", "Relations")}</h2><ul class="karte-legende">'
                + "".join(f'<li><button type="button" class="karte-legende-item" data-art="{a}" aria-pressed="{"true" if a in SICHTBAR else "false"}">{_swatch(a)}'
@@ -479,7 +485,7 @@ def seite_html(request, name, modus, konto, csrf, version, rollen):
         aside_klasse = "org-aside"
     if modus == "bearbeiten":
         box = (f'<div class="aside-box"><p><strong>{L("Editor", "Editor")}</strong> <span class="karte-stand" data-stand></span></p>'
-               f'<p>{L("Klick auf ein Organ öffnet es zum Bearbeiten; ziehen verschiebt es." if name == "staatsaufbau" else "Klick auf ein Amt öffnet es zum Bearbeiten.", "Click to edit." )}</p>'
+               f'<p>{L("Klick auf ein Organ öffnet es zum Bearbeiten; ziehen verschiebt es." if graph(name) else "Klick auf ein Amt öffnet es zum Bearbeiten.", "Click to edit." )}</p>'
                f'<div data-meldung-seite></div><a class="link-arrow" href="{basis_pfad}">{L("Zur Ansicht", "To the view")}</a></div>')
     elif konto and konto["admin"]:
         box = f'<div class="aside-box"><a class="btn btn-line" href="{basis_pfad}bearbeiten/">{L("Organigramm bearbeiten", "Edit chart")}</a></div>'
@@ -500,7 +506,7 @@ def seite_html(request, name, modus, konto, csrf, version, rollen):
         head += '\n<meta name="robots" content="noindex">'
     return seite(titel + (" – " + L("Bearbeiten", "Edit") if modus == "bearbeiten" else ""), inhalt, kopf=head,
                  # og-cols auf der ganzen Seite: Legende und Fenster liegen außerhalb der Grafik und brauchen die Farben der Beziehungsarten
-                 body_klasse="wiki-page og-cols" if name == "staatsaufbau" else "wiki-page", konto=konto, csrf=csrf, pfad=request.path, lang=lang,
+                 body_klasse="wiki-page og-cols" if graph(name) else "wiki-page", konto=konto, csrf=csrf, pfad=request.path, lang=lang,
                  canonical=basis_pfad + ("bearbeiten/" if modus == "bearbeiten" else ""))
 
 
@@ -560,7 +566,7 @@ async def info(request):
         if m["id"] in nutzer or amtsrollen.intersection(m["rollen"]):
             personen.append({"id": m["id"], "name": m["name"], "rollen": eigene,
                              "titel": [namen[r] for r in m["rollen"] if r in titel_rollen and r in namen]})
-        elif name == "verwaltung" and mitgliedsrollen.intersection(m["rollen"]):
+        elif not graph(name) and mitgliedsrollen.intersection(m["rollen"]):
             anonym.append({"id": "", "name": "", "rollen": [r for r in eigene if r in mitgliedsrollen], "titel": []})
     personen.sort(key=lambda p: p["name"].lower())
     personen += anonym

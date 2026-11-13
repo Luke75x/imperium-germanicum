@@ -141,7 +141,7 @@ def organigramm_verwaltung():
     caption = "Organigramm der Reichsverwaltung"
     alt = "Organigramm der Reichsverwaltung: Souverän und Kronkanzlei an der Spitze, darunter Crown Estates, die Reichsbehörden mit ihren Ämtern und die Reichsvertretung"
     return (f'<figure class="figure"><a class="zoom frame" href="{u("informationen/die-reichsbehoerden/organigramm/")}"><img src="{u("informationen/die-reichsbehoerden/organigramm/organigramm.png")}" '
-            f'width="5984" height="2474" alt="{esc(alt)}" loading="lazy" decoding="async"><span class="zoom-hint">{icon("zoom")}</span>'
+            f'width="8196" height="3432" alt="{esc(alt)}" loading="lazy" decoding="async"><span class="zoom-hint">{icon("zoom")}</span>'
             f'<span class="sr-only"> – Organigramm öffnen</span></a><figcaption>{esc(caption)}</figcaption></figure>')
 
 
