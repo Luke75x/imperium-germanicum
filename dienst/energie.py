@@ -219,21 +219,41 @@ def bilanz(con, schl, periode=None, frisch=False):
     return b
 
 
+STUFEN = [("gut", "Gut versorgt", 85), ("moderat", "Moderate Versorgung", 60), ("mangel", "Energiemangel", 15), ("not", "Energienot", 0)]
+# Stärke der Mali (Anteil der Höchstabzüge) je Versorgungswert in %: Stufen 100–85 gut, 84–60 moderat, 59–15 Mangel, 14–0 Energienot
+_STAERKE = [(85, 0.0), (84, 0.10), (60, 0.35), (59, 0.45), (15, 0.85), (14, 1.0), (0, 1.0)]
+
+
+def stufe(v):
+    """(Schlüssel, Name) der Versorgungsstufe zu einem Versorgungswert 0–1."""
+    p = v * 100 + 1e-9
+    for schl, name, ab in STUFEN:
+        if p >= ab or ab == 0:
+            return schl, name
+    return STUFEN[-1][:2]
+
+
+def staerke(v):
+    """Stärke der Mali 0–1 zu einem Versorgungswert 0–1 (stückweise linear)."""
+    p = max(0.0, min(100.0, v * 100))
+    if p >= _STAERKE[0][0]:
+        return 0.0
+    for (p1, s1), (p2, s2) in zip(_STAERKE, _STAERKE[1:]):
+        if p2 <= p <= p1:
+            return s2 + (s1 - s2) * (p - p2) / (p1 - p2) if p1 != p2 else s1
+    return 1.0
+
+
 def lage(b):
-    """(Stufe, Text): ok | knapp | mangel | ausfall"""
-    if b["v_ges"] >= 0.999:
-        return "ok", "Die Energieversorgung ist gesichert."
-    if b["angebot"] <= 0:
-        return "ausfall", "Totalausfall: Es wird keine Energie erzeugt."
-    if b["v_hh"] < 0.999:
-        return "mangel", "Energiemangel: Auch die Bevölkerung wird nicht mehr voll versorgt."
-    return "knapp", "Energie ist knapp: Industrie und Veredelung werden gedrosselt."
+    """(Stufe, Text) der Versorgung (gut | moderat | mangel | not)."""
+    st, name = stufe(b["v_ges"])
+    return st, f'{name} ({_de(b["v_ges"] * 100, 0)} %)'
 
 
 # ---------------------------------------------------------------- Folgen (entwicklung.entwickeln)
 
 def wirkungen_fuer(con, schl, periode):
-    """(Effekte, Verschiebungen) wie krisen.wirkungen_fuer: Mali bei nicht gedecktem Energiebedarf."""
+    """(Effekte, Verschiebungen) wie krisen.wirkungen_fuer: Mali nach Versorgungsstufe (Versorgung ≥ 85 % ohne Folgen)."""
     try:
         b = bilanz(con, schl, periode)
     except Exception:
@@ -241,18 +261,18 @@ def wirkungen_fuer(con, schl, periode):
         return [], {}
     s = b["einstellung"]
     effekte, shift = [], {}
-    d_hh, d_ind, d_ges = 1 - b["v_hh"], 1 - b["v_ind"], 1 - b["v_ges"]
-    if d_ges > 0.001:
-        zuf = -min(float(s["zuf_max"]), float(s["zuf_max"]) * d_hh + 0.3 * float(s["zuf_max"]) * d_ind)
-        if zuf < -0.05:
-            effekte.append({"hebel": "zuf_pt", "wert": zuf, "titel": "Energiemangel", "modul": "energie",
-                            "text": f'Die Bevölkerung wird zu {_de(b["v_hh"] * 100, 0)} %, die Industrie zu {_de(b["v_ind"] * 100, 0)} % mit Energie versorgt: Stromausfälle und Kurzarbeit'})
-        shift["wasser"] = shift["muell"] = shift["strassen"] = -min(float(s["infra_max"]), float(s["infra_max"]) * d_ges)
-        shift["industrie"] = -min(float(s["ind_max"]), float(s["ind_max"]) * d_ind)
-        kopf = -min(10.0, float(s["ind_max"]) / 10 * d_ind)
-        if kopf < -0.05:
-            effekte.append({"hebel": "kopf_pct", "wert": kopf, "titel": "Energiemangel in der Industrie", "modul": "energie",
-                            "text": "Ohne ausreichend Energie steht die Produktion still, das Einkommen je Kopf sinkt"})
+    st, name = stufe(b["v_ges"])
+    sv = staerke(b["v_ges"])
+    if sv > 0:
+        zuf = -float(s["zuf_max"]) * max(sv, staerke(b["v_hh"]))   # fehlt die Bevölkerung selbst, wiegt das schwerer
+        effekte.append({"hebel": "zuf_pt", "wert": zuf, "titel": name, "modul": "energie",
+                        "text": f'Versorgung {_de(b["v_ges"] * 100, 0)} %: Stromausfälle und Kurzarbeit drücken die Stimmung'})
+        shift["wasser"] = shift["muell"] = shift["strassen"] = -float(s["infra_max"]) * sv
+        shift["industrie"] = -float(s["ind_max"]) * sv
+        effekte.append({"hebel": "kopf_pct", "wert": -min(10.0, float(s["ind_max"]) / 7 * sv), "titel": name + ": Industrie", "modul": "energie",
+                        "text": "Die Produktion läuft nur eingeschränkt, das Einkommen je Kopf sinkt"})
+        if st == "not":
+            effekte.append({"hebel": "bev_pp", "wert": -0.15, "titel": "Energienot: Abwanderung", "modul": "energie", "text": "Menschen verlassen das Land"})
     shift["co2"] = 30.0 * (b["klima"] - KLIMA_NEUTRAL)   # fossile Erzeugung belastet das Klima, saubere entlastet es
     return effekte, shift
 
@@ -372,7 +392,7 @@ CSS = """<style>
 .ee-bar i{display:block;height:100%}
 .ee-leg{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;margin:4px 0 12px}.ee-leg span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--c);margin-right:6px}
 .ee-lage{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--linie);border-radius:12px;padding:12px 16px;margin:12px 0;background:#fff}
-.ee-lage .icon{width:20px;height:20px;flex:none;margin-top:2px}.ee-lage.knapp{border-color:#eda100}.ee-lage.mangel,.ee-lage.ausfall{border-color:#c0392b;box-shadow:0 0 0 1px #c0392b}
+.ee-lage .icon{width:20px;height:20px;flex:none;margin-top:2px}.ee-lage.moderat{border-color:#eda100}.ee-lage.mangel{border-color:#c0392b}.ee-lage.not{border-color:#c0392b;box-shadow:0 0 0 2px #c0392b;background:#fdf1f0}
 .ee-diagramm{width:100%;height:auto;max-height:260px}.ee-diagramm text{font-size:11px;fill:var(--grau,#666)}
 .ee-form{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;margin:10px 0}.ee-form div{display:flex;flex-direction:column;gap:3px}
 .ee-tab td:nth-child(n+2){text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -418,12 +438,12 @@ def _seitenhtml(request, k, con, ziel):
     import entwicklung
     b = bilanz(con, ziel, frisch=True)
     name = dict(_ziele(con))[ziel]
-    stufe, text = lage(b)
+    stufe_, text = lage(b)
     darf = etatplan.darf_aendern(con, k, ziel)
     kz = lambda xs: f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in xs)}</div>'
     kopf = kz([("Versorgung", f'{_de(b["v_ges"] * 100, 0)} %'), ("Erzeugung", gwh_text(b["angebot"])), ("Bedarf", gwh_text(b["bedarf"])),
                ("Überschuss" if b["frei"] >= 0 else "Fehlbetrag", gwh_text(abs(b["frei"]))), ("Erneuerbare", f'{_de(b["erneuerbar"], 0)} %')])
-    symbol = {"ok": "check", "knapp": "triangle-alert", "mangel": "triangle-alert", "ausfall": "triangle-alert"}[stufe]
+    symbol = "check" if stufe_ == "gut" else "triangle-alert"
     folgen = []
     ef, shift = wirkungen_fuer(con, ziel, b["periode"])
     for e in ef:
@@ -431,7 +451,7 @@ def _seitenhtml(request, k, con, ziel):
     for i, t in (("wasser", "Infrastruktur"), ("industrie", "Industrie")):
         if shift.get(i, 0) < -0.05:
             folgen.append(f'<li><b>{t}</b> ({_de(shift[i], 0)} Punkte Zielwert)</li>')
-    lage_html = f'<div class="ee-lage {stufe}">{amt.ic(symbol)}<div><b>{esc(text)}</b>' + (f'<ul>{"".join(folgen)}</ul>' if folgen else "") + '</div></div>'
+    lage_html = f'<div class="ee-lage {stufe_}">{amt.ic(symbol)}<div><b>{esc(text)}</b>' + (f'<ul>{"".join(folgen)}</ul>' if folgen else "") + '</div></div>'
     # Bedarf
     verbr = [("Bevölkerung", b["hh"], b["v_hh"], "#2a78d6"), ("Militär", b["mil"], b["v_mil"], "#6250d6"), ("Industrie", b["ind"], b["v_ind"], "#eb6834"), ("Veredelung", b["ver"], b["v_ind"], "#eda100")]
     zeilen = [(esc(n), gwh_text(w), f'{_de(v * 100, 0)} %') for n, w, v, _ in verbr if w > 0]
@@ -468,7 +488,8 @@ def _seitenhtml(request, k, con, ziel):
     s_ = b["einstellung"]
     info = _auf("So funktioniert es",
                 '<p class="sa-hinweis">Die Bevölkerung verbraucht pauschal Energie, Industrie und Veredelung brauchen sie, das Militär nur wenig. Bei Knappheit wird zuerst die Bevölkerung versorgt, '
-                'dann das Militär, zuletzt Industrie und Veredelung. Fehlt Energie, sinken Zufriedenheit, Infrastruktur und Industrie. Fossile Kraftwerke belasten das Klima. '
+                'dann das Militär, zuletzt Industrie und Veredelung. Versorgung 100–85 %: gut, ohne Folgen. 84–60 %: moderat, leichte Mali. 59–15 %: Energiemangel, deutliche Mali. '
+                '14–0 %: Energienot, stärkste Mali und Abwanderung. Mali treffen Zufriedenheit, Infrastruktur und Industrie. Fossile Kraftwerke belasten das Klima. '
                 f'Veredelung: Stahl {_de(float(s_["ver_stahl"]), 1)}, Aluminium {_de(float(s_["ver_aluminium"]), 1)}, Treibstoff {_de(float(s_["ver_treibstoff"]), 1)} MWh je Tonne – '
                 'sie läuft nur, solange noch Energie frei ist. Die Kraftwerke zahlt die Staatskasse; Stilllegungen und Sätze legt die RP-Leitung fest.</p>', "info" if "info" in amt.ICONS else "clock")
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in _ziele(con))
