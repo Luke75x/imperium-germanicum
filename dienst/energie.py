@@ -17,7 +17,7 @@ Veredelungs-Boni (monatlich, aus dem Lager des Haushalts): Treibstoff steigert d
   Energiebedarf), Stahl senkt die Preise für Militärgerät (bis −10 %). Bonus = Lagerbestand ÷ Richtmenge (feste Tonnenzahl für 100 %, Sätze richt_*, Vorgabe 100.000 t), höchstens 100 %. Zum Monatswechsel
   wird die Richtmenge aus dem Lager verbraucht (monatswechsel), danach ist der Bonus weg; Überschuss darüber bleibt. Herstellen und Zukaufen (Handel) füllen das Lager, Verkaufen leert es.
 Energiemarkt (/schatzamt/energie/markt/): Haushalte mit Überschuss bieten GWh zu einem selbst gesetzten Preis an; Haushalte mit Versorgung unter „kauf_unter“ % kaufen,
-  höchstens ihren Fehlbetrag, aus der Staats- bzw. Reichskasse an die Kasse des Verkäufers. Angebote und Käufe gelten nur für den laufenden Monat.
+  höchstens ihren Fehlbetrag, in Prozent des Angebots (mehrere Käufer teilen sich ein Angebot, bis es leer ist), aus der Staats- bzw. Reichskasse an die Kasse des Verkäufers. Angebote und Käufe gelten nur für den laufenden Monat.
 Versorgung bei Knappheit: zuerst die Bevölkerung, dann das Militär, zuletzt Industrie und Veredelung.
 Folgen (entwicklung.entwickeln ruft wirkungen_fuer): Unterversorgung der Bevölkerung senkt die Zufriedenheit, mangelnde Gesamtversorgung verschiebt die Zielwerte der
   Infrastruktur (Wasser, Müll, Straßen) nach unten, fehlende Energie für die Industrie das Industrieniveau und das BIP pro Kopf. Fossile Kraftwerke belasten das Klima (CO₂).
@@ -567,8 +567,9 @@ def zurueckziehen(con, angebot, schl, k):
     leeren()
 
 
-def kaufen(con, angebot, schl, menge, k):
-    """Kauft `menge` GWh aus einem Angebot für den laufenden Monat. Gibt (Summe, Verkäufer-Name) zurück."""
+def kaufen(con, angebot, schl, prozent, k):
+    """Kauft `prozent` % der Menge eines Angebots für den laufenden Monat; das Angebot bleibt offen, bis nichts mehr übrig ist (auch mehrere Käufer).
+    Gibt (Summe, Verkäufer-Name, GWh) zurück."""
     import etatplan
     import handel
     a = con.execute("SELECT * FROM en_angebote WHERE id=?", (angebot,)).fetchone()
@@ -576,50 +577,29 @@ def kaufen(con, angebot, schl, menge, k):
         raise geld.Fehler("Dieses Angebot gibt es nicht mehr.")
     if a["schl"] == schl:
         raise geld.Fehler("Eigene Angebote lassen sich nicht kaufen.")
-    if menge <= 0 or menge > a["rest"] + 1e-9:
-        raise geld.Fehler(f'Bitte eine Menge bis {gwh_text(a["rest"])} angeben.')
+    rest_pz = a["rest"] / a["menge"] * 100
+    if prozent <= 0 or prozent > rest_pz + 1e-6:
+        raise geld.Fehler(f'Bitte einen Anteil bis {_de(rest_pz, 1)} % angeben (so viel vom Angebot ist noch frei).')
     b = bilanz(con, schl, frisch=True)
     if not kauf_erlaubt(b):
         raise geld.Fehler(f'Zukaufen dürfen nur Haushalte mit einer Versorgung unter {_de(float(b["einstellung"]["kauf_unter"]), 0)} %.')
+    menge = a["rest"] if prozent >= rest_pz - 1e-6 else a["menge"] * prozent / 100
     fehl = max(0.0, b["bedarf"] - b["angebot"])
     if menge > fehl + 1e-9:
-        raise geld.Fehler(f'Mehr als der Fehlbetrag ({gwh_text(fehl)}) lässt sich nicht kaufen.')
+        raise geld.Fehler(f'Ihr Fehlbetrag ({gwh_text(fehl)}) entspricht höchstens {_de(fehl / a["menge"] * 100, 1)} % dieses Angebots.')
     summe = int(round(menge * a["preis"]))
     von, an = handel.kasse(con, schl), handel.kasse(con, a["schl"])
     if von["saldo"] < summe:
-        raise geld.Fehler(f'Die {von["name"]} ist nicht gedeckt: {gwh_text(menge)} kosten {geld.mark(summe)}.')
+        raise geld.Fehler(f'Die {von["name"]} ist nicht gedeckt: {_de(prozent, 1)} % ({gwh_text(menge)}) kosten {geld.mark(summe)}.')
     if summe > 0:
         geld.buchen(con, von["id"], an["id"], summe, "energiehandel", f"Energie: {gwh_text(menge)} zu {geld.mark(a['preis'])} je GWh", k, bezug=f"ENERGIE-MARKT-{angebot}")
     rest = max(0.0, a["rest"] - menge)
     con.execute("UPDATE en_angebote SET rest=?, status=? WHERE id=?", (rest, "offen" if rest > 1e-6 else "verkauft", angebot))
     con.execute("INSERT INTO en_geschaefte (periode, angebot, verkaeufer, kaeufer, menge, preis, summe, autor, zeit) VALUES (?,?,?,?,?,?,?,?,?)",
                 (a["periode"], angebot, a["schl"], schl, menge, a["preis"], summe, k["name"], int(time.time())))
-    geld.protokoll(con, k, "Energie: Kauf", f"{_name(con, schl)} kauft von {_name(con, a['schl'])}: {gwh_text(menge)} für {geld.mark(summe)}")
+    geld.protokoll(con, k, "Energie: Kauf", f"{_name(con, schl)} kauft von {_name(con, a['schl'])}: {_de(prozent, 1)} % ({gwh_text(menge)}) für {geld.mark(summe)}")
     leeren()
-    return summe, _name(con, a["schl"])
-
-
-def stilllegen(con, schl, typ, anzahl, k):
-    """Nimmt `anzahl` Kraftwerke eines Typs vom Netz (ältere zuerst). Keine Erstattung."""
-    if typ not in TYP or anzahl < 1:
-        raise geld.Fehler("Bitte Kraftwerk und Anzahl angeben.")
-    sichern(con, schl)
-    gwh = anzahl * TYP[typ][2]
-    laufend = [r for r in kraftwerke(con, schl) if r["typ"] == typ]
-    if sum(r["gwh"] for r in laufend) + 1e-9 < gwh:
-        raise geld.Fehler(f'Es sind nur {gwh_text(sum(r["gwh"] for r in laufend))} {TYP[typ][1]} in Betrieb.')
-    rest = gwh
-    for r in laufend:
-        if rest <= 1e-9:
-            break
-        nehmen = min(rest, r["gwh"])
-        if nehmen >= r["gwh"] - 1e-9:
-            con.execute("DELETE FROM en_kraftwerke WHERE id=?", (r["id"],))
-        else:
-            con.execute("UPDATE en_kraftwerke SET gwh=? WHERE id=?", (round(r["gwh"] - nehmen, 3), r["id"]))
-        rest -= nehmen
-    geld.protokoll(con, k, "Energie: Stilllegung", f"{_name(con, schl)}: {anzahl} × {TYP[typ][1]} ({gwh_text(gwh)}/Monat)")
-    leeren()
+    return summe, _name(con, a["schl"]), menge
 
 
 # ---------------------------------------------------------------- Seite
@@ -778,13 +758,15 @@ async def markt(request, k):
     for a in angebote(con):
         kauf = "–"
         if darf and erlaubt and a["schl"] != ziel and fehl > 0.0001:
+            maxpz = min(a["rest"], fehl) / a["menge"] * 100
             kauf = (f'<form class="sa-inline" method="post" action="{PFAD}kaufen">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}"><input type="hidden" name="angebot" value="{a["id"]}">'
-                    f'<input name="menge" inputmode="decimal" size="7" placeholder="GWh" aria-label="Menge in GWh" required> <button class="btn zweit klein" type="submit">Kaufen</button></form>')
+                    f'<input name="prozent" inputmode="decimal" size="6" placeholder="% (max. {_de(maxpz, 1)})" aria-label="Anteil am Angebot in Prozent" required> <button class="btn zweit klein" type="submit">Kaufen</button></form>')
         elif a["schl"] == ziel and darf:
             kauf = (f'<form class="sa-inline" method="post" action="{PFAD}zurueck">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}"><input type="hidden" name="angebot" value="{a["id"]}">'
                     '<button class="btn zweit klein" type="submit">Zurückziehen</button></form>')
-        zeilen.append((esc(namen.get(a["schl"], a["schl"])), gwh_text(a["rest"]), geld.mark(a["preis"]), kauf))
-    tabelle = amt.tabelle(["Anbieter", "Menge", "Preis je GWh", ""], zeilen, "Zurzeit gibt es keine Angebote.")
+        frei = a["rest"] / a["menge"] * 100
+        zeilen.append((esc(namen.get(a["schl"], a["schl"])), gwh_text(a["menge"]), f'{_de(frei, 1)} % ({gwh_text(a["rest"])})', geld.mark(a["preis"]), kauf))
+    tabelle = amt.tabelle(["Anbieter", "Angebot", "Noch frei", "Preis je GWh", "Anteil kaufen"], zeilen, "Zurzeit gibt es keine Angebote.")
     anbieten_html = ""
     if darf and b["markt_frei"] > 0.0001:
         anbieten_html = (f'<h2>Überschuss anbieten</h2><form class="ee-form" method="post" action="{PFAD}anbieten">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}">'
@@ -881,12 +863,13 @@ async def kaufen_post(request):
     z = _recht(con, k, form)
     back = f"{PFAD}markt/?ziel={z}"
     try:
-        summe, wer = kaufen(con, _anzahl(form.get("angebot")), z, _zahl(form.get("menge")), k)
+        pz = _zahl(form.get("prozent"))
+        summe, wer, menge = kaufen(con, _anzahl(form.get("angebot")), z, pz, k)
         con.commit()
     except geld.Fehler as e:
         con.rollback()
         sa.weiter(back, str(e), True)
-    sa.weiter(back, f"Gekauft von {wer} für {geld.mark(summe)}.")
+    sa.weiter(back, f"Gekauft von {wer}: {gwh_text(menge)} für {geld.mark(summe)}.")
 
 
 async def zurueck_post(request):
