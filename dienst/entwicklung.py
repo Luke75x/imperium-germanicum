@@ -325,11 +325,13 @@ def _schritt(alt, E, ctx):
     return neu, zust, effekte, summen
 
 
-def entwickeln(con, schl, anteile, richt, periode, kopf_ratio=1.0):
+def entwickeln(con, schl, anteile, richt, periode, kopf_ratio=1.0, ind_faktor=1.0):
     """Zustand eines Haushalts im Monat `periode` bei dieser Verteilung. Rückgabe: {"zustand": {id: {alt, ziel, neu}}, "effekte": [...], "bev_pp", "bev_faktor",
     "kopf_pct", "kopf_faktor", "zuf_pt", "hdi", "lebenserwartung", "kriminalitaet"}."""
     import etatplan
     E = erfuellung(anteile, richt)
+    if "industrie" in E:
+        E["industrie"] *= ind_faktor   # Kraftwerke (Instandhaltung, Bauraten) zahlt der Industrie-Etat: Er bleibt der Industrie selbst nicht mehr
     alt = zustand_vor(con, schl, periode)
     zu = etatplan.zuf_letzte(con, schl)
     import krisen
@@ -455,12 +457,17 @@ def berechne(con, liste, periode):
     if liste:
         ew_r = sum(x["ew"] for x in rd) or 1
         ratio = (sum(x["bip"] for x in rd) / ew_r) / ref if rd else 1.0
-        details["reich"] = entwickeln(con, "reich", liste[0]["plan_reich"], liste[0]["richt_reich"], periode, ratio)
+        import energie
+        ind_reich = sum(x["verteilung_reich"].get("industrie", 0) for x in liste)
+        details["reich"] = entwickeln(con, "reich", liste[0]["plan_reich"], liste[0]["richt_reich"], periode, ratio,
+                                      energie.industrie_faktor(con, "reich", periode, ind_reich))
     for x in liste:
         if x["reichsgebiet"] or not x.get("plan_land"):
             continue
         ratio = (x["bip"] / x["ew"] / ref) if x["ew"] else 1.0
-        details["ts-" + x["staat"]] = entwickeln(con, "ts-" + x["staat"], x["plan_land"], x["richt_land"], periode, ratio)
+        import energie
+        details["ts-" + x["staat"]] = entwickeln(con, "ts-" + x["staat"], x["plan_land"], x["richt_land"], periode, ratio,
+                                                 energie.industrie_faktor(con, "ts-" + x["staat"], periode, (x["verteilung_land"] or {}).get("industrie", 0)))
     faktoren = {s: {"bev": d["bev_faktor"], "kopf": d["kopf_faktor"], "zuf_pt": d["zuf_pt"]} for s, d in details.items()}
     return {"faktoren": faktoren, "details": details}
 

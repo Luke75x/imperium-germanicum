@@ -683,7 +683,9 @@ function zeichnen(){
   if(a)a.textContent=pz(x.betrag/gesamt*100)});
  summe()}
 function zeigen(x,e){var r=torte.getBoundingClientRect();zeigenAn(x,(e.clientX-r.left)/r.width*200,(e.clientY-r.top)/r.height*200);fokus(x.id,true)}
-function zeigenAn(x,px,py){var gesamt=D.gesamt||1;tipp.innerHTML="<b>"+x.name+"</b><br>"+pz(x.betrag/gesamt*100)+" des Etats"+(D.nur_prozent?"":" · "+de(x.betrag));
+function zeigenAn(x,px,py){var gesamt=D.gesamt||1,bd=D.bindung&&D.bindung[x.id],h="<b>"+x.name+"</b><br>"+pz(x.betrag/gesamt*100)+" des Etats";
+ if(!D.nur_prozent){var frei=Math.max(0,x.betrag-(bd?bd.betrag:0));h+="<br>Verfügbar: <b>"+kurz(frei)+"</b> im Monat";if(bd&&bd.betrag>0)h+="<br><small>"+kurz(bd.betrag)+" gebunden: "+bd.text+"</small>"}
+ tipp.innerHTML=h;
  tipp.style.left=(px/200*100)+"%";tipp.style.top=(py/200*100)+"%";tipp.classList.add("an")}
 function weg(){tipp.classList.remove("an");fokus(null,false)}
 function fokus(id,an){torte.classList.toggle("hat-fokus",!!an);[].forEach.call(svg.querySelectorAll("[data-id]"),function(p){p.classList.toggle("fokus",an&&p.dataset.id===id)});
@@ -710,6 +712,18 @@ if(norm)norm.addEventListener("click",function(){var n=felder,s=n.reduce(functio
  n.forEach(function(f,i){f.value=neu[i];var r=document.getElementById("ep-r-"+f.dataset.kat);if(r)r.value=neu[i]});zeichnen()});
 zeichnen()})();
 """
+
+
+def _bindungen(con, ziel):
+    """Mittel einer Etat-Scheibe, die schon gebunden sind: {Politikfeld: {betrag (Heller je Monat), text}} – Industrie: Instandhaltung und Bauraten der Kraftwerke."""
+    try:
+        import energie
+        ls = energie.lasten(con, ziel)
+        if ls["summe"] > 0:
+            return {"industrie": {"betrag": ls["summe"], "text": "Kraftwerke (Instandhaltung und Bauraten)"}}
+    except Exception:
+        pass
+    return {}
 
 
 def _de(x, stellen=1):
@@ -1067,7 +1081,7 @@ async def _seite(request, k, planung):
                     "betrag": max(0, ruecklage), "farbe": "#c4c6cb", "schraffur": False}]
     daten = {"gesamt": gesamt, "pool": budget, "vt_min": vt_min, "kategorien": kat_daten, "fest_vorn": fest_vorn, "fest_hinten": fest_hinten, "farben": PALETTE,
              "wk": wirkung_daten(richt, basis_ein, basis_rl), "zuf": zuf_daten(zuf),
-             "rl": {"basis": basis_rl, "w": rl_w, "frei": frei, "kasse": kassen_name}, "adj": adj}
+             "rl": {"basis": basis_rl, "w": rl_w, "frei": frei, "kasse": kassen_name}, "adj": adj, "bindung": _bindungen(con, ziel)}
     c = amt.csrf_feld(request)
     zeilen = []
     for f in fest_vorn:
