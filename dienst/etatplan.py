@@ -650,7 +650,7 @@ function rlRechnen(){var e=document.getElementById("ep-rl");if(!e||!D.rl)return;
  D.adj=adj*sc;var pool=Math.round(spend*sc),rl=R.basis-pool,p=R.basis?rl/R.basis*100:0;
  D.fest_hinten[0].betrag=Math.max(0,rl);
  function t(id,v){var o=document.getElementById(id);if(o)o.textContent=v}
- t("ep-kz-pool",kurz(pool));t("ep-kz-rl",kurz(Math.abs(rl)));t("ep-kz-rl-t",rl>=0?"Rücklage":"Entnahme aus der "+R.kasse);
+ t("ep-kz-pool",kurz(pool));t("ep-kz-rl",kurz(Math.abs(rl)));t("ep-kz-rl-t",rl>=0?"Zuführung diesen Monat":"Entnahme aus der "+R.kasse);
  var z=document.getElementById("ep-entnahme-zeile");if(z)z.hidden=rl>=0;t("ep-entnahme-betrag",kurz(Math.max(0,-rl)));t("ep-entnahme-pz",pz(D.gesamt?Math.max(0,-rl)/D.gesamt*100:0));
  var i=document.getElementById("ep-rl-info");if(i)i.innerHTML=(p>0.05?"Rücklage: <b>"+pz(p)+"</b> ("+de(rl)+") bleiben im Monat in der "+R.kasse+".":
   p<-0.05?"Entnahme: <b>"+pz(-p)+"</b> ("+de(-rl)+") kommen im Monat zusätzlich aus der "+R.kasse+" – den Politikfeldern zugeordnet."+(ged?" Begrenzt auf die freien Mittel der Kasse.":""):"Ausgeglichen: der ganze Steueranteil wird ausgegeben.")}
@@ -684,7 +684,8 @@ function zeichnen(){
  summe()}
 function zeigen(x,e){var r=torte.getBoundingClientRect();zeigenAn(x,(e.clientX-r.left)/r.width*200,(e.clientY-r.top)/r.height*200);fokus(x.id,true)}
 function zeigenAn(x,px,py){var gesamt=D.gesamt||1,bd=D.bindung&&D.bindung[x.id],h="<b>"+x.name+"</b><br>"+pz(x.betrag/gesamt*100)+" des Etats";
- if(!D.nur_prozent){var frei=Math.max(0,x.betrag-(bd?bd.betrag:0));h+="<br>Verfügbar: <b>"+kurz(frei)+"</b> im Monat";if(bd&&bd.betrag>0)h+="<br><small>"+kurz(bd.betrag)+" gebunden: "+bd.text+"</small>"}
+ if(!D.nur_prozent&&x.id==="ruecklage"&&D.rl){h+="<br>Gesamtwert der "+D.rl.kasse+": <b>"+kurz(D.rl.saldo)+"</b><br><small>frei verfügbar "+kurz(D.rl.frei)+" · diesen Monat "+(x.betrag>0?"+":"")+kurz(x.betrag)+"</small>"}
+ else if(!D.nur_prozent){var frei=Math.max(0,x.betrag-(bd?bd.betrag:0));h+="<br>Verfügbar: <b>"+kurz(frei)+"</b> im Monat";if(bd&&bd.betrag>0)h+="<br><small>"+kurz(bd.betrag)+" gebunden: "+bd.text+"</small>"}
  tipp.innerHTML=h;
  tipp.style.left=(px/200*100)+"%";tipp.style.top=(py/200*100)+"%";tipp.classList.add("an")}
 function weg(){tipp.classList.remove("an");fokus(null,false)}
@@ -1081,7 +1082,7 @@ async def _seite(request, k, planung):
                     "betrag": max(0, ruecklage), "farbe": "#c4c6cb", "schraffur": False}]
     daten = {"gesamt": gesamt, "pool": budget, "vt_min": vt_min, "kategorien": kat_daten, "fest_vorn": fest_vorn, "fest_hinten": fest_hinten, "farben": PALETTE,
              "wk": wirkung_daten(richt, basis_ein, basis_rl), "zuf": zuf_daten(zuf),
-             "rl": {"basis": basis_rl, "w": rl_w, "frei": frei, "kasse": kassen_name}, "adj": adj, "bindung": _bindungen(con, ziel)}
+             "rl": {"basis": basis_rl, "w": rl_w, "frei": frei, "kasse": kassen_name, "saldo": int(kasse_rl["saldo"]) if kasse_rl else 0}, "adj": adj, "bindung": _bindungen(con, ziel)}
     c = amt.csrf_feld(request)
     zeilen = []
     for f in fest_vorn:
@@ -1114,8 +1115,8 @@ async def _seite(request, k, planung):
                   f'<td class="num"><span id="ep-entnahme-betrag">{geld.mark_kurz(max(0, -ruecklage))}</span></td></tr>')
     tabelle = ('<table class="ep-tab"><thead><tr><th>Kategorie</th><th class="num">Anteil am eigenen Etat</th><th class="num">Anteil am Etat</th>'
                f'<th class="num">Betrag / Monat</th></tr></thead><tbody>{"".join(zeilen)}</tbody></table>')
-    kasse_info = (f'<div class="ep-kasse">{amt.ic("landmark")}<span>{esc(kassen_name)}: Kontostand <b>{esc(mark(kasse_rl["saldo"] if kasse_rl else 0))}</b>'
-                  f' · im Monat gebunden {esc(mark(gebunden))} · <b>frei verfügbar {esc(mark(frei))}</b></span></div>')
+    kasse_info = (f'<div class="ep-kasse">{amt.ic("landmark")}<span>Rücklage der {esc(kassen_name)} (Gesamtwert): <b>{esc(mark(kasse_rl["saldo"] if kasse_rl else 0))}</b>'
+                  f' · davon im Monat gebunden {esc(mark(gebunden))} · <b>frei verfügbar {esc(mark(frei))}</b></span></div>')
     rl_gesamt = basis_rl - pool   # Rücklage (positiv) bzw. Entnahme (negativ) einschließlich nicht zugewiesener Prozente
     rl_block = (f'<div class="ep-rl"><p class="ep-rl-hilfe">Alle Zeilen zusammen ergeben <b>100 %</b> des eigenen Etats ({esc(mark(basis_rl))}). Die <b>Rücklage der {esc(kassen_name)}</b> ist eine '
                 f'Zeile wie ein Politikfeld: Wer sie verringert oder sogar ins Minus setzt (Entnahme aus der Kasse), muss die frei werdenden Prozente anderen Politikfeldern zuordnen. '
@@ -1181,7 +1182,8 @@ async def _seite(request, k, planung):
             + ("Reichsverteidigungskasse (Führungsstab)" if ziel == "reich" else "Verteidigungskasse (Gehälter des Militärs, Instandhaltung und Kauf von Gerät)")
             + '. Die übrigen Kategorien sind Ausgaben für die Bevölkerung.</li></ol></div>')
     kz = [("Etat im Monat", mark(gesamt), ""), ("Ausgabenbudget", mark(pool), "ep-kz-pool"),
-          ("Rücklage" if ruecklage >= 0 else f"Entnahme aus der {kassen_name}", mark(abs(ruecklage)), "ep-kz-rl"),
+          (f"Rücklage der {kassen_name}", mark(kasse_rl["saldo"] if kasse_rl else 0), ""),
+          ("Zuführung diesen Monat" if ruecklage >= 0 else f"Entnahme aus der {kassen_name}", mark(abs(ruecklage)), "ep-kz-rl"),
           ("Verteidigung", mark(betraege["verteidigung"]), "")]
     # Vergleich aller Haushalte
     kopf = "".join(f'<th title="{esc(NAMEN[kat])}">{esc(NAMEN[kat][:11])}</th>' for kat, _ in KATEGORIEN)

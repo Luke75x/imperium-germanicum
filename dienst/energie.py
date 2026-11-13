@@ -773,6 +773,7 @@ async def markt(request, k):
         frei = a["rest"] / a["menge"] * 100
         zeilen.append((esc(namen.get(a["schl"], a["schl"])), gwh_text(a["menge"]), f'{_de(frei, 1)} % ({gwh_text(a["rest"])})', geld.mark(a["preis"]), kauf))
     tabelle = amt.tabelle(["Anbieter", "Angebot", "Noch frei", "Preis je GWh", "Anteil kaufen"], zeilen, "Zurzeit gibt es keine Angebote.")
+    tabelle += '<p class="sa-hinweis">Erlöse gehen in die Rücklage der Staats- bzw. Reichskasse.</p>' if zeilen else ""
     anbieten_html = ""
     if darf and b["markt_frei"] > 0.0001:
         anbieten_html = (f'<h2>Überschuss anbieten</h2><form class="ee-form" method="post" action="{PFAD}anbieten">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}">'
