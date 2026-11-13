@@ -23,7 +23,8 @@ MAX_BETRAG = 10 ** 17   # Heller (1 Billiarde Kronen) – Echtmaßstab: Staatsha
 KONTOART = {"privat": ("Privatkonto", 1000), "gewerbe": ("Gewerbekonto", 2000), "behoerde": ("Behördenkonto", 3000),
             "teilstaat": ("Staatskasse", 4000), "verteidigung": ("Verteidigungskasse", 5000), "sonder": ("Sonderkonto", 9000)}
 SONDER = {"zentralbank": "Zentralbank des Reiches", "reichskasse": "Reichskasse", "sozialkasse": "Reichsversicherungskasse",
-          "volkswirtschaft": "Volkswirtschaft (simulierte Bevölkerung)", "crown_estates": "Crown Estates des Kaisers"}
+          "volkswirtschaft": "Volkswirtschaft (simulierte Bevölkerung)", "crown_estates": "Crown Estates des Kaisers",
+          "reichsgerichtshof": "Kasse des Reichsgerichtshofs"}
 AUSSEN = ("zentralbank", "volkswirtschaft")   # Gegenkonten außerhalb des Geldumlaufs, dürfen ins Minus
 BUCHUNGSART = {"ueberweisung": "Überweisung", "gehalt": "Gehalt", "lohnsteuer": "Lohnsteuer", "sozialabgabe": "Sozialabgabe",
                "steuer": "Steuerzahlung", "gebuehr": "Gebühr", "laenderanteil": "Länderanteil", "umsatzsteuer": "Umsatzsteuer",
