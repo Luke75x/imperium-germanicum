@@ -8,8 +8,8 @@ Bedarf (Sätze nur in der RP-Leitungsansicht: /schatzamt/rp/energie/)
   · Veredelung: jede Veredelung im Handel (Stahl, Aluminium, Treibstoff) verbraucht Energie je Tonne; sie wird nur ausgeführt, solange der Teilstaat
     noch freie Energie hat, und zählt im laufenden Monat zum Bedarf.
   · Militär: wenige MWh je Gerät und Monat (Instandhaltung); bei Unterversorgung sinkt zusätzlich die Einsatzbereitschaft (verteidigung.instandhaltung).
-Angebot: Kraftwerke (Tabelle en_kraftwerke). Beim ersten Zugriff bekommt jeder Haushalt Kraftwerke mit einem Strommix (Vorgabe oder Landesart) und einer Reserve
-  über dem Bedarf. Ausbau: Landesherren (Reich: Schatzamt-Leitung) bauen Kraftwerke sofort aus (keine Bauzeit); der Ausbau kostet hohe Preise, die die Staats- bzw. Reichskasse
+Angebot: Kraftwerke (Tabelle en_kraftwerke). Beim ersten Zugriff bekommt jeder Haushalt seine reale Stromerzeugung als Grundausstattung (karte_daten/energie.json,
+  erzeugt von werkzeuge/energie_grundausstattung.py aus Eurostat und Kraftwerksregistern; ohne Kernkraft, ohne Reserve – ein Defizit ist der reale Wert des Gebiets). Ausbau: Landesherren (Reich: Schatzamt-Leitung) bauen Kraftwerke sofort aus (keine Bauzeit); der Ausbau kostet hohe Preise, die die Staats- bzw. Reichskasse
   an die Volkswirtschaft zahlt und deckt. Stilllegung sowie alle Sätze und Erzeugungswerte ändert nur die RP-Leitung (/schatzamt/rp/energie/).
 Versorgung bei Knappheit: zuerst die Bevölkerung, dann das Militär, zuletzt Industrie und Veredelung.
 Folgen (entwicklung.entwickeln ruft wirkungen_fuer): Unterversorgung der Bevölkerung senkt die Zufriedenheit, mangelnde Gesamtversorgung verschiebt die Zielwerte der
@@ -17,6 +17,7 @@ Folgen (entwicklung.entwickeln ruft wirkungen_fuer): Unterversorgung der Bevölk
 Statistik: Monatswerte (en_monat, beim Buchen des Haushaltsmonats), Verlauf, Vergleich aller Haushalte. Reiter „Energie“ bei „Mein Teilstaat“ und im Reichshaushalt.
 Tabellen: en_kraftwerke, en_monat, en_nutzung.
 """
+import json
 import logging
 import time
 
@@ -36,16 +37,15 @@ amt.ICONS.setdefault("zap", '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0
 geld.BUCHUNGSART.setdefault("energie", "Energieausbau")
 
 geld.VORGABEN.setdefault("energie", {
-    "haushalt_kwh": 450,          # kWh je Einwohner und Monat
-    "industrie_gwh_je_mio": 0.18,  # GWh je Mio. € BIP (monatliches BIP)
+    "haushalt_kwh": 318,          # kWh je Einwohner und Monat (Eurostat 2023: Inlandsnachfrage ohne Industrieanteil, bezogen auf die Einwohner des Spielgebiets)
+    "industrie_gwh_je_mio": 0.0494,  # GWh je Mio. € BIP (Eurostat 2023: Industrieanteil der Inlandsnachfrage, bezogen auf das BIP)
     "mil_mwh_je_geraet": 8,       # MWh je Militärgerät und Monat
-    "reserve_start": 12,          # % Reserve der Erstausstattung über dem Bedarf
     "ver_stahl": 2.0, "ver_aluminium": 15.0, "ver_treibstoff": 0.6,   # MWh je Tonne Erzeugnis (Veredelung)
     "zuf_max": 45, "infra_max": 60, "ind_max": 70,   # größte Abzüge (Zufriedenheit in Punkten, Zielwerte der Indikatoren, Industrie)
     "bau_faktor": 100,            # % der Baukosten
 })
 SAETZE = [("haushalt_kwh", "Verbrauch je Einwohner (kWh/Monat)"), ("industrie_gwh_je_mio", "Industrie (GWh je Mio. € BIP)"), ("mil_mwh_je_geraet", "Militärgerät (MWh/Monat je Gerät)"),
-          ("reserve_start", "Reserve der Erstausstattung (%)"), ("ver_stahl", "Veredelung Stahl (MWh/t)"), ("ver_aluminium", "Veredelung Aluminium (MWh/t)"),
+          ("ver_stahl", "Veredelung Stahl (MWh/t)"), ("ver_aluminium", "Veredelung Aluminium (MWh/t)"),
           ("ver_treibstoff", "Veredelung Treibstoff (MWh/t)"), ("zuf_max", "Höchstabzug Zufriedenheit (Punkte)"), ("infra_max", "Höchstabzug Infrastruktur (Punkte)"),
           ("ind_max", "Höchstabzug Industrie (Punkte)"), ("bau_faktor", "Baukosten (% der Tabelle)")]
 VEREDELUNG = {"stahl": "ver_stahl", "aluminium": "ver_aluminium", "treibstoff": "ver_treibstoff"}
@@ -57,14 +57,6 @@ TYP = {t[0]: t for t in TYPEN}
 FARBEN = ["#6b7280", "#eb6834", "#8b5a2b", "#e34948", "#2a78d6", "#1baf7a", "#eda100", "#008300"]
 FOSSIL = ("kohle", "gas", "oel")
 KLIMA_NEUTRAL = 0.3375   # gewichteter Klima-Anteil der Standardmischung
-# Strommix der Erstausstattung in % (Standard; einzelne Länder weichen ab, Treffer über Teile des Namens)
-MIX = {"kohle": 18, "gas": 22, "oel": 3, "kern": 9, "wasser": 7, "wind": 22, "solar": 14, "biomasse": 5}
-MIX_LAND = {"schweiz": {"kohle": 0, "gas": 5, "oel": 2, "kern": 20, "wasser": 55, "wind": 3, "solar": 10, "biomasse": 5},
-            "böhmen": {"kohle": 45, "gas": 8, "oel": 2, "kern": 25, "wasser": 4, "wind": 3, "solar": 8, "biomasse": 5},
-            "venedig": {"kohle": 0, "gas": 40, "oel": 5, "kern": 0, "wasser": 15, "wind": 10, "solar": 25, "biomasse": 5},
-            "apulien": {"kohle": 0, "gas": 35, "oel": 5, "kern": 0, "wasser": 0, "wind": 25, "solar": 28, "biomasse": 7},
-            "berlin": {"kohle": 10, "gas": 45, "oel": 3, "kern": 0, "wasser": 0, "wind": 10, "solar": 22, "biomasse": 10}}
-
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS en_kraftwerke (id INTEGER PRIMARY KEY AUTOINCREMENT, schl TEXT NOT NULL, typ TEXT NOT NULL, gwh REAL NOT NULL, ab TEXT NOT NULL DEFAULT '',
     bezahlt INTEGER NOT NULL DEFAULT 0, von TEXT NOT NULL DEFAULT '', zeit INTEGER NOT NULL);
@@ -79,6 +71,7 @@ CREATE INDEX IF NOT EXISTS en_nu_s ON en_nutzung (schl, periode);
 
 def einrichten(con):
     con.executescript(SCHEMA)
+    con.execute("DELETE FROM en_kraftwerke WHERE von='Erstausstattung'")   # frühere erfundene Erstausstattung (mit Reserve und Kernkraft) – wird real neu angelegt
     con.commit()
 
 
@@ -141,29 +134,34 @@ def _name(con, schl):
 
 # ---------------------------------------------------------------- Kraftwerke
 
-def _land_mix(name):
-    n = (name or "").lower()
-    for teil, m in MIX_LAND.items():
-        if teil in n:
-            return m
-    return MIX
+_GRUND = {"t": 0.0, "d": None}
+
+
+def grundausstattung():
+    """{schl: {Träger: GWh je Monat}} der realen Stromerzeugung (karte_daten/energie.json)."""
+    import os
+    pfad = os.path.join(os.path.dirname(os.path.abspath(__file__)), "karte_daten", "energie.json")
+    try:
+        m = os.path.getmtime(pfad)
+        if _GRUND["d"] is None or _GRUND["t"] != m:
+            _GRUND["d"] = json.load(open(pfad, encoding="utf-8"))["erzeugung_gwh_monat"]
+            _GRUND["t"] = m
+    except (OSError, ValueError, KeyError):
+        log.warning("energie.json fehlt – keine Grundausstattung")
+        return {}
+    return _GRUND["d"]
 
 
 def sichern(con, schl, periode=None):
-    """Erstausstattung: Kraftwerke mit Reserve über dem Bedarf (einmalig je Haushalt)."""
+    """Grundausstattung: die reale Stromerzeugung des Gebiets (einmalig je Haushalt; Gebiete ohne Eintrag erzeugen nichts)."""
     if con.execute("SELECT 1 FROM en_kraftwerke WHERE schl=? LIMIT 1", (schl,)).fetchone():
         return
-    import etatplan
-    periode = periode or etatplan.monat_heute()
-    s = einstellungen(con)
-    ew, bip = bevoelkerung(con, schl, periode)
-    bedarf = (ew * float(s["haushalt_kwh"]) / 1e6 + bip / 12 * float(s["industrie_gwh_je_mio"]) + _mil_einheiten(con, schl) * float(s["mil_mwh_je_geraet"]) / 1000)
-    ziel = bedarf * (1 + float(s["reserve_start"]) / 100)
-    mix = _land_mix(_name(con, schl))
-    for typ, anteil in mix.items():
-        if anteil > 0 and ziel > 0:
-            con.execute("INSERT INTO en_kraftwerke (schl, typ, gwh, ab, von, zeit) VALUES (?,?,?,?,?,?)", (schl, typ, round(ziel * anteil / 100, 3), "", "Erstausstattung", int(time.time())))
-    con.commit()
+    eintrag = grundausstattung().get(schl, {})
+    for typ, gwh in eintrag.items():
+        if typ in TYP and gwh > 0:
+            con.execute("INSERT INTO en_kraftwerke (schl, typ, gwh, ab, von, zeit) VALUES (?,?,?,?,?,?)", (schl, typ, round(gwh, 3), "", "Grundausstattung (real)", int(time.time())))
+    if eintrag:
+        con.commit()
 
 
 def kraftwerke(con, schl):
