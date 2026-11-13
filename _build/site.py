@@ -1098,12 +1098,16 @@ def page_reichsbehoerden():
 {kanzleramt_block()}
 <h2>Die Behörden des Reiches</h2>
 <div class="prose">{paras(
-  "Unter dem Kronkanzleramt arbeiten die Behörden für Sicherheit und Ordnung und die Reichsämter. Jede hat ihre eigene Seite mit Aufgaben, Leitung und Dienstgebäude; die Dienstgebäude sind auf der Reichskarte verzeichnet.",
-  "Die Behörden für Sicherheit und Ordnung tragen Uniform und eigene Dienstgrade; ihre Generaldirektoren gehören dem Führungsstab an. Die Reichsämter werden von Staatssekretären geleitet, die dem Kronkanzler unmittelbar verantwortlich sind.",
+  "Unter dem Kronkanzleramt arbeiten die Crown Estates und die Reichsbehörden. Jede hat ihre eigene Seite mit Aufgaben, Leitung und Dienstgebäude; die Dienstgebäude sind auf der Reichskarte verzeichnet. Die Gliederung entspricht dem Organigramm der Reichsverwaltung.",
+  "Die Behörden für Sicherheit und Ordnung tragen Uniform und eigene Dienstgrade; ihre Generaldirektoren gehören dem Führungsstab an. Die nachgeordneten Ämter werden von Staatssekretären geleitet, die dem Kronkanzler unmittelbar verantwortlich sind.",
 )}</div>
+<span class="eyebrow" style="display:block;margin:32px 0 14px">Im Kronkanzleramt</span>
+<div class="rb-grid">{behoerden_karten("kanzlei")}</div>
 <span class="eyebrow" style="display:block;margin:32px 0 14px">Sicherheit und Ordnung</span>
 <div class="rb-grid">{behoerden_karten("sicherheit")}</div>
-<span class="eyebrow" style="display:block;margin:32px 0 14px">Die Reichsämter</span>
+<span class="eyebrow" style="display:block;margin:32px 0 14px">Verwaltung und Finanzen</span>
+<div class="rb-grid">{behoerden_karten("verwaltung")}</div>
+<span class="eyebrow" style="display:block;margin:32px 0 14px">Nachgeordnete Ämter</span>
 <div class="rb-grid">{behoerden_karten("amt")}</div>
 {rang_matrix}
 <h2 id="reichsvertretung">Die Reichsvertretung</h2>
