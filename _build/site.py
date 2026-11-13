@@ -1168,6 +1168,13 @@ def page_kanzler():
   )}
 </div>
 <section class="seat">
+  <span class="eyebrow">Amtssitz &amp; Privatresidenz</span>
+  <div class="prose">{paras(
+    "Der Amtssitz des Kronkanzlers ist das Kronkanzleramt in der Reichshauptstadt Groß-Berlin.",
+    "Die Privatresidenz des Kronkanzlers befindet sich im Schloss Augustusburg.",
+  )}</div>
+</section>
+<section class="seat">
   <span class="eyebrow">Standarte und Amtswappen</span>
   <div class="figure-row" style="align-items:center">
     {figure("i5a9f8040f8005417", "Standarte des Kronkanzlers", sizes="(min-width: 900px) 40vw, 100vw")}
