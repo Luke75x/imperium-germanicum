@@ -226,7 +226,7 @@ _STAERKE = [(85, 0.0), (84, 0.10), (60, 0.35), (59, 0.45), (15, 0.85), (14, 1.0)
 
 def stufe(v):
     """(Schlüssel, Name) der Versorgungsstufe zu einem Versorgungswert 0–1."""
-    p = v * 100 + 1e-9
+    p = round(v * 100)   # wie angezeigt: ganze Prozent
     for schl, name, ab in STUFEN:
         if p >= ab or ab == 0:
             return schl, name
@@ -235,7 +235,7 @@ def stufe(v):
 
 def staerke(v):
     """Stärke der Mali 0–1 zu einem Versorgungswert 0–1 (stückweise linear)."""
-    p = max(0.0, min(100.0, v * 100))
+    p = max(0.0, min(100.0, float(round(v * 100))))
     if p >= _STAERKE[0][0]:
         return 0.0
     for (p1, s1), (p2, s2) in zip(_STAERKE, _STAERKE[1:]):
