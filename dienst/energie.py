@@ -9,10 +9,10 @@ Bedarf (Sätze nur in der RP-Leitungsansicht: /schatzamt/rp/energie/)
     noch freie Energie hat, und zählt im laufenden Monat zum Bedarf.
   · Militär: wenige MWh je Gerät und Monat (Instandhaltung); bei Unterversorgung sinkt zusätzlich die Einsatzbereitschaft (verteidigung.instandhaltung).
 Angebot: Kraftwerke (Tabelle en_kraftwerke). Beim ersten Zugriff bekommt jeder Haushalt seine reale Stromerzeugung als Grundausstattung (karte_daten/energie.json,
-  erzeugt von werkzeuge/energie_grundausstattung.py aus Eurostat und Kraftwerksregistern; ohne Kernkraft, ohne Reserve – ein Defizit ist der reale Wert des Gebiets). Ausbau: Landesherren (Reich: Schatzamt-Leitung) bauen Kraftwerke sofort aus (keine Bauzeit). Bau und Instandhaltung zahlt der INDUSTRIE-ETAT des Haushalts:
-  die Instandhaltung (je erzeugter GWh) jeden Monat, der Bau als monatliche Rate über „bau_monate“ Monate. Diese Lasten verringern, was der Industrie-Etat für die Industrie
-  selbst übrig lässt (entwicklung.entwickeln: ind_faktor), und die „verfügbaren“ Mittel der Industrie-Scheibe im Tortendiagramm (etatplan). Es wird nur gebaut, solange die Lasten
-  den Industrie-Etat nicht übersteigen. Stilllegung sowie alle Sätze ändert nur die RP-Leitung (/schatzamt/rp/energie/).
+  erzeugt von werkzeuge/energie_grundausstattung.py aus Eurostat und Kraftwerksregistern; ohne Kernkraft, ohne Reserve – ein Defizit ist der reale Wert des Gebiets). Ausbau: Landesherren (Reich: Schatzamt-Leitung) bauen Kraftwerke sofort und zahlen den ganzen Preis auf einmal aus der Staats- bzw. Reichskasse an die Volkswirtschaft
+  (Buchung „Energieausbau“ in Kasse & Umsätze, keine Raten, keine Überziehung). Gebaut wird nur, soweit der frei verfügbare Betrag des INDUSTRIE-ETATS des Monats reicht:
+  Industrie-Etat − Instandhaltung (je erzeugter GWh, jeden Monat) − schon in diesem Monat Gebautes. Diese Lasten verringern, was der Industrie-Etat für die Industrie selbst
+  übrig lässt (entwicklung.entwickeln: ind_faktor), und die „verfügbaren“ Mittel der Industrie-Scheibe im Tortendiagramm (etatplan). Stilllegung sowie alle Sätze ändert nur die RP-Leitung (/schatzamt/rp/energie/).
 Veredelungs-Boni (monatlich, aus dem Lager des Haushalts): Treibstoff steigert die Energieerzeugung (bis +100 %), Aluminium die Effizienz der Industrie (bis +100 %, d. h. weniger
   Energiebedarf), Stahl senkt die Preise für Militärgerät (bis −10 %). Bonus = Lagerbestand ÷ Richtmenge (feste Tonnenzahl für 100 %, Sätze richt_*, Vorgabe 100.000 t), höchstens 100 %. Zum Monatswechsel
   wird die Richtmenge aus dem Lager verbraucht (monatswechsel), danach ist der Bonus weg; Überschuss darüber bleibt. Herstellen und Zukaufen (Handel) füllen das Lager, Verkaufen leert es.
@@ -54,7 +54,6 @@ geld.VORGABEN.setdefault("energie", {
     "zuf_max": 45, "infra_max": 60, "ind_max": 70,   # größte Abzüge (Zufriedenheit in Punkten, Zielwerte der Indikatoren, Industrie)
     "bau_faktor": 100,            # % der Baukosten
     "instand_faktor": 100,        # % der Instandhaltungssätze (Kr je erzeugter GWh, siehe INSTAND)
-    "bau_monate": 24,             # Monate, über die der Bau aus dem Industrie-Etat gezahlt wird
     "kauf_unter": 60,             # Versorgung in %, unter der am Energiemarkt gekauft werden darf
     "richt_treibstoff": 100000, "richt_aluminium": 100000, "richt_stahl": 100000,   # Tonnen im Lager für 100 % Bonus (und Verbrauch je Monatswechsel)
 })
@@ -62,7 +61,7 @@ SAETZE = [("haushalt_kwh", "Verbrauch je Einwohner (kWh/Monat)"), ("industrie_gw
           ("ver_stahl", "Veredelung Stahl (MWh/t)"), ("ver_aluminium", "Veredelung Aluminium (MWh/t)"),
           ("ver_treibstoff", "Veredelung Treibstoff (MWh/t)"), ("zuf_max", "Höchstabzug Zufriedenheit (Punkte)"), ("infra_max", "Höchstabzug Infrastruktur (Punkte)"),
           ("ind_max", "Höchstabzug Industrie (Punkte)"), ("bau_faktor", "Baukosten (% der Tabelle)"), ("instand_faktor", "Instandhaltung (% der Tabelle)"),
-          ("bau_monate", "Bau: Zahlung aus dem Industrie-Etat über (Monate)"), ("kauf_unter", "Zukauf am Markt erlaubt unter Versorgung (%)"),
+          ("kauf_unter", "Zukauf am Markt erlaubt unter Versorgung (%)"),
           ("richt_treibstoff", "Treibstoff für 100 % Bonus (t)"), ("richt_aluminium", "Aluminium für 100 % Bonus (t)"), ("richt_stahl", "Stahl für 100 % Bonus (t)")]
 BONUSWAREN = [("treibstoff", "Treibstoff"), ("aluminium", "Aluminium"), ("stahl", "Stahl")]
 BONUS_MAX = {"treibstoff": 100.0, "aluminium": 100.0, "stahl": 10.0}   # % bei vollem Bonus: Energieerzeugung +, Effizienz der Industrie +, Preise für Militärgerät −
@@ -434,8 +433,6 @@ def speichern(con, periode, liste):
             continue
         con.execute("INSERT OR REPLACE INTO en_monat (periode, schl, angebot, bev, ind, mil, ver, v_hh, v_ind, v_ges, ew, mix) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (periode, schl, b["angebot"], b["hh"], b["ind"], b["mil"], b["ver"], b["v_hh"], b["v_ind"], b["v_ges"], int(b["ew"]), json.dumps(b["mix"])))
-    for r in con.execute("SELECT * FROM en_raten WHERE offen>0 AND zuletzt<>?", (periode,)).fetchall():   # die Monatsrate des Baus ist beglichen
-        con.execute("UPDATE en_raten SET offen=?, zuletzt=? WHERE id=?", (max(0, r["offen"] - r["rate"]), periode, r["id"]))
     leeren()
 
 
@@ -446,14 +443,32 @@ def baukosten(con, typ, anzahl):
     return int(round(anzahl * TYP[typ][3] * 1e6 * 100 * float(s["bau_faktor"]) / 100))   # Heller
 
 
+def bau_diesen_monat(con, schl, periode=None):
+    """Heller, die in diesem Monat schon für neue Kraftwerke ausgegeben wurden (zählt gegen den Industrie-Etat des Monats)."""
+    import etatplan
+    from datetime import datetime
+    periode = periode or etatplan.monat_heute()
+    summe = 0
+    for r in con.execute("SELECT bezahlt, zeit FROM en_kraftwerke WHERE schl=? AND bezahlt>0", (schl,)):
+        if datetime.fromtimestamp(r["zeit"]).strftime("%Y-%m") == periode:
+            summe += int(r["bezahlt"])
+    return summe
+
+
 def lasten(con, schl, periode=None):
-    """Monatliche Lasten der Kraftwerke auf den Industrie-Etat (Heller): Instandhaltung und Raten laufender Bauten."""
+    """Monatliche Lasten der Kraftwerke auf den Industrie-Etat (Heller): Instandhaltung und die Bauausgaben des Monats."""
     import etatplan
     s = einstellungen(con)
-    mix = angebot(con, schl, periode or etatplan.monat_heute())
+    periode = periode or etatplan.monat_heute()
+    mix = angebot(con, schl, periode)
     instand = int(round(sum(g * INSTAND.get(t, 0) for t, g in mix.items()) * float(s["instand_faktor"]) / 100 * 100))
-    raten = sum(min(r["rate"], r["offen"]) for r in con.execute("SELECT rate, offen FROM en_raten WHERE schl=? AND offen>0", (schl,)))
-    return {"instand": instand, "raten": int(raten), "summe": instand + int(raten)}
+    bau = bau_diesen_monat(con, schl, periode)
+    return {"instand": instand, "bau": bau, "raten": bau, "summe": instand + bau}
+
+
+def industrie_frei(con, schl):
+    """Frei verfügbarer Betrag des Industrie-Etats im Monat (Heller): Etat − Instandhaltung − Bau in diesem Monat."""
+    return max(0, industrie_betrag(con, schl) - lasten(con, schl)["summe"])
 
 
 _IND = {}
@@ -505,7 +520,9 @@ def baubar(con, schl, typ):
 
 
 def ausbauen(con, schl, typ, anzahl, k):
-    """Baut `anzahl` Kraftwerke sofort. Bezahlt wird aus dem Industrie-Etat: als monatliche Rate über „bau_monate“ Monate, zusätzlich zur Instandhaltung."""
+    """Baut `anzahl` Kraftwerke sofort und bezahlt den ganzen Preis auf einmal aus der Staats- bzw. Reichskasse (an die Volkswirtschaft). Voraussetzung: Der Preis liegt
+    im frei verfügbaren Betrag des Industrie-Etats und die Kasse ist gedeckt."""
+    import handel
     if typ not in TYP:
         raise geld.Fehler("Bitte ein Kraftwerk wählen.")
     if not 1 <= anzahl <= 100:
@@ -513,22 +530,21 @@ def ausbauen(con, schl, typ, anzahl, k):
     ok, grund = baubar(con, schl, typ)
     if not ok:
         raise geld.Fehler(f'{TYP[typ][1]} lässt sich hier nicht bauen: {grund} im Gebiet.')
-    s = einstellungen(con)
     preis = baukosten(con, typ, anzahl)
     gwh = anzahl * TYP[typ][2]
-    rate = -(-preis // max(1, int(s["bau_monate"])))
-    neu_instand = int(round(gwh * INSTAND.get(typ, 0) * float(s["instand_faktor"]) / 100 * 100))
     sichern(con, schl)
-    etat, last = industrie_betrag(con, schl), lasten(con, schl)["summe"]
-    if last + rate + neu_instand > etat:
-        raise geld.Fehler(f'Der Industrie-Etat reicht nicht: {anzahl} × {TYP[typ][1]} brauchen {geld.mark(rate + neu_instand)} im Monat (Rate und Instandhaltung), '
-                          f'frei sind {geld.mark(max(0, etat - last))}.')
+    frei = industrie_frei(con, schl)
+    if preis > frei:
+        raise geld.Fehler(f'Der Industrie-Etat reicht nicht: {anzahl} × {TYP[typ][1]} kosten {geld.mark(preis)}, frei verfügbar sind {geld.mark(frei)}.')
+    kc = handel.kasse(con, schl)
+    if kc["saldo"] < preis:
+        raise geld.Fehler(f'Die {kc["name"]} ist nicht gedeckt: {anzahl} × {TYP[typ][1]} kosten {geld.mark(preis)}.')
+    geld.buchen(con, kc["id"], geld.sonder(con, "volkswirtschaft")["id"], preis, "energie", f"Bau {anzahl} × {TYP[typ][1]}", k, bezug=f"ENERGIE-{schl}")
     con.execute("INSERT INTO en_kraftwerke (schl, typ, gwh, ab, bezahlt, von, zeit) VALUES (?,?,?,?,?,?,?)", (schl, typ, gwh, "", preis, k["name"], int(time.time())))
-    con.execute("INSERT INTO en_raten (schl, text, gesamt, offen, rate, zeit) VALUES (?,?,?,?,?,?)", (schl, f"{anzahl} × {TYP[typ][1]}", preis, preis, rate, int(time.time())))
-    geld.protokoll(con, k, "Energie: Ausbau", f"{_name(con, schl)}: {anzahl} × {TYP[typ][1]} ({gwh_text(gwh)}/Monat), Preis {geld.mark(preis)} aus dem Industrie-Etat, Rate {geld.mark(rate)}")
+    geld.protokoll(con, k, "Energie: Ausbau", f"{_name(con, schl)}: {anzahl} × {TYP[typ][1]} ({gwh_text(gwh)}/Monat) für {geld.mark(preis)} (zahlt {kc['name']})")
     _IND.clear()
     leeren()
-    return preis, rate
+    return preis, kc["name"]
 
 
 # ---------------------------------------------------------------- Energiemarkt
@@ -701,11 +717,11 @@ def _seitenhtml(request, k, con, ziel):
         ausbau = (f'<h3>Kraftwerke bauen</h3><form class="ee-form" method="post" action="{PFAD}ausbau">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}">'
                   f'<div><label for="ea-t">Kraftwerk</label><select id="ea-t" name="typ">{opt}</select></div>'
                   '<div><label for="ea-n">Anzahl</label><input id="ea-n" name="anzahl" type="number" min="1" max="100" value="1" required></div>'
-                  f'<button class="btn" type="submit">{amt.ic("zap")}Bauen</button></form>'
-                  f'<p class="sa-hinweis">Bezahlt aus dem Industrie-Etat, in {int(b["einstellung"]["bau_monate"])} Monatsraten.</p>')
+                  f'<button class="btn" type="submit">{amt.ic("zap")}Bauen</button></form>')
     etat, ls = industrie_betrag(con, ziel), lasten(con, ziel)
-    etat_html = (f'<p class="sa-hinweis">Industrie-Etat {geld.mark_kurz(etat)} im Monat: Die Kraftwerke binden {geld.mark_kurz(ls["summe"])} '
-                 f'(Instandhaltung {geld.mark_kurz(ls["instand"])}, Bauraten {geld.mark_kurz(ls["raten"])}), frei {geld.mark_kurz(max(0, etat - ls["summe"]))}.</p>')
+    frei_ind = max(0, etat - ls["summe"])
+    etat_html = (f'<p class="sa-hinweis">Industrie-Etat {geld.mark_kurz(etat)} im Monat: Instandhaltung {geld.mark_kurz(ls["instand"])}, in diesem Monat gebaut {geld.mark_kurz(ls["bau"])}, '
+                 f'<b>frei verfügbar {geld.mark(frei_ind)}</b>.</p>')
     n_ang = len(angebote(con))
     markt_link = f'<p><a href="{PFAD}markt/?ziel={esc(ziel)}">{amt.ic("arrow-right-left")}Energiemarkt ({n_ang} Angebot{"e" if n_ang != 1 else ""})</a></p>'
     mix_html = _balken(mix_teile) + amt.tabelle(["Kraftwerk", "Erzeugung", "Anteil"], kw, "Keine Kraftwerke.", klasse="ee-tab") + etat_html + ausbau + markt_link
@@ -740,7 +756,7 @@ def _seitenhtml(request, k, con, ziel):
                 '14–0 %: Energienot, stärkste Mali und Abwanderung. Mali treffen Zufriedenheit, Infrastruktur und Industrie. Fossile Kraftwerke belasten das Klima. '
                 f'Veredelung: Stahl {_de(float(s_["ver_stahl"]), 1)}, Aluminium {_de(float(s_["ver_aluminium"]), 1)}, Treibstoff {_de(float(s_["ver_treibstoff"]), 1)} MWh je Tonne – '
                 'sie läuft nur, solange noch Energie frei ist. Veredelte Erzeugnisse im Lager geben bis zum Monatsende Boni (Treibstoff: bis +100 % Energie, Aluminium: bis +100 % Effizienz der Industrie, Stahl: bis −10 % Rüstungspreise); '
-                'die Richtmenge verbraucht der Monatswechsel, Überschuss lässt sich verkaufen, Zukauf zählt genauso. Bau und Instandhaltung der Kraftwerke zahlt der Industrie-Etat (er bleibt dann der Industrie selbst entzogen). Kohle-, Gas-, Öl- und Kernkraftwerke brauchen ein Vorkommen (Braunkohle, Erdgas, Erdöl, Uran) im Gebiet. Überschüsse lassen sich am Energiemarkt verkaufen; '
+                'die Richtmenge verbraucht der Monatswechsel, Überschuss lässt sich verkaufen, Zukauf zählt genauso. Der Bau wird sofort aus der Kasse bezahlt, aber nur, soweit der frei verfügbare Industrie-Etat reicht; Instandhaltung und Bau verringern, was der Industrie selbst bleibt. Kohle-, Gas-, Öl- und Kernkraftwerke brauchen ein Vorkommen (Braunkohle, Erdgas, Erdöl, Uran) im Gebiet. Überschüsse lassen sich am Energiemarkt verkaufen; '
                 'wer unter 60 % versorgt ist, darf dort zukaufen. Stilllegungen und Sätze legt die RP-Leitung fest.</p>', "info" if "info" in amt.ICONS else "clock")
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in _ziele(con))
     return (entwicklung.CSS + CSS + f'<h1>{amt.ic("zap")} Energie · {esc(name)}</h1>{amt.meldung(request)}'
@@ -843,12 +859,12 @@ async def ausbau_post(request):
     z = _recht(con, k, form)
     back = f"{PFAD}?ziel={z}"
     try:
-        preis, rate = ausbauen(con, z, str(form.get("typ", "")), _anzahl(form.get("anzahl")), k)
+        preis, zahler = ausbauen(con, z, str(form.get("typ", "")), _anzahl(form.get("anzahl")), k)
         con.commit()
     except geld.Fehler as e:
         con.rollback()
         sa.weiter(back, str(e), True)
-    sa.weiter(back, f"Gebaut für {geld.mark(preis)}, aus dem Industrie-Etat in Raten von {geld.mark(rate)} im Monat.")
+    sa.weiter(back, f"Gebaut. Die {zahler} zahlt {geld.mark(preis)} auf einmal.")
 
 
 async def anbieten_post(request):
