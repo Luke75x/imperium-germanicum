@@ -271,6 +271,11 @@ def lager_aendern(con, schl, ware, delta):
     con.execute("INSERT INTO hd_lager (schl, ware, menge) VALUES (?,?,?) ON CONFLICT(schl, ware) DO UPDATE SET menge=menge+?", (schl, ware, max(delta, 0), delta))
     if con.execute("SELECT menge FROM hd_lager WHERE schl=? AND ware=?", (schl, ware)).fetchone()["menge"] < 0:
         raise geld.Fehler("So viel ist nicht im Lager.")
+    try:
+        import energie
+        energie.leeren()   # Boni der Veredelung hängen am Lagerbestand
+    except Exception:
+        pass
 
 
 def zahl(n):
@@ -325,7 +330,7 @@ def lizenz_faktor(con, stelle, typ, eigen):
 
 def eigener_faktor(con, schl):
     import entwicklung
-    return entwicklung.ruestung_faktor(con, vt_stelle(schl))
+    return entwicklung.ruestung_faktor(con, vt_stelle(schl), mit_stahl=False)   # Baupläne gibt nur Forschung, nicht der Stahl-Bonus
 
 
 # ---------------------------------------------------------------- Erzeugung

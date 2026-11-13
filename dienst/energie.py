@@ -13,6 +13,9 @@ Angebot: Kraftwerke (Tabelle en_kraftwerke). Beim ersten Zugriff bekommt jeder H
   die Instandhaltung (je erzeugter GWh) jeden Monat, der Bau als monatliche Rate über „bau_monate“ Monate. Diese Lasten verringern, was der Industrie-Etat für die Industrie
   selbst übrig lässt (entwicklung.entwickeln: ind_faktor), und die „verfügbaren“ Mittel der Industrie-Scheibe im Tortendiagramm (etatplan). Es wird nur gebaut, solange die Lasten
   den Industrie-Etat nicht übersteigen. Stilllegung sowie alle Sätze ändert nur die RP-Leitung (/schatzamt/rp/energie/).
+Veredelungs-Boni (monatlich, aus dem Lager des Haushalts): Treibstoff steigert die Energieerzeugung (bis +100 %), Aluminium die Effizienz der Industrie (bis +100 %, d. h. weniger
+  Energiebedarf), Stahl senkt die Preise für Militärgerät (bis −10 %). Bonus = Lagerbestand ÷ Richtmenge (t je GWh Monatsbedarf, Sätze richt_*), höchstens 100 %. Zum Monatswechsel
+  wird die Richtmenge aus dem Lager verbraucht (monatswechsel), danach ist der Bonus weg; Überschuss darüber bleibt. Herstellen und Zukaufen (Handel) füllen das Lager, Verkaufen leert es.
 Energiemarkt (/schatzamt/energie/markt/): Haushalte mit Überschuss bieten GWh zu einem selbst gesetzten Preis an; Haushalte mit Versorgung unter „kauf_unter“ % kaufen,
   höchstens ihren Fehlbetrag, aus der Staats- bzw. Reichskasse an die Kasse des Verkäufers. Angebote und Käufe gelten nur für den laufenden Monat.
 Versorgung bei Knappheit: zuerst die Bevölkerung, dann das Militär, zuletzt Industrie und Veredelung.
@@ -21,8 +24,10 @@ Folgen (entwicklung.entwickeln ruft wirkungen_fuer): Unterversorgung der Bevölk
 Statistik: Monatswerte (en_monat, beim Buchen des Haushaltsmonats), Verlauf, Vergleich aller Haushalte. Reiter „Energie“ bei „Mein Teilstaat“ und im Reichshaushalt.
 Tabellen: en_kraftwerke, en_monat, en_nutzung.
 """
+import asyncio
 import json
 import logging
+import math
 import time
 
 from aiohttp import web
@@ -51,12 +56,16 @@ geld.VORGABEN.setdefault("energie", {
     "instand_faktor": 100,        # % der Instandhaltungssätze (Kr je erzeugter GWh, siehe INSTAND)
     "bau_monate": 24,             # Monate, über die der Bau aus dem Industrie-Etat gezahlt wird
     "kauf_unter": 60,             # Versorgung in %, unter der am Energiemarkt gekauft werden darf
+    "richt_treibstoff": 0.10, "richt_aluminium": 0.05, "richt_stahl": 0.10,   # Richtmenge je Monat in t je GWh Monatsbedarf (100 % Bonus)
 })
 SAETZE = [("haushalt_kwh", "Verbrauch je Einwohner (kWh/Monat)"), ("industrie_gwh_je_mio", "Industrie (GWh je Mio. € BIP)"), ("mil_mwh_je_geraet", "Militärgerät (MWh/Monat je Gerät)"),
           ("ver_stahl", "Veredelung Stahl (MWh/t)"), ("ver_aluminium", "Veredelung Aluminium (MWh/t)"),
           ("ver_treibstoff", "Veredelung Treibstoff (MWh/t)"), ("zuf_max", "Höchstabzug Zufriedenheit (Punkte)"), ("infra_max", "Höchstabzug Infrastruktur (Punkte)"),
           ("ind_max", "Höchstabzug Industrie (Punkte)"), ("bau_faktor", "Baukosten (% der Tabelle)"), ("instand_faktor", "Instandhaltung (% der Tabelle)"),
-          ("bau_monate", "Bau: Zahlung aus dem Industrie-Etat über (Monate)"), ("kauf_unter", "Zukauf am Markt erlaubt unter Versorgung (%)")]
+          ("bau_monate", "Bau: Zahlung aus dem Industrie-Etat über (Monate)"), ("kauf_unter", "Zukauf am Markt erlaubt unter Versorgung (%)"),
+          ("richt_treibstoff", "Richtmenge Treibstoff (t je GWh Bedarf)"), ("richt_aluminium", "Richtmenge Aluminium (t je GWh Bedarf)"), ("richt_stahl", "Richtmenge Stahl (t je GWh Bedarf)")]
+BONUSWAREN = [("treibstoff", "Treibstoff"), ("aluminium", "Aluminium"), ("stahl", "Stahl")]
+BONUS_MAX = {"treibstoff": 100.0, "aluminium": 100.0, "stahl": 10.0}   # % bei vollem Bonus: Energieerzeugung +, Effizienz der Industrie +, Preise für Militärgerät −
 VEREDELUNG = {"stahl": "ver_stahl", "aluminium": "ver_aluminium", "treibstoff": "ver_treibstoff"}
 
 # Jedes Kraftwerk hat eine feste Leistung (Schlüssel, Name, Leistung je Anlage in GWh/Monat, Preis je Anlage in Mio. Kr – hohe Preise, keine Bauzeit –, Klima-Gewicht)
@@ -79,6 +88,7 @@ CREATE TABLE IF NOT EXISTS en_monat (periode TEXT NOT NULL, schl TEXT NOT NULL, 
 CREATE TABLE IF NOT EXISTS en_nutzung (id INTEGER PRIMARY KEY AUTOINCREMENT, periode TEXT NOT NULL, schl TEXT NOT NULL, art TEXT NOT NULL, gwh REAL NOT NULL,
     text TEXT NOT NULL DEFAULT '', autor TEXT NOT NULL DEFAULT '', zeit INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS en_nu_s ON en_nutzung (schl, periode);
+CREATE TABLE IF NOT EXISTS en_lauf (periode TEXT PRIMARY KEY, zeit INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS en_raten (id INTEGER PRIMARY KEY AUTOINCREMENT, schl TEXT NOT NULL, text TEXT NOT NULL, gesamt INTEGER NOT NULL, offen INTEGER NOT NULL,
     rate INTEGER NOT NULL, zuletzt TEXT NOT NULL DEFAULT '', zeit INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS en_angebote (id INTEGER PRIMARY KEY AUTOINCREMENT, periode TEXT NOT NULL, schl TEXT NOT NULL, menge REAL NOT NULL, rest REAL NOT NULL,
@@ -202,6 +212,53 @@ def angebot(con, schl, periode):
 # ---------------------------------------------------------------- Bilanz
 
 _CACHE = {}
+_WECHSEL = {"p": ""}
+
+
+def boni_berechnen(con, schl, basis_bedarf, s):
+    """{Ware: {lager, richt, anteil}}: Bonus-Anteil 0–1 = Lagerbestand ÷ Richtmenge (t je GWh Monatsbedarf ohne Veredelung)."""
+    import handel
+    lag = handel.lager(con, schl)
+    out = {}
+    for w, _n in BONUSWAREN:
+        richt = max(1e-9, basis_bedarf * float(s["richt_" + w]))
+        st = float(lag.get(w, 0))
+        out[w] = {"lager": st, "richt": richt, "anteil": max(0.0, min(1.0, st / richt))}
+    return out
+
+
+def stahl_preisbonus(con, schl):
+    """Preissenkung für Militärgerät in % durch Stahl im Lager (0 bis 10)."""
+    try:
+        return BONUS_MAX["stahl"] * bilanz(con, schl)["boni"]["stahl"]["anteil"]
+    except Exception:
+        return 0.0
+
+
+def monatswechsel(con):
+    """Einmal je Monat: Die Richtmenge der Boni-Erzeugnisse wird aus dem Lager verbraucht (der Bonus ist weg, Überschuss bleibt). Der allererste Lauf verbraucht nichts."""
+    import etatplan
+    p = etatplan.monat_heute()
+    if _WECHSEL["p"] == p:
+        return
+    _WECHSEL["p"] = p
+    if con.execute("SELECT 1 FROM en_lauf WHERE periode=?", (p,)).fetchone():
+        return
+    erster = con.execute("SELECT 1 FROM en_lauf LIMIT 1").fetchone() is None
+    con.execute("INSERT INTO en_lauf (periode, zeit) VALUES (?,?)", (p, int(time.time())))
+    if not erster:
+        import handel
+        s = einstellungen(con)
+        for schl in handel.halter(con):
+            ew, bip = bevoelkerung(con, schl, p)
+            basis = ew * float(s["haushalt_kwh"]) / 1e6 + bip / 12 * float(s["industrie_gwh_je_mio"]) + _mil_einheiten(con, schl) * float(s["mil_mwh_je_geraet"]) / 1000
+            lag = handel.lager(con, schl)
+            for w, _n in BONUSWAREN:
+                nehmen = int(min(float(lag.get(w, 0)), math.ceil(basis * float(s["richt_" + w]))))
+                if nehmen > 0:
+                    handel.lager_aendern(con, schl, w, -nehmen)
+    con.commit()
+    leeren()
 
 
 def leeren():
@@ -218,14 +275,17 @@ def bilanz(con, schl, periode=None, frisch=False):
     s = einstellungen(con)
     ew, bip = bevoelkerung(con, schl, periode)
     mix = angebot(con, schl, periode)
-    erz = sum(mix.values())
+    erz_roh = sum(mix.values())
     zukauf, verkauf = markt_fluesse(con, schl, periode)
     reserviert = reservierte_menge(con, schl, periode)
-    S = erz + zukauf - verkauf
     hh = ew * float(s["haushalt_kwh"]) / 1e6
-    ind = bip / 12 * float(s["industrie_gwh_je_mio"])
+    ind_roh = bip / 12 * float(s["industrie_gwh_je_mio"])
     n_mil = _mil_einheiten(con, schl)
     mil = n_mil * float(s["mil_mwh_je_geraet"]) / 1000
+    boni = boni_berechnen(con, schl, hh + ind_roh + mil, s)
+    erz = erz_roh * (1 + BONUS_MAX["treibstoff"] / 100 * boni["treibstoff"]["anteil"])   # Treibstoff: Energiegewinnung effizienter
+    ind = ind_roh / (1 + BONUS_MAX["aluminium"] / 100 * boni["aluminium"]["anteil"])     # Aluminium: Industrie effizienter
+    S = erz + zukauf - verkauf
     ver = veredelung_verbrauch(con, schl, periode)
     rest = S
     g_hh = min(rest, hh); rest -= g_hh
@@ -234,12 +294,12 @@ def bilanz(con, schl, periode=None, frisch=False):
     bedarf = hh + ind + mil + ver
     v = lambda g, b: (g / b) if b > 1e-9 else 1.0
     fossil = sum(mix.get(t, 0) for t in FOSSIL)
-    klima = sum(mix.get(t, 0) * TYP[t][4] for t in mix) / erz if erz else 0.0
+    klima = sum(mix.get(t, 0) * TYP[t][4] for t in mix) / erz_roh if erz_roh else 0.0
     b = {"periode": periode, "schl": schl, "ew": ew, "bip": bip, "hh": hh, "ind": ind, "mil": mil, "ver": ver, "bedarf": bedarf, "angebot": S, "mix": mix,
          "v_hh": v(g_hh, hh), "v_mil": v(g_mil, mil), "v_ind": v(g_ind, ind + ver), "v_ges": min(1.0, v(S, bedarf)), "frei": S - bedarf, "n_mil": n_mil,
-         "erzeugung": erz, "zukauf": zukauf, "verkauf": verkauf, "reserviert": reserviert, "frei_ver": S - bedarf - reserviert,
+         "erzeugung": erz, "erzeugung_roh": erz_roh, "boni": boni, "zukauf": zukauf, "verkauf": verkauf, "reserviert": reserviert, "frei_ver": S - bedarf - reserviert,
          "markt_frei": max(0.0, erz - verkauf - bedarf - reserviert),
-         "fossil": fossil / erz * 100 if erz else 0.0, "erneuerbar": sum(mix.get(t, 0) for t in ("wasser", "wind", "solar", "biomasse")) / erz * 100 if erz else 0.0,
+         "fossil": fossil / erz_roh * 100 if erz_roh else 0.0, "erneuerbar": sum(mix.get(t, 0) for t in ("wasser", "wind", "solar", "biomasse")) / erz_roh * 100 if erz_roh else 0.0,
          "klima": klima, "einstellung": s}
     _CACHE[(schl, periode)] = (time.time(), b)
     return b
@@ -331,8 +391,8 @@ def veredelung_buchen(con, schl, gwh, text, k):
 
 def hinweis_html(con):
     s = einstellungen(con)
-    return (f'Energie je Tonne: Stahl {_de(float(s["ver_stahl"]), 1)} MWh, Aluminium {_de(float(s["ver_aluminium"]), 1)} MWh, Treibstoff {_de(float(s["ver_treibstoff"]), 1)} MWh '
-            f'(<a href="{PFAD}">Energie</a>).')
+    return (f'Das Lager gibt Boni bis Monatsende (<a href="{PFAD}">Energie</a>). Energie je Tonne: Stahl {_de(float(s["ver_stahl"]), 1)} MWh, '
+            f'Aluminium {_de(float(s["ver_aluminium"]), 1)} MWh, Treibstoff {_de(float(s["ver_treibstoff"]), 1)} MWh.')
 
 
 # ---------------------------------------------------------------- Militär (verteidigung.instandhaltung)
@@ -615,6 +675,8 @@ def _seitenhtml(request, k, con, ziel):
     kz = lambda xs: f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in xs)}</div>'
     kennz = [("Versorgung", f'{_de(b["v_ges"] * 100, 0)} %'), ("Erzeugung", gwh_text(b["erzeugung"])), ("Bedarf", gwh_text(b["bedarf"])),
              ("Überschuss" if b["frei"] >= 0 else "Fehlbetrag", gwh_text(abs(b["frei"]))), ("Erneuerbare", f'{_de(b["erneuerbar"], 0)} %')]
+    if b["boni"]["treibstoff"]["anteil"] > 0:
+        kennz.append(("Treibstoff-Bonus", f'+{_de(b["boni"]["treibstoff"]["anteil"] * BONUS_MAX["treibstoff"], 0)} %'))
     if b["zukauf"] > 0:
         kennz.append(("Zugekauft", gwh_text(b["zukauf"])))
     if b["verkauf"] > 0:
@@ -651,6 +713,12 @@ def _seitenhtml(request, k, con, ziel):
     n_ang = len(angebote(con))
     markt_link = f'<p><a href="{PFAD}markt/?ziel={esc(ziel)}">{amt.ic("arrow-right-left")}Energiemarkt ({n_ang} Angebot{"e" if n_ang != 1 else ""})</a></p>'
     mix_html = _balken(mix_teile) + amt.tabelle(["Kraftwerk", "Erzeugung", "Anteil"], kw, "Keine Kraftwerke.", klasse="ee-tab") + etat_html + ausbau + markt_link
+    # Veredelungs-Boni des Monats
+    wirkung = {"treibstoff": ("Energieerzeugung", "+"), "aluminium": ("Effizienz der Industrie", "+"), "stahl": ("Preise für Militärgerät", "−")}
+    bz = [(esc(n), f'{_de(b["boni"][w]["lager"], 0)} t', f'{_de(b["boni"][w]["richt"], 0)} t', f'{wirkung[w][1]}{_de(b["boni"][w]["anteil"] * BONUS_MAX[w], 0)} % {wirkung[w][0]}')
+          for w, n in BONUSWAREN]
+    boni_html = ("<h2>Veredelung</h2>" + amt.tabelle(["Erzeugnis", "Im Lager", "Richtmenge", "Bonus diesen Monat"], bz, klasse="ee-tab")
+                 + f'<p><a href="{sa.PFAD}handel/mein/?ziel={esc(ziel)}">{amt.ic("arrow-right-left")}Veredeln und handeln</a></p>')
     # Veredelung des Monats (nur wenn etwas veredelt wurde)
     nutz = con.execute("SELECT * FROM en_nutzung WHERE schl=? AND periode=? ORDER BY id DESC LIMIT 30", (ziel, b["periode"])).fetchall()
     nutz_html = ""
@@ -675,12 +743,13 @@ def _seitenhtml(request, k, con, ziel):
                 'dann das Militär, zuletzt Industrie und Veredelung. Versorgung 100–85 %: gut, ohne Folgen. 84–60 %: moderat, leichte Mali. 59–15 %: Energiemangel, deutliche Mali. '
                 '14–0 %: Energienot, stärkste Mali und Abwanderung. Mali treffen Zufriedenheit, Infrastruktur und Industrie. Fossile Kraftwerke belasten das Klima. '
                 f'Veredelung: Stahl {_de(float(s_["ver_stahl"]), 1)}, Aluminium {_de(float(s_["ver_aluminium"]), 1)}, Treibstoff {_de(float(s_["ver_treibstoff"]), 1)} MWh je Tonne – '
-                'sie läuft nur, solange noch Energie frei ist. Bau und Instandhaltung der Kraftwerke zahlt der Industrie-Etat (er bleibt dann der Industrie selbst entzogen). Kohle-, Gas-, Öl- und Kernkraftwerke brauchen ein Vorkommen (Braunkohle, Erdgas, Erdöl, Uran) im Gebiet. Überschüsse lassen sich am Energiemarkt verkaufen; '
+                'sie läuft nur, solange noch Energie frei ist. Veredelte Erzeugnisse im Lager geben bis zum Monatsende Boni (Treibstoff: bis +100 % Energie, Aluminium: bis +100 % Effizienz der Industrie, Stahl: bis −10 % Rüstungspreise); '
+                'die Richtmenge verbraucht der Monatswechsel, Überschuss lässt sich verkaufen, Zukauf zählt genauso. Bau und Instandhaltung der Kraftwerke zahlt der Industrie-Etat (er bleibt dann der Industrie selbst entzogen). Kohle-, Gas-, Öl- und Kernkraftwerke brauchen ein Vorkommen (Braunkohle, Erdgas, Erdöl, Uran) im Gebiet. Überschüsse lassen sich am Energiemarkt verkaufen; '
                 'wer unter 60 % versorgt ist, darf dort zukaufen. Stilllegungen und Sätze legt die RP-Leitung fest.</p>', "info" if "info" in amt.ICONS else "clock")
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in _ziele(con))
     return (entwicklung.CSS + CSS + f'<h1>{amt.ic("zap")} Energie · {esc(name)}</h1>{amt.meldung(request)}'
             f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div></form>'
-            + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + nutz_html + verlauf_html + vgl_html + info)
+            + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + vgl_html + info)
 
 
 @sa.seite("staat")
@@ -880,8 +949,29 @@ async def rp_energie(request, k):
     return sa.ant(request, k, "Energie: Konfiguration", "sa-rp-energie", inhalt)
 
 
+async def _automatik(app):
+    while True:
+        try:
+            monatswechsel(app["db"])
+        except Exception:
+            log.exception("Monatswechsel der Veredelungs-Boni fehlgeschlagen")
+        await asyncio.sleep(60)
+
+
 def registrieren(app):
     einrichten(app["db"])
+    try:
+        monatswechsel(app["db"])
+    except Exception:
+        log.exception("Monatswechsel beim Start fehlgeschlagen")
+
+    async def start(app_):
+        app_["energie_aufgabe"] = asyncio.get_event_loop().create_task(_automatik(app_))
+
+    async def stopp(app_):
+        app_["energie_aufgabe"].cancel()
+    app.on_startup.append(start)
+    app.on_cleanup.append(stopp)
     app.router.add_get(PFAD, seite)
     app.router.add_get(RPE, rp_energie)
     app.router.add_get(PFAD + "markt/", markt)

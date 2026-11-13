@@ -487,7 +487,7 @@ def speichern(con, periode, liste):
         con.execute("INSERT OR REPLACE INTO ep_zustand (periode, schl, schluessel, wert) VALUES (?,?,?,?)", (periode, schl, "ruestung_pct", round(d["ruestung_pct"], 4)))
 
 
-def ruestung_faktor(con, stelle):
+def ruestung_faktor(con, stelle, mit_stahl=True):
     """Preisfaktor für Militärgüter einer Verteidigungskasse (vt-<sid> bzw. verteidigung = Reich) aus dem zuletzt gebuchten Stand: Forschung und Lieferketten."""
     schl = "reich" if stelle == "verteidigung" else "ts-" + stelle[3:] if stelle.startswith("vt-") else None
     if not schl:
@@ -496,7 +496,11 @@ def ruestung_faktor(con, stelle):
         r = con.execute("SELECT wert FROM ep_zustand WHERE schl=? AND schluessel='ruestung_pct' ORDER BY periode DESC LIMIT 1", (schl,)).fetchone()
     except sqlite3.OperationalError:
         return 1.0
-    return 1.0 + float(r["wert"]) / 100 if r else 1.0
+    basis = 1.0 + float(r["wert"]) / 100 if r else 1.0
+    import energie
+    if not mit_stahl:
+        return basis
+    return basis * (1 - energie.stahl_preisbonus(con, schl) / 100)   # Stahl im Lager: Militärgerät bis zu 10 % günstiger (laufender Monat)
 
 
 def verlauf(con, schl, n=12):
