@@ -266,6 +266,10 @@ MODULE = [
               lambda E, z: _clamp(0.40 * z["kultur"] + 0.15 * z["sicherheit"] + 0.15 * z["muell"] + 0.15 * z["strassen"]
                                   + 0.15 * (NEUTRAL - 0.8 * (z["co2"] - 50)) - 0.3 * max(0, z["ueberwachung"] - 30), 0, 100))],
      "wirkungen": _wirk_kultur},
+    {"id": "energie", "name": "Energieversorgung", "icon": "zap", "kategorien": (),
+     "beschreibung": "Bevölkerung, Industrie, Veredelung und Militär brauchen Energie. Reicht die Erzeugung nicht, sinkt zuerst die Zufriedenheit der Bevölkerung, dann Infrastruktur "
+                     "und Industrie. Kraftwerke baut der Landesherr unter „Energie“ aus; fossile Erzeugung belastet das Klima.",
+     "indikatoren": [], "wirkungen": lambda z, ctx: []},
     {"id": "bevoelkerung", "name": "Bevölkerungswachstum und Schwund", "icon": "users", "kategorien": (),
      "beschreibung": "Die Einwohnerzahl ändert sich jeden Monat um die Summe aus Gesundheit, Wasserversorgung, Hunger und der Stimmung (Abwanderung bei Unzufriedenheit, "
                      "Zuzug bei großer Zufriedenheit). Mehr Einwohner bedeuten mehr Steueraufkommen und eine höhere Reichsabgabe.",
@@ -331,6 +335,11 @@ def entwickeln(con, schl, anteile, richt, periode, kopf_ratio=1.0):
     zu = etatplan.zuf_letzte(con, schl)
     import krisen
     ex, shift = krisen.wirkungen_fuer(con, schl, periode)
+    import energie
+    ex_en, shift_en = energie.wirkungen_fuer(con, schl, periode)   # Mali bei nicht gedecktem Energiebedarf
+    ex = ex + ex_en
+    for i_, v_ in shift_en.items():
+        shift[i_] = shift.get(i_, 0.0) + v_
     neu, zust, effekte, sm = _schritt(alt, E, {"zuf": 80.0 if zu is None else zu, "shift": shift, "extra": ex})
     bev = _clamp(alt["bev_faktor"] * (1 + sm["bev_pp"] / 100), *BEV_GRENZEN)
     einkommen = _clamp(70 + 25 * math.log2(max(0.05, kopf_ratio * (1 + sm["kopf"] / 100))), 0, 100)

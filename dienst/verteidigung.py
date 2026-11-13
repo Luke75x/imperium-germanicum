@@ -355,8 +355,12 @@ def instandhaltung(con, periode, k=None):
         anteil = zahlung / kosten
         if zahlung > 0:
             geld.buchen(con, kasse["id"], vw["id"], zahlung, "instandhaltung", f"Instandhaltung Militärgerät {monat}", k, bezug=f"IH-{periode}")
+        import energie
+        strom = energie.mil_versorgung(con, "reich" if stelle == "verteidigung" else "ts-" + stelle[3:])   # Energie für das Militär: bei Mangel sinkt die Bereitschaft
         for x in b:
             neu = x["bereitschaft"] + float(e["erholung"]) if anteil >= 1 else x["bereitschaft"] - (1 - anteil) * float(e["verfall"])
+            if strom < 0.999:
+                neu = min(neu, x["bereitschaft"]) - (1 - strom) * float(e["verfall"])
             con.execute("UPDATE vt_bestand SET bereitschaft=? WHERE stelle=? AND typ=?", (round(min(100.0, max(0.0, neu)), 2), stelle, x["typ"]))
         _vorgang(con, stelle, "instandhaltung", k, "", 0, zahlung,
                  f"Instandhaltung {monat}: {mark(zahlung)} von {mark(kosten)}" + ("" if anteil >= 1 else " – Einsatzbereitschaft sinkt"))

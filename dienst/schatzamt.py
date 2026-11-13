@@ -136,7 +136,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe", "sa-bankkarte", "sa-besitz")     # Seiten, die nur die Privatperson betreffen
-NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-krisen", "sa-teilstaat", "sa-reich", "sa-handel")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
+NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-teilstaat", "sa-reich", "sa-handel")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_kassen(con, k):
@@ -225,7 +225,7 @@ def _regierte(con, k):
 
 def _ts_url(tab, sid, regiert):
     z = "ts-" + sid
-    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "entw": f"entwicklung/?ziel={z}", "krisen": f"krisen/?ziel={z}", "plan": f"etatplanung/?ziel={z}", "vt": f"verteidigung/{sid}/",
+    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "entw": f"entwicklung/?ziel={z}", "energie": f"energie/?ziel={z}", "krisen": f"krisen/?ziel={z}", "plan": f"etatplanung/?ziel={z}", "vt": f"verteidigung/{sid}/",
                    "notlage": f"notlagen/?bereich={z}", "kasse": f"konto/?konto={regiert[sid]['id']}"}[tab]
 
 
@@ -234,7 +234,7 @@ def _teilstaat_tabs(con, k, sid):
     import verteidigung
     import krisen
     n_kr = krisen.offene_anzahl(con, "ts-" + sid)
-    tabs = [("start", "Überblick"), ("etat", "Etat"), ("entw", "Entwicklung"), ("krisen", f"Krisen ({n_kr})" if n_kr else "Krisen")]
+    tabs = [("start", "Überblick"), ("etat", "Etat"), ("entw", "Entwicklung"), ("energie", "Energie"), ("krisen", f"Krisen ({n_kr})" if n_kr else "Krisen")]
     if etatplan.darf_aendern(con, k, "ts-" + sid):
         tabs.append(("plan", "Etat planen"))
     if verteidigung.darf_sehen(con, k, sid):
@@ -244,7 +244,7 @@ def _teilstaat_tabs(con, k, sid):
 
 def _reich_tabs(con, k):
     import etatplan
-    tabs = [("haushalt", "Staatshaushalt", "haushalt/"), ("etat", "Etatverteilung", "etatverteilung/?ziel=reich"), ("entw", "Entwicklung", "entwicklung/?ziel=reich"), ("krisen", "Krisen", "krisen/?ziel=reich")]
+    tabs = [("haushalt", "Staatshaushalt", "haushalt/"), ("etat", "Etatverteilung", "etatverteilung/?ziel=reich"), ("entw", "Entwicklung", "entwicklung/?ziel=reich"), ("energie", "Energie", "energie/?ziel=reich"), ("krisen", "Krisen", "krisen/?ziel=reich")]
     if etatplan.darf_aendern(con, k, "reich"):
         tabs.append(("plan", "Etat planen", "etatplanung/?ziel=reich"))
     tabs += [("etats", "Etats der Behörden", "etats/"), ("finanzen", "Reichsfinanzen", "finanzen/"), ("gold", "Goldreserven", "gold/"),
@@ -256,7 +256,7 @@ def _reich_tabs(con, k):
 
 def _reiter_kontext(request, k, con, aktiv):
     """(Bereich, Teilstaat-ID, Reiter) der aktuellen Seite: Bereich 'ts' = Mein Teilstaat, 'reich' = Reichshaushalt; None = Seite gehört zu keinem Bereich."""
-    if aktiv not in ("sa-teilstaat", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-krisen", "sa-verteidigung", "sa-notlage", "sa-konto",
+    if aktiv not in ("sa-teilstaat", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-verteidigung", "sa-notlage", "sa-konto",
                      "sa-staatshaushalt", "sa-finanzen", "sa-etats", "sa-gold"):
         return None
     regiert = _regierte(con, k)
@@ -265,8 +265,8 @@ def _reiter_kontext(request, k, con, aktiv):
     if aktiv == "sa-teilstaat":
         sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regiert else next(iter(regiert), None)
         return ("ts", sid, "start") if sid else None
-    if aktiv in ("sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-krisen"):
-        tab = {"sa-etatverteilung": "etat", "sa-etatplanung": "plan", "sa-entwicklung": "entw", "sa-krisen": "krisen"}[aktiv]
+    if aktiv in ("sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen"):
+        tab = {"sa-etatverteilung": "etat", "sa-etatplanung": "plan", "sa-entwicklung": "entw", "sa-energie": "energie", "sa-krisen": "krisen"}[aktiv]
         if ziel.startswith("ts-") and ziel[3:] in regiert:
             return "ts", ziel[3:], tab
         if ziel == "reich" or (ziel.startswith("ts-") and ziel[3:] not in regiert):

@@ -303,6 +303,8 @@ def ausfuehren(con, periode, k):
     etatplan.zuf_speichern(con, lauf, liste)   # Bevölkerungszufriedenheit des Monats
     import entwicklung
     entwicklung.speichern(con, periode, liste)   # Entwicklung (Gesundheit, Bildung, Sicherheit, Bevölkerung) des Monats
+    import energie
+    energie.speichern(con, periode, liste)       # Energiebilanz des Monats
     import krisen
     krisen.pruefen(con, periode, liste)          # Krisen eröffnen: Handlungszwang für die Landesherren
     for kat, _ in etatplan.KATEGORIEN:

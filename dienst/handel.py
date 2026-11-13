@@ -546,6 +546,8 @@ def veredeln(con, schl, produkt, menge, k):
     if not rez or not w or menge < 1:
         raise geld.Fehler("Bitte ein Erzeugnis und eine Menge angeben.")
     _pruefe_handel(con, schl)
+    import energie
+    gwh = energie.veredelung_pruefen(con, schl, produkt, menge)   # Veredelung braucht Energie
     e = einstellungen(con)
     kosten = int(round(menge * w["preis"] * float(e["veredelung_kosten"]) / 100))
     kc = kasse(con, schl)
@@ -561,7 +563,8 @@ def veredeln(con, schl, produkt, menge, k):
         except geld.Fehler:
             raise geld.Fehler(f'Für {menge} {w["einheit"]} {w["name"]} fehlen {ws[stoff]["name"]} (benötigt {zahl(need)} {ws[stoff]["einheit"]}).')
     lager_aendern(con, schl, produkt, menge)
-    geld.protokoll(con, k, "Handel: Veredelung", f'{halter(con).get(schl)}: {menge} × {w["name"]}, Kosten {mark(kosten)}')
+    energie.veredelung_buchen(con, schl, gwh, f'Veredelung: {menge} × {w["name"]}', k)
+    geld.protokoll(con, k, "Handel: Veredelung", f'{halter(con).get(schl)}: {menge} × {w["name"]}, Kosten {mark(kosten)}, Energie {energie.gwh_text(gwh)}')
     return kosten
 
 
@@ -728,7 +731,8 @@ async def mein(request, k):
         out += (f'<h2>Veredelung</h2><form class="hd-form" method="post" action="{PFAD}veredeln">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
                 f'<div><label>Erzeugnis</label><select name="produkt">{_opt(ver)}</select></div><div><label>Menge (t)</label><input type="number" name="menge" min="1" value="1" required></div>'
                 f'<button class="btn zweit" type="submit">{amt.ic("wrench")}Veredeln</button></form>'
-                f'<p class="sa-hinweis">Rohstoffe stammen aus dem Lager (auch eingekaufte). Energie und Löhne kosten {einstellungen(con)["veredelung_kosten"]} % des Richtpreises und gehen an die Volkswirtschaft.</p>')
+                f'<p class="sa-hinweis">Rohstoffe stammen aus dem Lager (auch eingekaufte). Energie und Löhne kosten {einstellungen(con)["veredelung_kosten"]} % des Richtpreises und gehen an die Volkswirtschaft. '
+                f'{__import__("energie").hinweis_html(con)}</p>')
     # eigene Angebote
     eig = []
     for a in con.execute("SELECT * FROM hd_angebote WHERE anbieter=? AND status='offen' ORDER BY id DESC", (ziel,)):
@@ -979,7 +983,8 @@ async def veredeln_post(request):
     except geld.Fehler as e:
         con.rollback()
         sa.weiter(f"{PFAD}mein/?ziel={z}", str(e), True)
-    sa.weiter(f"{PFAD}mein/?ziel={z}", f"Veredelt; Kosten {mark(kosten)}.")
+    import energie
+    sa.weiter(f"{PFAD}mein/?ziel={z}", f"Veredelt; Kosten {mark(kosten)}, Energie {energie.gwh_text(energie.veredelung_gwh(con, str(form.get('produkt', '')), _int(form.get('menge'))))}.")
 
 
 async def ressourcen_post(request):

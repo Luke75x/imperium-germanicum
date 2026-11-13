@@ -34,6 +34,7 @@ import notlage
 import etatplan
 import teilstaat
 import entwicklung
+import energie
 import handel
 import krisen
 import bankkarte
@@ -82,6 +83,7 @@ def erstellen():
     etatplan.registrieren(app)
     teilstaat.registrieren(app)
     entwicklung.registrieren(app)
+    energie.registrieren(app)
     handel.registrieren(app)
     krisen.registrieren(app)
     bankkarte.registrieren(app)
