@@ -593,7 +593,8 @@ CSS = """<style>
 
 def _tabs(aktiv, ziel=""):
     z = f"?ziel={esc(ziel)}" if ziel else ""
-    eintraege = [("markt", "Marktplatz", PFAD + z), ("mein", "Mein Handel", PFAD + "mein/" + z), ("ressourcen", "Ressourcen", PFAD + "ressourcen/"),
+    eintraege = [("markt", "Marktplatz", PFAD + z), ("lager", "Lager", PFAD + "mein/" + z), ("veredelung", "Veredelung", PFAD + "veredelung/" + z),
+                 ("verkaufen", "Verkaufen", PFAD + "verkaufen/" + z), ("ressourcen", "Ressourcen", PFAD + "ressourcen/"),
                  ("buch", "Handelsbuch", PFAD + "buch/"), ("regeln", "Waren & Regeln", PFAD + "regeln/")]
     return ('<nav class="reiter" aria-label="Handel">' + "".join(f'<a href="{u}"{" class=aktiv aria-current=page" if t == aktiv else ""}>{n}</a>' for t, n, u in eintraege) + "</nav>")
 
@@ -663,22 +664,31 @@ def _opt(paare):
     return "".join(f'<option value="{esc(v)}">{esc(t)}</option>' for v, t in paare)
 
 
-@sa.seite("staat")
-async def mein(request, k):
+def _kontext(request, k, titel, tab):
+    """Gemeinsamer Anfang der Seiten eines Halters: (Verbindung, Namen, Halter, gewählter Halter, Sperre, Kopf-HTML) oder eine fertige Seite, wenn niemand handeln darf."""
     con = request.app["db"]
     namen = halter(con)
     mine, ziel = _ziel(con, k, request)
     if not ziel:
-        return _seite(request, k, "Mein Handel", "mein", '<div class="hinweis">Handeln dürfen Landesherren für ihren Teilstaat und die Leitung des Schatzamts für das Reich.</div>')
+        return None, _seite(request, k, titel, tab, '<div class="hinweis">Handeln dürfen Landesherren für ihren Teilstaat und die Leitung des Schatzamts für das Reich.</div>')
+    sp = sperre(con, ziel)
+    kopf = _wahl(request, mine, ziel, PFAD + {"lager": "mein/", "veredelung": "veredelung/", "verkaufen": "verkaufen/"}[tab], namen)
+    if sp:
+        kopf += f'<div class="warnung">Handelssperre{": " + esc(sp["grund"]) if sp["grund"] else ""} – Sie können weder kaufen noch verkaufen.</div>'
+    return (con, namen, ziel, sp, kopf), None
+
+
+@sa.seite("staat")
+async def mein(request, k):
+    """Reiter „Lager“: Bestand, Vorkommen und erworbene Baupläne."""
+    ctx, fertig = _kontext(request, k, "Handel – Lager", "lager")
+    if fertig:
+        return fertig
+    con, namen, ziel, sp, out = ctx
     ws = waren(con)
     lg = lager(con, ziel)
     per, prod = letzte_produktion(con, ziel)
     vk = vorkommen(con, ziel)
-    c = amt.csrf_feld(request)
-    sp = sperre(con, ziel)
-    out = _wahl(request, mine, ziel, PFAD + "mein/", namen)
-    if sp:
-        out += f'<div class="warnung">Handelssperre{": " + esc(sp["grund"]) if sp["grund"] else ""} – Sie können weder kaufen noch verkaufen.</div>'
     zeilen = []
     for w in ws.values():
         if not w["aktiv"]:
@@ -688,57 +698,101 @@ async def mein(request, k):
             continue
         zeilen.append((esc(w["name"]), esc(SEKTORNAME[w["sektor"]]), f'{zahl(m)} {esc(w["einheit"])}', _pk(w["preis"]), geld.mark_kurz(m * w["preis"]),
                        f'{zahl(p)}' if p else "–", f'{w["verderb"]:g} %'.replace(".", ",") if w["verderb"] else "–"))
-    out += ("<h2>Lager</h2>" + amt.tabelle(["Ware", "Bereich", "Bestand", "Richtpreis", "Wert", f"Erzeugt ({per or '–'})", "Verderb / Monat"], zeilen,
-                                           "Das Lager ist leer. Waren entstehen jeden Haushaltsmonat aus den Ergebnissen des Etats.")
-            + '<p class="sa-hinweis">Erzeugt wird ein Teil der Ausgaben für Gesundheit, Landwirtschaft und Industrie (Rohstoffe nach Vorkommen).</p>')
+    out += amt.tabelle(["Ware", "Bereich", "Bestand", "Richtpreis", "Wert", f"Erzeugt ({per or '–'})", "Verderb / Monat"], zeilen,
+                       "Das Lager ist leer. Waren entstehen jeden Haushaltsmonat aus den Ergebnissen des Etats.")
     hat = [f'{esc(RESNAME[r])} ({kurz(v)} {esc(ws[r]["einheit"])} / Jahr)' for r, v in sorted(vk.items(), key=lambda x: -ws[x[0]]["preis"] * x[1]) if v > 0 and r in RESNAME]
     fehlt = [esc(RESNAME[r]) for r, _ in RESSOURCEN if vk.get(r, 0) <= 0]
-    out += (f'<h2>Vorkommen (reale Jahresförderung)</h2><p>{", ".join(hat) if hat else "Keine nennenswerten Vorkommen."}</p>'
-            + (f'<p class="az">Kein Vorkommen: {", ".join(fehlt)} – diese Rohstoffe können nicht verkauft, wohl aber eingekauft und weiterverarbeitet werden.</p>' if fehlt else ""))
-    # Angebot einstellen
-    opts = []
-    for w in ws.values():
-        if w["aktiv"] and lg.get(w["schl"], 0) > 0 and (not w["ressource"] or vk.get(w["ressource"], 0) > 0):
-            opts.append((w["schl"], f'{w["name"]} (Lager {zahl(lg[w["schl"]])} {w["einheit"]}, Richtpreis {_pk(w["preis"])})'))
-    if opts and not sp:
-        out += (f'<h2>Waren anbieten</h2><form class="hd-form" method="post" action="{PFAD}anbieten">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
-                f'<div><label>Ware</label><select name="ware">{_opt(opts)}</select></div><div><label>Menge</label><input type="number" name="menge" min="1" value="1" required></div>'
-                '<div><label>Preis je Einheit (Kr)</label><input type="text" name="preis" inputmode="decimal" required></div>'
-                f'<button class="btn" type="submit">{amt.ic("check")}Anbieten</button></form>')
+    vorkommen_html = (f'<p>{", ".join(hat) if hat else "Keine nennenswerten Vorkommen."}</p>'
+                      + (f'<p class="az">Kein Vorkommen: {", ".join(fehlt)}.</p>' if fehlt else ""))
+    out += f'<details class="sa-auf"><summary>{amt.ic("package")}Vorkommen (reale Jahresförderung)</summary>{vorkommen_html}</details>'
     kat = katalog_vt(con)
-    stelle = vt_stelle(ziel)
-    best = [r for r in con.execute("SELECT * FROM vt_bestand WHERE stelle=? AND anzahl>0", (stelle,)) if r["typ"] in kat and kat[r["typ"]]["kategorie"] != "Infrastruktur"]
-    if best and not sp:
-        o = [("mil:" + r["typ"], f'{kat[r["typ"]]["name"]} (Bestand {zahl(r["anzahl"])}, Bereitschaft {r["bereitschaft"]:.0f} %, Richtpreis {_pk(int(kat[r["typ"]]["preis"] * r["bereitschaft"] / 100))})') for r in best]
-        out += (f'<h2>Militärgerät anbieten</h2><form class="hd-form" method="post" action="{PFAD}anbieten">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
-                f'<div><label>Gerät aus dem eigenen Bestand</label><select name="ware">{_opt(o)}</select></div><div><label>Anzahl</label><input type="number" name="menge" min="1" value="1" required></div>'
-                '<div><label>Preis je Stück (Kr)</label><input type="text" name="preis" inputmode="decimal" required></div>'
-                f'<button class="btn" type="submit">{amt.ic("check")}Anbieten</button></form>'
-                '<p class="sa-hinweis">Das Gerät wird mit seiner Einsatzbereitschaft verkauft und ist ab dem Einstellen aus dem Bestand genommen; beim Zurückziehen kommt es zurück.</p>')
-    f = eigener_faktor(con, ziel)
-    if f <= 0.99 and not sp:
-        o = [("plan:" + t["schl"], f'{t["name"]} (Richtpreis {_pk(plan_preis(con, t["schl"], f))})') for t in kat.values() if t["kategorie"] != "Infrastruktur"]
-        out += (f'<h2>Baupläne anbieten</h2><p>Die Forschung hat Militärgerät auf {f * 100:.1f} % des Katalogpreises verbilligt ({(f - 1) * 100:+.1f} %). '
-                f'Käufer fertigen danach zum selben Preisfaktor; der Bauplan bleibt bei Ihnen.</p>'.replace(".", ",")
-                + f'<form class="hd-form" method="post" action="{PFAD}anbieten">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
-                  f'<div><label>Bauplan</label><select name="ware">{_opt(o)}</select></div><input type="hidden" name="menge" value="1">'
-                  '<div><label>Preis (Kr)</label><input type="text" name="preis" inputmode="decimal" required></div>'
-                  f'<button class="btn" type="submit">{amt.ic("check")}Anbieten</button></form>')
-    else:
-        out += f'<h2>Baupläne</h2><p class="az">Baupläne lassen sich verkaufen, sobald die eigene Forschung Militärgerät verbilligt hat (derzeit {(f - 1) * 100:+.1f} %).</p>'.replace(".", ",")
-    # Veredelung
-    ver = []
-    for p, rez in REZEPTE.items():
-        w = ws[p]
-        txt = " + ".join(f'{str(je).replace(".", ",")} t {ws[s]["name"]}' for s, je in rez.items())
-        ver.append((p, f'{w["name"]} (je t: {txt})'))
+    liz = con.execute("SELECT * FROM hd_lizenzen WHERE schl=? ORDER BY zeit DESC", (ziel,)).fetchall()
+    if liz:
+        out += "<h2>Erworbene Baupläne</h2>" + amt.tabelle(["Gerät", "Preisfaktor", "Von", "Preis", "Seit"],
+            [(esc(kat[x["typ"]]["name"]) if x["typ"] in kat else esc(x["typ"]), f'{x["faktor"] * 100:.1f} %'.replace(".", ","), esc(namen.get(x["von"], x["von"])), _pk(x["preis"]), amt._zeit(x["zeit"])) for x in liz])
+    return _seite(request, k, "Handel – Lager", "lager", out, ziel)
+
+
+@sa.seite("staat")
+async def veredelung(request, k):
+    """Reiter „Veredelung“: Erzeugnisse herstellen und die Boni des Monats."""
+    ctx, fertig = _kontext(request, k, "Handel – Veredelung", "veredelung")
+    if fertig:
+        return fertig
+    con, namen, ziel, sp, out = ctx
+    import energie
+    ws = waren(con)
+    lg = lager(con, ziel)
+    c = amt.csrf_feld(request)
+    b = energie.bilanz(con, ziel)
+    wirkung = {"treibstoff": ("+", "Energieerzeugung"), "aluminium": ("+", "Effizienz der Industrie"), "stahl": ("−", "Preise für Militärgerät")}
+    zeilen = []
+    for p in energie.BONUSWAREN:
+        w = p[0]
+        bo = b["boni"][w]
+        rez = " + ".join(f'{str(je).replace(".", ",")} t {ws[st]["name"]}' for st, je in REZEPTE[w].items())
+        zeilen.append((esc(ws[w]["name"]), esc(rez), f'{zahl(lg.get(w, 0))} t', f'{zahl(bo["richt"])} t',
+                       f'{wirkung[w][0]}{energie._de(bo["anteil"] * energie.BONUS_MAX[w], 0)} % {wirkung[w][1]}'))
+    out += ("<h2>Boni diesen Monat</h2>" + amt.tabelle(["Erzeugnis", "Rohstoffe je Tonne", "Im Lager", "Für 100 %", "Bonus"], zeilen)
+            + '<p class="sa-hinweis">Der Bonus gilt bis zum Monatswechsel; dann wird die Menge für 100 % aus dem Lager verbraucht. Mehr Hergestelltes lässt sich verkaufen.</p>')
     if not sp:
-        out += (f'<h2>Veredelung</h2><form class="hd-form" method="post" action="{PFAD}veredeln">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
-                f'<div><label>Erzeugnis</label><select name="produkt">{_opt(ver)}</select></div><div><label>Menge (t)</label><input type="number" name="menge" min="1" value="1" required></div>'
-                f'<button class="btn zweit" type="submit">{amt.ic("wrench")}Veredeln</button></form>'
-                f'<p class="sa-hinweis">Rohstoffe stammen aus dem Lager (auch eingekaufte). Energie und Löhne kosten {einstellungen(con)["veredelung_kosten"]} % des Richtpreises und gehen an die Volkswirtschaft. '
-                f'{__import__("energie").hinweis_html(con)}</p>')
-    # eigene Angebote
+        opt = [(p[0], f'{ws[p[0]]["name"]}') for p in energie.BONUSWAREN]
+        out += (f'<h2>Veredeln</h2><form class="hd-form" method="post" action="{PFAD}veredeln">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
+                f'<div><label>Erzeugnis</label><select name="produkt">{_opt(opt)}</select></div><div><label>Menge (t)</label><input type="number" name="menge" min="1" value="1000" required></div>'
+                f'<button class="btn" type="submit">{amt.ic("wrench")}Veredeln</button></form>'
+                f'<p class="sa-hinweis">Rohstoffe stammen aus dem Lager. Energie und Löhne kosten {einstellungen(con)["veredelung_kosten"]} % des Richtpreises (an die Volkswirtschaft). {energie.hinweis_html(con)}</p>')
+    return _seite(request, k, "Handel – Veredelung", "veredelung", out, ziel)
+
+
+@sa.seite("staat")
+async def verkaufen(request, k):
+    """Reiter „Verkaufen“: Waren, Militärgerät oder Baupläne anbieten; eigene Angebote."""
+    ctx, fertig = _kontext(request, k, "Handel – Verkaufen", "verkaufen")
+    if fertig:
+        return fertig
+    con, namen, ziel, sp, out = ctx
+    ws = waren(con)
+    lg = lager(con, ziel)
+    vk = vorkommen(con, ziel)
+    kat = katalog_vt(con)
+    c = amt.csrf_feld(request)
+    art = request.query.get("art", "waren")
+    art = art if art in ("waren", "militaer", "plaene") else "waren"
+    chips = ('<div class="hd-chips">' + "".join(f'<a href="{PFAD}verkaufen/?art={a}&ziel={esc(ziel)}"{" class=aktiv" if a == art else ""}>{n}</a>'
+                                                  for a, n in (("waren", "Waren"), ("militaer", "Militärgerät"), ("plaene", "Baupläne"))) + "</div>")
+    out += chips
+    if art == "waren":
+        opts = [(w["schl"], f'{w["name"]} (Lager {zahl(lg[w["schl"]])} {w["einheit"]}, Richtpreis {_pk(w["preis"])})')
+                for w in ws.values() if w["aktiv"] and lg.get(w["schl"], 0) > 0 and (not w["ressource"] or vk.get(w["ressource"], 0) > 0)]
+        if opts and not sp:
+            out += (f'<form class="hd-form" method="post" action="{PFAD}anbieten">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
+                    f'<div><label>Ware</label><select name="ware">{_opt(opts)}</select></div><div><label>Menge</label><input type="number" name="menge" min="1" value="1" required></div>'
+                    '<div><label>Preis je Einheit (Kr)</label><input type="text" name="preis" inputmode="decimal" required></div>'
+                    f'<button class="btn" type="submit">{amt.ic("check")}Anbieten</button></form>')
+        else:
+            out += '<p class="az">Im Lager liegt nichts, was sich anbieten ließe.</p>'
+    elif art == "militaer":
+        best = [r for r in con.execute("SELECT * FROM vt_bestand WHERE stelle=? AND anzahl>0", (vt_stelle(ziel),)) if r["typ"] in kat and kat[r["typ"]]["kategorie"] != "Infrastruktur"]
+        if best and not sp:
+            o = [("mil:" + r["typ"], f'{kat[r["typ"]]["name"]} (Bestand {zahl(r["anzahl"])}, Bereitschaft {r["bereitschaft"]:.0f} %, Richtpreis {_pk(int(kat[r["typ"]]["preis"] * r["bereitschaft"] / 100))})') for r in best]
+            out += (f'<form class="hd-form" method="post" action="{PFAD}anbieten">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
+                    f'<div><label>Gerät aus dem eigenen Bestand</label><select name="ware">{_opt(o)}</select></div><div><label>Anzahl</label><input type="number" name="menge" min="1" value="1" required></div>'
+                    '<div><label>Preis je Stück (Kr)</label><input type="text" name="preis" inputmode="decimal" required></div>'
+                    f'<button class="btn" type="submit">{amt.ic("check")}Anbieten</button></form>'
+                    '<p class="sa-hinweis">Das Gerät wird mit seiner Einsatzbereitschaft verkauft und ist ab dem Einstellen aus dem Bestand genommen; beim Zurückziehen kommt es zurück.</p>')
+        else:
+            out += '<p class="az">Es gibt kein Militärgerät, das sich anbieten ließe.</p>'
+    else:
+        f = eigener_faktor(con, ziel)
+        if f <= 0.99 and not sp:
+            o = [("plan:" + t["schl"], f'{t["name"]} (Richtpreis {_pk(plan_preis(con, t["schl"], f))})') for t in kat.values() if t["kategorie"] != "Infrastruktur"]
+            out += (f'<p>Die Forschung hat Militärgerät auf {f * 100:.1f} % des Katalogpreises verbilligt. Käufer fertigen danach zum selben Preisfaktor; der Bauplan bleibt bei Ihnen.</p>'.replace(".", ",")
+                    + f'<form class="hd-form" method="post" action="{PFAD}anbieten">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
+                      f'<div><label>Bauplan</label><select name="ware">{_opt(o)}</select></div><input type="hidden" name="menge" value="1">'
+                      '<div><label>Preis (Kr)</label><input type="text" name="preis" inputmode="decimal" required></div>'
+                      f'<button class="btn" type="submit">{amt.ic("check")}Anbieten</button></form>')
+        else:
+            out += f'<p class="az">Baupläne lassen sich verkaufen, sobald die eigene Forschung Militärgerät verbilligt hat (derzeit {(f - 1) * 100:+.1f} %).</p>'.replace(".", ",")
     eig = []
     for a in con.execute("SELECT * FROM hd_angebote WHERE anbieter=? AND status='offen' ORDER BY id DESC", (ziel,)):
         n, e_, _ = info(con, a["ware"], ws, kat)
@@ -746,11 +800,7 @@ async def mein(request, k):
                     f'<form class="sa-inline" method="post" action="{PFAD}zurueck">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
                     f'<input type="hidden" name="angebot" value="{a["id"]}"><button class="btn zweit klein" type="submit">Zurückziehen</button></form>'))
     out += "<h2>Meine Angebote</h2>" + amt.tabelle(["Ware", "Menge", "Preis", ""], eig, "Keine offenen Angebote.")
-    liz = con.execute("SELECT * FROM hd_lizenzen WHERE schl=? ORDER BY zeit DESC", (ziel,)).fetchall()
-    if liz:
-        out += "<h2>Erworbene Baupläne</h2>" + amt.tabelle(["Gerät", "Preisfaktor", "Von", "Preis", "Seit"],
-            [(esc(kat[x["typ"]]["name"]) if x["typ"] in kat else esc(x["typ"]), f'{x["faktor"] * 100:.1f} %'.replace(".", ","), esc(namen.get(x["von"], x["von"])), _pk(x["preis"]), amt._zeit(x["zeit"])) for x in liz])
-    return _seite(request, k, "Mein Handel", "mein", out, ziel)
+    return _seite(request, k, "Handel – Verkaufen", "verkaufen", out, ziel)
 
 
 @sa.seite("staat")
@@ -945,7 +995,7 @@ def _halter_pruefen(con, k, form):
 async def anbieten_post(request):
     k, form, con = await _post(request)
     z = _halter_pruefen(con, k, form)
-    back = f"{PFAD}mein/?ziel={z}"
+    back = f"{PFAD}verkaufen/?ziel={z}"
     try:
         anbieten(con, z, str(form.get("ware", "")), _int(form.get("menge")), geld.betrag_lesen(form.get("preis", "")) or 0, k)
         con.commit()
@@ -975,8 +1025,8 @@ async def zurueck_post(request):
         con.commit()
     except geld.Fehler as e:
         con.rollback()
-        sa.weiter(f"{PFAD}mein/?ziel={z}", str(e), True)
-    sa.weiter(f"{PFAD}mein/?ziel={z}", "Angebot zurückgezogen, die Ware ist wieder im Lager.")
+        sa.weiter(f"{PFAD}verkaufen/?ziel={z}", str(e), True)
+    sa.weiter(f"{PFAD}verkaufen/?ziel={z}", "Angebot zurückgezogen, die Ware ist wieder im Lager.")
 
 
 async def veredeln_post(request):
@@ -987,9 +1037,9 @@ async def veredeln_post(request):
         con.commit()
     except geld.Fehler as e:
         con.rollback()
-        sa.weiter(f"{PFAD}mein/?ziel={z}", str(e), True)
+        sa.weiter(f"{PFAD}veredelung/?ziel={z}", str(e), True)
     import energie
-    sa.weiter(f"{PFAD}mein/?ziel={z}", f"Veredelt; Kosten {mark(kosten)}, Energie {energie.gwh_text(energie.veredelung_gwh(con, str(form.get('produkt', '')), _int(form.get('menge'))))}.")
+    sa.weiter(f"{PFAD}veredelung/?ziel={z}", f"Veredelt; Kosten {mark(kosten)}, Energie {energie.gwh_text(energie.veredelung_gwh(con, str(form.get('produkt', '')), _int(form.get('menge'))))}.")
 
 
 async def ressourcen_post(request):
@@ -1086,6 +1136,8 @@ def registrieren(app):
     r = app.router
     r.add_get(PFAD, markt)
     r.add_get(PFAD + "mein/", mein)
+    r.add_get(PFAD + "veredelung/", veredelung)
+    r.add_get(PFAD + "verkaufen/", verkaufen)
     r.add_get(PFAD + "ressourcen/", ressourcen)
     r.add_get(PFAD + "buch/", buch)
     r.add_get(PFAD + "regeln/", regeln)

@@ -14,7 +14,7 @@ Angebot: Kraftwerke (Tabelle en_kraftwerke). Beim ersten Zugriff bekommt jeder H
   selbst übrig lässt (entwicklung.entwickeln: ind_faktor), und die „verfügbaren“ Mittel der Industrie-Scheibe im Tortendiagramm (etatplan). Es wird nur gebaut, solange die Lasten
   den Industrie-Etat nicht übersteigen. Stilllegung sowie alle Sätze ändert nur die RP-Leitung (/schatzamt/rp/energie/).
 Veredelungs-Boni (monatlich, aus dem Lager des Haushalts): Treibstoff steigert die Energieerzeugung (bis +100 %), Aluminium die Effizienz der Industrie (bis +100 %, d. h. weniger
-  Energiebedarf), Stahl senkt die Preise für Militärgerät (bis −10 %). Bonus = Lagerbestand ÷ Richtmenge (t je GWh Monatsbedarf, Sätze richt_*), höchstens 100 %. Zum Monatswechsel
+  Energiebedarf), Stahl senkt die Preise für Militärgerät (bis −10 %). Bonus = Lagerbestand ÷ Richtmenge (feste Tonnenzahl für 100 %, Sätze richt_*, Vorgabe 100.000 t), höchstens 100 %. Zum Monatswechsel
   wird die Richtmenge aus dem Lager verbraucht (monatswechsel), danach ist der Bonus weg; Überschuss darüber bleibt. Herstellen und Zukaufen (Handel) füllen das Lager, Verkaufen leert es.
 Energiemarkt (/schatzamt/energie/markt/): Haushalte mit Überschuss bieten GWh zu einem selbst gesetzten Preis an; Haushalte mit Versorgung unter „kauf_unter“ % kaufen,
   höchstens ihren Fehlbetrag, aus der Staats- bzw. Reichskasse an die Kasse des Verkäufers. Angebote und Käufe gelten nur für den laufenden Monat.
@@ -56,14 +56,14 @@ geld.VORGABEN.setdefault("energie", {
     "instand_faktor": 100,        # % der Instandhaltungssätze (Kr je erzeugter GWh, siehe INSTAND)
     "bau_monate": 24,             # Monate, über die der Bau aus dem Industrie-Etat gezahlt wird
     "kauf_unter": 60,             # Versorgung in %, unter der am Energiemarkt gekauft werden darf
-    "richt_treibstoff": 0.10, "richt_aluminium": 0.05, "richt_stahl": 0.10,   # Richtmenge je Monat in t je GWh Monatsbedarf (100 % Bonus)
+    "richt_treibstoff": 100000, "richt_aluminium": 100000, "richt_stahl": 100000,   # Tonnen im Lager für 100 % Bonus (und Verbrauch je Monatswechsel)
 })
 SAETZE = [("haushalt_kwh", "Verbrauch je Einwohner (kWh/Monat)"), ("industrie_gwh_je_mio", "Industrie (GWh je Mio. € BIP)"), ("mil_mwh_je_geraet", "Militärgerät (MWh/Monat je Gerät)"),
           ("ver_stahl", "Veredelung Stahl (MWh/t)"), ("ver_aluminium", "Veredelung Aluminium (MWh/t)"),
           ("ver_treibstoff", "Veredelung Treibstoff (MWh/t)"), ("zuf_max", "Höchstabzug Zufriedenheit (Punkte)"), ("infra_max", "Höchstabzug Infrastruktur (Punkte)"),
           ("ind_max", "Höchstabzug Industrie (Punkte)"), ("bau_faktor", "Baukosten (% der Tabelle)"), ("instand_faktor", "Instandhaltung (% der Tabelle)"),
           ("bau_monate", "Bau: Zahlung aus dem Industrie-Etat über (Monate)"), ("kauf_unter", "Zukauf am Markt erlaubt unter Versorgung (%)"),
-          ("richt_treibstoff", "Richtmenge Treibstoff (t je GWh Bedarf)"), ("richt_aluminium", "Richtmenge Aluminium (t je GWh Bedarf)"), ("richt_stahl", "Richtmenge Stahl (t je GWh Bedarf)")]
+          ("richt_treibstoff", "Treibstoff für 100 % Bonus (t)"), ("richt_aluminium", "Aluminium für 100 % Bonus (t)"), ("richt_stahl", "Stahl für 100 % Bonus (t)")]
 BONUSWAREN = [("treibstoff", "Treibstoff"), ("aluminium", "Aluminium"), ("stahl", "Stahl")]
 BONUS_MAX = {"treibstoff": 100.0, "aluminium": 100.0, "stahl": 10.0}   # % bei vollem Bonus: Energieerzeugung +, Effizienz der Industrie +, Preise für Militärgerät −
 VEREDELUNG = {"stahl": "ver_stahl", "aluminium": "ver_aluminium", "treibstoff": "ver_treibstoff"}
@@ -216,12 +216,12 @@ _WECHSEL = {"p": ""}
 
 
 def boni_berechnen(con, schl, basis_bedarf, s):
-    """{Ware: {lager, richt, anteil}}: Bonus-Anteil 0–1 = Lagerbestand ÷ Richtmenge (t je GWh Monatsbedarf ohne Veredelung)."""
+    """{Ware: {lager, richt, anteil}}: Bonus-Anteil 0–1 = Lagerbestand ÷ Richtmenge (feste Tonnenzahl für 100 %)."""
     import handel
     lag = handel.lager(con, schl)
     out = {}
     for w, _n in BONUSWAREN:
-        richt = max(1e-9, basis_bedarf * float(s["richt_" + w]))
+        richt = max(1.0, float(s["richt_" + w]))
         st = float(lag.get(w, 0))
         out[w] = {"lager": st, "richt": richt, "anteil": max(0.0, min(1.0, st / richt))}
     return out
@@ -250,11 +250,9 @@ def monatswechsel(con):
         import handel
         s = einstellungen(con)
         for schl in handel.halter(con):
-            ew, bip = bevoelkerung(con, schl, p)
-            basis = ew * float(s["haushalt_kwh"]) / 1e6 + bip / 12 * float(s["industrie_gwh_je_mio"]) + _mil_einheiten(con, schl) * float(s["mil_mwh_je_geraet"]) / 1000
             lag = handel.lager(con, schl)
             for w, _n in BONUSWAREN:
-                nehmen = int(min(float(lag.get(w, 0)), math.ceil(basis * float(s["richt_" + w]))))
+                nehmen = int(min(float(lag.get(w, 0)), float(s["richt_" + w])))
                 if nehmen > 0:
                     handel.lager_aendern(con, schl, w, -nehmen)
     con.commit()
@@ -718,7 +716,7 @@ def _seitenhtml(request, k, con, ziel):
     bz = [(esc(n), f'{_de(b["boni"][w]["lager"], 0)} t', f'{_de(b["boni"][w]["richt"], 0)} t', f'{wirkung[w][1]}{_de(b["boni"][w]["anteil"] * BONUS_MAX[w], 0)} % {wirkung[w][0]}')
           for w, n in BONUSWAREN]
     boni_html = ("<h2>Veredelung</h2>" + amt.tabelle(["Erzeugnis", "Im Lager", "Richtmenge", "Bonus diesen Monat"], bz, klasse="ee-tab")
-                 + f'<p><a href="{sa.PFAD}handel/mein/?ziel={esc(ziel)}">{amt.ic("arrow-right-left")}Veredeln und handeln</a></p>')
+                 + f'<p><a href="{sa.PFAD}handel/veredelung/?ziel={esc(ziel)}">{amt.ic("arrow-right-left")}Veredeln und handeln</a></p>')
     # Veredelung des Monats (nur wenn etwas veredelt wurde)
     nutz = con.execute("SELECT * FROM en_nutzung WHERE schl=? AND periode=? ORDER BY id DESC LIMIT 30", (ziel, b["periode"])).fetchall()
     nutz_html = ""
