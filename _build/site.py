@@ -1174,7 +1174,7 @@ def page_kanzler():
     "Die Privatresidenz des Kronkanzlers sind die Schlösser Brühl.",
   )}</div>
   <div class="figure-row" style="margin-top:28px">
-    {figure("ikanzleramtberlin02", "Kronkanzleramt in Groß-Berlin (Foto: Norbert Nagel, CC BY-SA 3.0)", group="kanzler-sitz")}
+    {figure("ikanzleramtamtssitz", "Kronkanzleramt in Groß-Berlin", group="kanzler-sitz")}
     {figure("ibruehlaugustusb01", "Schlösser Brühl (Foto: CEphoto, Uwe Aranas, CC BY-SA 3.0)", group="kanzler-sitz")}
   </div>
 </section>
