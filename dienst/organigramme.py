@@ -399,6 +399,7 @@ WAPPEN = {
     "i416b7a1e6d04b155": "Siegel der Reichsbehörden",
     "icf5ad018407fe134": "Siegel des Kronkanzlers",
     "i5a9f8040f8005417": "Standarte des Kronkanzlers",
+    "i6b2e0c7d41a95f38": "The Crown Estates",
     "i42648ed6ea92d607": "Amtslogo des Kronkanzlers",
     "i2e330402e5d67b0a": "Emblem der Imperialen Charta",
     "i1ed8e9913dc91849": "Emblem des Etiketten-Guides",
