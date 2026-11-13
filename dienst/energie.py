@@ -485,7 +485,7 @@ def _seitenhtml(request, k, con, ziel):
     if sa.ist_rp(k):
         s = b["einstellung"]
         felder = "".join(f'<div><label for="s-{n}">{esc(t)}</label><input id="s-{n}" name="{n}" value="{esc(str(s[n]).replace(".", ","))}" inputmode="decimal" required></div>' for n, t in SAETZE)
-        saetze = (f'<details class="sa-auf"><summary>{amt.ic("wrench")}Sätze (RP-Leitung)</summary><form class="ee-form" method="post" action="{PFAD}saetze">'
+        saetze = (f'<details class="sa-auf"><summary>{amt.ic("pencil")}Sätze (RP-Leitung)</summary><form class="ee-form" method="post" action="{PFAD}saetze">'
                   f'{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}">{felder}<button class="btn" type="submit">Speichern</button></form></details>')
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in _ziele(con))
     return (entwicklung.CSS + CSS + f'<h1>{amt.ic("zap")} Energie · {esc(name)}</h1>{amt.meldung(request)}'
