@@ -267,8 +267,7 @@ MODULE = [
                                   + 0.15 * (NEUTRAL - 0.8 * (z["co2"] - 50)) - 0.3 * max(0, z["ueberwachung"] - 30), 0, 100))],
      "wirkungen": _wirk_kultur},
     {"id": "energie", "name": "Energieversorgung", "icon": "zap", "kategorien": (),
-     "beschreibung": "Bevölkerung, Industrie, Veredelung und Militär brauchen Energie. Reicht die Erzeugung nicht, sinkt zuerst die Zufriedenheit der Bevölkerung, dann Infrastruktur "
-                     "und Industrie. Kraftwerke baut der Landesherr unter „Energie“ aus; fossile Erzeugung belastet das Klima.",
+     "beschreibung": "Fehlende Energie senkt Zufriedenheit, Infrastruktur und Industrie.",
      "indikatoren": [], "wirkungen": lambda z, ctx: []},
     {"id": "bevoelkerung", "name": "Bevölkerungswachstum und Schwund", "icon": "users", "kategorien": (),
      "beschreibung": "Die Einwohnerzahl ändert sich jeden Monat um die Summe aus Gesundheit, Wasserversorgung, Hunger und der Stimmung (Abwanderung bei Unzufriedenheit, "

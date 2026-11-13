@@ -50,9 +50,9 @@ SAETZE = [("haushalt_kwh", "Verbrauch je Einwohner (kWh/Monat)"), ("industrie_gw
           ("ind_max", "Höchstabzug Industrie (Punkte)"), ("bau_faktor", "Baukosten (% der Tabelle)")]
 VEREDELUNG = {"stahl": "ver_stahl", "aluminium": "ver_aluminium", "treibstoff": "ver_treibstoff"}
 
-# (Schlüssel, Name, Baukosten Mio. Kr je GWh/Monat Leistung – hohe Preise, keine Bauzeit –, Klima-Gewicht)
-TYPEN = [("kohle", "Kohlekraftwerk", 30.0, 1.00), ("gas", "Gaskraftwerk", 20.0, 0.55), ("oel", "Ölkraftwerk", 20.0, 0.80), ("kern", "Kernkraftwerk", 110.0, 0.03),
-         ("wasser", "Wasserkraftwerk", 70.0, 0.0), ("wind", "Windpark", 30.0, 0.0), ("solar", "Solarpark", 25.0, 0.0), ("biomasse", "Biomassekraftwerk", 35.0, 0.25)]
+# Jedes Kraftwerk hat eine feste Leistung (Schlüssel, Name, Leistung je Anlage in GWh/Monat, Preis je Anlage in Mio. Kr – hohe Preise, keine Bauzeit –, Klima-Gewicht)
+TYPEN = [("kohle", "Kohlekraftwerk", 320, 9600, 1.00), ("gas", "Gaskraftwerk", 200, 4000, 0.55), ("oel", "Ölkraftwerk", 45, 900, 0.80), ("kern", "Kernkraftwerk", 800, 88000, 0.03),
+         ("wasser", "Wasserkraftwerk", 35, 2450, 0.0), ("wind", "Windpark", 22, 660, 0.0), ("solar", "Solarpark", 9, 225, 0.0), ("biomasse", "Biomassekraftwerk", 10, 350, 0.25)]
 TYP = {t[0]: t for t in TYPEN}
 FARBEN = ["#6b7280", "#eb6834", "#8b5a2b", "#e34948", "#2a78d6", "#1baf7a", "#eda100", "#008300"]
 FOSSIL = ("kohle", "gas", "oel")
@@ -210,7 +210,7 @@ def bilanz(con, schl, periode=None, frisch=False):
     bedarf = hh + ind + mil + ver
     v = lambda g, b: (g / b) if b > 1e-9 else 1.0
     fossil = sum(mix.get(t, 0) for t in FOSSIL)
-    klima = sum(mix.get(t, 0) * TYP[t][3] for t in mix) / S if S else 0.0
+    klima = sum(mix.get(t, 0) * TYP[t][4] for t in mix) / S if S else 0.0
     b = {"periode": periode, "schl": schl, "ew": ew, "bip": bip, "hh": hh, "ind": ind, "mil": mil, "ver": ver, "bedarf": bedarf, "angebot": S, "mix": mix,
          "v_hh": v(g_hh, hh), "v_mil": v(g_mil, mil), "v_ind": v(g_ind, ind + ver), "v_ges": min(1.0, v(S, bedarf)), "frei": S - (hh + ind + mil + ver), "n_mil": n_mil,
          "fossil": fossil / S * 100 if S else 0.0, "erneuerbar": sum(mix.get(t, 0) for t in ("wasser", "wind", "solar", "biomasse")) / S * 100 if S else 0.0,
@@ -286,8 +286,8 @@ def veredelung_buchen(con, schl, gwh, text, k):
 
 def hinweis_html(con):
     s = einstellungen(con)
-    return (f'Energiebedarf je Tonne: Stahl {_de(float(s["ver_stahl"]), 1)} MWh, Aluminium {_de(float(s["ver_aluminium"]), 1)} MWh, '
-            f'Treibstoff {_de(float(s["ver_treibstoff"]), 1)} MWh. Veredelt wird nur, solange der Teilstaat noch freie Energie hat (<a href="{PFAD}">Energie</a>).')
+    return (f'Energie je Tonne: Stahl {_de(float(s["ver_stahl"]), 1)} MWh, Aluminium {_de(float(s["ver_aluminium"]), 1)} MWh, Treibstoff {_de(float(s["ver_treibstoff"]), 1)} MWh '
+            f'(<a href="{PFAD}">Energie</a>).')
 
 
 # ---------------------------------------------------------------- Militär (verteidigung.instandhaltung)
@@ -318,41 +318,40 @@ def speichern(con, periode, liste):
 
 # ---------------------------------------------------------------- Ausbau und Stilllegung
 
-def baukosten(con, typ, gwh):
+def baukosten(con, typ, anzahl):
     s = einstellungen(con)
-    return int(round(gwh * TYP[typ][2] * 1e6 * 100 * float(s["bau_faktor"]) / 100))   # Heller
+    return int(round(anzahl * TYP[typ][3] * 1e6 * 100 * float(s["bau_faktor"]) / 100))   # Heller
 
 
-def ausbauen(con, schl, typ, gwh, k):
-    import etatplan
+def ausbauen(con, schl, typ, anzahl, k):
     import handel
     if typ not in TYP:
-        raise geld.Fehler("Bitte einen Kraftwerkstyp wählen.")
-    if not 0.1 <= gwh <= 200000:
-        raise geld.Fehler("Die Leistung muss zwischen 0,1 und 200.000 GWh je Monat liegen.")
-    kosten = baukosten(con, typ, gwh)
+        raise geld.Fehler("Bitte ein Kraftwerk wählen.")
+    if not 1 <= anzahl <= 100:
+        raise geld.Fehler("Bitte eine Anzahl zwischen 1 und 100 angeben.")
+    kosten = baukosten(con, typ, anzahl)
+    gwh = anzahl * TYP[typ][2]
     kc = handel.kasse(con, schl)
     if kc["saldo"] < kosten:
-        raise geld.Fehler(f'Die {kc["name"]} ist nicht gedeckt: Der Bau kostet {geld.mark(kosten)}.')
+        raise geld.Fehler(f'Die {kc["name"]} ist nicht gedeckt: {anzahl} × {TYP[typ][1]} kosten {geld.mark(kosten)}.')
     sichern(con, schl)
-    geld.buchen(con, kc["id"], geld.sonder(con, "volkswirtschaft")["id"], kosten, "energie", f"Bau {TYP[typ][1]} ({gwh:g} GWh/Monat)", k, bezug=f"ENERGIE-{schl}")
+    geld.buchen(con, kc["id"], geld.sonder(con, "volkswirtschaft")["id"], kosten, "energie", f"Bau {anzahl} × {TYP[typ][1]}", k, bezug=f"ENERGIE-{schl}")
     con.execute("INSERT INTO en_kraftwerke (schl, typ, gwh, ab, bezahlt, von, zeit) VALUES (?,?,?,?,?,?,?)", (schl, typ, gwh, "", kosten, k["name"], int(time.time())))
-    geld.protokoll(con, k, "Energie: Ausbau", f"{_name(con, schl)}: {TYP[typ][1]} {gwh:g} GWh/Monat für {geld.mark(kosten)} (zahlt {kc['name']})")
+    geld.protokoll(con, k, "Energie: Ausbau", f"{_name(con, schl)}: {anzahl} × {TYP[typ][1]} ({gwh_text(gwh)}/Monat) für {geld.mark(kosten)} (zahlt {kc['name']})")
     leeren()
     return kosten, kc["name"]
 
 
-def stilllegen(con, schl, typ, gwh, k):
-    """Nimmt Leistung eines Typs vom Netz (zuerst im Bau befindliche Anlagen verschont: nur Anlagen in Betrieb, ältere zuerst). Keine Erstattung."""
-    import etatplan
-    if typ not in TYP or gwh <= 0:
-        raise geld.Fehler("Bitte Typ und Leistung angeben.")
+def stilllegen(con, schl, typ, anzahl, k):
+    """Nimmt `anzahl` Kraftwerke eines Typs vom Netz (ältere zuerst). Keine Erstattung."""
+    if typ not in TYP or anzahl < 1:
+        raise geld.Fehler("Bitte Kraftwerk und Anzahl angeben.")
     sichern(con, schl)
-    heute = etatplan.monat_heute()
-    rest = gwh
-    laufend = [r for r in kraftwerke(con, schl) if r["typ"] == typ and (not r["ab"] or r["ab"] <= heute)]
+    gwh = anzahl * TYP[typ][2]
+    laufend = [r for r in kraftwerke(con, schl) if r["typ"] == typ]
     if sum(r["gwh"] for r in laufend) + 1e-9 < gwh:
         raise geld.Fehler(f'Es sind nur {gwh_text(sum(r["gwh"] for r in laufend))} {TYP[typ][1]} in Betrieb.')
+    rest = gwh
     for r in laufend:
         if rest <= 1e-9:
             break
@@ -362,7 +361,7 @@ def stilllegen(con, schl, typ, gwh, k):
         else:
             con.execute("UPDATE en_kraftwerke SET gwh=? WHERE id=?", (round(r["gwh"] - nehmen, 3), r["id"]))
         rest -= nehmen
-    geld.protokoll(con, k, "Energie: Stilllegung", f"{_name(con, schl)}: {TYP[typ][1]} {gwh:g} GWh/Monat")
+    geld.protokoll(con, k, "Energie: Stilllegung", f"{_name(con, schl)}: {anzahl} × {TYP[typ][1]} ({gwh_text(gwh)}/Monat)")
     leeren()
 
 
@@ -410,82 +409,72 @@ def _verlauf_svg(zeilen):
             f'<div class="ee-leg"><span style="--c:#1baf7a">Angebot</span><span style="--c:#e34948">Bedarf</span></div>')
 
 
+def _auf(titel, inhalt, symbol="clock"):
+    return f'<details class="sa-auf"><summary>{amt.ic(symbol)}{esc(titel)}</summary>{inhalt}</details>'
+
+
 def _seitenhtml(request, k, con, ziel):
     import etatplan
     import entwicklung
     b = bilanz(con, ziel, frisch=True)
     name = dict(_ziele(con))[ziel]
     stufe, text = lage(b)
-    darf = etatplan.darf_aendern(con, k, ziel)   # Ausbau: Landesherr bzw. Schatzamt-Leitung (Reich)
+    darf = etatplan.darf_aendern(con, k, ziel)
     kz = lambda xs: f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in xs)}</div>'
-    kopf = kz([("Versorgung", f'{_de(b["v_ges"] * 100, 0)} %'), ("Angebot", gwh_text(b["angebot"])), ("Bedarf", gwh_text(b["bedarf"])),
-               ("Reserve" if b["frei"] >= 0 else "Fehlbetrag", gwh_text(abs(b["frei"]))), ("Erneuerbare", f'{_de(b["erneuerbar"], 0)} %'),
-               ("Verbrauch je Kopf", f'{_de(b["bedarf"] * 1e6 / b["ew"], 0) if b["ew"] else "–"} kWh/Monat')])
+    kopf = kz([("Versorgung", f'{_de(b["v_ges"] * 100, 0)} %'), ("Erzeugung", gwh_text(b["angebot"])), ("Bedarf", gwh_text(b["bedarf"])),
+               ("Überschuss" if b["frei"] >= 0 else "Fehlbetrag", gwh_text(abs(b["frei"]))), ("Erneuerbare", f'{_de(b["erneuerbar"], 0)} %')])
     symbol = {"ok": "check", "knapp": "triangle-alert", "mangel": "triangle-alert", "ausfall": "triangle-alert"}[stufe]
     folgen = []
     ef, shift = wirkungen_fuer(con, ziel, b["periode"])
     for e in ef:
-        folgen.append(f'<li><b>{esc(e["titel"])}</b>: {esc(e["text"])} ({_de(e["wert"], 1)} {"Punkte" if e["hebel"] == "zuf_pt" else "%"})</li>')
+        folgen.append(f'<li><b>{esc(e["titel"])}</b> ({_de(e["wert"], 1)} {"Punkte" if e["hebel"] == "zuf_pt" else "%"})</li>')
     for i, t in (("wasser", "Infrastruktur"), ("industrie", "Industrie")):
         if shift.get(i, 0) < -0.05:
-            folgen.append(f'<li><b>{t}</b>: Zielwert {_de(shift[i], 0)} Punkte durch fehlende Energie</li>')
-    lage_html = (f'<div class="ee-lage {stufe}">{amt.ic(symbol)}<div><b>{esc(text)}</b>'
-                 + (f'<ul>{"".join(folgen)}</ul>' if folgen else '<p class="sa-hinweis">Keine Mali: Bevölkerung, Infrastruktur und Industrie sind ausreichend versorgt.</p>')
-                 + '</div></div>')
+            folgen.append(f'<li><b>{t}</b> ({_de(shift[i], 0)} Punkte Zielwert)</li>')
+    lage_html = f'<div class="ee-lage {stufe}">{amt.ic(symbol)}<div><b>{esc(text)}</b>' + (f'<ul>{"".join(folgen)}</ul>' if folgen else "") + '</div></div>'
     # Bedarf
-    verbr = [("Bevölkerung", b["hh"], b["v_hh"], "#2a78d6"), ("Militär", b["mil"], b["v_mil"], "#6250d6"), ("Industrie", b["ind"], b["v_ind"], "#eb6834"), ("Veredelung (laufender Monat)", b["ver"], b["v_ind"], "#eda100")]
-    zeilen = [(esc(n), gwh_text(w), f'{_de(w / b["bedarf"] * 100, 1) if b["bedarf"] else "0"} %', f'{_de(v * 100, 0)} %') for n, w, v, _ in verbr]
-    bedarf_html = (_balken([(n, w, c) for n, w, _, c in verbr]) + amt.tabelle(["Verbraucher", "Bedarf", "Anteil", "Versorgt"], zeilen, klasse="ee-tab")
-                   + '<p class="sa-hinweis">Bei Knappheit wird zuerst die Bevölkerung versorgt, dann das Militär, zuletzt Industrie und Veredelung.</p>')
-    # Mix
+    verbr = [("Bevölkerung", b["hh"], b["v_hh"], "#2a78d6"), ("Militär", b["mil"], b["v_mil"], "#6250d6"), ("Industrie", b["ind"], b["v_ind"], "#eb6834"), ("Veredelung", b["ver"], b["v_ind"], "#eda100")]
+    zeilen = [(esc(n), gwh_text(w), f'{_de(v * 100, 0)} %') for n, w, v, _ in verbr if w > 0]
+    bedarf_html = _balken([(n, w, c) for n, w, _, c in verbr]) + amt.tabelle(["Verbraucher", "Bedarf", "Versorgt"], zeilen, klasse="ee-tab")
+    # Erzeugung
     mix_teile = [(TYP[t][1], b["mix"].get(t, 0), FARBEN[i]) for i, (t, *_r) in enumerate(TYPEN)]
-    kw = []
-    heute = b["periode"]
-    for r in kraftwerke(con, ziel):
-        betrieb = not r["ab"] or r["ab"] <= heute
-        kw.append((esc(TYP[r["typ"]][1]), gwh_text(r["gwh"]), "in Betrieb" if betrieb else f'ab {esc(r["ab"])}', esc(r["von"] or "–")))
+    kw = [(esc(TYP[t][1]), gwh_text(g), f'{_de(g / b["angebot"] * 100, 0)} %') for t, g in sorted(b["mix"].items(), key=lambda x: -x[1]) if g > 0 and b["angebot"]]
     ausbau = ""
     if darf:
-        opt = "".join(f'<option value="{t}">{esc(n)}</option>' for t, n, c, _ in TYPEN)
-        ausbau = (f'<h3>Ausbau</h3><form class="ee-form" method="post" action="{PFAD}ausbau">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}">'
+        opt = "".join(f'<option value="{t}">{esc(n)} – {gwh_text(g)}/Monat, {_de(p * float(b["einstellung"]["bau_faktor"]) / 100 / 1000, 1)} Mrd. Kr</option>' for t, n, g, p, _ in TYPEN)
+        ausbau = (f'<h3>Kraftwerke bauen</h3><form class="ee-form" method="post" action="{PFAD}ausbau">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}">'
                   f'<div><label for="ea-t">Kraftwerk</label><select id="ea-t" name="typ">{opt}</select></div>'
-                  '<div><label for="ea-g">Leistung (GWh je Monat)</label><input id="ea-g" name="gwh" inputmode="decimal" required></div>'
-                  f'<button class="btn" type="submit">{amt.ic("zap")}Bauen</button></form>'
-                  '<p class="sa-hinweis">Baukosten je GWh/Monat: ' + ", ".join(f'{esc(n)} {_de(c * float(b["einstellung"]["bau_faktor"]) / 100, 1)} Mio. Kr' for t, n, c, _ in TYPEN)
-                  + '. Die Staats- bzw. Reichskasse zahlt den Bau sofort an die Volkswirtschaft (sie muss gedeckt sein); die Anlage ist sofort in Betrieb. Stilllegungen und Sätze setzt die RP-Leitung.</p>'
-                  )
-    mix_html = (_balken(mix_teile) + f'<p class="sa-hinweis">Fossile Erzeugung {_de(b["fossil"], 0)} %. Der Mix wirkt auf die CO₂-Belastung '
-                f'(Umwelt): {"belastend" if b["klima"] > KLIMA_NEUTRAL + 0.02 else "entlastend" if b["klima"] < KLIMA_NEUTRAL - 0.02 else "neutral"}.</p>'
-                + amt.tabelle(["Kraftwerk", "Leistung", "Stand", "Gebaut von"], kw, "Keine Kraftwerke.", klasse="ee-tab") + ausbau)
-    # Veredelung des Monats
-    nutz = con.execute("SELECT * FROM en_nutzung WHERE schl=? AND periode=? ORDER BY id DESC LIMIT 30", (ziel, heute)).fetchall()
-    nutz_html = amt.tabelle(["Zeit", "Vorgang", "Energie", "Von"], [(esc(amt._zeit(r["zeit"])), esc(r["text"] or r["art"]), gwh_text(r["gwh"]), esc(r["autor"])) for r in nutz],
-                            "In diesem Monat wurde nichts veredelt.", klasse="ee-tab")
-    # Verlauf
+                  '<div><label for="ea-n">Anzahl</label><input id="ea-n" name="anzahl" type="number" min="1" max="100" value="1" required></div>'
+                  f'<button class="btn" type="submit">{amt.ic("zap")}Bauen</button></form>')
+    mix_html = _balken(mix_teile) + amt.tabelle(["Kraftwerk", "Erzeugung", "Anteil"], kw, "Keine Kraftwerke.", klasse="ee-tab") + ausbau
+    # Veredelung des Monats (nur wenn etwas veredelt wurde)
+    nutz = con.execute("SELECT * FROM en_nutzung WHERE schl=? AND periode=? ORDER BY id DESC LIMIT 30", (ziel, b["periode"])).fetchall()
+    nutz_html = ""
+    if nutz:
+        nutz_html = "<h2>Veredelung in diesem Monat</h2>" + amt.tabelle(["Vorgang", "Energie", "Von"], [(esc(r["text"] or r["art"]), gwh_text(r["gwh"]), esc(r["autor"])) for r in nutz], klasse="ee-tab")
+    # Verlauf (eingeklappt)
     vl = con.execute("SELECT * FROM en_monat WHERE schl=? ORDER BY periode DESC LIMIT 24", (ziel,)).fetchall()
     diag = _verlauf_svg([(r["periode"], r["angebot"], r["bev"] + r["ind"] + r["mil"] + r["ver"]) for r in reversed(vl)])
-    vz = [(esc(sa._monatsname(r["periode"])), gwh_text(r["angebot"]), gwh_text(r["bev"] + r["ind"] + r["mil"] + r["ver"]), f'{_de(r["v_ges"] * 100, 0)} %', f'{_de(r["v_hh"] * 100, 0)} %',
-           f'{_de(r["v_ind"] * 100, 0)} %') for r in vl]
-    verlauf_html = diag + amt.tabelle(["Monat", "Angebot", "Bedarf", "Versorgung", "Bevölkerung", "Industrie"], vz, "Noch kein gebuchter Monat mit Energiebilanz.", klasse="ee-tab")
-    # Vergleich
+    vz = [(esc(sa._monatsname(r["periode"])), gwh_text(r["angebot"]), gwh_text(r["bev"] + r["ind"] + r["mil"] + r["ver"]), f'{_de(r["v_ges"] * 100, 0)} %') for r in vl]
+    verlauf_html = _auf(f"Verlauf ({len(vl)} Monate)", diag + amt.tabelle(["Monat", "Erzeugung", "Bedarf", "Versorgung"], vz, "Noch kein gebuchter Monat.", klasse="ee-tab"))
+    # Vergleich (eingeklappt)
     reihen = []
     for s, n in _ziele(con):
         c = bilanz(con, s)
         reihen.append((c["v_ges"], s, n, c))
     reihen.sort(key=lambda r: (r[0], r[2]))
-    vgl = [(f'<a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a>', f'{_de(c["ew"] / 1e6, 2)} Mio.', gwh_text(c["bedarf"]), gwh_text(c["angebot"]), f'{_de(v * 100, 0)} %',
-            f'{_de(c["erneuerbar"], 0)} %', f'{_de(c["bedarf"] * 1e6 / c["ew"], 0) if c["ew"] else "–"} kWh') for v, s, n, c in reihen]
-    summe_a = sum(r[3]["angebot"] for r in reihen)
-    summe_b = sum(r[3]["bedarf"] for r in reihen)
-    vgl_html = (amt.tabelle(["Haushalt", "Einwohner", "Bedarf", "Angebot", "Versorgung", "Erneuerbare", "je Kopf"], vgl, klasse="ee-tab")
-                + f'<p class="sa-hinweis">Das Reich insgesamt: Angebot {gwh_text(summe_a)}, Bedarf {gwh_text(summe_b)} ({_de(min(100, summe_a / summe_b * 100) if summe_b else 100, 0)} % gedeckt).</p>')
+    vgl = [(f'<a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a>', gwh_text(c["bedarf"]), gwh_text(c["angebot"]), f'{_de(v * 100, 0)} %', f'{_de(c["erneuerbar"], 0)} %') for v, s, n, c in reihen]
+    vgl_html = _auf("Vergleich aller Haushalte", amt.tabelle(["Haushalt", "Bedarf", "Erzeugung", "Versorgung", "Erneuerbare"], vgl, klasse="ee-tab"), "landmark")
+    s_ = b["einstellung"]
+    info = _auf("So funktioniert es",
+                '<p class="sa-hinweis">Die Bevölkerung verbraucht pauschal Energie, Industrie und Veredelung brauchen sie, das Militär nur wenig. Bei Knappheit wird zuerst die Bevölkerung versorgt, '
+                'dann das Militär, zuletzt Industrie und Veredelung. Fehlt Energie, sinken Zufriedenheit, Infrastruktur und Industrie. Fossile Kraftwerke belasten das Klima. '
+                f'Veredelung: Stahl {_de(float(s_["ver_stahl"]), 1)}, Aluminium {_de(float(s_["ver_aluminium"]), 1)}, Treibstoff {_de(float(s_["ver_treibstoff"]), 1)} MWh je Tonne – '
+                'sie läuft nur, solange noch Energie frei ist. Die Kraftwerke zahlt die Staatskasse; Stilllegungen und Sätze legt die RP-Leitung fest.</p>', "info" if "info" in amt.ICONS else "clock")
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in _ziele(con))
     return (entwicklung.CSS + CSS + f'<h1>{amt.ic("zap")} Energie · {esc(name)}</h1>{amt.meldung(request)}'
-            '<p class="az">Die Bevölkerung verbraucht pauschal Energie, die Industrie und jede Veredelung brauchen sie, das Militär nur wenig. Reicht die Erzeugung nicht, '
-            'sinken Zufriedenheit, Infrastruktur und Industrie.</p>'
             f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div></form>'
-            + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + "<h2>Veredelung in diesem Monat</h2>" + nutz_html
-            + f'<p class="sa-hinweis">{hinweis_html(con)}</p>' + "<h2>Verlauf</h2>" + verlauf_html + "<h2>Vergleich der Haushalte</h2>" + vgl_html)
+            + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + nutz_html + verlauf_html + vgl_html + info)
 
 
 def _ziel(request, k, con):
@@ -518,6 +507,13 @@ def _zahl(s):
         return 0.0
 
 
+def _anzahl(s):
+    try:
+        return int(str(s).strip())
+    except ValueError:
+        return 0
+
+
 def _recht(con, k, form):
     z = str(form.get("ziel", ""))
     import etatplan
@@ -531,12 +527,12 @@ async def ausbau_post(request):
     z = _recht(con, k, form)
     back = f"{PFAD}?ziel={z}"
     try:
-        kosten, zahler = ausbauen(con, z, str(form.get("typ", "")), _zahl(form.get("gwh")), k)
+        kosten, zahler = ausbauen(con, z, str(form.get("typ", "")), _anzahl(form.get("anzahl")), k)
         con.commit()
     except geld.Fehler as e:
         con.rollback()
         sa.weiter(back, str(e), True)
-    sa.weiter(back, f"Gebaut und in Betrieb. Die {zahler} zahlt {geld.mark(kosten)}.")
+    sa.weiter(back, f"Gebaut. Die {zahler} zahlt {geld.mark(kosten)}.")
 
 
 async def stilllegen_post(request):
@@ -548,12 +544,12 @@ async def stilllegen_post(request):
         raise web.HTTPForbidden()
     back = RPE
     try:
-        stilllegen(con, z, str(form.get("typ", "")), _zahl(form.get("gwh")), k)
+        stilllegen(con, z, str(form.get("typ", "")), _anzahl(form.get("anzahl")), k)
         con.commit()
     except geld.Fehler as e:
         con.rollback()
         sa.weiter(back, str(e), True)
-    sa.weiter(back, "Die Leistung wurde vom Netz genommen.")
+    sa.weiter(back, "Vom Netz genommen.")
 
 
 async def saetze_post(request):
@@ -580,21 +576,19 @@ async def rp_energie(request, k):
     c = amt.csrf_feld(request)
     felder = "".join(f'<div><label for="s-{n}">{esc(t)}</label><input id="s-{n}" name="{n}" value="{esc(str(s[n]).replace(".", ","))}" inputmode="decimal" required></div>' for n, t in SAETZE)
     opt_ziel = "".join(f'<option value="{esc(z)}">{esc(n)}</option>' for z, n in _ziele(con))
-    opt_typ = "".join(f'<option value="{t}">{esc(n)}</option>' for t, n, _c, _k in TYPEN)
+    opt_typ = "".join(f'<option value="{t}">{esc(n)} ({gwh_text(g)}/Monat)</option>' for t, n, g, _p, _k in TYPEN)
     zeilen = []
     for z, n in _ziele(con):
         b = bilanz(con, z)
-        zeilen.append((f'<a href="{PFAD}?ziel={esc(z)}">{esc(n)}</a>', gwh_text(b["bedarf"]), gwh_text(b["angebot"]), f'{_de(b["v_ges"] * 100, 0)} %', f'{_de(b["erneuerbar"], 0)} %'))
+        zeilen.append((f'<a href="{PFAD}?ziel={esc(z)}">{esc(n)}</a>', gwh_text(b["bedarf"]), gwh_text(b["angebot"]), f'{_de(b["v_ges"] * 100, 0)} %'))
     inhalt = (CSS + f'<h1>{amt.ic("zap")} Energie · Konfiguration</h1>{amt.meldung(request)}'
-              '<p class="az">Hier legt die RP-Leitung fest, wie viel Energie verbraucht wird, was Kraftwerke kosten und welche Anlagen stillgelegt werden. '
-              'Landesherren bauen ihre Kraftwerke selbst aus (Reiter „Energie“ bei „Mein Teilstaat“).</p>'
               f'<h2>Sätze</h2><form class="ee-form" method="post" action="{PFAD}saetze">{c}{felder}<button class="btn" type="submit">{amt.ic("check")}Speichern</button></form>'
               f'<h2>Kraftwerke stilllegen</h2><form class="ee-form" method="post" action="{PFAD}stilllegen">{c}'
               f'<div><label for="rs-z">Haushalt</label><select id="rs-z" name="ziel">{opt_ziel}</select></div>'
               f'<div><label for="rs-t">Kraftwerk</label><select id="rs-t" name="typ">{opt_typ}</select></div>'
-              '<div><label for="rs-g">Leistung (GWh je Monat)</label><input id="rs-g" name="gwh" inputmode="decimal" required></div>'
-              '<button class="btn zweit" type="submit">Stilllegen</button></form><p class="sa-hinweis">Stillgelegte Leistung wird nicht erstattet.</p>'
-              '<h2>Lage aller Haushalte</h2>' + amt.tabelle(["Haushalt", "Bedarf", "Angebot", "Versorgung", "Erneuerbare"], zeilen, klasse="ee-tab"))
+              '<div><label for="rs-g">Anzahl</label><input id="rs-g" name="anzahl" type="number" min="1" value="1" required></div>'
+              '<button class="btn zweit" type="submit">Stilllegen</button></form>'
+              + _auf("Lage aller Haushalte", amt.tabelle(["Haushalt", "Bedarf", "Erzeugung", "Versorgung"], zeilen, klasse="ee-tab"), "landmark"))
     return sa.ant(request, k, "Energie: Konfiguration", "sa-rp-energie", inhalt)
 
 
