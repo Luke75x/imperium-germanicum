@@ -17,7 +17,7 @@ Veredelungs-Boni (monatlich, aus dem Lager des Haushalts): Treibstoff steigert d
   Energiebedarf), Stahl senkt die Preise für Militärgerät (bis −10 %). Bonus = Lagerbestand ÷ Richtmenge (feste Tonnenzahl für 100 %, Sätze richt_*, Vorgabe 100.000 t), höchstens 100 %. Zum Monatswechsel
   wird die Richtmenge aus dem Lager verbraucht (monatswechsel), danach ist der Bonus weg; Überschuss darüber bleibt. Herstellen und Zukaufen (Handel) füllen das Lager, Verkaufen leert es.
 Energiemarkt (/schatzamt/energie/markt/): Haushalte mit Überschuss bieten GWh zu einem selbst gesetzten Preis an; Haushalte mit Versorgung unter „kauf_unter“ % kaufen,
-  höchstens ihren Fehlbetrag, in Prozent des Angebots (mehrere Käufer teilen sich ein Angebot, bis es leer ist), aus der Staats- bzw. Reichskasse an die Kasse des Verkäufers. Angebote und Käufe gelten nur für den laufenden Monat.
+  höchstens ihren Fehlbetrag, in Prozent des Angebots (mehrere Käufer teilen sich ein Angebot, bis es leer ist), aus der Staats- bzw. Reichskasse (darf überzogen werden) an die Kasse des Verkäufers. Angebote und Käufe gelten nur für den laufenden Monat.
 Versorgung bei Knappheit: zuerst die Bevölkerung, dann das Militär, zuletzt Industrie und Veredelung.
 Folgen (entwicklung.entwickeln ruft wirkungen_fuer): Unterversorgung der Bevölkerung senkt die Zufriedenheit, mangelnde Gesamtversorgung verschiebt die Zielwerte der
   Infrastruktur (Wasser, Müll, Straßen) nach unten, fehlende Energie für die Industrie das Industrieniveau und das BIP pro Kopf. Fossile Kraftwerke belasten das Klima (CO₂).
@@ -119,6 +119,16 @@ def ueberschuss_pz(b):
     if b["bedarf"] <= 0 or b["frei"] <= 0.0005 * b["bedarf"]:
         return ""
     return f' <small>(+{_de(b["frei"] / b["bedarf"] * 100, 0)} %)</small>'
+
+
+def verkauf_klein(b):
+    """Kleine Zahl neben dem Überschuss: wie viel davon verkauft ist (und wie viel noch im Angebot steht)."""
+    teile = []
+    if b["verkauf"] > 0.0005:
+        teile.append(f'{gwh_text(b["verkauf"])} verkauft')
+    if b["reserviert"] > 0.0005:
+        teile.append(f'{gwh_text(b["reserviert"])} im Angebot')
+    return f' <small>({esc(", ".join(teile))})</small>' if teile else ""
 
 
 def gwh_text(x):
@@ -589,10 +599,8 @@ def kaufen(con, angebot, schl, prozent, k):
         raise geld.Fehler(f'Ihr Fehlbetrag ({gwh_text(fehl)}) entspricht höchstens {_de(fehl / a["menge"] * 100, 1)} % dieses Angebots.')
     summe = int(round(menge * a["preis"]))
     von, an = handel.kasse(con, schl), handel.kasse(con, a["schl"])
-    if von["saldo"] < summe:
-        raise geld.Fehler(f'Die {von["name"]} ist nicht gedeckt: {_de(prozent, 1)} % ({gwh_text(menge)}) kosten {geld.mark(summe)}.')
-    if summe > 0:
-        geld.buchen(con, von["id"], an["id"], summe, "energiehandel", f"Energie: {gwh_text(menge)} zu {geld.mark(a['preis'])} je GWh", k, bezug=f"ENERGIE-MARKT-{angebot}")
+    if summe > 0:   # Die Staatskasse darf dafür überzogen werden
+        geld.buchen(con, von["id"], an["id"], summe, "energiehandel", f"Energie: {gwh_text(menge)} zu {geld.mark(a['preis'])} je GWh", k, bezug=f"ENERGIE-MARKT-{angebot}", minus=True)
     rest = max(0.0, a["rest"] - menge)
     con.execute("UPDATE en_angebote SET rest=?, status=? WHERE id=?", (rest, "offen" if rest > 1e-6 else "verkauft", angebot))
     con.execute("INSERT INTO en_geschaefte (periode, angebot, verkaeufer, kaeufer, menge, preis, summe, autor, zeit) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -664,13 +672,11 @@ def _seitenhtml(request, k, con, ziel):
     darf = etatplan.darf_aendern(con, k, ziel)
     kz = lambda xs: f'<div class="kennzahlen">{"".join(f"<div><b>{v if isinstance(v, Roh) else esc(v)}</b>{esc(t)}</div>" for t, v in xs)}</div>'
     kennz = [("Versorgung", Roh(f'{_de(b["v_ges"] * 100, 0)} %{ueberschuss_pz(b)}')), ("Erzeugung", gwh_text(b["erzeugung"])), ("Bedarf", gwh_text(b["bedarf"])),
-             ("Überschuss" if b["frei"] >= 0 else "Fehlbetrag", gwh_text(abs(b["frei"]))), ("Erneuerbare", f'{_de(b["erneuerbar"], 0)} %')]
+             ("Überschuss" if b["frei"] >= 0 else "Fehlbetrag", Roh(esc(gwh_text(abs(b["frei"]))) + verkauf_klein(b))), ("Erneuerbare", f'{_de(b["erneuerbar"], 0)} %')]
     if b["boni"]["treibstoff"]["anteil"] > 0:
         kennz.append(("Treibstoff-Bonus", f'+{_de(b["boni"]["treibstoff"]["anteil"] * BONUS_MAX["treibstoff"], 0)} %'))
     if b["zukauf"] > 0:
         kennz.append(("Zugekauft", gwh_text(b["zukauf"])))
-    if b["verkauf"] > 0:
-        kennz.append(("Verkauft", gwh_text(b["verkauf"])))
     kopf = kz(kennz)
     symbol = "check" if stufe_ == "gut" else "triangle-alert"
     folgen = []
