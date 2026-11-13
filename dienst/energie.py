@@ -114,6 +114,13 @@ def _de(x, st=1):
     return f"{x:,.{st}f}".replace(",", "§").replace(".", ",").replace("§", ".")
 
 
+def ueberschuss_pz(b):
+    """Überschuss in % des Bedarfs als HTML „(+X %)“ – nur bei Überschuss, sonst leer."""
+    if b["bedarf"] <= 0 or b["frei"] <= 0.0005 * b["bedarf"]:
+        return ""
+    return f' <small>(+{_de(b["frei"] / b["bedarf"] * 100, 0)} %)</small>'
+
+
 def gwh_text(x):
     """GWh, ab 10.000 als TWh."""
     return f"{_de(x / 1000, 1)} TWh" if abs(x) >= 10000 else f"{_de(x, 0 if abs(x) >= 100 else 1)} GWh"
@@ -618,6 +625,7 @@ def stilllegen(con, schl, typ, anzahl, k):
 # ---------------------------------------------------------------- Seite
 
 CSS = """<style>
+.kennzahlen b small{font-size:13px;font-weight:500;color:var(--grau,#666)}
 .ee-bar{display:flex;height:22px;border-radius:7px;overflow:hidden;background:var(--hell,#eee);margin:8px 0}
 .ee-bar i{display:block;height:100%}
 .ee-leg{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;margin:4px 0 12px}.ee-leg span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--c);margin-right:6px}
@@ -659,6 +667,10 @@ def _verlauf_svg(zeilen):
             f'<div class="ee-leg"><span style="--c:#1baf7a">Angebot</span><span style="--c:#e34948">Bedarf</span></div>')
 
 
+class Roh(str):
+    """Bereits maskierter HTML-Text (kz setzt ihn unverändert ein)."""
+
+
 def _auf(titel, inhalt, symbol="clock"):
     return f'<details class="sa-auf"><summary>{amt.ic(symbol)}{esc(titel)}</summary>{inhalt}</details>'
 
@@ -670,8 +682,8 @@ def _seitenhtml(request, k, con, ziel):
     name = dict(_ziele(con))[ziel]
     stufe_, text = lage(b)
     darf = etatplan.darf_aendern(con, k, ziel)
-    kz = lambda xs: f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in xs)}</div>'
-    kennz = [("Versorgung", f'{_de(b["v_ges"] * 100, 0)} %'), ("Erzeugung", gwh_text(b["erzeugung"])), ("Bedarf", gwh_text(b["bedarf"])),
+    kz = lambda xs: f'<div class="kennzahlen">{"".join(f"<div><b>{v if isinstance(v, Roh) else esc(v)}</b>{esc(t)}</div>" for t, v in xs)}</div>'
+    kennz = [("Versorgung", Roh(f'{_de(b["v_ges"] * 100, 0)} %{ueberschuss_pz(b)}')), ("Erzeugung", gwh_text(b["erzeugung"])), ("Bedarf", gwh_text(b["bedarf"])),
              ("Überschuss" if b["frei"] >= 0 else "Fehlbetrag", gwh_text(abs(b["frei"]))), ("Erneuerbare", f'{_de(b["erneuerbar"], 0)} %')]
     if b["boni"]["treibstoff"]["anteil"] > 0:
         kennz.append(("Treibstoff-Bonus", f'+{_de(b["boni"]["treibstoff"]["anteil"] * BONUS_MAX["treibstoff"], 0)} %'))
@@ -733,7 +745,7 @@ def _seitenhtml(request, k, con, ziel):
         c = bilanz(con, s)
         reihen.append((c["v_ges"], s, n, c))
     reihen.sort(key=lambda r: (r[0], r[2]))
-    vgl = [(f'<a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a>', gwh_text(c["bedarf"]), gwh_text(c["angebot"]), f'{_de(v * 100, 0)} %', f'{_de(c["erneuerbar"], 0)} %') for v, s, n, c in reihen]
+    vgl = [(f'<a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a>', gwh_text(c["bedarf"]), gwh_text(c["angebot"]), f'{_de(v * 100, 0)} %{ueberschuss_pz(c)}', f'{_de(c["erneuerbar"], 0)} %') for v, s, n, c in reihen]
     vgl_html = _auf("Vergleich aller Haushalte", amt.tabelle(["Haushalt", "Bedarf", "Erzeugung", "Versorgung", "Erneuerbare"], vgl, klasse="ee-tab"), "landmark")
     s_ = b["einstellung"]
     info = _auf("So funktioniert es",
