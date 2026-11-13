@@ -289,6 +289,11 @@
   "w": 1104,
   "h": 1104
  },
+ "ibruehlaugustusb01": {
+  "file": "ibruehlaugustusb01.jpg",
+  "w": 1920,
+  "h": 1280
+ },
  "ic006686fc0a537eb": {
   "file": "ic006686fc0a537eb.jpg",
   "w": 1391,
@@ -428,5 +433,10 @@
   "file": "ifc5f3f77d4236032.png",
   "w": 1380,
   "h": 1378
+ },
+ "ikanzleramtberlin02": {
+  "file": "ikanzleramtberlin02.jpg",
+  "w": 1920,
+  "h": 1135
  }
 }
