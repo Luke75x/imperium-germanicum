@@ -64,6 +64,8 @@ TYPEN = [("kohle", "Kohlekraftwerk", 320, 9600, 1.00), ("gas", "Gaskraftwerk", 2
          ("wasser", "Wasserkraftwerk", 35, 2450, 0.0), ("wind", "Windpark", 22, 660, 0.0), ("solar", "Solarpark", 9, 225, 0.0), ("biomasse", "Biomassekraftwerk", 10, 350, 0.25)]
 TYP = {t[0]: t for t in TYPEN}
 # Instandhaltung in Kr je erzeugter GWh und Monat (Richtwerte für Betrieb und Wartung der Anlagen; Grundlage der Lasten auf den Industrie-Etat)
+# Fossile und Kernkraftwerke braucht ein Bodenerzvorkommen im Gebiet (Förderung laut Handel/Lagerstätten): Rohstoff-Schlüssel und Name. Uran gibt es noch nirgends.
+ANFORDERUNG = {"kohle": ("braunkohle", "Braunkohle"), "gas": ("erdgas", "Erdgas"), "oel": ("erdoel", "Erdöl"), "kern": ("uran", "Uran")}
 INSTAND = {"kohle": 9000, "gas": 5000, "oel": 8000, "kern": 12000, "wasser": 3000, "wind": 6000, "solar": 4500, "biomasse": 15000}
 FARBEN = ["#6b7280", "#eb6834", "#8b5a2b", "#e34948", "#2a78d6", "#1baf7a", "#eda100", "#008300"]
 FOSSIL = ("kohle", "gas", "oel")
@@ -411,12 +413,31 @@ def industrie_faktor(con, schl, periode, betrag):
     return max(0.0, 1.0 - last / betrag) if betrag > 0 else 0.0
 
 
+_FOERD = {"t": 0.0, "d": {}}
+
+
+def baubar(con, schl, typ):
+    """(ja/nein, Grund): Wind, Solar, Wasser und Biomasse lassen sich überall bauen; die übrigen brauchen das passende Bodenerzvorkommen im Gebiet."""
+    if typ not in ANFORDERUNG:
+        return True, ""
+    import handel
+    if time.time() - _FOERD["t"] > 60:
+        _FOERD["d"], _FOERD["t"] = handel.foerderung(con), time.time()
+    res, name = ANFORDERUNG[typ]
+    if _FOERD["d"].get(schl, {}).get(res, 0) > 0:
+        return True, ""
+    return False, f"kein {name}vorkommen"
+
+
 def ausbauen(con, schl, typ, anzahl, k):
     """Baut `anzahl` Kraftwerke sofort. Bezahlt wird aus dem Industrie-Etat: als monatliche Rate über „bau_monate“ Monate, zusätzlich zur Instandhaltung."""
     if typ not in TYP:
         raise geld.Fehler("Bitte ein Kraftwerk wählen.")
     if not 1 <= anzahl <= 100:
         raise geld.Fehler("Bitte eine Anzahl zwischen 1 und 100 angeben.")
+    ok, grund = baubar(con, schl, typ)
+    if not ok:
+        raise geld.Fehler(f'{TYP[typ][1]} lässt sich hier nicht bauen: {grund} im Gebiet.')
     s = einstellungen(con)
     preis = baukosten(con, typ, anzahl)
     gwh = anzahl * TYP[typ][2]
@@ -617,7 +638,8 @@ def _seitenhtml(request, k, con, ziel):
     kw = [(esc(TYP[t][1]), gwh_text(g), f'{_de(g / b["angebot"] * 100, 0)} %') for t, g in sorted(b["mix"].items(), key=lambda x: -x[1]) if g > 0 and b["angebot"]]
     ausbau = ""
     if darf:
-        opt = "".join(f'<option value="{t}">{esc(n)} – {gwh_text(g)}/Monat, {_de(p * float(b["einstellung"]["bau_faktor"]) / 100 / 1000, 1)} Mrd. Kr</option>' for t, n, g, p, _ in TYPEN)
+        opt = "".join(f'<option value="{t}"{"" if baubar(con, ziel, t)[0] else " disabled"}>{esc(n)} – {gwh_text(g)}/Monat, {_de(p * float(b["einstellung"]["bau_faktor"]) / 100 / 1000, 1)} Mrd. Kr'
+                      f'{"" if baubar(con, ziel, t)[0] else " (nicht verfügbar: " + baubar(con, ziel, t)[1] + ")"}</option>' for t, n, g, p, _ in TYPEN)
         ausbau = (f'<h3>Kraftwerke bauen</h3><form class="ee-form" method="post" action="{PFAD}ausbau">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}">'
                   f'<div><label for="ea-t">Kraftwerk</label><select id="ea-t" name="typ">{opt}</select></div>'
                   '<div><label for="ea-n">Anzahl</label><input id="ea-n" name="anzahl" type="number" min="1" max="100" value="1" required></div>'
@@ -653,7 +675,7 @@ def _seitenhtml(request, k, con, ziel):
                 'dann das Militär, zuletzt Industrie und Veredelung. Versorgung 100–85 %: gut, ohne Folgen. 84–60 %: moderat, leichte Mali. 59–15 %: Energiemangel, deutliche Mali. '
                 '14–0 %: Energienot, stärkste Mali und Abwanderung. Mali treffen Zufriedenheit, Infrastruktur und Industrie. Fossile Kraftwerke belasten das Klima. '
                 f'Veredelung: Stahl {_de(float(s_["ver_stahl"]), 1)}, Aluminium {_de(float(s_["ver_aluminium"]), 1)}, Treibstoff {_de(float(s_["ver_treibstoff"]), 1)} MWh je Tonne – '
-                'sie läuft nur, solange noch Energie frei ist. Bau und Instandhaltung der Kraftwerke zahlt der Industrie-Etat (er bleibt dann der Industrie selbst entzogen). Überschüsse lassen sich am Energiemarkt verkaufen; '
+                'sie läuft nur, solange noch Energie frei ist. Bau und Instandhaltung der Kraftwerke zahlt der Industrie-Etat (er bleibt dann der Industrie selbst entzogen). Kohle-, Gas-, Öl- und Kernkraftwerke brauchen ein Vorkommen (Braunkohle, Erdgas, Erdöl, Uran) im Gebiet. Überschüsse lassen sich am Energiemarkt verkaufen; '
                 'wer unter 60 % versorgt ist, darf dort zukaufen. Stilllegungen und Sätze legt die RP-Leitung fest.</p>', "info" if "info" in amt.ICONS else "clock")
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in _ziele(con))
     return (entwicklung.CSS + CSS + f'<h1>{amt.ic("zap")} Energie · {esc(name)}</h1>{amt.meldung(request)}'
