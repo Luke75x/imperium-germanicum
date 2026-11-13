@@ -2,15 +2,15 @@
 
 Einheit: GWh je Monat.
 
-Bedarf (Sätze unter /schatzamt/energie/, Reich-Ansicht, nur für die RP-Leitung einstellbar)
+Bedarf (Sätze nur in der RP-Leitungsansicht: /schatzamt/rp/energie/)
   · Bevölkerung: pauschal Einwohner × kWh je Kopf und Monat (Haushalte, Heizung, Alltag).
   · Industrie: BIP (Mio. €, monatlich) × GWh je Mio. € – die Grundlast der Wirtschaft.
   · Veredelung: jede Veredelung im Handel (Stahl, Aluminium, Treibstoff) verbraucht Energie je Tonne; sie wird nur ausgeführt, solange der Teilstaat
     noch freie Energie hat, und zählt im laufenden Monat zum Bedarf.
   · Militär: wenige MWh je Gerät und Monat (Instandhaltung); bei Unterversorgung sinkt zusätzlich die Einsatzbereitschaft (verteidigung.instandhaltung).
 Angebot: Kraftwerke (Tabelle en_kraftwerke). Beim ersten Zugriff bekommt jeder Haushalt Kraftwerke mit einem Strommix (Vorgabe oder Landesart) und einer Reserve
-  über dem Bedarf. Wie viel Energie erzeugt wird, bestimmt allein die RP-Leitung (Ausbau und Stilllegung, sofort wirksam); der Ausbau kostet hohe Preise, die die Staats- bzw. Reichskasse
-  an die Volkswirtschaft zahlt (auch ins Minus: dann droht die Haushaltsnotlage).
+  über dem Bedarf. Ausbau: Landesherren (Reich: Schatzamt-Leitung) bauen Kraftwerke sofort aus (keine Bauzeit); der Ausbau kostet hohe Preise, die die Staats- bzw. Reichskasse
+  an die Volkswirtschaft zahlt und deckt. Stilllegung sowie alle Sätze und Erzeugungswerte ändert nur die RP-Leitung (/schatzamt/rp/energie/).
 Versorgung bei Knappheit: zuerst die Bevölkerung, dann das Militär, zuletzt Industrie und Veredelung.
 Folgen (entwicklung.entwickeln ruft wirkungen_fuer): Unterversorgung der Bevölkerung senkt die Zufriedenheit, mangelnde Gesamtversorgung verschiebt die Zielwerte der
   Infrastruktur (Wasser, Müll, Straßen) nach unten, fehlende Energie für die Industrie das Industrieniveau und das BIP pro Kopf. Fossile Kraftwerke belasten das Klima (CO₂).
@@ -30,6 +30,7 @@ import schatzamt as sa
 esc = amt.esc
 log = logging.getLogger("energie")
 PFAD = sa.PFAD + "energie/"
+RPE = sa.PFAD + "rp/energie/"
 
 amt.ICONS.setdefault("zap", '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>')
 geld.BUCHUNGSART.setdefault("energie", "Energieausbau")
@@ -333,8 +334,10 @@ def ausbauen(con, schl, typ, gwh, k):
         raise geld.Fehler("Die Leistung muss zwischen 0,1 und 200.000 GWh je Monat liegen.")
     kosten = baukosten(con, typ, gwh)
     kc = handel.kasse(con, schl)
+    if kc["saldo"] < kosten:
+        raise geld.Fehler(f'Die {kc["name"]} ist nicht gedeckt: Der Bau kostet {geld.mark(kosten)}.')
     sichern(con, schl)
-    geld.buchen(con, kc["id"], geld.sonder(con, "volkswirtschaft")["id"], kosten, "energie", f"Bau {TYP[typ][1]} ({gwh:g} GWh/Monat)", k, bezug=f"ENERGIE-{schl}", minus=True)
+    geld.buchen(con, kc["id"], geld.sonder(con, "volkswirtschaft")["id"], kosten, "energie", f"Bau {TYP[typ][1]} ({gwh:g} GWh/Monat)", k, bezug=f"ENERGIE-{schl}")
     con.execute("INSERT INTO en_kraftwerke (schl, typ, gwh, ab, bezahlt, von, zeit) VALUES (?,?,?,?,?,?,?)", (schl, typ, gwh, "", kosten, k["name"], int(time.time())))
     geld.protokoll(con, k, "Energie: Ausbau", f"{_name(con, schl)}: {TYP[typ][1]} {gwh:g} GWh/Monat für {geld.mark(kosten)} (zahlt {kc['name']})")
     leeren()
@@ -415,7 +418,7 @@ def _seitenhtml(request, k, con, ziel):
     b = bilanz(con, ziel, frisch=True)
     name = dict(_ziele(con))[ziel]
     stufe, text = lage(b)
-    darf = sa.ist_rp(k)   # Erzeugung ändert nur die RP-Leitung
+    darf = etatplan.darf_aendern(con, k, ziel)   # Ausbau: Landesherr bzw. Schatzamt-Leitung (Reich)
     kz = lambda xs: f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in xs)}</div>'
     kopf = kz([("Versorgung", f'{_de(b["v_ges"] * 100, 0)} %'), ("Angebot", gwh_text(b["angebot"])), ("Bedarf", gwh_text(b["bedarf"])),
                ("Reserve" if b["frei"] >= 0 else "Fehlbetrag", gwh_text(abs(b["frei"]))), ("Erneuerbare", f'{_de(b["erneuerbar"], 0)} %'),
@@ -444,18 +447,15 @@ def _seitenhtml(request, k, con, ziel):
         betrieb = not r["ab"] or r["ab"] <= heute
         kw.append((esc(TYP[r["typ"]][1]), gwh_text(r["gwh"]), "in Betrieb" if betrieb else f'ab {esc(r["ab"])}', esc(r["von"] or "–")))
     ausbau = ""
-    if darf:   # nur RP-Leitung
+    if darf:
         opt = "".join(f'<option value="{t}">{esc(n)}</option>' for t, n, c, _ in TYPEN)
-        ausbau = (f'<h3>Ausbau (RP-Leitung)</h3><form class="ee-form" method="post" action="{PFAD}ausbau">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}">'
+        ausbau = (f'<h3>Ausbau</h3><form class="ee-form" method="post" action="{PFAD}ausbau">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}">'
                   f'<div><label for="ea-t">Kraftwerk</label><select id="ea-t" name="typ">{opt}</select></div>'
                   '<div><label for="ea-g">Leistung (GWh je Monat)</label><input id="ea-g" name="gwh" inputmode="decimal" required></div>'
                   f'<button class="btn" type="submit">{amt.ic("zap")}Bauen</button></form>'
                   '<p class="sa-hinweis">Baukosten je GWh/Monat: ' + ", ".join(f'{esc(n)} {_de(c * float(b["einstellung"]["bau_faktor"]) / 100, 1)} Mio. Kr' for t, n, c, _ in TYPEN)
-                  + '. Die Staats- bzw. Reichskasse zahlt den Bau sofort an die Volkswirtschaft (auch ins Minus); die Anlage ist sofort in Betrieb.</p>'
-                  f'<h3>Stilllegen</h3><form class="ee-form" method="post" action="{PFAD}stilllegen">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}">'
-                  f'<div><label for="es-t">Kraftwerk</label><select id="es-t" name="typ">{opt}</select></div>'
-                  '<div><label for="es-g">Leistung (GWh je Monat)</label><input id="es-g" name="gwh" inputmode="decimal" required></div>'
-                  f'<button class="btn zweit" type="submit">Stilllegen</button></form><p class="sa-hinweis">Stillgelegte Leistung wird nicht erstattet.</p>')
+                  + '. Die Staats- bzw. Reichskasse zahlt den Bau sofort an die Volkswirtschaft (sie muss gedeckt sein); die Anlage ist sofort in Betrieb. Stilllegungen und Sätze setzt die RP-Leitung.</p>'
+                  )
     mix_html = (_balken(mix_teile) + f'<p class="sa-hinweis">Fossile Erzeugung {_de(b["fossil"], 0)} %. Der Mix wirkt auf die CO₂-Belastung '
                 f'(Umwelt): {"belastend" if b["klima"] > KLIMA_NEUTRAL + 0.02 else "entlastend" if b["klima"] < KLIMA_NEUTRAL - 0.02 else "neutral"}.</p>'
                 + amt.tabelle(["Kraftwerk", "Leistung", "Stand", "Gebaut von"], kw, "Keine Kraftwerke.", klasse="ee-tab") + ausbau)
@@ -481,19 +481,13 @@ def _seitenhtml(request, k, con, ziel):
     summe_b = sum(r[3]["bedarf"] for r in reihen)
     vgl_html = (amt.tabelle(["Haushalt", "Einwohner", "Bedarf", "Angebot", "Versorgung", "Erneuerbare", "je Kopf"], vgl, klasse="ee-tab")
                 + f'<p class="sa-hinweis">Das Reich insgesamt: Angebot {gwh_text(summe_a)}, Bedarf {gwh_text(summe_b)} ({_de(min(100, summe_a / summe_b * 100) if summe_b else 100, 0)} % gedeckt).</p>')
-    saetze = ""
-    if sa.ist_rp(k):
-        s = b["einstellung"]
-        felder = "".join(f'<div><label for="s-{n}">{esc(t)}</label><input id="s-{n}" name="{n}" value="{esc(str(s[n]).replace(".", ","))}" inputmode="decimal" required></div>' for n, t in SAETZE)
-        saetze = (f'<details class="sa-auf"><summary>{amt.ic("pencil")}Sätze (RP-Leitung)</summary><form class="ee-form" method="post" action="{PFAD}saetze">'
-                  f'{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}">{felder}<button class="btn" type="submit">Speichern</button></form></details>')
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in _ziele(con))
     return (entwicklung.CSS + CSS + f'<h1>{amt.ic("zap")} Energie · {esc(name)}</h1>{amt.meldung(request)}'
             '<p class="az">Die Bevölkerung verbraucht pauschal Energie, die Industrie und jede Veredelung brauchen sie, das Militär nur wenig. Reicht die Erzeugung nicht, '
             'sinken Zufriedenheit, Infrastruktur und Industrie.</p>'
             f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div></form>'
             + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + "<h2>Veredelung in diesem Monat</h2>" + nutz_html
-            + f'<p class="sa-hinweis">{hinweis_html(con)}</p>' + "<h2>Verlauf</h2>" + verlauf_html + "<h2>Vergleich der Haushalte</h2>" + vgl_html + saetze)
+            + f'<p class="sa-hinweis">{hinweis_html(con)}</p>' + "<h2>Verlauf</h2>" + verlauf_html + "<h2>Vergleich der Haushalte</h2>" + vgl_html)
 
 
 def _ziel(request, k, con):
@@ -528,8 +522,9 @@ def _zahl(s):
 
 def _recht(con, k, form):
     z = str(form.get("ziel", ""))
-    if z not in {s for s, _ in _ziele(con)} or not sa.ist_rp(k):
-        raise web.HTTPForbidden(text="Wie viel Energie erzeugt wird, bestimmt die RP-Leitung.")
+    import etatplan
+    if z not in {s for s, _ in _ziele(con)} or not etatplan.darf_aendern(con, k, z):
+        raise web.HTTPForbidden(text="Für diesen Haushalt dürfen Sie keine Kraftwerke bauen.")
     return z
 
 
@@ -548,8 +543,12 @@ async def ausbau_post(request):
 
 async def stilllegen_post(request):
     k, form, con = await _post(request)
-    z = _recht(con, k, form)
-    back = f"{PFAD}?ziel={z}"
+    if not sa.ist_rp(k):
+        raise web.HTTPForbidden(text="Stilllegungen ordnet die RP-Leitung an.")
+    z = str(form.get("ziel", ""))
+    if z not in {s for s, _ in _ziele(con)}:
+        raise web.HTTPForbidden()
+    back = RPE
     try:
         stilllegen(con, z, str(form.get("typ", "")), _zahl(form.get("gwh")), k)
         con.commit()
@@ -567,17 +566,44 @@ async def saetze_post(request):
     for n, _t in SAETZE:
         v = _zahl(form.get(n))
         if not (0 < v <= 1e7) or (n in ("zuf_max", "infra_max", "ind_max") and v > 100) or (n == "bau_faktor" and v > 1000):
-            sa.weiter(f'{PFAD}?ziel={form.get("ziel", "reich")}', f"Bitte gültige Werte angeben ({dict(SAETZE)[n]}).", True)
+            sa.weiter(RPE, f"Bitte gültige Werte angeben ({dict(SAETZE)[n]}).", True)
         neu[n] = int(v) if v == int(v) else v
     geld.einstellung_setzen(con, "energie", neu, k)
     con.commit()
     leeren()
-    sa.weiter(f'{PFAD}?ziel={form.get("ziel", "reich")}', "Sätze gespeichert.")
+    sa.weiter(RPE, "Sätze gespeichert.")
+
+
+@sa.seite("rp")
+async def rp_energie(request, k):
+    """Sätze und Stilllegungen – nur in der RP-Leitungssicht."""
+    con = request.app["db"]
+    s = einstellungen(con)
+    c = amt.csrf_feld(request)
+    felder = "".join(f'<div><label for="s-{n}">{esc(t)}</label><input id="s-{n}" name="{n}" value="{esc(str(s[n]).replace(".", ","))}" inputmode="decimal" required></div>' for n, t in SAETZE)
+    opt_ziel = "".join(f'<option value="{esc(z)}">{esc(n)}</option>' for z, n in _ziele(con))
+    opt_typ = "".join(f'<option value="{t}">{esc(n)}</option>' for t, n, _c, _k in TYPEN)
+    zeilen = []
+    for z, n in _ziele(con):
+        b = bilanz(con, z)
+        zeilen.append((f'<a href="{PFAD}?ziel={esc(z)}">{esc(n)}</a>', gwh_text(b["bedarf"]), gwh_text(b["angebot"]), f'{_de(b["v_ges"] * 100, 0)} %', f'{_de(b["erneuerbar"], 0)} %'))
+    inhalt = (CSS + f'<h1>{amt.ic("zap")} Energie · Konfiguration</h1>{amt.meldung(request)}'
+              '<p class="az">Hier legt die RP-Leitung fest, wie viel Energie verbraucht wird, was Kraftwerke kosten und welche Anlagen stillgelegt werden. '
+              'Landesherren bauen ihre Kraftwerke selbst aus (Reiter „Energie“ bei „Mein Teilstaat“).</p>'
+              f'<h2>Sätze</h2><form class="ee-form" method="post" action="{PFAD}saetze">{c}{felder}<button class="btn" type="submit">{amt.ic("check")}Speichern</button></form>'
+              f'<h2>Kraftwerke stilllegen</h2><form class="ee-form" method="post" action="{PFAD}stilllegen">{c}'
+              f'<div><label for="rs-z">Haushalt</label><select id="rs-z" name="ziel">{opt_ziel}</select></div>'
+              f'<div><label for="rs-t">Kraftwerk</label><select id="rs-t" name="typ">{opt_typ}</select></div>'
+              '<div><label for="rs-g">Leistung (GWh je Monat)</label><input id="rs-g" name="gwh" inputmode="decimal" required></div>'
+              '<button class="btn zweit" type="submit">Stilllegen</button></form><p class="sa-hinweis">Stillgelegte Leistung wird nicht erstattet.</p>'
+              '<h2>Lage aller Haushalte</h2>' + amt.tabelle(["Haushalt", "Bedarf", "Angebot", "Versorgung", "Erneuerbare"], zeilen, klasse="ee-tab"))
+    return sa.ant(request, k, "Energie: Konfiguration", "sa-rp-energie", inhalt)
 
 
 def registrieren(app):
     einrichten(app["db"])
     app.router.add_get(PFAD, seite)
+    app.router.add_get(RPE, rp_energie)
     app.router.add_post(PFAD + "ausbau", ausbau_post)
     app.router.add_post(PFAD + "stilllegen", stilllegen_post)
     app.router.add_post(PFAD + "saetze", saetze_post)

@@ -328,6 +328,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
                 ("sa-rp-konten", "search", "Konten & Personen", "rp/konten/"), ("sa-rp-protokoll", "scroll-text", "Protokoll", "rp/protokoll/")]
         gruppen = [("RP-Leitung", mein),
                    ("Konfiguration", [("sa-rp-foerder", "package", "Förderstätten", "rp/foerderstaetten/"), ("sa-rp-handel", "percent", "Handel: Waren & Regeln", "rp/handel/"),
+                                      ("sa-rp-energie", "zap", "Energie: Sätze & Anlagen", "rp/energie/"),
                                       ("sa-rp-besitz", "car", "Besitzkatalog & Kosten", "rp/besitz/"),
                                       ("sa-rp-stell", "pencil", "Stellschrauben", "rp/stellschrauben/")]),
                    ("Hilfsmittel", [("sa-amt-bankkarten", "credit-card", "Bankkarten", "amt/bankkarten/"),
