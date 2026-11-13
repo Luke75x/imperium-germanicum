@@ -136,6 +136,15 @@ def reichskarte():
             f'<span class="sr-only"> – Karte vergrößern</span></a><figcaption>{esc(caption)}</figcaption></figure>')
 
 
+def organigramm_verwaltung():
+    """Reichsbehörden-Seite: stets aktuelles Organigramm der Reichsverwaltung (gerendert vom Webdienst), führt zum interaktiven Organigramm."""
+    caption = "Organigramm der Reichsverwaltung"
+    alt = "Organigramm der Reichsverwaltung: Souverän und Kronkanzlei an der Spitze, darunter Crown Estates, die Reichsbehörden mit ihren Ämtern und die Reichsvertretung"
+    return (f'<figure class="figure"><a class="zoom frame" href="{u("informationen/die-reichsbehoerden/organigramm/")}"><img src="{u("informationen/die-reichsbehoerden/organigramm/organigramm.png")}" '
+            f'width="5984" height="2474" alt="{esc(alt)}" loading="lazy" decoding="async"><span class="zoom-hint">{icon("zoom")}</span>'
+            f'<span class="sr-only"> – Organigramm öffnen</span></a><figcaption>{esc(caption)}</figcaption></figure>')
+
+
 def organigramm():
     """Startseite: stets aktuelles Organigramm (gerendert vom Webdienst, Modul staatsaufbau.py, mit den heutigen Amtsträgern),
     führt zum interaktiven Organigramm. Ersetzt das frühere Schaubild i7e284b3dc2b8cebd."""
@@ -1077,6 +1086,7 @@ def page_reichsbehoerden():
   <span class="eyebrow">Interaktiv</span>
   <h2>Das Organigramm</h2>
   <div class="prose"><p>Das Organigramm zeigt alle Ämter und Behörden der Reichsverwaltung mit ihren gegenwärtigen Amtsträgern. Es lässt sich zoomen und durchsuchen; ein Klick auf ein Amt nennt Leitung, Amtsträger und Aufgaben.</p></div>
+  {organigramm_verwaltung()}
   <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u("informationen/die-reichsbehoerden/organigramm/")}">Zum Organigramm {icon("arrow")}</a></div>
 </section>
 <section class="seat">
