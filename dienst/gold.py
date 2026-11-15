@@ -118,6 +118,16 @@ def rp_html(request, con):
 @sa.seite("staat")
 async def seite(request, k):
     con = request.app["db"]
+    regiert = sa._regierte(con, k)
+    ziel = request.query.get("ziel", "")
+    if ziel.startswith("ts-") and ziel[3:] in regiert:
+        eigener = ziel[3:]
+    elif not sa.hat_kassen(con, k) and regiert:
+        eigener = next(iter(regiert))   # ohne Reichskassen-Zugriff nur der eigene Teilstaat
+    else:
+        eigener = None
+    if eigener:
+        return _teilstaat_seite(request, k, con, eigener, regiert[eigener])
     rows = con.execute("SELECT * FROM gr_bestand ORDER BY kg DESC").fetchall()
     gesamt = sum(r["kg"] for r in rows)
     menge = geld.geldmenge(con)
@@ -152,6 +162,32 @@ async def seite(request, k):
     return sa.ant(request, k, "Goldreserven", "sa-gold", inhalt)
 
 
+def _teilstaat_seite(request, k, con, sid, kasse):
+    """Reiter „Goldreserven“ bei Mein Teilstaat: nur der Bestand und die Geschäfte des eigenen Teilstaats."""
+    stelle = "ts-" + sid
+    kg = bestand(con, stelle)
+    menge = geld.geldmenge(con)
+    g = geld.einstellung(con, "gold")
+    kz = [("Goldreserven", _t(kg)), ("Wert", mark(wert(con, kg))), ("Goldpreis", f"{preis(con):,.0f} € je kg".replace(",", ".")), ("Kassenstand", mark(kasse["saldo"]))]
+    handel = ""
+    if stelle in handelbar(con, k):
+        handel = (f'<h2>Gold handeln</h2><form class="sa-formular" method="post" action="{PFAD}gold/handeln">{amt.csrf_feld(request)}'
+                  f'<input type="hidden" name="kasse" value="{kasse["id"]}"><input type="hidden" name="ziel" value="{esc(stelle)}"><div class="zeilen">'
+                  '<div><label for="kg">Menge (kg)</label><input type="text" id="kg" name="kg" required inputmode="decimal"></div>'
+                  '<div><label for="ri">Geschäft</label><select id="ri" name="richtung"><option value="verkauf">An die Zentralbank verkaufen</option>'
+                  '<option value="kauf">Von der Zentralbank kaufen</option></select></div></div>'
+                  f'<p class="sa-hinweis">1 kg entspricht derzeit {mark(wert(con, 1))}. Die Zentralbank kauft mit {g["abschlag"]} % Abschlag an und verkauft mit '
+                  f'{g["abschlag"]} % Aufschlag. Ein Verkauf bringt neues, goldgedecktes Geld in die Staatskasse.</p>'
+                  f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Ausführen</button></div></form>')
+    bew = con.execute("SELECT * FROM gr_buchungen WHERE stelle=? ORDER BY id DESC LIMIT 30", (stelle,)).fetchall()
+    inhalt = (f'<h1>{amt.ic("coins")} Goldreserven</h1>{amt.meldung(request)}'
+              f'<p class="az">Goldreserven von {esc(kasse["name"].replace("Staatskasse ", ""))}. Andere Teilstaaten und das Reich sind hier nicht einsehbar.</p>'
+              f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>{handel}'
+              '<h2>Goldgeschäfte und Buchungen</h2>' + amt.tabelle(["Zeit", "Menge", "Geschäft", "Betrag", "Durch"],
+                  [(amt._zeit(b["zeit"]), _kg(b["kg"]), esc(ARTEN.get(b["art"], b["art"])), mark(b["betrag"]), esc(b["autor_name"])) for b in bew], "Noch keine Goldgeschäfte."))
+    return sa.ant(request, k, "Goldreserven", "sa-gold", inhalt)
+
+
 async def handeln_post(request):
     k = await anmeldung.konto(request)
     if not k:
@@ -159,9 +195,10 @@ async def handeln_post(request):
     form = await sa.formular(request)
     con = request.app["db"]
     kasse = geld.konto(con, form.get("kasse")) if str(form.get("kasse", "")).isdigit() else None
+    back = f"{PFAD}gold/" + (f"?ziel={form['ziel']}" if str(form.get("ziel", "")).startswith("ts-") and str(form["ziel"])[3:].isalnum() else "")
     erlaubt = {r["id"] for r in handelbar(con, k).values() if r}
     if not kasse or kasse["id"] not in erlaubt:
-        sa.weiter(f"{PFAD}gold/", "Über diese Kasse darfst du nicht verfügen.", True)
+        sa.weiter(back, "Über diese Kasse darfst du nicht verfügen.", True)
     try:
         roh = str(form.get("kg", "")).replace(" ", "")
         kg = float(roh.replace(".", "").replace(",", ".") if "," in roh else roh)
@@ -169,8 +206,8 @@ async def handeln_post(request):
         con.commit()
     except (ValueError, geld.Fehler) as e:
         con.rollback()
-        sa.weiter(f"{PFAD}gold/", str(e) if isinstance(e, geld.Fehler) else "Bitte eine gültige Menge angeben.", True)
-    sa.weiter(f"{PFAD}gold/", f"{kg:g} kg Gold {'verkauft' if form.get('richtung') != 'kauf' else 'gekauft'} für {mark(betrag)}.")
+        sa.weiter(back, str(e) if isinstance(e, geld.Fehler) else "Bitte eine gültige Menge angeben.", True)
+    sa.weiter(back, f"{kg:g} kg Gold {'verkauft' if form.get('richtung') != 'kauf' else 'gekauft'} für {mark(betrag)}.")
 
 
 async def preis_post(request):

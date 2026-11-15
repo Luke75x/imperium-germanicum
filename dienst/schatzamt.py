@@ -225,7 +225,7 @@ def _regierte(con, k):
 
 def _ts_url(tab, sid, regiert):
     z = "ts-" + sid
-    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "entw": f"entwicklung/?ziel={z}", "energie": f"energie/?ziel={z}", "krisen": f"krisen/?ziel={z}", "plan": f"etatplanung/?ziel={z}", "vt": f"verteidigung/{sid}/",
+    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "entw": f"entwicklung/?ziel={z}", "energie": f"energie/?ziel={z}", "gold": f"gold/?ziel={z}", "krisen": f"krisen/?ziel={z}", "plan": f"etatplanung/?ziel={z}", "vt": f"verteidigung/{sid}/",
                    "notlage": f"notlagen/?bereich={z}", "kasse": f"konto/?konto={regiert[sid]['id']}"}[tab]
 
 
@@ -234,7 +234,7 @@ def _teilstaat_tabs(con, k, sid):
     import verteidigung
     import krisen
     n_kr = krisen.offene_anzahl(con, "ts-" + sid)
-    tabs = [("start", "Überblick"), ("etat", "Etat"), ("entw", "Entwicklung"), ("energie", "Energie"), ("krisen", f"Krisen ({n_kr})" if n_kr else "Krisen")]
+    tabs = [("start", "Überblick"), ("etat", "Etat"), ("entw", "Entwicklung"), ("energie", "Energie"), ("gold", "Goldreserven"), ("krisen", f"Krisen ({n_kr})" if n_kr else "Krisen")]
     if etatplan.darf_aendern(con, k, "ts-" + sid):
         tabs.append(("plan", "Etat planen"))
     if verteidigung.darf_sehen(con, k, sid):
@@ -272,6 +272,10 @@ def _reiter_kontext(request, k, con, aktiv):
         if ziel == "reich" or (ziel.startswith("ts-") and ziel[3:] not in regiert):
             return "reich", None, tab
         return ("ts", next(iter(regiert)), tab) if regiert else ("reich", None, tab)
+    if aktiv == "sa-gold":
+        if ziel.startswith("ts-") and ziel[3:] in regiert:
+            return "ts", ziel[3:], "gold"
+        return "reich", None, "gold"
     if aktiv == "sa-verteidigung":
         sid = request.match_info.get("sid", "")
         return ("ts", sid, "vt") if sid in regiert else ("reich", None, "vt")
