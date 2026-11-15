@@ -120,6 +120,7 @@ table.liste td.sa-betrag,table.liste th.sa-betrag{text-align:right}
 .ts-schritt{display:flex;gap:10px;align-items:center;margin:26px 0 6px}
 .ts-schritt>span{flex:none;width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
 .ts-schritt h2{margin:0}
+.sa-krumen{font-size:12.5px;color:var(--grau);margin:0 0 8px}.sa-krumen a{color:var(--grau)}
 .sa-todo{display:grid;gap:8px;margin:12px 0 6px}
 .sa-todo>div{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--linie);border-radius:12px;padding:10px 14px;background:#fff;font-size:14px}
 .sa-todo>div.warn{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
@@ -401,7 +402,13 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
                                     (("sa-reich", "landmark", "Reichshaushalt", "haushalt/"), kassen),
                                     (("sa-handel", "package", "Handel", "handel/"), kassen),
                                     (("sa-verteidigung", "shield", "Verteidigung", "verteidigung/"), vt and not kassen)) if ok]
-        gruppen = [("Staatliche Kassen" if kassen else "Dienstlich", mein), ("Haushalt", haushalt),
+        if NEUE_NAVIGATION:   # Handel ist kein Haushalt: eigene Gruppe „Markt“
+            markt = [e for e in haushalt if e[0] == "sa-handel"]
+            haushalt = [e for e in haushalt if e[0] != "sa-handel"]
+            gruppen = [("Staatliche Kassen" if kassen else "Dienstlich", mein), ("Haushalt", haushalt), ("Markt", markt),
+                       ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
+        else:
+          gruppen = [("Staatliche Kassen" if kassen else "Dienstlich", mein), ("Haushalt", haushalt),
                    ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
         gruppen = [g for g in gruppen if g[1]]
         mein = mein + [e for e in haushalt if e[0] in ("sa-teilstaat", "sa-reich", "sa-verteidigung")][:4 - len(mein)]
@@ -446,6 +453,21 @@ def _kennzahlen_kurz(html_):
     return _KZ.sub(ersetzen, html_)
 
 
+# Neue Navigation (Gruppe „Markt“, Brotkrumen). SCHNELL ZURÜCK: NEUE_NAVIGATION = False + systemctl restart imperium-dienst.
+NEUE_NAVIGATION = True
+
+
+def _brotkrumen(portal, schl, titel):
+    """Brotkrumenleiste „Schatzamt › Gruppe › Seite“ aus der Seitenleiste (Gruppe und Eintrag des aktiven Schlüssels)."""
+    for gname, eintraege in portal["gruppen"]:
+        for e in eintraege:
+            if e[0] == schl:
+                teile = [f'<a href="{PFAD}">Schatzamt</a>', esc(gname)]
+                teile.append(f'<span aria-current="page">{esc(e[2])}</span>')
+                return '<nav class="sa-krumen" aria-label="Pfad">' + " › ".join(teile) + '</nav>'
+    return ""
+
+
 def ant(request, k, titel, aktiv, inhalt, status=200):
     schalter = hat_staat(request.app["db"], k) or ist_rp(k)
     m = modus(request, k)
@@ -459,6 +481,8 @@ def ant(request, k, titel, aktiv, inhalt, status=200):
         m = "privat"
     reiter, nav_aktiv = reiter_html(request, k, request.app["db"], aktiv)   # Reiter Teilstaat / Reichshaushalt; die Seitenleiste markiert den Bereich
     portal = nav(k, m, schalter, nav_aktiv, request.app["db"])
+    if NEUE_NAVIGATION and aktiv != "sa-start":
+        reiter = _brotkrumen(portal, nav_aktiv, titel) + reiter
     if k["mitglied"]:
         import suche
         portal["suche"] = suche.leiste(request.query.get("q", "") if aktiv == "sa-suche" else "")
