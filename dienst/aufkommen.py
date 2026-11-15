@@ -443,6 +443,10 @@ def prognose_html(con, liste, besoldung_reich=0):
     return '<div class="kennzahlen">' + "".join(f"<div><b>{mark(v)}</b>{esc(t)}</div>" for t, v in kz) + "</div>"
 
 
+# Kompakte Reichsabgabe-Tabelle (5 statt 9 Spalten) und eingeklappte Erklärung. SCHNELL ZURÜCK: NEUE_TABELLE = False + systemctl restart imperium-dienst.
+NEUE_TABELLE = True
+
+
 def tabelle_html(liste):
     """Reichsabgabe je Teilstaat: Kennzahlen, Abgabequote, Einnahmen, Anteil Reich/Teilstaat."""
     zeilen = []
@@ -454,16 +458,26 @@ def tabelle_html(liste):
                     f'ohne Grenze {_pz(x["quote_theorie"])}</span>' if x["quote_theorie"] > x["quote"] + 0.05 else ""))
         an_reich = geld.mark_kurz(x["reich"]) + (f'<br><span class="az" title="Abgabe ohne die Obergrenze">ohne Grenze {geld.mark_kurz(x["reich_theorie"])}</span>'
                                                  if not x["reichsgebiet"] and x["reich_theorie"] > x["reich"] else "")
+        if NEUE_TABELLE:   # kompakt: Kennzahlen des Gebiets in eine Zeile, „frei“ unter „bleibt“
+            frei = geld.mark_kurz(x["land"] - x["ausgaben_land"] - x["vert_land"]) if x["land"] else "–"
+            zeilen.append((f'<b>{esc(_gebiet(x["staat"], x["name"]))}</b><br><span class="az">{_ew(x["ew"])} Einw. · {_zahl(kopf)} € je Kopf · {_zahl(x["km2"])} km²</span>',
+                           quote, geld.mark_kurz(x["summe"]), an_reich,
+                           (geld.mark_kurz(x["land"]) + f'<br><span class="az" title="Nach Pflichtausgaben (¹)">davon frei¹ {frei}</span>') if x["land"] else "–"))
+            continue
         zeilen.append((esc(_gebiet(x["staat"], x["name"])), _ew(x["ew"]), f"{_zahl(kopf)} €", f'{_zahl(x["km2"])} km²', quote,
                        geld.mark_kurz(x["summe"]), an_reich, geld.mark_kurz(x["land"]) if x["land"] else "–",
                        geld.mark_kurz(x["land"] - x["ausgaben_land"] - x["vert_land"]) if x["land"] else "–"))
+    if NEUE_TABELLE:
+        return amt.tabelle(["Gebiet", "Reichsabgabe", "Steuern / Monat", "an das Reich", "bleibt dem Teilstaat"], zeilen, klasse="sa-haushalt")
     return amt.tabelle(["Gebiet", "Einwohner", "BIP je Kopf", "Fläche", "Reichsabgabe", "Steuern / Monat", "an das Reich", "bleibt dem Teilstaat",
                         "davon frei¹"], zeilen, klasse="sa-haushalt")
 
 
 def erklaerung_html(p):
     w = dict(VORGABE_GEWICHTE, **(p.get("gewichte") or {}))
-    return ('<div class="sa-erkl"><b>So entsteht die Reichsabgabe</b><ol>'
+    kopf, fuss = (('<details class="sa-auf"><summary>So entsteht die Reichsabgabe (mit Erklärung zu ¹)</summary><div class="sa-erkl" style="border:0;padding:0;margin:0"><ol>', '</ol></div></details>')
+                  if NEUE_TABELLE else ('<div class="sa-erkl"><b>So entsteht die Reichsabgabe</b><ol>', '</ol></div>'))
+    return (kopf +
             f'<li>Jeder Teilstaat nimmt im Monat <b>{esc(str(p["steuerquote"]))} %</b> seiner Wirtschaftsleistung (BIP ÷ 12) an Steuern ein.</li>'
             f'<li>Davon führt er einen eigenen Prozentsatz an das Reich ab. Er richtet sich nach <b>Bevölkerung ({w["bevoelkerung"]} %)</b>, '
             f'<b>Einkommen pro Kopf ({w["einkommen"]} %)</b> und <b>Fläche ({w["flaeche"]} %)</b> im Vergleich zum Durchschnitt: '
@@ -475,7 +489,7 @@ def erklaerung_html(p):
             f'<li>¹ Pflichtausgaben für die Bevölkerung ({esc(str(p.get("ausgabenquote", 97)))} %) sind abgezogen – ein Teil davon ist als '
             f'<a href="{PFAD}verteidigung/">Verteidigungsetat</a> zweckgebunden; der Rest steht Reich und Landesherren frei zur Verfügung. '
             f'Wie das Ausgabenbudget auf Politikfelder verteilt wird, bestimmen Reich und Teilstaaten in der <a href="{PFAD}etatverteilung/">Etatverteilung</a>. '
-            'Aus dem Anteil des Reiches werden die Etats der Behörden bezahlt, die Behörden zahlen davon ihre Mitarbeiter.</li></ol></div>')
+            'Aus dem Anteil des Reiches werden die Etats der Behörden bezahlt, die Behörden zahlen davon ihre Mitarbeiter.</li>' + fuss)
 
 
 def rp_html(request, con):
