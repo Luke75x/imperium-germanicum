@@ -295,8 +295,9 @@ def _teilstaat_tabs(con, k, sid):
 
 def _reich_tabs(con, k):
     import etatplan
-    tabs = [("haushalt", "Staatshaushalt", "haushalt/"), ("etat", "Etat", "etatverteilung/?ziel=reich"), ("entw", "Entwicklung", "entwicklung/?ziel=reich"), ("energie", "Energie", "energie/?ziel=reich"), ("krisen", "Krisen", "krisen/?ziel=reich")]
-    tabs += [("etats", "Etats der Behörden", "etats/"), ("finanzen", "Reichsfinanzen", "finanzen/"), ("gold", "Goldreserven", "gold/"),
+    nn = NEUE_NAVIGATION   # eindeutigere Namen: „Staatshaushalt“ und „Reichsfinanzen“ klangen gleich
+    tabs = [("haushalt", "Steuern & Reichsabgabe" if nn else "Staatshaushalt", "haushalt/"), ("etat", "Etat", "etatverteilung/?ziel=reich"), ("entw", "Entwicklung", "entwicklung/?ziel=reich"), ("energie", "Energie", "energie/?ziel=reich"), ("krisen", "Krisen", "krisen/?ziel=reich")]
+    tabs += [("etats", "Etats der Behörden", "etats/"), ("finanzen", "Geldmenge & Kassen" if nn else "Reichsfinanzen", "finanzen/"), ("gold", "Goldreserven", "gold/"),
              ("notlage", "Haushaltsnotlagen", "notlagen/?bereich=reich")]
     if hat_verteidigung(con, k):
         tabs.append(("vt", "Verteidigung", "verteidigung/"))
@@ -748,7 +749,13 @@ def _uebersicht_staat(request, k, con):
         letzte = (f'<h2>Letzte Umsätze · {esc(ers["name"])}</h2>'
                   + amt.tabelle(UMSATZ_KOPF, umsatz_zeilen(con, ers["id"], umsaetze(con, ers["id"], 8)), "Noch keine Umsätze.")
                   + f'<p><a href="{PFAD}konto/">Alle Kassen, Umsätze und Kontoauszüge →</a></p>')
-    weitere = (f'<details class="sa-auf"><summary>{amt.ic("layout-dashboard")}Weitere Bereiche</summary><div class="sa-schnell">'
+    if NEUE_NAVIGATION:   # ein Eintrag je Ziel: der Reichshaushalt bündelt Steuern, Etats, Finanzen, Gold, Notlagen
+        weitere = (f'<details class="sa-auf"><summary>{amt.ic("layout-dashboard")}Weitere Bereiche</summary><div class="sa-schnell">'
+                   f'<a href="{PFAD}haushalt/">{amt.ic("landmark")}<b>Reichshaushalt</b><span>Steuern, Etats der Behörden, Reichsfinanzen, Gold, Notlagen</span></a>'
+                   + (f'<a href="{PFAD}verteidigung/">{amt.ic("shield")}<b>Verteidigung</b><span>Etats, Militärgerät, Einsatzbereitschaft</span></a>' if hat_verteidigung(con, k) else "")
+                   + f'<a href="{PFAD}etatuebersicht/">{amt.ic("chart-pie")}<b>Öffentliche Etatübersicht</b><span>Etatverteilung aller Teilstaaten</span></a></div></details>')
+    else:
+      weitere = (f'<details class="sa-auf"><summary>{amt.ic("layout-dashboard")}Weitere Bereiche</summary><div class="sa-schnell">'
                f'<a href="{PFAD}etats/">{amt.ic("landmark")}<b>Etats der Behörden</b><span>Kassenstand, Etat, Personalkosten</span></a>'
                + (f'<a href="{PFAD}verteidigung/">{amt.ic("shield")}<b>Verteidigung</b><span>Etats, Militärgerät, Einsatzbereitschaft</span></a>' if hat_verteidigung(con, k) else "")
                + f'<a href="{PFAD}haushalt/">{amt.ic("chart-column")}<b>Staatshaushalt</b><span>Steuern und Reichsabgabe der Teilstaaten</span></a>'
