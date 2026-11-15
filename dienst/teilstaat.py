@@ -136,10 +136,8 @@ def _kopf(request, k):
 
 
 def _abschnitte(nav, teile):
-    """Sprungleiste und Abschnitte einer gebündelten Seite: teile = [(Anker, Symbol, Titel, HTML, Markierung)]."""
-    leiste = "".join(f'<a href="#{a}"{" class=warn" if w else ""}>{esc(t)}</a>' for a, _, t, _, w in teile)
-    body = "".join(f'<section class="ts-abschnitt" id="{a}"><h2 class="ts-titel">{amt.ic(sym)}{esc(t)}</h2>{h.replace("<h2", "<h3").replace("</h2>", "</h3>")}</section>' for a, sym, t, h, _ in teile)
-    return f'<nav class="ts-nav" aria-label="Abschnitte">{leiste}</nav>{body}'
+    """Untertabs einer gebündelten Seite: teile = [(Name, Symbol, Titel, HTML, Markierung)]."""
+    return sa.untertabs([(a, t, h.replace("<h2", "<h3").replace("</h2>", "</h3>"), w) for a, _, t, h, w in teile])
 
 
 @sa.seite("staat")
@@ -185,18 +183,18 @@ async def finanzen(request, k):
     q = x["quote"]
     vtk = geld.stellenkonto(con, "vt-" + sid)
     kassen = [kasse] + ([vtk] if vtk else [])
-    kassen_html = (f'<div class="sa-karten">{sa._karten(kassen, sa._kassen_zusatz(con, [kasse]))}</div>'
+    kassen_html = (f'<h3>Kassen</h3><div class="sa-karten">{sa._karten(kassen, sa._kassen_zusatz(con, [kasse]))}</div>'
                    f'<h3>Reichsabgabe</h3><p class="sa-hinweis">Der Teilstaat gibt <b>{esc(etatplan._de(q))} %</b> seines Steueraufkommens an das Reich ab ({esc(mark(x["reich"]))} im Monat), höchstens '
                    f'{esc(str(geld.einstellung(con, "aufkommen").get("quote_max", 33)))} %'
                    + (f'. Ohne diese Obergrenze wären es <b>{etatplan._de(x["quote_theorie"])} %</b> ({esc(mark(x["reich_theorie"]))}).' if q + 0.05 < x["quote_theorie"] else ".")
                    + f' Die Berechnung steht unter <a href="{sa.PFAD}haushalt/">Reichshaushalt</a>.</p>')
     in_not = any(notlage.offener_fall(con, r["id"]) for r in kassen)
-    umsatz = (amt.tabelle(sa.UMSATZ_KOPF, sa.umsatz_zeilen(con, kasse["id"], sa.umsaetze(con, kasse["id"], 8)), "Noch keine Umsätze.")
+    umsatz = (f'<h3>Letzte Umsätze · {esc(kasse["name"])}</h3>' + amt.tabelle(sa.UMSATZ_KOPF, sa.umsatz_zeilen(con, kasse["id"], sa.umsaetze(con, kasse["id"], 8)), "Noch keine Umsätze.")
               + f'<p><a href="{sa.PFAD}konto/?konto={kasse["id"]}">Alle Umsätze und Kontoauszüge →</a></p>')
-    teile = [("kassen", "wallet", "Kassen und Reichsabgabe", kassen_html, False),
-             ("gold", "coins", "Goldreserven", gold.teilstaat_rumpf(request, k, con, sid, kasse), False),
-             ("notlage", "triangle-alert", "Haushaltsnotlage", notlage.rumpf_teilstaat(request, k, con, sid), in_not),
-             ("umsaetze", "file-text", f"Letzte Umsätze · {kasse['name']}", umsatz, False)]
+    teile = [("kassen", "wallet", "Kassen", kassen_html, False),
+             ("gold", "coins", "Gold", gold.teilstaat_rumpf(request, k, con, sid, kasse), False),
+             ("notlage", "triangle-alert", "Notlage", notlage.rumpf_teilstaat(request, k, con, sid), in_not),
+             ("umsaetze", "file-text", "Umsätze", umsatz, False)]
     name = esc(kasse["name"].replace("Staatskasse ", ""))
     inhalt = (f'<h1>{amt.ic("wallet")} Finanzen · {name}</h1>{amt.meldung(request)}'
               '<p class="az">Das Geld des Teilstaats: Kassen, Abgabe an das Reich, Goldreserven, die Lage bei einem Minus und die letzten Buchungen.</p>' + _abschnitte(None, teile))

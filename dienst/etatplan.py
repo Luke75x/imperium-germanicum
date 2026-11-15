@@ -1210,24 +1210,28 @@ async def _seite(request, k, planung):
     reich = ziel == "reich"
     land_link = ("" if reich else f'<p class="sa-hinweis">{amt.ic("users")} Langfristige Wirkung auf Bevölkerung, Wirtschaft und Stimmung (Entwicklung, Rückhalt beim Volk): '
                                   f'<a href="{sa.PFAD}teilstaat/land/?ziel={esc(ziel)}">Reiter „Land“ →</a></p>')
+    demote = lambda h: h.replace("<h2", "<h3").replace("</h2>", "</h3>")
+    kz_html = f'<div class="kennzahlen">{"".join(f"<div><b{f' id={i}' if i else ''}>{esc(v)}</b><span{f' id={i}-t' if i else ''}>{esc(t)}</span></div>" for t, v, i in kz)}</div>'
+    tab_verteilung = (schritt(1, "Mittel", "Was dem Haushalt im Monat zur Verfügung steht.") + kz_html + erkl
+                      + schritt(2, "Verteilung", "Wohin das Geld fließt" + (": Regler verschieben, Entwurf speichern, in der Änderungsperiode einreichen." if darf else "."))
+                      + f'<div class="ep-raster"><div class="ep-torte" id="ep-torte"><svg viewBox="0 0 200 200" role="img" aria-label="Tortendiagramm des Etats {esc(name)}"></svg>'
+                        '<div class="ep-tipp" id="ep-tipp"></div></div><div>' + form_in + '</div></div>')
+    tab_wirkung = (f'<p class="az">Was diese Verteilung bewirkt: Boni und Mali, Zufriedenheit der Bevölkerung{" und langfristige Entwicklung" if reich else ""}.</p>'
+                   + demote(wirkung_html(bew, basis_ein, basis_rl, reich)) + demote(zuf_html(zuf, zuf_verlauf(con, ziel), reich))
+                   + (demote(entwicklung.kurz_html(entw_d, f"{sa.PFAD}entwicklung/?ziel={ziel}", entwicklung.rueckhalt_fuer(con, liste, ziel), True)) if reich else land_link))
+    tab_vergleich = (f'<p class="az">Anteile am eigenen Etat in %, alle Haushalte im Vergleich.</p><div class="ep-scroll">'
+                     f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div>')
+    tab_aend = amt.tabelle(["Zeit", "Durch", "Änderung"], [(amt._zeit(v["zeit"]), esc(v["autor_name"]), esc(v["text"])) for v in verlauf], "Noch keine Änderungen.")
+    tabs = [("verteilung", "Verteilung", tab_verteilung), ("wirkung", "Wirkung", tab_wirkung)]
+    if not planung:
+        tabs.append(("vergleich", "Vergleich", tab_vergleich))
+    tabs.append(("aenderungen", f"Änderungen ({len(verlauf)})", tab_aend))
     inhalt = (CSS + f'<h1>{amt.ic("pencil" if planung else "chart-pie")} {titel} · {esc(name)}</h1>{amt.meldung(request)}'
               f'<p class="az">Wie viel vom Ausgabenbudget fließt in welches Politikfeld? Das Tortendiagramm zeigt den gesamten Monatsetat im {esc(sa._monatsname(ab))}.</p>'
               f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div>'
               f'<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>' + umschalter + rechte
-              + schritt(1, "Mittel", "Was dem Haushalt im Monat zur Verfügung steht.")
-              + f'<div class="kennzahlen">{"".join(f"<div><b{f' id={i}' if i else ''}>{esc(v)}</b><span{f' id={i}-t' if i else ''}>{esc(t)}</span></div>" for t, v, i in kz)}</div>' + erkl
-              + schritt(2, "Verteilung", "Wohin das Geld fließt" + (": Regler verschieben, Entwurf speichern, in der Änderungsperiode einreichen." if darf else "."))
-              + f'<div class="ep-raster"><div class="ep-torte" id="ep-torte"><svg viewBox="0 0 200 200" role="img" aria-label="Tortendiagramm des Etats {esc(name)}"></svg>'
-                '<div class="ep-tipp" id="ep-tipp"></div></div><div>' + form_in + '</div></div>'
-              + schritt(3, "Wirkung", "Was diese Verteilung bewirkt: Boni und Mali, Zufriedenheit der Bevölkerung" + (" und langfristige Entwicklung." if reich else "."))
-              + wirkung_html(bew, basis_ein, basis_rl, reich).replace("<h2", "<h3").replace("</h2>", "</h3>")
-              + zuf_html(zuf, zuf_verlauf(con, ziel), reich).replace("<h2", "<h3").replace("</h2>", "</h3>")
-              + (entwicklung.kurz_html(entw_d, f"{sa.PFAD}entwicklung/?ziel={ziel}", entwicklung.rueckhalt_fuer(con, liste, ziel), True).replace("<h2", "<h3").replace("</h2>", "</h3>") if reich else land_link)
-              + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script><script>{ZUF_JS}</script>' + (f'<script>{PLAN_JS}</script>' if darf else "")
-              + ("" if planung else f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Vergleich aller Haushalte (Anteile am eigenen Etat in %)</summary><div class="ep-scroll">'
-                f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>')
-              + f'<details class="sa-auf"><summary>{amt.ic("clock")}Änderungen ({len(verlauf)})</summary>'
-              + amt.tabelle(["Zeit", "Durch", "Änderung"], [(amt._zeit(v["zeit"]), esc(v["autor_name"]), esc(v["text"])) for v in verlauf], "Noch keine Änderungen.") + '</details>')
+              + sa.untertabs(tabs)
+              + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script><script>{ZUF_JS}</script>' + (f'<script>{PLAN_JS}</script>' if darf else ""))
     return sa.ant(request, k, titel, "sa-etatplanung" if planung else "sa-etatverteilung", inhalt)
 
 

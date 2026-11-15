@@ -96,8 +96,11 @@ table.liste td.sa-betrag,table.liste th.sa-betrag{text-align:right}
 .sa-bereich .reiter{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;gap:0 20px;-webkit-overflow-scrolling:touch;
  -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);padding-right:28px}
 .sa-bereich .reiter::-webkit-scrollbar{display:none}}
-.ts-nav{display:flex;flex-wrap:wrap;gap:6px 8px;margin:10px 0 4px;position:sticky;top:0;z-index:3;background:var(--bg,#fff);padding:6px 0}
-.ts-nav a{border:1px solid var(--linie);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;background:#fff}
+.ts-nav{display:flex;flex-wrap:wrap;gap:0 4px;margin:14px 0 16px;border-bottom:1px solid var(--linie)}
+.ts-nav a.aktiv{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ts-tabteil[hidden]{display:none}
+@media (max-width:760px){.ts-nav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.ts-nav a{white-space:nowrap}}
+.ts-nav a{border:1px solid var(--linie);border-bottom:0;border-radius:10px 10px 0 0;margin-bottom:-1px;padding:8px 16px;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;background:#fff}
 .ts-nav a:hover,.ts-nav a.warn{border-color:var(--ink)}
 .ts-abschnitt{scroll-margin-top:56px;margin:26px 0 0;padding-top:4px;border-top:2px solid var(--ink)}
 .ts-abschnitt>h2.ts-titel{display:flex;gap:8px;align-items:center;margin:10px 0 4px;font-size:20px}
@@ -257,6 +260,19 @@ def zur_finanz_seite(request, k, con, ziel, abschnitt):
         r = request.query
         q = "&".join(f"{n}={quote(r[n])}" for n in ("m", "f") if n in r)
         raise web.HTTPFound(f"{PFAD}teilstaat/finanzen/?ziel={ziel}" + ("&" + q if q else "") + "#" + abschnitt)
+
+
+UNTERTAB_JS = """<script>(function(){var w=document.currentScript.previousElementSibling;if(!w)return;var l=[].slice.call(w.querySelectorAll('.ts-nav a')),t=[].slice.call(w.querySelectorAll('.ts-tabteil'));
+function z(id){var f=false;t.forEach(function(e){var a=e.id==='t-'+id;e.hidden=!a;f=f||a});l.forEach(function(a){var on=a.getAttribute('data-t')===id;a.classList.toggle('aktiv',on&&f);if(on&&f)a.setAttribute('aria-current','true');else a.removeAttribute('aria-current')});return f}
+l.forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();var id=a.getAttribute('data-t');z(id);try{history.replaceState(null,'','#'+id)}catch(x){}})});
+var h=(location.hash||'').slice(1);if(!h||!z(h))z(l.length?l[0].getAttribute('data-t'):'')})();</script>"""
+
+
+def untertabs(teile):
+    """Untertabs einer Seite (Umschalten ohne Neuladen, #Name wählt einen Tab): teile = [(Name, Titel, HTML)] oder mit Markierung als vierten Wert. Ohne JavaScript steht alles untereinander."""
+    leiste = "".join(f'<a href="#{n}" data-t="{n}" role="tab"{" class=warn" if (len(x) > 3 and x[3]) else ""}>{esc(t)}</a>' for x in teile for n, t in [x[:2]])
+    body = "".join(f'<section class="ts-tabteil" id="t-{x[0]}">{x[2]}</section>' for x in teile)
+    return f'<div class="ts-tabs"><nav class="ts-nav" role="tablist" aria-label="Abschnitte">{leiste}</nav>{body}</div>' + UNTERTAB_JS
 
 
 def _ts_url(tab, sid, regiert):
