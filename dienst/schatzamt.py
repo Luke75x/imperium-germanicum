@@ -277,9 +277,7 @@ def _teilstaat_tabs(con, k, sid):
 
 def _reich_tabs(con, k):
     import etatplan
-    tabs = [("haushalt", "Staatshaushalt", "haushalt/"), ("etat", "Etatverteilung", "etatverteilung/?ziel=reich"), ("entw", "Entwicklung", "entwicklung/?ziel=reich"), ("energie", "Energie", "energie/?ziel=reich"), ("krisen", "Krisen", "krisen/?ziel=reich")]
-    if etatplan.darf_aendern(con, k, "reich"):
-        tabs.append(("plan", "Etat planen", "etatplanung/?ziel=reich"))
+    tabs = [("haushalt", "Staatshaushalt", "haushalt/"), ("etat", "Etat", "etatverteilung/?ziel=reich"), ("entw", "Entwicklung", "entwicklung/?ziel=reich"), ("energie", "Energie", "energie/?ziel=reich"), ("krisen", "Krisen", "krisen/?ziel=reich")]
     tabs += [("etats", "Etats der Behörden", "etats/"), ("finanzen", "Reichsfinanzen", "finanzen/"), ("gold", "Goldreserven", "gold/"),
              ("notlage", "Haushaltsnotlagen", "notlagen/?bereich=reich")]
     if hat_verteidigung(con, k):

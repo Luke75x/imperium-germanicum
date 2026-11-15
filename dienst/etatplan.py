@@ -1172,7 +1172,7 @@ async def _seite(request, k, planung):
     if berechtigt or planung:
         umschalter = (f'<div class="ts-modus" role="group" aria-label="Ansicht">'
                       f'<a href="{PFAD}?ziel={esc(ziel)}"{" class=aktiv" if not planung else ""}>Geltender Etat</a>'
-                      f'<a href="{PFAD_PLAN}?ziel={esc(ziel)}"{" class=aktiv" if planung else ""}>{amt.ic("pencil")} Planen und einreichen</a></div>')
+                      f'<a href="{PFAD_PLAN}?ziel={esc(ziel)}"{" class=aktiv" if planung else ""}>{amt.ic("pencil")} Etat planen</a></div>')
     def schritt(n, titel, text=""):
         return f'<div class="ts-schritt"><span>{n}</span><h2>{titel}</h2></div>' + (f'<p class="az">{text}</p>' if text else "")
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}{" (Ihr Teilstaat)" if s in eigene else ""}</option>' for s, n in ziel_liste)
