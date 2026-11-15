@@ -52,6 +52,7 @@ CSS = """<style>
 .anker:target{background:#fff3b0;box-shadow:0 0 0 4px #fff3b0;border-radius:3px;scroll-margin-top:90px}
 .sa-plus{color:var(--ok)}.sa-minus{color:var(--rot)}
 .sa-nr{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em}
+table.liste td.sa-nr{white-space:nowrap}
 .sa-karten{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin:12px 0 4px}
 .sa-karte{border:1px solid var(--linie);border-radius:12px;padding:16px 18px;background:#fff}
 .sa-karte small{display:block;color:var(--grau);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
@@ -641,11 +642,103 @@ async def uebersicht(request, k):
     return ant(request, k, "Übersicht", "sa-start", inhalt)
 
 
+# Neue staatliche Startseite (Dashboard). SCHNELL ZURÜCK: NEUE_STARTSEITE = False setzen und den Dienst neu starten
+# (systemctl restart imperium-dienst) – oder einzeln über ?ansicht=alt. Sicherung der alten Datei: /root/backup-dashboard/.
+NEUE_STARTSEITE = True
+KASSEN_KARTEN_MAX = 6    # bis zu so vielen Kassen als Karten, darüber als durchsuchbare Tabelle
+
+KASSEN_FILTER_JS = """<script>(function(){var f=document.getElementById('sa-kfilter');if(!f)return;var z=[].slice.call(document.querySelectorAll('#sa-ktab tbody tr'));
+function s(){var q=f.value.trim().toLowerCase();var n=0;z.forEach(function(r){var on=!q||r.textContent.toLowerCase().indexOf(q)>-1;r.hidden=!on;if(on)n++});
+var c=document.getElementById('sa-kzahl');if(c)c.textContent=n+' von '+z.length}f.addEventListener('input',s);s()})();</script>"""
+
+
+def _kassen_tabelle(konten, zusatz):
+    """Alle Kassen kompakt: Name, Art, Kontonummer, Saldo, Aktionen – mit Suchfeld."""
+    zeilen = "".join(
+        f'<tr><td><b>{esc(r["name"])}</b>' + (f'<br><span class="az">{esc(zusatz[r["id"]])}</span>' if r["id"] in zusatz else "")
+        + (f'<br><span class="sa-rot">Gesperrt</span>' if r["gesperrt"] else "")
+        + f'</td><td>{esc(geld.art_name(r))}</td><td class="sa-nr">{nummer_anzeige(r["nummer"])}</td>'
+        f'<td class="sa-betrag">{betrag_html(r["saldo"], False, kurz=True)}</td>'
+        f'<td class="sa-betrag"><a class="btn klein" href="{PFAD}ueberweisen/?von={r["id"]}" aria-label="Von {esc(r["name"])} überweisen">Überweisen</a> '
+        f'<a class="btn klein zweit" href="{PFAD}konto/?konto={r["id"]}" aria-label="Umsätze von {esc(r["name"])}">Umsätze</a></td></tr>' for r in konten)
+    return ('<div class="sa-leiste"><div><label for="sa-kfilter">Kasse suchen</label>'
+            '<input type="search" id="sa-kfilter" placeholder="Name, Art oder Kontonummer" autocomplete="off"></div>'
+            '<p class="az" style="margin:0 0 6px"><span id="sa-kzahl"></span> Kassen</p></div>'
+            '<table class="liste" id="sa-ktab"><thead><tr><th>Kasse</th><th>Art</th><th>Kontonummer</th><th class="sa-betrag">Saldo</th><th></th></tr></thead>'
+            f'<tbody>{zeilen}</tbody></table>' + KASSEN_FILTER_JS)
+
+
+def _handlungsbedarf(con, k, konten):
+    """Zeilen für „Handlungsbedarf“: offene Krisen, Kassen im Minus, Haushaltsnotlagen – nur was zutrifft."""
+    import krisen
+    import notlage
+    z = []
+    for sid, r in _regierte(con, k).items():
+        n = krisen.offene_anzahl(con, "ts-" + sid)
+        if n:
+            z.append((True, "triangle-alert", f'<b>{n} offene Krise{"n" if n != 1 else ""}</b> in {esc(r["name"].replace("Staatskasse ", ""))}',
+                      f'{PFAD}teilstaat/land/?ziel=ts-{esc(sid)}', "Zur Krise"))
+    minus = [r for r in konten if r["saldo"] < 0]
+    if minus:
+        z.append((True, "triangle-alert", f'<b>{len(minus)} Kasse{"n" if len(minus) != 1 else ""} im Minus</b>: ' + ", ".join(esc(r["name"]) for r in minus[:3])
+                  + (" …" if len(minus) > 3 else ""), f'{PFAD}konto/?konto={minus[0]["id"]}', "Ansehen"))
+    nl = notlage.offene(con)
+    for r in konten:
+        if r["id"] in nl:
+            z.append((True, "triangle-alert", f'<b>Haushaltsnotlage</b> · {esc(r["name"])} (Stufe {nl[r["id"]]["stufe"]})', f'{PFAD}notlagen/', "Details"))
+    if not z:
+        return '<div class="sa-status ok">' + amt.ic("check") + 'Kein Handlungsbedarf – keine offenen Krisen, keine Kasse im Minus.</div>'
+    return '<div class="sa-todo">' + "".join(
+        f'<div class="warn">{amt.ic(ic)}<div>{text}<span class="az"><a href="{url}">{esc(lbl)} →</a></span></div></div>' for _, ic, text, url, lbl in z) + '</div>'
+
+
 def _uebersicht_staat(request, k, con):
-    """Staatliche Ansicht: nur die Kassen, über die die Person dienstlich verfügt (Behörden, Staatskassen, Reichskasse …);
-    Militär ohne eigene Kasse sieht hier den Verteidigungsbereich seines Teilstaats."""
+    """Staatliche Startseite als Dashboard: Schnellaktionen, Kennzahlen, Handlungsbedarf, Kassen (Karten oder durchsuchbare Tabelle), letzte Umsätze,
+    weitere Bereiche. Mit ?ansicht=alt (oder NEUE_STARTSEITE = False) die frühere Ansicht."""
     if not hat_kassen(con, k):
         return _uebersicht_militaer(request, k, con)
+    if not NEUE_STARTSEITE or request.query.get("ansicht") == "alt":
+        return _uebersicht_staat_alt(request, k, con)
+    konten = konten_im_modus(con, k, "staat")
+    zusatz = _kassen_zusatz(con, konten)
+    kz = [("Guthaben der Kassen", mark(sum(r["saldo"] for r in konten))), ("Kassen in Verfügung", str(len(konten))),
+          ("Leitzins", f'{geld.einstellung(con, "leitzins")} %')]
+    if geld.ist_beamter(k):
+        kz.append(("Geldmenge im Umlauf", mark(geld.geldmenge(con))))
+    ers = konten[0] if konten else None
+    aktionen = (f'<div class="sa-schnell">'
+                f'<a href="{PFAD}ueberweisen/{"?von=" + str(ers["id"]) if ers else ""}">{amt.ic("arrow-right-left")}<b>Überweisen</b><span>Zahlung von einer Kasse</span></a>'
+                f'<a href="{PFAD}konto/">{amt.ic("wallet")}<b>Umsätze &amp; Kontoauszüge</b><span>Alle Kassen im Überblick</span></a>'
+                + (f'<a href="{PFAD}teilstaat/">{amt.ic("flag")}<b>Mein Teilstaat</b><span>Etat planen, Land, Verteidigung</span></a>' if _regierte(con, k) else "")
+                + f'<a href="{PFAD}handel/">{amt.ic("package")}<b>Handel</b><span>Marktplatz, Lager, Handelsbuch</span></a></div>')
+    if len(konten) > KASSEN_KARTEN_MAX:
+        kassen = (f'<h2>Meine Kassen</h2>' + _kassen_tabelle(konten, zusatz))
+    else:
+        gruppen = [("Reich", [r for r in konten if r["art"] == "sonder"]), ("Behörden", [r for r in konten if r["art"] == "behoerde"]),
+                   ("Teilstaaten", [r for r in konten if r["art"] == "teilstaat"]), ("Verteidigung", [r for r in konten if r["art"] == "verteidigung"])]
+        kassen = "".join(f'<h2>{esc(t)}</h2><div class="sa-karten">{_karten(rs, zusatz)}</div>' for t, rs in gruppen if rs) or (
+            '<div class="hinweis">Ihnen ist keine staatliche Kasse zur Verfügung zugewiesen.'
+            + (" Die Verwaltung des Schatzamts finden Sie in der Navigation." if geld.ist_beamter(k) else "") + "</div>")
+    letzte = ""
+    if ers:
+        letzte = (f'<h2>Letzte Umsätze · {esc(ers["name"])}</h2>'
+                  + amt.tabelle(UMSATZ_KOPF, umsatz_zeilen(con, ers["id"], umsaetze(con, ers["id"], 8)), "Noch keine Umsätze.")
+                  + f'<p><a href="{PFAD}konto/">Alle Kassen, Umsätze und Kontoauszüge →</a></p>')
+    weitere = (f'<details class="sa-auf"><summary>{amt.ic("layout-dashboard")}Weitere Bereiche</summary><div class="sa-schnell">'
+               f'<a href="{PFAD}etats/">{amt.ic("landmark")}<b>Etats der Behörden</b><span>Kassenstand, Etat, Personalkosten</span></a>'
+               + (f'<a href="{PFAD}verteidigung/">{amt.ic("shield")}<b>Verteidigung</b><span>Etats, Militärgerät, Einsatzbereitschaft</span></a>' if hat_verteidigung(con, k) else "")
+               + f'<a href="{PFAD}haushalt/">{amt.ic("chart-column")}<b>Staatshaushalt</b><span>Steuern und Reichsabgabe der Teilstaaten</span></a>'
+               f'<a href="{PFAD}finanzen/">{amt.ic("chart-column")}<b>Reichsfinanzen</b><span>Geldmenge, Reichskasse, Staatskassen</span></a></div></details>')
+    inhalt = (f'<h1>{amt.ic("landmark")} Staatliche Kassen</h1>'
+              f'<p class="az">Dienstliche Ansicht für {esc(geld.anzeigename(con, k["id"], k["name"]))} – Ihr privates Konto sehen Sie unter „Privat“.</p>'
+              f'{amt.meldung(request)}{aktionen}<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
+              f'<h2>Handlungsbedarf</h2>{_handlungsbedarf(con, k, konten)}' + kassen + letzte + weitere
+              + f'<p class="az"><a href="{PFAD}?ansicht=alt">Frühere Ansicht</a></p>')
+    return ant(request, k, "Staatliche Kassen", "sa-start", inhalt)
+
+
+def _uebersicht_staat_alt(request, k, con):
+    """Frühere staatliche Startseite (unverändert)."""
     konten = konten_im_modus(con, k, "staat")
     kz = [("Guthaben der Kassen", mark(sum(r["saldo"] for r in konten))), ("Kassen in Verfügung", str(len(konten))),
           ("Leitzins", f'{geld.einstellung(con, "leitzins")} %')]
