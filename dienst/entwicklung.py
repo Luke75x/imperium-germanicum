@@ -558,7 +558,8 @@ def effekte_html(d, leer="Keine besonderen Wirkungen: die Investitionen liegen i
             continue
         einheit = {"bev_pp": "% Bev. p. a.", "kopf_pct": "% BIP/Kopf", "zuf_pt": "Pkt. Zufriedenheit", "ruestung_pct": "% Rüstungspreis"}[e["hebel"]]
         wert = e["wert"] * (12 if e["hebel"] == "bev_pp" else 1)
-        zeilen.append(f'<div class="{"plus" if e["wert"] > 0 else "minus"}"><b>{_vz(wert, einheit)}</b><span><em>{esc(e["titel"])}.</em> {esc(e["text"])}</span></div>')
+        gut = e["wert"] < 0 if e["hebel"] == "ruestung_pct" else e["wert"] > 0   # niedrigerer Rüstungspreis ist gut
+        zeilen.append(f'<div class="{"plus" if gut else "minus"}"><b>{_vz(wert, einheit)}</b><span><em>{esc(e["titel"])}.</em> {esc(e["text"])}</span></div>')
     return f'<div class="en-effekte">{"".join(zeilen)}</div>' if zeilen else f'<p class="sa-hinweis">{esc(leer)}</p>'
 
 
