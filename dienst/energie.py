@@ -492,15 +492,9 @@ def industrie_betrag(con, schl):
 
 
 def industrie_faktor(con, schl, periode, betrag):
-    """Anteil des Industrie-Etats, der der Industrie selbst bleibt (1 = keine Lasten): wirkt in entwicklung.entwickeln auf die Industrie-Investitionen."""
-    try:
-        last = lasten(con, schl, periode)["summe"]
-    except Exception:
-        log.exception("Lasten von %s nicht berechenbar", schl)
-        return 1.0
-    if last <= 0:
-        return 1.0
-    return max(0.0, 1.0 - last / betrag) if betrag > 0 else 0.0
+    """Immer 1 (Nutzervorgabe 15.11.2026): Instandhaltung und Bau der Kraftwerke mindern die Industrie-Investitionen und damit das BIP pro Kopf nicht mehr.
+    Die Lasten bleiben als Geldfluss bestehen (lasten, frei_industrie: sie begrenzen, was für neue Kraftwerke frei ist). Energiemangel wirkt weiter über wirkungen_fuer."""
+    return 1.0
 
 
 _FOERD = {"t": 0.0, "d": {}}
