@@ -1161,9 +1161,7 @@ async def _seite(request, k, planung):
                      f'{esc(_tag(von))} bis {esc(_tag(bis))}) für den Folgemonat eingereicht.')
         if vm:
             teile.append(f'Für <b>{esc(sa._monatsname(vm["ab"]))}</b> ist ein neuer Etat eingereicht ({esc(amt._zeit(vm["zeit"]))}); bis dahin gilt dieser Etat.')
-        if berechtigt:
-            teile.append(f'<a class="btn zweit" href="{PFAD_PLAN}?ziel={esc(ziel)}">{amt.ic("pencil")}Etat planen</a>')
-        else:
+        if not berechtigt:
             teile.append('Nur Ansicht – ändern darf den Etat ' + ("das Reich (Kronkanzler, Kaiser, Schatzamt-Leitung)." if ziel == "reich" else "der Landesherr dieses Teilstaats."))
     if grenze_hinweis:
         teile.append(amt.ic("scale") + " " + grenze_hinweis)
