@@ -3,6 +3,8 @@ Haushaltsnotlage, Militär), Kassen, geltender Etat, Reichsabgabe, letzte Umsät
 Kasse & Umsätze) sind bestehende Seiten, die dieselbe Reiterleiste tragen (schatzamt.reiter_html); die Seitenleiste hat nur den Eintrag „Mein Teilstaat“.
 Sichtbar für alle, die einen Teilstaat regieren (geld.regierte_staatskassen); mehrere Teilstaaten (Kronkanzler) wählt man oben aus.
 """
+from aiohttp import web
+
 import amt
 import geld
 import schatzamt as sa
@@ -90,35 +92,118 @@ async def seite(request, k):
                         f'Militär: Einsatzbereitschaft <b>{"–" if b is None else etatplan._de(b, 0) + " %"}</b>, {kzv["einheiten"]:,} Einheiten'.replace(",", "."),
                         f'Etat {esc(geld.mark_kurz(x["vert_land"]))} im Monat · Instandhaltung {esc(geld.mark_kurz(kzv["instandhaltung"]))}', (sa.PFAD + f"verteidigung/{sid}/", "Verteidigung")))
 
-    # Kassen
+    # Bereiche: jede Karte führt zu einem Reiter und nennt, was dort wichtig ist
+    vtk = geld.stellenkonto(con, "vt-" + sid)
     kassen = [kasse] + ([vtk] if vtk else [])
-    zusatz = sa._kassen_zusatz(con, [kasse])
+    n_kr = len(krisen.offene(con, schl))
+    import gold
+    kg = gold.bestand(con, schl)
 
-    # Geltender Etat
-    anteile = etatplan.runden100(etatplan.aktuelle(con, schl, liste, monat))
-    betr = x["verteilung_land"]
-    zeilen = [("Abgabe an das Reich", "–", geld.mark_kurz(x["reich"]))]
-    v, r_zeile = etatplan.zeilenwerte(anteile, x["rl_satz_land"])   # Politikfelder und Rücklage als Zeilen, zusammen 100 % des eigenen Etats
-    zeilen += [(esc(etatplan.NAMEN[kat]), f'{etatplan._de(v[kat])} %', geld.mark_kurz(betr[kat])) for kat, _ in etatplan.KATEGORIEN]
-    rl = x["land"] - x["pool_land"]
-    zeilen.append(("Rücklage der Staatskasse" if rl >= 0 else "Rücklage (Entnahme aus der Staatskasse)", f'{etatplan._de(r_zeile)} %', geld.mark_kurz(rl)))
-    etat = amt.tabelle(["Posten", "Anteil am eigenen Etat", "Betrag / Monat"], zeilen, klasse="sa-haushalt")
-
-    umsatz = amt.tabelle(sa.UMSATZ_KOPF, sa.umsatz_zeilen(con, kasse["id"], sa.umsaetze(con, kasse["id"], 6)), "Noch keine Umsätze.")
+    def karte(symbol, titel, url, zeilen, fuss="", warn=False):
+        return (f'<a class="ts-karte" href="{esc(url)}"><b class="ts-kt">{amt.ic(symbol)}{esc(titel)}</b>'
+                + "".join(f"<p>{t}</p>" for t in zeilen) + (f'<small>{fuss}</small>' if fuss else "") + '</a>')
+    ab_text = ("Etat eingereicht" if eing else "Änderungsperiode läuft" if etatplan.in_aenderungsperiode() else "Entwurf möglich")
+    karten = [karte("chart-pie", "Etat", sa.PFAD + f"etatverteilung/?ziel={schl}",
+                    [f"Etat im Monat: <strong>{esc(geld.mark_kurz(x['summe']))}</strong>", f"Abgabe an das Reich: <strong>{esc(abgabe)}</strong>",
+                     f"{x['wirkung_land']['boni']} Boni · {x['wirkung_land']['mali']} Mali"], esc(ab_text) + " →"),
+              karte("users", "Land", sa.PFAD + f"teilstaat/land/?ziel={schl}",
+                    [f"Entwicklung, Energie, Krisen", f"HDI <strong>{etatplan._de(x['entwicklung']['hdi'], 3)}</strong> · Zufriedenheit <strong>{etatplan._de(zuf['neu'], 0)}</strong>"],
+                    (f"{n_kr} offene Krise{'n' if n_kr != 1 else ''}" if n_kr else "Keine offene Krise") + " →"),
+              karte("wallet", "Finanzen", sa.PFAD + f"teilstaat/finanzen/?ziel={schl}",
+                    [f"Staatskasse: <strong>{esc(mark(kasse['saldo']))}</strong>"] + ([f"Verteidigungskasse: <strong>{esc(mark(vtk['saldo']))}</strong>"] if vtk else [])
+                    + [f"Gold: <strong>{kg / 1000:,.1f} t</strong>".replace(",", "X").replace(".", ",").replace("X", ".")],
+                    "Haushaltsnotlage" + (" – offen" if in_not else ": keine") + " →")]
+    if verteidigung.darf_sehen(con, k, sid) and vtk:
+        karten.append(karte("shield", "Verteidigung", sa.PFAD + f"verteidigung/{sid}/",
+                            [f"Einsatzbereitschaft: <strong>{'–' if b is None else etatplan._de(b, 0) + ' %'}</strong>", f"{kzv['einheiten']:,} Einheiten".replace(",", ".")], "Bestand und Beschaffung →"))
     inhalt = (f'<h1>{amt.ic("flag")} {esc(x["name"])}</h1>{amt.meldung(request)}'
-              f'<p class="az">Alles zum eigenen Teilstaat an einem Ort. Oben wechseln Sie zwischen Etat, Etat planen, Verteidigung, Haushaltsnotlage und Kasse.</p>'
+              f'<p class="az">Die Lage Ihres Teilstaats auf einen Blick. Die Reiter oben führen zu Etat, Land (Entwicklung, Energie, Krisen), Finanzen und Verteidigung.</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
               f'<h2>Auf einen Blick</h2><div class="sa-todo">{"".join(z)}</div>'
-              f'<div class="sa-spalten"><div><h2>Kassen</h2><div class="sa-karten">{sa._karten(kassen, zusatz)}</div></div>'
-              f'<div><h2>Reichsabgabe</h2><p class="sa-hinweis">Der Teilstaat gibt <b>{esc(abgabe)}</b> seines Steueraufkommens an das Reich ab ({esc(mark(x["reich"]))} im Monat), höchstens '
-              f'{esc(str(geld.einstellung(con, "aufkommen").get("quote_max", 33)))} %'
-              + (f'. Ohne diese Obergrenze wären es <b>{etatplan._de(x["quote_theorie"])} %</b> ({esc(mark(x["reich_theorie"]))}).' if q + 0.05 < x["quote_theorie"] else ".")
-              + f' Die Berechnung steht unter <a href="{sa.PFAD}haushalt/">Reichshaushalt</a>.</p></div></div>'
-              f'<h2>Geltender Etat im {esc(sa._monatsname(monat))}</h2>{etat}'
-              f'<p><a href="{sa.PFAD}etatverteilung/?ziel={schl}">Diagramm, Boni und Mali, Zufriedenheit →</a></p>'
-              f'<h2>Letzte Umsätze · {esc(kasse["name"])}</h2>{umsatz}<p><a href="{sa.PFAD}konto/?konto={kasse["id"]}">Alle Umsätze und Kontoauszüge →</a></p>')
+              f'<h2>Bereiche</h2><div class="ts-karten">{"".join(karten)}</div>')
     return sa.ant(request, k, "Mein Teilstaat", "sa-teilstaat", inhalt)
+
+
+def _kopf(request, k):
+    """(con, regiert, sid, schl, kasse) – oder None, wenn kein Teilstaat regiert wird."""
+    con = request.app["db"]
+    regiert = sa._regierte(con, k)
+    if not regiert:
+        return None
+    ziel = request.query.get("ziel", "")
+    sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regiert else next(iter(regiert))
+    return con, regiert, sid, "ts-" + sid, regiert[sid]
+
+
+def _abschnitte(nav, teile):
+    """Sprungleiste und Abschnitte einer gebündelten Seite: teile = [(Anker, Symbol, Titel, HTML, Markierung)]."""
+    leiste = "".join(f'<a href="#{a}"{" class=warn" if w else ""}>{esc(t)}</a>' for a, _, t, _, w in teile)
+    body = "".join(f'<section class="ts-abschnitt" id="{a}"><h2 class="ts-titel">{amt.ic(sym)}{esc(t)}</h2>{h.replace("<h2", "<h3").replace("</h2>", "</h3>")}</section>' for a, sym, t, h, _ in teile)
+    return f'<nav class="ts-nav" aria-label="Abschnitte">{leiste}</nav>{body}'
+
+
+@sa.seite("staat")
+async def land(request, k):
+    """Reiter „Land“: Entwicklung, Energie und Krisen eines Teilstaats auf einer Seite."""
+    import aufkommen
+    import energie
+    import entwicklung
+    import etatplan
+    import krisen
+    kp = _kopf(request, k)
+    if not kp:
+        raise web.HTTPFound(PFAD)
+    con, regiert, sid, schl, kasse = kp
+    liste = aufkommen.berechnen(con, periode=etatplan.monat_heute())
+    ziele = etatplan.ziele(con, liste)
+    n_kr = krisen.offene_anzahl(con, schl)
+    teile = [("entwicklung", "users", "Entwicklung", entwicklung.rumpf(request, k, con, liste, schl, ziele, True), False),
+             ("energie", "zap", "Energie", energie._seitenhtml(request, k, con, schl, True), False),
+             ("krisen", "triangle-alert", f"Krisen ({n_kr})" if n_kr else "Krisen", krisen.rumpf(request, k, con, schl, True), bool(n_kr))]
+    if n_kr:
+        teile.insert(0, teile.pop())   # offene Krisen zuerst: Handlungszwang
+    name = esc(kasse["name"].replace("Staatskasse ", ""))
+    inhalt = (f'<h1>{amt.ic("users")} Land · {name}</h1>{amt.meldung(request)}'
+              '<p class="az">Wie sich der Teilstaat langfristig entwickelt: Bevölkerung und Wirtschaft (Entwicklung), die Energieversorgung und Krisen, auf die der Landesherr reagieren muss. '
+              'Alles folgt aus dem Etat; die Werte ändern sich nur allmählich.</p>' + _abschnitte(None, teile))
+    return sa.ant(request, k, "Land", "sa-ts-land", inhalt)
+
+
+@sa.seite("staat")
+async def finanzen(request, k):
+    """Reiter „Finanzen“: Kassen, Reichsabgabe, Goldreserven, Haushaltsnotlage und letzte Umsätze eines Teilstaats."""
+    import aufkommen
+    import etatplan
+    import gold
+    import notlage
+    kp = _kopf(request, k)
+    if not kp:
+        raise web.HTTPFound(PFAD)
+    con, regiert, sid, schl, kasse = kp
+    liste = aufkommen.berechnen(con, periode=etatplan.monat_heute())
+    x = next(y for y in liste if y["staat"] == sid)
+    q = x["quote"]
+    vtk = geld.stellenkonto(con, "vt-" + sid)
+    kassen = [kasse] + ([vtk] if vtk else [])
+    kassen_html = (f'<div class="sa-karten">{sa._karten(kassen, sa._kassen_zusatz(con, [kasse]))}</div>'
+                   f'<h3>Reichsabgabe</h3><p class="sa-hinweis">Der Teilstaat gibt <b>{esc(etatplan._de(q))} %</b> seines Steueraufkommens an das Reich ab ({esc(mark(x["reich"]))} im Monat), höchstens '
+                   f'{esc(str(geld.einstellung(con, "aufkommen").get("quote_max", 33)))} %'
+                   + (f'. Ohne diese Obergrenze wären es <b>{etatplan._de(x["quote_theorie"])} %</b> ({esc(mark(x["reich_theorie"]))}).' if q + 0.05 < x["quote_theorie"] else ".")
+                   + f' Die Berechnung steht unter <a href="{sa.PFAD}haushalt/">Reichshaushalt</a>.</p>')
+    in_not = any(notlage.offener_fall(con, r["id"]) for r in kassen)
+    umsatz = (amt.tabelle(sa.UMSATZ_KOPF, sa.umsatz_zeilen(con, kasse["id"], sa.umsaetze(con, kasse["id"], 8)), "Noch keine Umsätze.")
+              + f'<p><a href="{sa.PFAD}konto/?konto={kasse["id"]}">Alle Umsätze und Kontoauszüge →</a></p>')
+    teile = [("kassen", "wallet", "Kassen und Reichsabgabe", kassen_html, False),
+             ("gold", "coins", "Goldreserven", gold.teilstaat_rumpf(request, k, con, sid, kasse), False),
+             ("notlage", "triangle-alert", "Haushaltsnotlage", notlage.rumpf_teilstaat(request, k, con, sid), in_not),
+             ("umsaetze", "file-text", f"Letzte Umsätze · {kasse['name']}", umsatz, False)]
+    name = esc(kasse["name"].replace("Staatskasse ", ""))
+    inhalt = (f'<h1>{amt.ic("wallet")} Finanzen · {name}</h1>{amt.meldung(request)}'
+              '<p class="az">Das Geld des Teilstaats: Kassen, Abgabe an das Reich, Goldreserven, die Lage bei einem Minus und die letzten Buchungen.</p>' + _abschnitte(None, teile))
+    return sa.ant(request, k, "Finanzen", "sa-ts-fin", inhalt)
 
 
 def registrieren(app):
     app.router.add_get(PFAD, seite)
+    app.router.add_get(PFAD + "land/", land)
+    app.router.add_get(PFAD + "finanzen/", finanzen)

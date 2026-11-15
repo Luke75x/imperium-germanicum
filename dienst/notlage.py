@@ -374,9 +374,45 @@ def rp_html(request, con):
     return "<h2>Haushaltsnotlage</h2>" + form
 
 
+def rumpf_teilstaat(request, k, con, sid):
+    """Haushaltsnotlage eines Teilstaats (Seite „Finanzen“): Staatskasse und Verteidigungskasse – Lage, offene Fälle, Überziehungsrahmen, Regeln."""
+    import aufkommen
+    e = einstellungen(con)
+    liste = aufkommen.berechnen(con)
+    jetzt = int(time.time())
+    kassen = [r for r in (geld.stellenkonto(con, "ts-" + sid), geld.stellenkonto(con, "vt-" + sid)) if r]
+    ids = {r["id"] for r in kassen}
+    faelle = [f for f in con.execute("SELECT * FROM nl_faelle WHERE ende IS NULL ORDER BY seit") if f["konto_id"] in ids]
+    zeilen, rahmen = [], []
+    for f in faelle:
+        r = geld.konto(con, f["konto_id"])
+        zeilen.append((esc(f["name"]), f'{int((jetzt - f["seit"]) // 86400)} Tage', f'<b class="sa-minus">{geld.mark_kurz(r["saldo"])}</b>',
+                       amt.status_marke("nein" if f["stufe"] >= 3 else "warn", f'Stufe {f["stufe"]}: {STUFEN[f["stufe"]]}'), geld.mark_kurz(f["zinsen"]),
+                       esc(_naechster_schritt(f, e, jetzt))))
+    for r in kassen:
+        limit = dispo_limit(con, r, liste)
+        genutzt = max(0, -r["saldo"])
+        rahmen.append((esc(r["name"]), geld.mark_kurz(r["saldo"]), geld.mark_kurz(limit), geld.mark_kurz(genutzt) if genutzt else "–",
+                       amt.status_marke("nein", "Notlage") if r["saldo"] < 0 else amt.status_marke("ok", "im Plus")))
+    status = (f'<p class="sa-status ok">{amt.ic("check")}Keine Kasse im Minus.</p>' if not faelle else
+              f'<p class="sa-status">{amt.ic("triangle-alert")}{len(faelle)} Kasse(n) in der Haushaltsnotlage.</p>')
+    leitzins = _leitzins(con)
+    erkl = (f'<details class="sa-auf"><summary>{amt.ic("scale")}Was passiert bei einem Minus?</summary><div class="sa-erkl"><ol>'
+            f'<li>Beschaffungen und Zuführungen dürfen bis zu <b>{float(e["dispo_monate"]):g} Monat(e)</b> überziehen (Dispo). Gehälter werden nur bei Deckung gezahlt.</li>'
+            '<li><b>Stufe 1 – Haushaltsnotlage:</b> keine Ausgaben mehr, <b>Gehälter dieser Kasse werden einbehalten</b> und nach dem Ausgleich nachgezahlt.</li>'
+            f'<li><b>Stufe 2 – Strafzinsen:</b> {leitzins + float(e["aufschlag"]):g} % p. a. (Leitzins + {float(e["aufschlag"]):g} Punkte) auf das Minus an die Reichskasse.</li>'
+            f'<li><b>Stufe 3</b> nach {e["ausgleich_tage"]} Tagen oder bei Minus über einem Monat: Der Teilstaat gleicht selbst aus (Verteidigungskasse aus der Staatskasse, danach '
+            f'Verkauf von Gold) und zahlt <b>{float(e["abgabe_plus"]):g} Punkte mehr Reichsabgabe</b>. Das Reich zahlt nicht für ein Minus.</li>'
+            f'<li><b>Stufe 4</b> nach {e["zwang_tage"]} Tagen: <b>Zwangsverwaltung</b> durch Kronkanzler und Schatzamt.</li></ol></div></details>')
+    return (status + (amt.tabelle(["Kasse", "Seit", "Minus", "Stufe", "Strafzinsen", "Nächster Schritt"], zeilen, klasse="sa-haushalt") if zeilen else "")
+            + amt.tabelle(["Kasse", "Saldo", "Dispo", "Überzogen", ""], rahmen, "Keine Kassen.", klasse="sa-haushalt") + erkl)
+
+
 @sa.seite("staat")
 async def seite(request, k):
     con = request.app["db"]
+    b = request.query.get("bereich", "")
+    sa.zur_finanz_seite(request, k, con, b, "notlage")
     e = einstellungen(con)
     ids = sichtbare_konten(con, k)
     jetzt = int(time.time())

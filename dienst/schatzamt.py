@@ -96,6 +96,26 @@ table.liste td.sa-betrag,table.liste th.sa-betrag{text-align:right}
 .sa-bereich .reiter{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;gap:0 20px;-webkit-overflow-scrolling:touch;
  -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);padding-right:28px}
 .sa-bereich .reiter::-webkit-scrollbar{display:none}}
+.ts-nav{display:flex;flex-wrap:wrap;gap:6px 8px;margin:10px 0 4px;position:sticky;top:0;z-index:3;background:var(--bg,#fff);padding:6px 0}
+.ts-nav a{border:1px solid var(--linie);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;background:#fff}
+.ts-nav a:hover,.ts-nav a.warn{border-color:var(--ink)}
+.ts-abschnitt{scroll-margin-top:56px;margin:26px 0 0;padding-top:4px;border-top:2px solid var(--ink)}
+.ts-abschnitt>h2.ts-titel{display:flex;gap:8px;align-items:center;margin:10px 0 4px;font-size:20px}
+.ts-abschnitt h3{margin:18px 0 6px}
+.ts-karten{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin:12px 0}
+.ts-karte{display:block;border:1px solid var(--linie);border-radius:12px;padding:14px 16px;background:#fff;color:var(--ink);text-decoration:none}
+.ts-karte:hover{border-color:var(--ink)}
+.ts-karte b.ts-kt{display:flex;gap:8px;align-items:center;font-size:15px;margin-bottom:6px}
+.ts-karte .icon{width:18px;height:18px}
+.ts-karte p{margin:3px 0;font-size:13.5px;color:var(--grau)}
+.ts-karte p strong{color:var(--ink);font-weight:650}
+.ts-karte small{display:block;margin-top:8px;font-weight:600;font-size:12.5px}
+.ts-modus{display:inline-flex;border:1px solid var(--ink);border-radius:999px;padding:2px;margin:4px 0 10px;background:#fff}
+.ts-modus a,.ts-modus span{padding:5px 14px;border-radius:999px;font-size:13px;font-weight:600;text-decoration:none;color:var(--ink)}
+.ts-modus .aktiv{background:var(--ink);color:#fff}
+.ts-schritt{display:flex;gap:10px;align-items:center;margin:26px 0 6px}
+.ts-schritt>span{flex:none;width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.ts-schritt h2{margin:0}
 .sa-todo{display:grid;gap:8px;margin:12px 0 6px}
 .sa-todo>div{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--linie);border-radius:12px;padding:10px 14px;background:#fff;font-size:14px}
 .sa-todo>div.warn{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
@@ -136,7 +156,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe", "sa-bankkarte", "sa-besitz")     # Seiten, die nur die Privatperson betreffen
-NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-teilstaat", "sa-reich", "sa-handel")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
+NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-ts-land", "sa-ts-fin", "sa-teilstaat", "sa-reich", "sa-handel")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_kassen(con, k):
@@ -223,23 +243,36 @@ def _regierte(con, k):
     return k["_sa_regiert"]
 
 
+def zur_land_seite(request, k, con, ziel, abschnitt):
+    """Entwicklung, Energie und Krisen eines regierten Teilstaats liegen auf einer Seite (Reiter „Land“)."""
+    if ziel.startswith("ts-") and ziel[3:] in _regierte(con, k):
+        r = request.query
+        q = "&".join(f"{n}={quote(r[n])}" for n in ("m", "f") if n in r)
+        raise web.HTTPFound(f"{PFAD}teilstaat/land/?ziel={ziel}" + ("&" + q if q else "") + "#" + abschnitt)
+
+
+def zur_finanz_seite(request, k, con, ziel, abschnitt):
+    """Gold und Haushaltsnotlage eines regierten Teilstaats liegen auf der Seite „Finanzen“."""
+    if ziel.startswith("ts-") and ziel[3:] in _regierte(con, k):
+        r = request.query
+        q = "&".join(f"{n}={quote(r[n])}" for n in ("m", "f") if n in r)
+        raise web.HTTPFound(f"{PFAD}teilstaat/finanzen/?ziel={ziel}" + ("&" + q if q else "") + "#" + abschnitt)
+
+
 def _ts_url(tab, sid, regiert):
     z = "ts-" + sid
-    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "entw": f"entwicklung/?ziel={z}", "energie": f"energie/?ziel={z}", "gold": f"gold/?ziel={z}", "krisen": f"krisen/?ziel={z}", "plan": f"etatplanung/?ziel={z}", "vt": f"verteidigung/{sid}/",
-                   "notlage": f"notlagen/?bereich={z}", "kasse": f"konto/?konto={regiert[sid]['id']}"}[tab]
+    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "land": f"teilstaat/land/?ziel={z}", "fin": f"teilstaat/finanzen/?ziel={z}", "vt": f"verteidigung/{sid}/"}[tab]
 
 
 def _teilstaat_tabs(con, k, sid):
-    import etatplan
+    """Fünf Reiter: Überblick (Lage und Handlungsbedarf), Etat (geltend und planen), Land (Entwicklung, Energie, Krisen), Finanzen (Kassen, Gold, Notlage), Verteidigung."""
     import verteidigung
     import krisen
     n_kr = krisen.offene_anzahl(con, "ts-" + sid)
-    tabs = [("start", "Überblick"), ("etat", "Etat"), ("entw", "Entwicklung"), ("energie", "Energie"), ("gold", "Goldreserven"), ("krisen", f"Krisen ({n_kr})" if n_kr else "Krisen")]
-    if etatplan.darf_aendern(con, k, "ts-" + sid):
-        tabs.append(("plan", "Etat planen"))
+    tabs = [("start", "Überblick"), ("etat", "Etat"), ("land", f"Land ({n_kr} Krise{'n' if n_kr != 1 else ''})" if n_kr else "Land"), ("fin", "Finanzen")]
     if verteidigung.darf_sehen(con, k, sid):
         tabs.append(("vt", "Verteidigung"))
-    return tabs + [("notlage", "Haushaltsnotlage"), ("kasse", "Kasse & Umsätze")]
+    return tabs
 
 
 def _reich_tabs(con, k):
@@ -256,7 +289,7 @@ def _reich_tabs(con, k):
 
 def _reiter_kontext(request, k, con, aktiv):
     """(Bereich, Teilstaat-ID, Reiter) der aktuellen Seite: Bereich 'ts' = Mein Teilstaat, 'reich' = Reichshaushalt; None = Seite gehört zu keinem Bereich."""
-    if aktiv not in ("sa-teilstaat", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-verteidigung", "sa-notlage", "sa-konto",
+    if aktiv not in ("sa-teilstaat", "sa-ts-land", "sa-ts-fin", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-verteidigung", "sa-notlage", "sa-konto",
                      "sa-staatshaushalt", "sa-finanzen", "sa-etats", "sa-gold"):
         return None
     regiert = _regierte(con, k)
@@ -265,16 +298,19 @@ def _reiter_kontext(request, k, con, aktiv):
     if aktiv == "sa-teilstaat":
         sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regiert else next(iter(regiert), None)
         return ("ts", sid, "start") if sid else None
+    if aktiv in ("sa-ts-land", "sa-ts-fin"):
+        sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regiert else next(iter(regiert), None)
+        return ("ts", sid, "land" if aktiv == "sa-ts-land" else "fin") if sid else None
     if aktiv in ("sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen"):
-        tab = {"sa-etatverteilung": "etat", "sa-etatplanung": "plan", "sa-entwicklung": "entw", "sa-energie": "energie", "sa-krisen": "krisen"}[aktiv]
+        tab = {"sa-etatverteilung": "etat", "sa-etatplanung": "etat", "sa-entwicklung": "entw", "sa-energie": "energie", "sa-krisen": "krisen"}[aktiv]
         if ziel.startswith("ts-") and ziel[3:] in regiert:
-            return "ts", ziel[3:], tab
+            return "ts", ziel[3:], tab if tab == "etat" else "land"
         if ziel == "reich" or (ziel.startswith("ts-") and ziel[3:] not in regiert):
             return "reich", None, tab
         return ("ts", next(iter(regiert)), tab) if regiert else ("reich", None, tab)
     if aktiv == "sa-gold":
         if ziel.startswith("ts-") and ziel[3:] in regiert:
-            return "ts", ziel[3:], "gold"
+            return "ts", ziel[3:], "fin"
         return "reich", None, "gold"
     if aktiv == "sa-verteidigung":
         sid = request.match_info.get("sid", "")
@@ -282,14 +318,14 @@ def _reiter_kontext(request, k, con, aktiv):
     if aktiv == "sa-notlage":
         b = q.get("bereich", "")
         if b.startswith("ts-") and b[3:] in regiert:
-            return "ts", b[3:], "notlage"
+            return "ts", b[3:], "fin"
         if b == "reich" or not regiert:
             return "reich", None, "notlage"
-        return ("reich", None, "notlage") if (geld.ist_leitung(k) or amt.ROLLE_KANZLER in k["rollen"]) else ("ts", next(iter(regiert)), "notlage")
+        return ("reich", None, "notlage") if (geld.ist_leitung(k) or amt.ROLLE_KANZLER in k["rollen"]) else ("ts", next(iter(regiert)), "fin")
     if aktiv == "sa-konto":
         r = _konto_waehlen(con, k, request)[0]   # das angezeigte Konto: Staats- oder Verteidigungskasse eines regierten Teilstaats → Reiter „Kasse & Umsätze“
         sid = (r["stelle"] or "")[3:] if r and (r["stelle"] or "")[:3] in ("ts-", "vt-") else ""
-        return ("ts", sid, "kasse") if sid in regiert else None
+        return ("ts", sid, "fin") if sid in regiert else None
     return "reich", None, {"sa-staatshaushalt": "haushalt", "sa-finanzen": "finanzen", "sa-etats": "etats", "sa-gold": "gold"}[aktiv]
 
 
@@ -320,7 +356,7 @@ def reiter_html(request, k, con, aktiv):
         kopf = f'<span class="sa-bereich-name">{amt.ic("landmark")}Reichshaushalt</span>'
         schl = "sa-reich"
     banner = ""
-    if bereich == "ts" and tab != "krisen":
+    if bereich == "ts" and tab not in ("land",):
         import krisen
         banner = krisen.banner_html(con, "ts-" + sid)   # offene Krise: Handlungszwang
     return f'<div class="sa-bereich"><div class="sa-bereich-kopf">{kopf}</div><nav class="reiter" aria-label="Bereich">{links}</nav></div>{banner}', schl

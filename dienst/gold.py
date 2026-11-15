@@ -127,6 +127,7 @@ async def seite(request, k):
     else:
         eigener = None
     if eigener:
+        sa.zur_finanz_seite(request, k, con, "ts-" + eigener, "gold")
         return _teilstaat_seite(request, k, con, eigener, regiert[eigener])
     rows = con.execute("SELECT * FROM gr_bestand ORDER BY kg DESC").fetchall()
     gesamt = sum(r["kg"] for r in rows)
@@ -163,7 +164,11 @@ async def seite(request, k):
 
 
 def _teilstaat_seite(request, k, con, sid, kasse):
-    """Reiter „Goldreserven“ bei Mein Teilstaat: nur der Bestand und die Geschäfte des eigenen Teilstaats."""
+    return sa.ant(request, k, "Goldreserven", "sa-gold", teilstaat_rumpf(request, k, con, sid, kasse, False))
+
+
+def teilstaat_rumpf(request, k, con, sid, kasse, eingebettet=True):
+    """Goldreserven bei Mein Teilstaat (Seite „Finanzen“): nur der Bestand und die Geschäfte des eigenen Teilstaats."""
     stelle = "ts-" + sid
     kg = bestand(con, stelle)
     menge = geld.geldmenge(con)
@@ -180,12 +185,12 @@ def _teilstaat_seite(request, k, con, sid, kasse):
                   f'{g["abschlag"]} % Aufschlag. Ein Verkauf bringt neues, goldgedecktes Geld in die Staatskasse.</p>'
                   f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Ausführen</button></div></form>')
     bew = con.execute("SELECT * FROM gr_buchungen WHERE stelle=? ORDER BY id DESC LIMIT 30", (stelle,)).fetchall()
-    inhalt = (f'<h1>{amt.ic("coins")} Goldreserven</h1>{amt.meldung(request)}'
-              f'<p class="az">Goldreserven von {esc(kasse["name"].replace("Staatskasse ", ""))}. Andere Teilstaaten und das Reich sind hier nicht einsehbar.</p>'
+    inhalt = (("" if eingebettet else f'<h1>{amt.ic("coins")} Goldreserven</h1>{amt.meldung(request)}')
+              + f'<p class="az">Goldreserven von {esc(kasse["name"].replace("Staatskasse ", ""))}. Andere Teilstaaten und das Reich sind hier nicht einsehbar.</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>{handel}'
               '<h2>Goldgeschäfte und Buchungen</h2>' + amt.tabelle(["Zeit", "Menge", "Geschäft", "Betrag", "Durch"],
                   [(amt._zeit(b["zeit"]), _kg(b["kg"]), esc(ARTEN.get(b["art"], b["art"])), mark(b["betrag"]), esc(b["autor_name"])) for b in bew], "Noch keine Goldgeschäfte."))
-    return sa.ant(request, k, "Goldreserven", "sa-gold", inhalt)
+    return inhalt
 
 
 async def handeln_post(request):
@@ -195,7 +200,8 @@ async def handeln_post(request):
     form = await sa.formular(request)
     con = request.app["db"]
     kasse = geld.konto(con, form.get("kasse")) if str(form.get("kasse", "")).isdigit() else None
-    back = f"{PFAD}gold/" + (f"?ziel={form['ziel']}" if str(form.get("ziel", "")).startswith("ts-") and str(form["ziel"])[3:].isalnum() else "")
+    ts_ziel = str(form.get("ziel", "")).startswith("ts-") and str(form["ziel"])[3:].isalnum()
+    back = f"{PFAD}teilstaat/finanzen/?ziel={form['ziel']}" if ts_ziel else f"{PFAD}gold/"
     erlaubt = {r["id"] for r in handelbar(con, k).values() if r}
     if not kasse or kasse["id"] not in erlaubt:
         sa.weiter(back, "Über diese Kasse darfst du nicht verfügen.", True)

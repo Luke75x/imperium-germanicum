@@ -1168,8 +1168,15 @@ async def _seite(request, k, planung):
     if grenze_hinweis:
         teile.append(amt.ic("scale") + " " + grenze_hinweis)
     rechte = "".join(f'<p class="sa-hinweis">{t}</p>' for t in teile)
+    umschalter = ""
+    if berechtigt or planung:
+        umschalter = (f'<div class="ts-modus" role="group" aria-label="Ansicht">'
+                      f'<a href="{PFAD}?ziel={esc(ziel)}"{" class=aktiv" if not planung else ""}>Geltender Etat</a>'
+                      f'<a href="{PFAD_PLAN}?ziel={esc(ziel)}"{" class=aktiv" if planung else ""}>{amt.ic("pencil")} Planen und einreichen</a></div>')
+    def schritt(n, titel, text=""):
+        return f'<div class="ts-schritt"><span>{n}</span><h2>{titel}</h2></div>' + (f'<p class="az">{text}</p>' if text else "")
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}{" (Ihr Teilstaat)" if s in eigene else ""}</option>' for s, n in ziel_liste)
-    erkl = ('<div class="sa-erkl"><b>Wie ist der Etat aufgebaut?</b><ol>'
+    erkl = (f'<details class="sa-auf"><summary>{amt.ic("scale")}Wie ist der Etat aufgebaut?</summary><div class="sa-erkl"><ol>'
             + ('<li>Der Etat des Reiches ist sein Anteil an allen Steuern: die <b>Abgaben der Teilstaaten</b> und das gesamte Aufkommen der Freien Reichsgebiete.</li>'
                if ziel == "reich" else
                '<li>Der Etat ist das Steueraufkommen des Teilstaats im Monat. Ein Teil davon ist die <b>Abgabe an das Reich</b>; sie richtet sich nach Bevölkerung, '
@@ -1180,7 +1187,7 @@ async def _seite(request, k, planung):
             'Was nicht zugewiesen wird, bleibt zusätzlich als <b>Rücklage</b> in der ' + ("Reichskasse" if ziel == "reich" else "Staatskasse") + '. '
             '<b>Verteidigung ist echtes Geld</b>: dieser Anteil fließt jeden Monat in die '
             + ("Reichsverteidigungskasse (Führungsstab)" if ziel == "reich" else "Verteidigungskasse (Gehälter des Militärs, Instandhaltung und Kauf von Gerät)")
-            + '. Die übrigen Kategorien sind Ausgaben für die Bevölkerung.</li></ol></div>')
+            + '. Die übrigen Kategorien sind Ausgaben für die Bevölkerung.</li></ol></div></details>')
     kz = [("Etat im Monat", mark(gesamt), ""), ("Ausgabenbudget", mark(pool), "ep-kz-pool"),
           (f"Rücklage der {kassen_name}", mark(kasse_rl["saldo"] if kasse_rl else 0), ""),
           ("Zuführung diesen Monat" if ruecklage >= 0 else f"Entnahme aus der {kassen_name}", mark(abs(ruecklage)), "ep-kz-rl"),
@@ -1202,17 +1209,22 @@ async def _seite(request, k, planung):
                   + f'<td>{_de((liste[0]["zufriedenheit_reich"] if s == "reich" else x2["zufriedenheit_land"])["neu"], 0)}</td></tr>')
     verlauf = con.execute("SELECT * FROM ep_log WHERE schl=? ORDER BY id DESC LIMIT 15", (ziel,)).fetchall()
     titel = "Etat planen" if planung else "Etatverteilung"
+    reich = ziel == "reich"
+    land_link = ("" if reich else f'<p class="sa-hinweis">{amt.ic("users")} Langfristige Wirkung auf Bevölkerung, Wirtschaft und Stimmung (Entwicklung, Rückhalt beim Volk): '
+                                  f'<a href="{sa.PFAD}teilstaat/land/?ziel={esc(ziel)}">Reiter „Land“ →</a></p>')
     inhalt = (CSS + f'<h1>{amt.ic("pencil" if planung else "chart-pie")} {titel} · {esc(name)}</h1>{amt.meldung(request)}'
               f'<p class="az">Wie viel vom Ausgabenbudget fließt in welches Politikfeld? Das Tortendiagramm zeigt den gesamten Monatsetat im {esc(sa._monatsname(ab))}.</p>'
               f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div>'
-              f'<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>'
-              f'<div class="kennzahlen">{"".join(f'<div><b{f" id={i}" if i else ""}>{esc(v)}</b><span{f" id={i}-t" if i else ""}>{esc(t)}</span></div>' for t, v, i in kz)}</div>'
-              + rechte + erkl
+              f'<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>' + umschalter + rechte
+              + schritt(1, "Mittel", "Was dem Haushalt im Monat zur Verfügung steht.")
+              + f'<div class="kennzahlen">{"".join(f"<div><b{f' id={i}' if i else ''}>{esc(v)}</b><span{f' id={i}-t' if i else ''}>{esc(t)}</span></div>" for t, v, i in kz)}</div>' + erkl
+              + schritt(2, "Verteilung", "Wohin das Geld fließt" + (": Regler verschieben, Entwurf speichern, in der Änderungsperiode einreichen." if darf else "."))
               + f'<div class="ep-raster"><div class="ep-torte" id="ep-torte"><svg viewBox="0 0 200 200" role="img" aria-label="Tortendiagramm des Etats {esc(name)}"></svg>'
                 '<div class="ep-tipp" id="ep-tipp"></div></div><div>' + form_in + '</div></div>'
-              + zuf_html(zuf, zuf_verlauf(con, ziel), ziel == "reich")
-              + wirkung_html(bew, basis_ein, basis_rl, ziel == "reich")
-              + entwicklung.kurz_html(entw_d, f"{sa.PFAD}entwicklung/?ziel={ziel}", entwicklung.rueckhalt_fuer(con, liste, ziel), ziel == "reich")
+              + schritt(3, "Wirkung", "Was diese Verteilung bewirkt: Boni und Mali, Zufriedenheit der Bevölkerung" + (" und langfristige Entwicklung." if reich else "."))
+              + wirkung_html(bew, basis_ein, basis_rl, reich).replace("<h2", "<h3").replace("</h2>", "</h3>")
+              + zuf_html(zuf, zuf_verlauf(con, ziel), reich).replace("<h2", "<h3").replace("</h2>", "</h3>")
+              + (entwicklung.kurz_html(entw_d, f"{sa.PFAD}entwicklung/?ziel={ziel}", entwicklung.rueckhalt_fuer(con, liste, ziel), True).replace("<h2", "<h3").replace("</h2>", "</h3>") if reich else land_link)
               + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script><script>{ZUF_JS}</script>' + (f'<script>{PLAN_JS}</script>' if darf else "")
               + ("" if planung else f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Vergleich aller Haushalte (Anteile am eigenen Etat in %)</summary><div class="ep-scroll">'
                 f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div></details>')

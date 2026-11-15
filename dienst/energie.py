@@ -679,7 +679,7 @@ def _auf(titel, inhalt, symbol="clock"):
     return f'<details class="sa-auf"><summary>{amt.ic(symbol)}{esc(titel)}</summary>{inhalt}</details>'
 
 
-def _seitenhtml(request, k, con, ziel):
+def _seitenhtml(request, k, con, ziel, eingebettet=False):
     import etatplan
     import entwicklung
     b = bilanz(con, ziel, frisch=True)
@@ -759,6 +759,8 @@ def _seitenhtml(request, k, con, ziel):
                 'die Richtmenge verbraucht der Monatswechsel, Überschuss lässt sich verkaufen, Zukauf zählt genauso. Der Bau wird sofort aus der Kasse bezahlt, aber nur, soweit der frei verfügbare Industrie-Etat reicht; Instandhaltung und Bau verringern, was der Industrie selbst bleibt. Kohle-, Gas-, Öl- und Kernkraftwerke brauchen ein Vorkommen (Braunkohle, Erdgas, Erdöl, Uran) im Gebiet. Überschüsse lassen sich am Energiemarkt verkaufen; '
                 'wer unter 60 % versorgt ist, darf dort zukaufen. Stilllegungen und Sätze legt die RP-Leitung fest.</p>', "info" if "info" in amt.ICONS else "clock")
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in _ziele(con))
+    if eingebettet:   # Abschnitt der Seite „Land“ (teilstaat.py): ohne Überschrift, Meldung und Haushaltsauswahl
+        return entwicklung.CSS + CSS + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info
     return (entwicklung.CSS + CSS + f'<h1>{amt.ic("zap")} Energie · {esc(name)}</h1>{amt.meldung(request)}'
             f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div></form>'
             + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + vgl_html + info)
@@ -822,6 +824,7 @@ def _ziel(request, k, con):
 async def seite(request, k):
     con = request.app["db"]
     ziel = _ziel(request, k, con)
+    sa.zur_land_seite(request, k, con, ziel, "energie")
     return sa.ant(request, k, "Energie", "sa-energie", _seitenhtml(request, k, con, ziel))
 
 

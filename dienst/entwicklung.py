@@ -660,6 +660,12 @@ async def seite(request, k):
     periode = etatplan.monat_heute()
     liste = aufkommen.berechnen(con, periode=periode)
     ziel, ziele = _gewaehlt(request, k, con, liste)
+    sa.zur_land_seite(request, k, con, ziel, "entwicklung")
+    return sa.ant(request, k, "Entwicklung", "sa-entwicklung", rumpf(request, k, con, liste, ziel, ziele))
+
+
+def rumpf(request, k, con, liste, ziel, ziele, eingebettet=False):
+    """Inhalt der Entwicklungsseite; eingebettet=True: Abschnitt der Seite „Land“ (ohne Überschrift, Meldung und Haushaltsauswahl)."""
     name = dict(ziele)[ziel]
     if ziel == "reich":
         d = liste[0]["entwicklung_reich"]
@@ -686,17 +692,18 @@ async def seite(request, k):
                _de(v.get("sicherheit", NEUTRAL)), _de(v.get("ueberwachung", 0)), _de(v.get("co2", 50)), _de(v.get("ernaehrung", NEUTRAL)), _de(v.get("engpass", 0)),
                _vz((v.get("bev_faktor", 1) - 1) * 100)) for p, v in reversed(vl)]
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in ziele)
-    inhalt = (CSS + f'<h1>{amt.ic("users")} Entwicklung · {esc(name)}</h1>{amt.meldung(request)}'
+    kopfteil = ("" if eingebettet else f'<h1>{amt.ic("users")} Entwicklung · {esc(name)}</h1>{amt.meldung(request)}')
+    wahl = ("" if eingebettet else f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div></form>')
+    inhalt = (CSS + kopfteil +
               '<p class="az">Die Investitionen in die Politikfelder wirken langfristig auf Bevölkerung, Wirtschaft und Stimmung. Die Werte folgen der Etatverteilung nur '
               'allmählich: ein Monat mit hohen oder niedrigen Ausgaben ändert wenig, dauerhafte Weichenstellungen viel.</p>'
-              f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div></form>'
-              + rueckhalt_html(rk, ziel == "reich") + kz_html(kz) + kz_html(kz2) + f'<h2>Was gerade wirkt</h2>{effekte_html(d)}'
-              + f'<h2>Die Bereiche im Einzelnen</h2><p class="sa-hinweis">Der Strich markiert den neutralen Wert bei der Vorgabe-Verteilung, der Pfeil die Richtung zum Zielwert.</p>{module}'
+              + wahl + rueckhalt_html(rk, ziel == "reich") + kz_html(kz) + kz_html(kz2) + f'<h2>Was gerade wirkt</h2>{effekte_html(d)}'
+              + f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Die Bereiche im Einzelnen</summary><p class="sa-hinweis">Der Strich markiert den neutralen Wert bei der Vorgabe-Verteilung, der Pfeil die Richtung zum Zielwert.</p>{module}</details>'
               + f'<details class="sa-auf"><summary>{amt.ic("clock")}Verlauf ({len(zeilen)} Monate)</summary>'
               + amt.tabelle(["Monat", "Gesundheit", "Bildung", "Akademiker", "Handwerker", "Sicherheit", "Überwachung", "CO₂", "Ernährung", "Engpässe", "Bevölkerung"], zeilen,
                             "Noch kein gebuchter Monat mit Entwicklung.", klasse="sa-haushalt") + '</details>'
-              + f'<p><a href="{sa.PFAD}etatplanung/?ziel={esc(ziel)}">Etat planen →</a></p>')
-    return sa.ant(request, k, "Entwicklung", "sa-entwicklung", inhalt)
+              + ("" if eingebettet else f'<p><a href="{sa.PFAD}etatplanung/?ziel={esc(ziel)}">Etat planen →</a></p>'))
+    return inhalt
 
 
 def registrieren(app):

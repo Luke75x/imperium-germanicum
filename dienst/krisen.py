@@ -555,7 +555,13 @@ async def seite(request, k):
                   f'<p class="sa-status{"" if n_offen else " ok"}">{amt.ic("triangle-alert" if n_offen else "check")}{n_offen} offene Krise{"n" if n_offen != 1 else ""}.</p>'
                   + amt.tabelle(["Teilstaat", "Krise", "Stufe", "Stand", "Beginn"], zeilen, "Noch keine Krisen."))
         return sa.ant(request, k, "Krisen", "sa-krisen", inhalt)
-    sid = ziel[3:]
+    sa.zur_land_seite(request, k, con, ziel, "krisen")
+    return sa.ant(request, k, "Krisen", "sa-krisen", rumpf(request, k, con, ziel))
+
+
+def rumpf(request, k, con, ziel, eingebettet=False):
+    """Krisenseite eines Teilstaats; eingebettet=True: Abschnitt der Seite „Land“ (ohne Überschrift und Meldung)."""
+    import etatplan
     faelle = con.execute("SELECT * FROM kr_faelle WHERE schl=? ORDER BY CASE status WHEN 'offen' THEN 0 ELSE 1 END, beginn DESC LIMIT 40", (ziel,)).fetchall()
     darf = etatplan.darf_aendern(con, k, ziel)
     lage = lage_aktuell(con, ziel)
@@ -566,8 +572,9 @@ async def seite(request, k):
     wirk_html = amt.tabelle(["Wirkung", "Von", "Bis", "Auswirkung"], [(esc(w["titel"]), esc(sa._monatsname(w["ab"])), esc(sa._monatsname(w["bis"])),
                                                                       esc(_wirk_text({"hebel": w["hebel"], "wert": w["wert"], "monate": 1}).replace(" (1 Monat)", ""))) for w in wirk],
                             "Keine laufenden Wirkungen.")
-    inhalt = (CSS + f'<h1>{amt.ic("triangle-alert")} Krisen · {esc(name)}</h1><p class="az">Wenn die Lage kippt, muss der Landesherr handeln. Jede Maßnahme kostet Geld, '
-              'hat eine Erfolgsaussicht und prägt die Entwicklung der nächsten Monate. Wer nicht reagiert, dem eskaliert die Krise.</p>' + amt.meldung(request)
+    inhalt = (CSS + ("" if eingebettet else f'<h1>{amt.ic("triangle-alert")} Krisen · {esc(name)}</h1>{amt.meldung(request)}')
+              + '<p class="az">Wenn die Lage kippt, muss der Landesherr handeln. Jede Maßnahme kostet Geld, '
+              'hat eine Erfolgsaussicht und prägt die Entwicklung der nächsten Monate. Wer nicht reagiert, dem eskaliert die Krise.</p>'
               + (offene_html or f'<p class="sa-status ok">{amt.ic("check")}Keine offene Krise.</p>')
               + ("" if darf else '<p class="sa-hinweis">Nur Ansicht – reagieren darf der Landesherr dieses Teilstaats.</p>')
               + f'<h2>Laufende Wirkungen</h2>{wirk_html}'
@@ -576,8 +583,8 @@ async def seite(request, k):
               '<li><b>Bürgeraufstand</b>: Zufriedenheit unter 50</li><li><b>Hungerunruhen</b>: Ernährungssicherheit unter 45</li><li><b>Seuche</b>: Wasserversorgung unter 45 oder Gesundheitsniveau unter 50</li>'
               '<li><b>Streiks</b>: Handwerker unter 33 % oder Akademiker über 46 %</li><li><b>Kriminalitätswelle</b>: Sicherheitsgefühl unter 45</li>'
               '<li><b>Proteste gegen Überwachung</b>: Überwachungsgrad über 50</li><li><b>Versorgungskrise</b>: Lieferengpässe über 55</li><li><b>Umweltkatastrophe</b>: CO₂-Belastung über 85</li></ul>'
-              'Geprüft wird beim Buchen des Haushaltsmonats. Die Werte stehen im Reiter „Entwicklung“.</div>')
-    return sa.ant(request, k, "Krisen", "sa-krisen", inhalt)
+              'Geprüft wird beim Buchen des Haushaltsmonats. Die Werte stehen im Abschnitt „Entwicklung“.</div>')
+    return inhalt
 
 
 async def reagieren_post(request):
