@@ -886,7 +886,7 @@ def page_behoerde(b):
 
     def article():
         g = b.get("gebaeude") or {"name": b.get("bestand", ""), "text": ""}
-        zeilen = [("Leitung", esc(b["leitung"])), ("Gruppe", esc(RB.GRUPPEN[b["gruppe"]])), ("Dienstgebäude", f'{esc(g["name"])}, Groß-Berlin')]
+        zeilen = [("Leitung", esc(b["leitung"])), ("Gruppe", esc(RB.GRUPPEN[b["gruppe"]])), ("Dienstgebäude", f'{esc(g["name"])}, {esc(g.get("ort", "Groß-Berlin"))}')]
         rows = "".join(f'<tr><th scope="row">{k}</th><td>{v}</td></tr>' for k, v in zeilen)
         teile = [f"""
 <div class="intro-grid">
@@ -902,7 +902,7 @@ def page_behoerde(b):
         teile.append(f"""
 <section class="seat">
   <span class="eyebrow">Dienstgebäude</span>
-  <div class="prose">{paras(f"{esc(b['kurz'])} hat ihren Sitz im Gebäude <b>{esc(g['name'])}</b> in der Reichshauptstadt Groß-Berlin." if g["name"] else "")}</div>
+  <div class="prose">{paras(f"{esc(b['kurz'])} hat ihren Sitz im Gebäude <b>{esc(g['name'])}</b> in {"der Reichshauptstadt Groß-Berlin" if not g.get("ort") else esc(g["ort"])}." if g["name"] else "")}</div>
   <div class="hero-actions" style="margin-top:18px"><a class="btn btn-navy" href="{kartenlink(b["schl"])}">Auf der Reichskarte zeigen {icon("arrow")}</a></div>
 </section>
 <p><a class="link-arrow" href="{u("informationen/die-reichsbehoerden/")}">Alle Reichsbehörden {icon("arrow")}</a></p>""")

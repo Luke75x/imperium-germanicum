@@ -252,6 +252,7 @@
   {
    "typ": "verkehr",
    "name": "Reichsbehörde für Verkehr und Transportwesen",
+   "ort": "Hamburg",
    "text": "Sitz des Reichsamts für Verkehr",
    "lon": 9.9937,
    "lat": 53.5511
@@ -269,6 +270,22 @@
    "text": "Sitz des Reichsamts für Migration und Einwanderung",
    "lon": 13.4006,
    "lat": 52.4756
+  },
+  {
+   "typ": "zentralbank",
+   "name": "EZB-Gebäude",
+   "ort": "Frankfurt am Main",
+   "text": "Sitz der Zentralbank des Reiches",
+   "lon": 8.704,
+   "lat": 50.1097
+  },
+  {
+   "typ": "reichskasse",
+   "name": "Bundesbankgebäude",
+   "ort": "Frankfurt am Main",
+   "text": "Sitz der Reichskasse",
+   "lon": 8.6478,
+   "lat": 50.1331
   }
  ],
  "bestand_typen": {
