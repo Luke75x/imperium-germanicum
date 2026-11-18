@@ -1,11 +1,11 @@
 /* Sitzordnung des Reichstags (Seite /informationen/der-reichstag/sitzordnung/) */
 .sz-wrap { margin: 24px 0 8px; }
 .sz-plan { width: 100%; height: auto; display: block; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 8px; }
-.sz-plan .sz { stroke: var(--ink); stroke-opacity: .5; stroke-width: .8; transition: opacity .15s, transform .15s; transform-box: fill-box; transform-origin: center; }
+.sz-plan .sz { stroke: var(--ink); stroke-opacity: .5; stroke-width: .7; transition: opacity .15s, transform .15s; transform-box: fill-box; transform-origin: center; }
 .sz-plan .sz-staat { fill: var(--c, #999); }
 .sz-plan .sz-vorgehalten { fill: var(--c, #999); fill-opacity: .28; stroke-dasharray: 3 2; }
-.sz-plan .sz-frei { fill: none; stroke-dasharray: 2 3; stroke-opacity: .45; }
-.sz-plan .sz-haupt { stroke-width: 2; stroke-opacity: .95; }
+.sz-plan .sz-frei { fill: var(--rule); stroke-opacity: .12; }
+.sz-plan .sz-haupt { stroke-width: 1.6; stroke-opacity: .95; }
 .sz-plan .sz-thron { fill: var(--gold-500); stroke: var(--gold-700); stroke-width: 2.5; stroke-opacity: 1; }
 .sz-plan .sz-praesidium { fill: var(--navy-700); stroke-opacity: .9; }
 .sz-plan .sz-verwaltung { fill: var(--navy-800); }
@@ -14,6 +14,7 @@
 .sz-plan .pult { fill: var(--rule-strong); stroke: var(--ink); stroke-opacity: .4; }
 .sz-plan .tl { font: 600 11px var(--sans, system-ui); letter-spacing: .08em; text-transform: uppercase; fill: var(--muted); }
 .sz-plan.fokus .dl:not(.an), .sz-plan.fokus .bank:not(.an) { opacity: .16; }
+.sz-plan.fokus .bank[data-bank="frei"] { opacity: .5; }
 .sz-plan .dl.an .sz, .sz-plan .bank.an .sz { transform: scale(1.18); }
 .sz-plan .dl:focus-visible { outline: none; }
 .sz-plan .dl:focus-visible .sz { stroke-width: 2.4; stroke-opacity: 1; }
@@ -46,6 +47,7 @@
 .sz-baenke .b-praesidium { background: var(--navy-700); }
 .sz-baenke .b-verwaltung { background: var(--navy-800); }
 .sz-baenke .b-senat { background: var(--gold-300); }
+.sz-baenke .b-frei { background: var(--rule); }
 .sz-baenke .b-plenum { background: conic-gradient(#b54a4a, #ff7f00, #d6ac0c, #b3de6a, #1ec5e3, #4d014c, #b54a4a); }
 
 /* Aufteilung wie beim Bundestag: links die Sitzverteilung, rechts der Saal */

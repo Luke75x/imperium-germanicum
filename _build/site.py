@@ -754,7 +754,7 @@ def page_sitzordnung():
         baenke = "".join(f'<li><span class="sw {k}"></span><span class="nm">{esc(n)}</span><span class="n">{c}</span></li>' for k, n, c in (
             ("b-thron", "Thron (der Kaiser)", z["thron"]), ("b-praesidium", "Präsidium (Präsident des Reichstags)", z["praesidium"]),
             ("b-verwaltung", "Reichsverwaltungsbank", z["verwaltung"]), ("b-senat", "Senatsbank (Kurfürsten)", z["senat"]),
-            ("b-plenum", "Plenum der Teilstaaten", z["plenum"])))
+            ("b-plenum", "Plenum der Teilstaaten (Delegationen)", z["belegt"]), ("b-frei", "Freie Plätze im Saal", z["frei"] + (38 - z["verwaltung"]) + (36 - z["senat"]) + 2)))
         return f"""
 <link rel="stylesheet" href="{asset("css/sitzordnung.css")}?v={_hash("css/sitzordnung.css")}">
 <div class="prose">
@@ -764,28 +764,28 @@ def page_sitzordnung():
   )}
 </div>
 <div class="sz-layout">
-  <div class="sz-summe"><p class="sz-gesamt"><b>{z["gesamt"]} Sitze</b></p><p>Die Sitze verteilen sich wie folgt:</p><ul class="sz-baenke">{baenke}</ul></div>
+  <div class="sz-summe"><p class="sz-gesamt"><b>{z["gesamt"] - z["frei"]} besetzte Sitze</b></p><p>Der Saal hat {z["plenum"] + 38 + 36 + 4} Plätze. Sie verteilen sich wie folgt:</p><ul class="sz-baenke">{baenke}</ul></div>
   <div class="sz-wrap">
     {SZ.svg()}
     <p class="sz-info" id="sz-info" aria-live="polite">Fahre über einen Sitz oder wähle eine Delegation in der Liste, um sie hervorzuheben.</p>
   </div>
 </div>
 <h2>Die Delegationen</h2>
-<p class="prose" style="color:var(--muted)">Der Sitz mit dem kräftigeren Rand ist der des Landesherrn. Gestrichelte Sitze sind vorgehalten oder frei.</p>
+<p class="prose" style="color:var(--muted)">Der Sitz mit dem kräftigeren Rand ist der des Landesherrn. Blasse, gestrichelte Sitze sind vorgehalten; graue Plätze sind frei.</p>
 <ul class="sz-legende">{legende}</ul>
 <h2>Die Bänke</h2>
 <ul class="sz-bank-liste">
   <li><b>Thron:</b> Dort, wo im Parlament sonst der Direktor sitzt, sitzt der Monarch. Einen Direktor des Reichstags gibt es nicht.</li>
   <li><b>Präsidium:</b> Der Präsident des Reichstags leitet die Sitzungen; das Amt rotiert unter den Abgeordneten alle drei Monate.</li>
-  <li><b>Reichsverwaltungsbank (links, {z["verwaltung"]} Sitze):</b> der Kronkanzler und die Leiter der Reichsbehörden in drei Reihen. Vorn, dem Rednerpult am nächsten, sitzt der Kronkanzler neben den Generaldirektoren von Reichssicherheitsamt, Polizei, Zoll und Katastrophenschutz; in der Mitte die Großinquisition, das Schatzamt, das Generalkonsulat, das Heroldsamt, die Crown Estates und die Behörde für Innere Angelegenheiten; hinten die Zentralbank, die Reichskasse und die Reichsämter. Es gibt keine weiteren Ämter.</li>
-  <li><b>Senatsbank (rechts, {z["senat"]} Sitze):</b> Plätze für die Kurfürsten des Senats. Der Kaiser sitzt auf dem Thron.</li>
-  <li><b>Plenum ({z["plenum"]} Sitze):</b> {z["delegationen"]} Delegationen der Landesherren, {z["vorgehalten"]} vorgehaltene Delegationen für Gebiete unter Reichsvertretung und {z["frei"]} freier Reserveblock.</li>
+  <li><b>Reichsverwaltungsbank (links, {z["verwaltung"]} Sitze):</b> der Kronkanzler und die Leiter der Reichsbehörden in den vorderen drei Reihen, die übrigen Plätze der Bank bleiben frei. Vorn, dem Rednerpult am nächsten, sitzt der Kronkanzler neben den Generaldirektoren von Reichssicherheitsamt, Polizei, Zoll und Katastrophenschutz; in der Mitte die Großinquisition, das Schatzamt, das Generalkonsulat, das Heroldsamt, die Crown Estates und die Behörde für Innere Angelegenheiten; hinten die Zentralbank, die Reichskasse und die Reichsämter. Es gibt keine weiteren Ämter.</li>
+  <li><b>Senatsbank (rechts, {z["senat"]} Sitze):</b> Plätze für die Kurfürsten des Senats, vorn zur Saalmitte hin. Der Kaiser sitzt auf dem Thron.</li>
+  <li><b>Plenum ({z["plenum"]} Plätze):</b> vorn {z["delegationen"]} Delegationen der Landesherren und {z["vorgehalten"]} vorgehaltene Delegationen für Gebiete unter Reichsvertretung ({z["belegt"]} Sitze), dahinter {z["frei"]} freie Plätze.</li>
 </ul>
 <h2>Vorgehaltene und freie Sitze</h2>
 <div class="prose">
   {paras(
     "Für die Teilstaaten unter Reichsvertretung (Gouvernement Baden, Generalgouvernement Venedig) sind eigene Delegationen vorgehalten. Erhält ein solches Gebiet wieder einen Landesherrn, nimmt dessen Delegation den vorgehaltenen Platz ein, ohne dass sich die Sitzordnung ändert.",
-    "Der freie Reserveblock am östlichen Ende steht für einen künftig geschaffenen Teilstaat bereit. Ein neuer Landesherr erhält dort seine sechs Sitze.",
+    "Der Plenarsaal ist so groß wie der des Bundestags, der Reichstag braucht aber nur einen Teil davon. Die übrigen Plätze bleiben frei: für Gäste und Beobachter und für die Delegationen künftiger Teilstaaten.",
   )}
 </div>
 <p><a class="link-arrow" href="{u("informationen/der-reichstag/")}">Zurück zum Reichstag {icon("arrow")}</a></p>
