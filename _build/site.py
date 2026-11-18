@@ -743,8 +743,11 @@ def page_senat():
   {person("i58014e5ae3821616", "Westerwälder Union", "Alexander IX. König der Westerwälder Union",
           "Amtierender Kaiser des Imperium Germanicum",
           ("https://www.instagram.com/westwood.union?igsh=MTd2MHZ2YW8ybXh3cQ==", "Westerwälder Union"))}
+  {person("i84112a7b91aca791", "Erzherzogtum Kurpfalz", "Karl V. Erzherzog von der Pfalz",
+          "Amtierende Hand des Kaisers",
+          ("https://www.instagram.com/kurfurstvonderpfalz?igsh=MWljYWx3eHd3amdhMA==", "Erzherzogtum Kurpfalz"))}
   {person("if31e3be67eeb014f", "Königreich Hannover", "Ernst August VI. König von Hannover und Braunschweig-Lüneburg",
-          "Amtierende Hand des Kaisers (vorübergehend) und Vorsitzender des Reichstags",
+          "Vorsitzender des Reichstags",
           ("https://www.instagram.com/zelastprussian?igsh=MWE5M3VwdXFvN3hxOA==", "Königreich Hannover"))}
 </div>
 <div class="prose" style="margin-top:32px">{paras(
@@ -806,19 +809,19 @@ def page_hand():
   {emblem("ib7c33ba7d6bef700", "", "Emblem der Hand des Kaisers", sizes="260px")}
   <div>
     <span class="eyebrow">Reichsombudsmann</span>
-    <h2 style="margin-top:0">Ernst August VI.</h2>
-    <p class="titleblock">Seine Majestät Ernst August VI., König und Kurfürst von Hannover und Braunschweig-Lüneburg, vorübergehend Hand des Kaisers und Reichsombudsmann des Imperium Germanicum.</p>
+    <h2 style="margin-top:0">Karl V.</h2>
+    <p class="titleblock">Seine Hoheit Karl V., Hand des Kaisers und Reichsombudsmann des Imperium Germanicum.</p>
     <div class="prose">
     {paras(
-      "Seit dem 15.10.2026 ist der König von Hannover vorübergehend die Hand des Kaisers und somit der zweithöchste Amtsträger des Reiches. Sein Vorgänger Karl V. verlor mit Dekret vom 15.10.2026 alle Titel und Ämter.",
-      "Er ist einer der 9 Kurfürsten und zugleich Vorsitzender des Reichstags.",
+      "Karl V. ist wieder die Hand des Kaisers und somit der zweithöchste Amtsträger des Reiches. In der Zwischenzeit führte Ernst August VI., König von Hannover, das Amt vorübergehend.",
+      "Ernst August VI. bleibt Vorsitzender des Reichstags.",
     )}
     </div>
   </div>
 </div>
 <div class="figure-row" style="margin-top:48px">
   {figure("ie52e566a1afc77a5", "Standarte der Hand des Kaisers", group="hand")}
-  {figure("if31e3be67eeb014f", "Seine Majestät Ernst August VI.", group="hand")}
+  {figure("if8e3805d30e84d07", "Seine Hoheit Karl V.", group="hand")}
 </div>
 <section class="seat">
   <span class="eyebrow">Arbeitssitz &amp; Residenz</span>
@@ -829,7 +832,7 @@ def page_hand():
   </div>
 </section>"""
     institution_page("informationen/hand-des-kaisers/", "Hand des Kaisers", "Die Hand des Kaisers", "Reichsombudsmann",
-                     "Ernst August VI., König von Hannover, ist vorübergehend Hand des Kaisers und Reichsombudsmann und damit der zweithöchste Amtsträger des Imperium Germanicum.",
+                     "Karl V. ist Hand des Kaisers und Reichsombudsmann und damit der zweithöchste Amtsträger des Imperium Germanicum.",
                      article)
 
 
