@@ -685,8 +685,20 @@ async def api_antrag(request):
     return web.json_response({"ok": True, "id": nr, "url": url})
 
 
+async def pruefen_sitzordnung(request):
+    """nginx auth_request für /informationen/der-reichstag/sitzordnung/ (vorerst versteckt): 204 nur für Kaiser und Kronkanzler,
+    401 ohne Anmeldung (→ Anmeldung), sonst 403 (nginx zeigt dann 404). Nur lokal erreichbar."""
+    import amt
+    k = await anmeldung.konto(request)
+    if not k:
+        return web.Response(status=401)
+    ok = k["id"] == config.KAISER_ID or amt.ROLLE_KANZLER in k["rollen"]
+    return web.Response(status=204 if ok else 403)
+
+
 def registrieren(app):
     einrichten(app["db"])
+    app.router.add_get("/intern-pruefen/sitzordnung", pruefen_sitzordnung)
     for p in ("", "/en"):
         b = p + BASIS
         app.router.add_get(b, uebersicht)

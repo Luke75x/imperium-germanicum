@@ -640,7 +640,7 @@ def page_informationen():
            body)
 
 
-def institution_page(path, short, title, eyebrow, description, article, parent=None):
+def institution_page(path, short, title, eyebrow, description, article, parent=None, **render_args):
     # parent = (pfad, kurzname): Unterseite einer Institution, nur von dort aus verlinkt
     Ctx.prefix = "../" * path.count("/")
     crumbs = [("informationen/", "Staatsaufbau")] + ([parent] if parent else []) + [(path, short)]
@@ -651,7 +651,7 @@ def institution_page(path, short, title, eyebrow, description, article, parent=N
     {aside_staatsaufbau(parent[0] if parent else path)}
   </div>
 </div>"""
-    render(path, title, description, body)
+    render(path, title, description, body, **render_args)
 
 
 def seat(eyebrow_txt, text, figs):
@@ -689,6 +689,21 @@ def page_reichsgerichtshof():
                      article)
 
 
+# Sitzordnung vorerst versteckt: kein Hinweis auf der Reichstag-Seite, nicht in der Sitemap, noindex; den Zugriff (nur Kaiser und
+# Kronkanzler) regelt nginx per auth_request (Dienst: reichstag.pruefen_sitzordnung). Zum Freigeben: False setzen und die nginx-Blöcke entfernen.
+SITZORDNUNG_VERSTECKT = True
+
+
+def sitzordnung_teaser():
+    return f"""<section class="seat">
+  <span class="eyebrow">Im Plenarsaal</span>
+  <h2>Die Sitzordnung</h2>
+  <div class="prose"><p>Im Plenarsaal des Reichstagsgebäudes führt jeder Landesherr eine Delegation von sechs Sitzen. Auf der Sitzordnung sind der Thron, das Präsidium, die Reichsverwaltungsbank, die Senatsbank und alle Delegationen der Teilstaaten verzeichnet.</p></div>
+  <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u("informationen/der-reichstag/sitzordnung/")}">Zur Sitzordnung {icon("arrow")}</a></div>
+</section>
+"""
+
+
 def page_reichstag():
     def article():
         return f"""
@@ -708,12 +723,7 @@ def page_reichstag():
   {person("i9d0229d8e970308f", "Der Vorsitzende des Reichstags", "Seine (königliche) Majestät Ernst August VI.",
           "König und Kurfürst von Hannover und Braunschweig-Lüneburg", horizontal=True)}
 </div>
-<section class="seat">
-  <span class="eyebrow">Im Plenarsaal</span>
-  <h2>Die Sitzordnung</h2>
-  <div class="prose"><p>Im Plenarsaal des Reichstagsgebäudes führt jeder Landesherr eine Delegation von sechs Sitzen. Auf der Sitzordnung sind der Thron, das Präsidium, die Reichsverwaltungsbank, die Senatsbank und alle Delegationen der Teilstaaten verzeichnet.</p></div>
-  <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u("informationen/der-reichstag/sitzordnung/")}">Zur Sitzordnung {icon("arrow")}</a></div>
-</section>
+{"" if SITZORDNUNG_VERSTECKT else sitzordnung_teaser()}
 <section class="seat">
   <span class="eyebrow">Für Mitglieder des Reichstages</span>
   <h2>Interne Sitzungen</h2>
@@ -782,7 +792,8 @@ def page_sitzordnung():
 <script src="{asset("js/sitzordnung.js")}?v={_hash("js/sitzordnung.js")}" defer></script>"""
     institution_page("informationen/der-reichstag/sitzordnung/", "Sitzordnung", "Die Sitzordnung des Reichstags", "Plenarsaal",
                      "Die Sitzordnung im Plenarsaal des Reichstags: Thron, Präsidium, Reichsverwaltungsbank, Senatsbank und die Delegationen der Landesherren.",
-                     article, parent=("informationen/der-reichstag/", "Der Reichstag"))
+                     article, parent=("informationen/der-reichstag/", "Der Reichstag"),
+                     **({"robots": "noindex,nofollow", "in_sitemap": False} if SITZORDNUNG_VERSTECKT else {}))
 
 
 def page_senat():
