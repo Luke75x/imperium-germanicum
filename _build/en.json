@@ -439,7 +439,6 @@
  "Graf": "Count",
  "Baron": "Baron",
  "Freiherr/Ritter": "Freiherr/Knight",
- "Alle weiteren Regierungsämter und Dienstgrade von Militär und öffentlichen Einrichtungen finden sich darunter ein, sowie Kirchentitel ohne weltliche Gewalt.": "All further government offices and ranks of the military and public institutions are found below these, as are church titles without secular power.",
  "Der Etiketten-Guide des Imperium Germanicum: korrekte Anrede aller Amts-, Adels- und Kirchentitel, Verhaltensregeln und die Rangliste der Titel.": "The Etiquette Guide of the Imperium Germanicum: correct forms of address for all official, noble and church titles, rules of conduct and the order of precedence of titles.",
  "Etiketten-Guide – Imperium Germanicum": "Etiquette Guide – Imperium Germanicum",
  "Titel filtern": "Filter titles",
@@ -880,7 +879,6 @@
  "Führt im Namen des Souveräns die Regierung einer Reichsstadt, die keinem Landesherrn untersteht.": "Conducts, in the name of the Sovereign, the government of an imperial city that is subject to no ruler.",
  "Bürgermeister": "Mayor",
  "Steht einer Stadt oder Gemeinde in einem reichsvertretenen Gebiet vor und untersteht dem zuständigen Magistrat oder Gouverneur.": "Heads a town or municipality in a territory under imperial representation and reports to the responsible magistrate or governor.",
- "Vizekönige, Generalgouverneure und Gouverneure stehen in der <a href=\"@/informationen/etiketten-guide/\">Rangordnung des Reiches</a> unmittelbar nach dem Obersten Reichsrichter und genießen in Abwesenheit des Souveräns die Würde der Krone.": "Viceroys, Governors-General and Governors rank immediately after the Chief Imperial Justice in the <a href=\"@/informationen/etiketten-guide/\">order of precedence of the Empire</a> and enjoy the dignity of the Crown in the Sovereign’s absence.",
  "Die Ränge der Reichsverwaltung": "The ranks of the Imperial Administration",
  "Rang": "Rank",
  "Verwendung": "Role",
@@ -1183,5 +1181,8 @@
  "Karl V. führt wieder die Hand des Kaisers. Damit steht er nach Seiner Majestät dem Kaiser an der Spitze des Reiches und ist der zweithöchste Amtsträger des Imperium Germanicum.": "Charles V once again leads the Hand of the Emperor. He thus stands, after His Majesty the Emperor, at the head of the Empire and is the second-highest officeholder of the Imperium Germanicum.",
  "Als Hand des Kaisers handelt er in dessen Namen: Er steht der Senatsverwaltung der Regierung Seiner Majestät vor und trägt als Reichsombudsmann Sorge dafür, dass der Wille der Krone im ganzen Reich Gehör und Befolgung findet.": "As Hand of the Emperor he acts in the Emperor's name: he presides over the Senate administration of His Majesty's government and, as Imperial Ombudsman, ensures that the will of the Crown is heard and obeyed throughout the Empire.",
  "In der Zwischenzeit hielt Ernst August VI., König von Hannover und Braunschweig-Lüneburg, das Amt vorübergehend und mit Treue für das Reich. Das Imperium dankt ihm für seinen Dienst; den Vorsitz im Reichstag führt er weiterhin.": "In the meantime, Ernst August VI, King of Hanover and Brunswick-Lüneburg, held the office temporarily and with loyalty to the Empire. The Imperium thanks him for his service; he continues to chair the Reichstag.",
- "Im Herzen von Groß-Berlin laufen unter seinem Dach die Geschäfte des Senats zusammen; von hier aus wirkt die Hand des Kaisers an der Seite der Krone.": "In the heart of Greater Berlin, the affairs of the Senate come together under its roof; from here the Hand of the Emperor works at the side of the Crown."
+ "Im Herzen von Groß-Berlin laufen unter seinem Dach die Geschäfte des Senats zusammen; von hier aus wirkt die Hand des Kaisers an der Seite der Krone.": "In the heart of Greater Berlin, the affairs of the Senate come together under its roof; from here the Hand of the Emperor works at the side of the Crown.",
+ "Alle weiteren Regierungsämter und Dienstgrade von öffentlichen Einrichtungen finden sich darunter ein, sowie Kirchentitel ohne weltliche Gewalt.": "All further government offices and ranks of public institutions are found below these, as are church titles without secular power.",
+ "Vizekönige, Generalgouverneure und Gouverneure stehen in der <a href=\"@/informationen/etiketten-guide/\">Rangordnung des Reiches</a> unmittelbar nach den militärischen Ämtern und genießen in Abwesenheit des Souveräns die Würde der Krone.": "Viceroys, Governors-General and Governors rank immediately after the military offices in the <a href=\"@/informationen/etiketten-guide/\">order of precedence of the Empire</a> and enjoy the dignity of the Crown in the Sovereign’s absence.",
+ "Militärische Ämter (Führungsstab und Dienstgrade)": "Military offices (general staff and ranks)"
 }

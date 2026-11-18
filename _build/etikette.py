@@ -86,18 +86,6 @@ GRUPPEN = [
                 ],
             },
             {
-                "name": "Vizekönig/Generalgouverneur/Gouverneur",
-                "anrede": standard(
-                    "Eure Exzellenz", "Eure Exzellenz",
-                    "Seine Exzellenz", "Ihre Exzellenz",
-                    "SE", "IE"),
-                "bemerkung": [
-                    "Die vizeköniglichen Vertreter sind Beamte, welche vom Souverän direkt mit der Verwaltung eines Gebietes betraut sind.",
-                    "Innerhalb ihres Territoriums vertreten sie den Souverän direkt und übernehmen in dessen Namen seine Aufgaben.",
-                    "Daher genießen sie in der Zeit der Abwesenheit des Souveräns die Würde der Krone.",
-                ],
-            },
-            {
                 "name": "Präsident des Reichstages/Präsidentin des Reichstages",
                 "anrede": [
                     ("Anrede direkt", "Herr Präsident", "Frau Präsidentin"),
@@ -127,6 +115,18 @@ GRUPPEN = [
                 ],
                 "bemerkung": [
                     "Militärische Dienstgrade haben einen hohen Stellenwert innerhalb des Reiches, Träger militärischer Ämter sind immer als solche anzusprechen.",
+                ],
+            },
+            {
+                "name": "Vizekönig/Generalgouverneur/Gouverneur",
+                "anrede": standard(
+                    "Eure Exzellenz", "Eure Exzellenz",
+                    "Seine Exzellenz", "Ihre Exzellenz",
+                    "SE", "IE"),
+                "bemerkung": [
+                    "Die vizeköniglichen Vertreter sind Beamte, welche vom Souverän direkt mit der Verwaltung eines Gebietes betraut sind.",
+                    "Innerhalb ihres Territoriums vertreten sie den Souverän direkt und übernehmen in dessen Namen seine Aufgaben.",
+                    "Daher genießen sie in der Zeit der Abwesenheit des Souveräns die Würde der Krone.",
                 ],
             },
         ],
@@ -270,13 +270,14 @@ RANGLISTE = [
     "König/Kurfürst/Fürstbischof mit Kurwürde",
     "Erzherzog",
     "Oberster Reichsrichter",
+    "Militärische Ämter (Führungsstab und Dienstgrade)",
     "Vizekönig",
     "Generalgouverneur",
     "Gouverneur",
     "Großherzog",
-    "Herzog",
     "Präsident des Reichstages",
     "Kronkanzler",
+    "Herzog",
     "Landgraf",
     "Pfalzgraf",
     "Markgraf",
@@ -286,5 +287,5 @@ RANGLISTE = [
     "Freiherr/Ritter",
 ]
 
-RANGLISTE_SCHLUSS = ("Alle weiteren Regierungsämter und Dienstgrade von Militär und öffentlichen Einrichtungen finden "
+RANGLISTE_SCHLUSS = ("Alle weiteren Regierungsämter und Dienstgrade von öffentlichen Einrichtungen finden "
                      "sich darunter ein, sowie Kirchentitel ohne weltliche Gewalt.")

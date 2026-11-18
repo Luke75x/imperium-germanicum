@@ -1133,7 +1133,7 @@ def page_reichsbehoerden():
   )}
 </div>
 <div class="table-scroll"><table class="styles-table"><thead><tr><th>Amt</th><th>Zuständigkeit</th><th>Anrede</th></tr></thead><tbody>{vertretung_rows}</tbody></table></div>
-<p class="callout">Vizekönige, Generalgouverneure und Gouverneure stehen in der <a href="{u("informationen/etiketten-guide/")}">Rangordnung des Reiches</a> unmittelbar nach dem Obersten Reichsrichter und genießen in Abwesenheit des Souveräns die Würde der Krone.</p>
+<p class="callout">Vizekönige, Generalgouverneure und Gouverneure stehen in der <a href="{u("informationen/etiketten-guide/")}">Rangordnung des Reiches</a> unmittelbar nach den militärischen Ämtern und genießen in Abwesenheit des Souveräns die Würde der Krone.</p>
 <h2>Die Ränge der Reichsverwaltung</h2>
 <div class="table-scroll"><table class="styles-table"><thead><tr><th>Rang</th><th>Verwendung</th></tr></thead><tbody>{raenge_rows}</tbody></table></div>
 <h2>Reichsbehörden und Teilstaaten</h2>
