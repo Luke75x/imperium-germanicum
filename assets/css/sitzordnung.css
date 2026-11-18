@@ -12,7 +12,7 @@
 .sz-plan .sz-verwaltung.sz-haupt { fill: var(--gold-500); stroke: var(--gold-700); }
 .sz-plan .sz-senat { fill: var(--gold-300); stroke: var(--gold-700); stroke-opacity: .8; }
 .sz-plan .pult { fill: var(--rule-strong); stroke: var(--ink); stroke-opacity: .4; }
-.sz-plan .tl { font: 600 8.5px var(--sans, system-ui); letter-spacing: .1em; text-transform: uppercase; fill: var(--muted); }
+.sz-plan .tl { font: 600 7.5px var(--sans, system-ui); letter-spacing: .08em; text-transform: uppercase; fill: var(--muted); }
 .sz-plan.fokus .dl:not(.an), .sz-plan.fokus .bank:not(.an) { opacity: .16; }
 .sz-plan .dl.an .sz, .sz-plan .bank.an .sz { transform: scale(1.18); }
 .sz-plan .dl:focus-visible { outline: none; }
@@ -35,7 +35,7 @@
 .sz-bank-liste { margin: 8px 0 0; padding-left: 1.2em; line-height: 1.65; }
 @media (prefers-reduced-motion: reduce) { .sz-plan .sz { transition: none; } .sz-plan .dl.an .sz { transform: none; } }
 
-.sz-summe { margin: 26px 0 8px; max-width: 460px; }
+.sz-summe { margin: 0; }
 .sz-gesamt { margin: 0 0 4px; font: 500 1.7rem/1.2 var(--serif); color: var(--ink); }
 .sz-baenke { list-style: none; margin: 10px 0 0; padding: 0; }
 .sz-baenke li { display: flex; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--rule); }
@@ -47,3 +47,9 @@
 .sz-baenke .b-verwaltung { background: var(--navy-800); }
 .sz-baenke .b-senat { background: var(--gold-300); }
 .sz-baenke .b-plenum { background: conic-gradient(#b54a4a, #ff7f00, #d6ac0c, #b3de6a, #1ec5e3, #4d014c, #b54a4a); }
+
+/* Aufteilung wie beim Bundestag: links die Sitzverteilung, rechts der Saal */
+.sz-layout { display: grid; grid-template-columns: minmax(200px, 240px) 1fr; gap: 28px; align-items: start; margin: 26px 0 8px; }
+.sz-layout .sz-wrap { margin: 0; }
+.sz-summe p { margin: 0 0 6px; color: var(--ink-2); }
+@media (max-width: 760px) { .sz-layout { grid-template-columns: 1fr; gap: 18px; } .sz-layout .sz-summe { order: 2; } }

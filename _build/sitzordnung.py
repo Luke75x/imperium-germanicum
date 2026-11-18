@@ -17,11 +17,13 @@ import reichsbehoerden as RB
 
 esc = html.escape
 BLOCK = 6                      # Sitze je Delegation: Landesherr und 5 Delegierte
-REIHEN = [175, 193, 211]      # Radien der Sitzreihen im Plenum (3 Reihen; je Delegation 2 Spalten x 3 Reihen)
-SPALTEN = BLOCK // 3
-FAECHER = (185.0, 355.0)      # Winkelbereich des Plenums (Grad, 0 = rechts, gegen den Uhrzeigersinn; 270 = unten)
-MITTE = (500, 170)             # Mittelpunkt der Rundung (Rednerpult)
-SITZ_R = 6
+ABSTAND = 20                   # Sitzabstand (wie im Plenarsaal: überall gleich dicht)
+SITZ_R = 8
+MITTE = (0, 0)                 # Rednerpult = Mittelpunkt des Plenums; das Plenum liegt als Halbrund darunter
+PLENUM_R0 = 50                 # Radius der innersten Reihe; Reihen nach außen je ABSTAND, Sitze je Reihe ∝ Radius (gleich dicht)
+PLENUM_REIHEN = 7
+BANK_K = 400                   # Bänke: flache Bögen um einen Punkt weit unter dem Rednerpult (zum Plenum hin gewölbt, wie im Bundestag)
+BANK_INNEN = 26                # Abstand der Bankreihen von der Mittelachse (Platz für Thron und Präsidium)
 
 # (Kurzname, Anrede des Oberhaupts, Farbe der Reichskarte, x der Hauptstadt = West→Ost, Art)
 #   Art: "landesherr" = Delegation; "gouvernement" = unter Reichsvertretung, Delegation vorgehalten
@@ -49,9 +51,14 @@ STAATEN = [
 STAATEN.sort(key=lambda s: s[3])
 RESERVE_ZUSATZ = 1             # freie Reserveblöcke am Ostende (künftige Teilstaaten)
 
-# Reichsverwaltungsbank: vorn der Kronkanzler und die Leiter der Behörden für Sicherheit und Ordnung sowie Verwaltung, hinten die übrigen Stellen
-VORN = ["kanzlei", "polizei", "zoll", "katastrophenschutz", "krs", "inquisition", "schatzamt", "generalkonsulat", "heroldsamt"]
-HINTEN = ["crownestates", "inneres", "forschung", "gesundheit", "verkehr", "arbeit", "einwanderung", "zentralbank", "reichskasse"]
+# Reichsverwaltungsbank (im Bundestag die Regierungsbank), Reihen von vorn (zum Plenum) nach hinten, jeweils von der Mitte nach außen:
+#   vorn der Kronkanzler mit den Generaldirektoren der Behörden für Sicherheit und Ordnung, dahinter die übrigen Behörden, hinten die Reichsämter.
+VERWALTUNG_REIHEN = [
+    ["kanzlei", "krs", "polizei", "zoll", "katastrophenschutz"],
+    ["inquisition", "schatzamt", "generalkonsulat", "heroldsamt", "crownestates", "inneres"],
+    ["zentralbank", "reichskasse", "forschung", "gesundheit", "verkehr", "arbeit", "einwanderung"],
+]
+SENAT_REIHEN = [2, 3, 3]       # Senatsbank, von vorn nach hinten
 
 
 def _behoerde(schl):
@@ -62,21 +69,23 @@ def _behoerde(schl):
     return {"titel": b["leitung"], "stelle": b["name"], "schl": schl}
 
 
-VERWALTUNG = [[_behoerde(s) for s in VORN], [_behoerde(s) for s in HINTEN]]
-KURFUERSTEN = 8
+VERWALTUNG = [[_behoerde(x) for x in reihe] for reihe in VERWALTUNG_REIHEN]
+KURFUERSTEN = sum(SENAT_REIHEN)
 
 
-def _block_sitze(i, n_bloecke):
-    """Die BLOCK Plätze der Delegation i: SPALTEN Spalten x 3 Reihen als Keil; (Reihe, Winkel in Grad, Radius), innen links beginnend."""
-    w0, w1 = FAECHER
-    spalten = n_bloecke * SPALTEN
-    out = []
-    for c in range(SPALTEN):
-        w = w0 + (i * SPALTEN + c + 0.5) * (w1 - w0) / spalten
-        for reihe, r in enumerate(REIHEN):
-            out.append((reihe, w, r))
-    out.sort(key=lambda t: (t[0], t[1]))
-    return out
+def plenum_sitze(gesamt):
+    """Alle Plenumsplätze wie im Bundestag: Reihen mit gleichem Abstand, Sitze je Reihe ∝ Radius, jede Reihe von ganz links (180°)
+    bis ganz rechts (360°). Nach dem Winkel sortiert; je BLOCK aufeinanderfolgende Plätze bilden einen Keil (eine Delegation)."""
+    radien = [PLENUM_R0 + k * ABSTAND for k in range(PLENUM_REIHEN)]
+    zahlen = [round(gesamt * r / sum(radien)) for r in radien]
+    zahlen[-1] += gesamt - sum(zahlen)
+    sitze = []
+    for reihe, (r, n) in enumerate(zip(radien, zahlen)):
+        for k in range(n):
+            w = math.pi * k / (n - 1)                       # 0 = links, π = rechts (unten herum)
+            sitze.append((w, reihe, r))
+    sitze.sort(key=lambda t: (round(t[0], 6), t[1]))
+    return sitze
 
 
 def _delegationen():
@@ -96,26 +105,30 @@ def _kreis(x, y, klasse, label, attrs="", r=SITZ_R, farbe=None):
     return f'<circle class="{klasse}" cx="{x:.1f}" cy="{y:.1f}" r="{r}"{stil} data-l="{esc(label)}"{attrs}><title>{esc(label)}</title></circle>'
 
 
-def _pol(r, grad):
-    cx, cy = MITTE
-    return cx + r * math.cos(math.radians(grad)), cy - r * math.sin(math.radians(grad))
-
-
-def _bogen(anzahl, r, mitte_grad, abstand_px=17.5):
-    """Winkel (Grad) von anzahl gleichmäßig verteilten Sitzen auf dem Radius r, um mitte_grad zentriert, Abstand abstand_px."""
-    schritt = math.degrees(abstand_px / r)
-    return [mitte_grad + (k - (anzahl - 1) / 2) * schritt for k in range(anzahl)]
+def _bank(reihen_anzahl, seite):
+    """Sitze einer Bank (links = -1, rechts = +1): Reihen von vorn nach hinten, je Reihe von der Mitte nach außen;
+    flache Bögen um (0, BANK_K), die vorderste Reihe knapp über dem Rednerpult."""
+    out = []
+    for z, n in enumerate(reihen_anzahl):
+        r = BANK_K + 46 + z * ABSTAND
+        for k in range(n):
+            x = seite * (BANK_INNEN + k * ABSTAND)
+            out.append((x, BANK_K - math.sqrt(r * r - x * x), z, k))
+    return out
 
 
 def svg():
-    cx, cy = MITTE
     teile = []
-    # --- Plenum: Keile (2 Spalten x 3 Reihen) je Delegation
+    # --- Plenum
+    n = len(DELEGATIONEN)
+    sitze = plenum_sitze(n * BLOCK)
     for i, d in enumerate(DELEGATIONEN):
+        block = sitze[i * BLOCK:(i + 1) * BLOCK]
+        haupt_j = min(range(BLOCK), key=lambda j: (block[j][1], block[j][0]))      # innerster Sitz = Landesherr
         kreise = []
-        for j, (reihe, w, r) in enumerate(_block_sitze(i, len(DELEGATIONEN))):
-            x, y = _pol(r, w)
-            haupt = j == 0
+        for j, (w, reihe, r) in enumerate(block):
+            x, y = -r * math.cos(w), r * math.sin(w)
+            haupt = j == haupt_j
             if d["art"] == "frei":
                 label, kl = "Reservesitz für einen künftigen Teilstaat", "sz sz-frei"
             elif d["art"] == "gouvernement":
@@ -126,33 +139,28 @@ def svg():
                 kl += " sz-haupt"
             kreise.append(_kreis(x, y, kl, label, farbe=d["farbe"] or None))
         teile.append(f'<g class="dl" data-d="{i}" data-art="{d["art"]}" tabindex="0" role="group" aria-label="{esc(d["name"])}">{"".join(kreise)}</g>')
-    # --- Mitte oben: Thron, Präsidium (Schreibtisch + 1 Sitz), Rednerpult
-    teile.append(f'<g class="bank" data-bank="thron">{_kreis(cx, cy - 128, "sz sz-thron", "Thron: Seine Majestät der Kaiser", r=14)}</g>')
-    teile.append(f'<rect class="pult" x="{cx - 28}" y="{cy - 96}" width="56" height="11" rx="3"><title>Präsidiumstisch</title></rect>')
-    teile.append(f'<g class="bank" data-bank="praesidium">{_kreis(cx, cy - 72, "sz sz-praesidium", "Präsidium: Der Präsident des Reichstags", r=SITZ_R + 1.5)}</g>')
-    teile.append(f'<rect class="pult" x="{cx - 10}" y="{cy - 34}" width="20" height="14" rx="3"><title>Rednerpult</title></rect>')
-    # --- Reichsverwaltungsbank (links oben): zwei gekrümmte Reihen zu je 9, vorn der Kronkanzler außen am Gang
+    # --- Reichsverwaltungsbank (links)
     kreise = []
-    for zeile, stellen in enumerate(VERWALTUNG):
-        r = 112 + zeile * 20
-        for stelle, grad in zip(stellen, _bogen(len(stellen), r, 140)):
-            x, y = _pol(r, grad)
-            kreise.append(_kreis(x, y, "sz sz-verwaltung" + (" sz-haupt" if stelle["schl"] == "kanzlei" else ""), f'{stelle["titel"]} · {stelle["stelle"]}'))
+    for x, y, z, k in _bank([len(r) for r in VERWALTUNG], -1):
+        st = VERWALTUNG[z][k]
+        kreise.append(_kreis(x, y, "sz sz-verwaltung" + (" sz-haupt" if st["schl"] == "kanzlei" else ""), f'{st["titel"]} · {st["stelle"]}'))
     teile.append(f'<g class="bank" data-bank="verwaltung">{"".join(kreise)}</g>')
-    # --- Senatsbank (rechts oben): zwei gekrümmte Reihen zu je 4
+    # --- Senatsbank (rechts)
     kreise = []
-    for zeile in range(2):
-        r = 112 + zeile * 20
-        for k, grad in enumerate(_bogen(KURFUERSTEN // 2, r, 40)):
-            x, y = _pol(r, grad)
-            kreise.append(_kreis(x, y, "sz sz-senat", f"Senatsbank: Kurfürst ({zeile * (KURFUERSTEN // 2) + k + 1} von {KURFUERSTEN})"))
+    for nr, (x, y, z, k) in enumerate(_bank(SENAT_REIHEN, 1), 1):
+        kreise.append(_kreis(x, y, "sz sz-senat", f"Senatsbank: Kurfürst ({nr} von {KURFUERSTEN})"))
     teile.append(f'<g class="bank" data-bank="senat">{"".join(kreise)}</g>')
+    # --- Mittelachse: Thron (wo im Bundestag der Direktor sitzt), Präsident am Präsidiumstisch, Rednerpult
+    teile.append(f'<g class="bank" data-bank="thron">{_kreis(0, -128, "sz sz-thron", "Thron: Seine Majestät der Kaiser", r=11)}</g>')
+    teile.append('<rect class="pult" x="-15" y="-106" width="30" height="8" rx="2"><title>Präsidiumstisch</title></rect>')
+    teile.append(f'<g class="bank" data-bank="praesidium">{_kreis(0, -84, "sz sz-praesidium", "Präsidium: Der Präsident des Reichstags", r=SITZ_R + 1)}</g>')
+    teile.append('<rect class="pult" x="-9" y="-30" width="18" height="12" rx="2"><title>Rednerpult</title></rect>')
     # --- Beschriftungen
-    teile.append(f'<text class="tl" x="{cx - 118}" y="{cy - 142}" text-anchor="end">Reichsverwaltungsbank</text>')
-    teile.append(f'<text class="tl" x="{cx + 118}" y="{cy - 142}">Senatsbank</text>')
-    teile.append(f'<text class="tl" x="{cx}" y="{cy - 154}" text-anchor="middle">Thron</text>')
-    teile.append(f'<text class="tl" x="{cx}" y="{cy + REIHEN[-1] + 30}" text-anchor="middle">Plenum der Teilstaaten</text>')
-    return (f'<svg class="sz-plan" viewBox="240 0 520 {cy + REIHEN[-1] + 44}" role="group" aria-label="Sitzordnung des Reichstags" xmlns="http://www.w3.org/2000/svg">'
+    teile.append('<text class="tl" x="-36" y="-106" text-anchor="end">Reichsverwaltungsbank</text>')
+    teile.append('<text class="tl" x="36" y="-106">Senatsbank</text>')
+    teile.append('<text class="tl" x="0" y="-146" text-anchor="middle">Thron</text>')
+    aussen = PLENUM_R0 + (PLENUM_REIHEN - 1) * ABSTAND + SITZ_R
+    return (f'<svg class="sz-plan" viewBox="{-aussen - 12} -160 {2 * aussen + 24} {aussen + 160 + 12}" role="group" aria-label="Sitzordnung des Reichstags" xmlns="http://www.w3.org/2000/svg">'
             + "".join(teile) + '</svg>')
 
 

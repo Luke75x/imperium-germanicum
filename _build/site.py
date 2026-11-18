@@ -753,11 +753,13 @@ def page_sitzordnung():
     "Jeder Landesherr führt eine Delegation von sechs Sitzen: ihn selbst und fünf Delegierte, die den Sitzungen beiwohnen können. Die Delegationen sitzen von West nach Ost nach der Lage ihrer Hauptstadt.",
   )}
 </div>
-<div class="sz-wrap">
-  {SZ.svg()}
-  <p class="sz-info" id="sz-info" aria-live="polite">Fahre über einen Sitz oder wähle eine Delegation in der Liste, um sie hervorzuheben.</p>
+<div class="sz-layout">
+  <div class="sz-summe"><p class="sz-gesamt"><b>{z["gesamt"]} Sitze</b></p><p>Die Sitze verteilen sich wie folgt:</p><ul class="sz-baenke">{baenke}</ul></div>
+  <div class="sz-wrap">
+    {SZ.svg()}
+    <p class="sz-info" id="sz-info" aria-live="polite">Fahre über einen Sitz oder wähle eine Delegation in der Liste, um sie hervorzuheben.</p>
+  </div>
 </div>
-<div class="sz-summe"><p class="sz-gesamt"><b>{z["gesamt"]} Sitze</b></p><p>Die Sitze verteilen sich wie folgt:</p><ul class="sz-baenke">{baenke}</ul></div>
 <h2>Die Delegationen</h2>
 <p class="prose" style="color:var(--muted)">Der Sitz mit dem kräftigeren Rand ist der des Landesherrn. Gestrichelte Sitze sind vorgehalten oder frei.</p>
 <ul class="sz-legende">{legende}</ul>
@@ -765,7 +767,7 @@ def page_sitzordnung():
 <ul class="sz-bank-liste">
   <li><b>Thron:</b> Dort, wo im Parlament sonst der Direktor sitzt, sitzt der Monarch. Einen Direktor des Reichstags gibt es nicht.</li>
   <li><b>Präsidium:</b> Der Präsident des Reichstags leitet die Sitzungen; das Amt rotiert unter den Abgeordneten alle drei Monate.</li>
-  <li><b>Reichsverwaltungsbank (links, {z["verwaltung"]} Sitze):</b> der Kronkanzler und die Leiter der Reichsbehörden. Vorn nehmen der Kronkanzler und die Leiter der Behörden für Sicherheit und Ordnung sowie des Schatz- und Währungsamts, des Generalkonsulats und des Heroldsamts Platz, dahinter die Crown Estates, die Reichsämter, die Zentralbank und die Reichskasse. Es gibt keine weiteren Ämter.</li>
+  <li><b>Reichsverwaltungsbank (links, {z["verwaltung"]} Sitze):</b> der Kronkanzler und die Leiter der Reichsbehörden in drei Reihen. Vorn, dem Rednerpult am nächsten, sitzt der Kronkanzler neben den Generaldirektoren von Reichssicherheitsamt, Polizei, Zoll und Katastrophenschutz; in der Mitte die Großinquisition, das Schatzamt, das Generalkonsulat, das Heroldsamt, die Crown Estates und die Behörde für Innere Angelegenheiten; hinten die Zentralbank, die Reichskasse und die Reichsämter. Es gibt keine weiteren Ämter.</li>
   <li><b>Senatsbank (rechts, {z["senat"]} Sitze):</b> Plätze für die Kurfürsten des Senats. Der Kaiser sitzt auf dem Thron.</li>
   <li><b>Plenum ({z["plenum"]} Sitze):</b> {z["delegationen"]} Delegationen der Landesherren, {z["vorgehalten"]} vorgehaltene Delegationen für Gebiete unter Reichsvertretung und {z["frei"]} freier Reserveblock.</li>
 </ul>

@@ -1239,7 +1239,6 @@
  "Thron:": "Throne:",
  "<b>Präsidium:</b> Der Präsident des Reichstags leitet die Sitzungen; das Amt rotiert unter den Abgeordneten alle drei Monate.": "<b>Presidium:</b> The President of the Reichstag chairs the sessions; the office rotates among the delegates every three months.",
  "Präsidium:": "Presidium:",
- "<b>Reichsverwaltungsbank (links, 18 Sitze):</b> der Kronkanzler und die Leiter der Reichsbehörden. Vorn nehmen der Kronkanzler und die Leiter der Behörden für Sicherheit und Ordnung sowie des Schatz- und Währungsamts, des Generalkonsulats und des Heroldsamts Platz, dahinter die Crown Estates, die Reichsämter, die Zentralbank und die Reichskasse. Es gibt keine weiteren Ämter.": "<b>Imperial Administration Bench (left, 18 seats):</b> the Crown Chancellor and the heads of the imperial authorities. In front sit the Crown Chancellor and the heads of the authorities for security and order as well as of the Treasury and Currency Office, the Consulate General and the College of Heralds; behind them the Crown Estates, the imperial offices, the Central Bank and the Imperial Treasury. There are no further offices.",
  "Reichsverwaltungsbank (links, 18 Sitze):": "Imperial Administration Bench (left, 18 seats):",
  "<b>Senatsbank (rechts, 8 Sitze):</b> Plätze für die Kurfürsten des Senats. Der Kaiser sitzt auf dem Thron.": "<b>Senate Bench (right, 8 seats):</b> Seats for the Prince-Electors of the Senate. The Emperor sits on the throne.",
  "Senatsbank (rechts, 8 Sitze):": "Senate Bench (right, 8 seats):",
@@ -1251,5 +1250,6 @@
  "Die Sitzordnung im Plenarsaal des Reichstags: Thron, Präsidium, Reichsverwaltungsbank, Senatsbank und die Delegationen der Landesherren.": "The seating plan of the Reichstag's plenary hall: throne, presidium, imperial administration bench, Senate bench and the sovereigns' delegations.",
  "Die Sitzordnung des Reichstags – Imperium Germanicum": "The Seating Plan of the Reichstag – Imperium Germanicum",
  "Sitzordnung des Reichstags": "Seating plan of the Reichstag",
- "Reserve": "Reserve"
+ "Reserve": "Reserve",
+ "<b>Reichsverwaltungsbank (links, 18 Sitze):</b> der Kronkanzler und die Leiter der Reichsbehörden in drei Reihen. Vorn, dem Rednerpult am nächsten, sitzt der Kronkanzler neben den Generaldirektoren von Reichssicherheitsamt, Polizei, Zoll und Katastrophenschutz; in der Mitte die Großinquisition, das Schatzamt, das Generalkonsulat, das Heroldsamt, die Crown Estates und die Behörde für Innere Angelegenheiten; hinten die Zentralbank, die Reichskasse und die Reichsämter. Es gibt keine weiteren Ämter.": "<b>Imperial Administration Bench (left, 18 seats):</b> the Crown Chancellor and the heads of the imperial authorities in three rows. In front, closest to the lectern, sits the Crown Chancellor beside the directors-general of the Imperial Security Office, the Police, Customs and Disaster Relief; in the middle the Grand Inquisition, the Treasury, the Consulate General, the College of Heralds, the Crown Estates and the Authority for Internal Affairs; at the back the Central Bank, the Imperial Treasury and the imperial offices. There are no further offices."
 }
