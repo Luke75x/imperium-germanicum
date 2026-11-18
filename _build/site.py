@@ -1060,7 +1060,7 @@ def page_reichsbehoerden():
 
     # Amtslogos wie im Organigramm der Reichsverwaltung (nur Behörden, die eines haben)
     LOGOS = {"crownestates": "i6b2e0c7d41a95f38", "inquisition": "i8fe9b680ffa65aa7", "krs": "i4dd5fb31eadc1d24", "polizei": "i06571bc6d6fa68fb",
-             "katastrophenschutz": "ibefc8b3d0f86bc55", "zoll": "i220ab438ca5e0e63", "schatzamt": "i72e1771e71aab604", "heroldsamt": "ibe1ff684acb859d3"}
+             "katastrophenschutz": "ibefc8b3d0f86bc55", "zoll": "i220ab438ca5e0e63", "schatzamt": "i72e1771e71aab604", "heroldsamt": "ibe1ff684acb859d3", "generalkonsulat": "iea627468eddb6106"}
 
     def logo(b):
         i = LOGOS.get(b["schl"])

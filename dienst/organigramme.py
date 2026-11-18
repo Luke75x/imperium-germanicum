@@ -413,6 +413,7 @@ WAPPEN = {
     "i42648ed6ea92d607": "Amtslogo des Kronkanzlers (rund)",
     "id46b2e5f9d9668d9": "Amtslogo des Kronkanzlers",
     "ibe1ff684acb859d3": "Kaiserliches Heroldsamt (Amtslogo)",
+    "iea627468eddb6106": "Kaiserliches Generalkonsulat (Amtslogo)",
     "i2e330402e5d67b0a": "Emblem der Imperialen Charta",
     "i1ed8e9913dc91849": "Emblem des Etiketten-Guides",
 }
