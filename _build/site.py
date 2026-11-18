@@ -810,11 +810,12 @@ def page_hand():
   <div>
     <span class="eyebrow">Reichsombudsmann</span>
     <h2 style="margin-top:0">Karl V.</h2>
-    <p class="titleblock">Seine Hoheit Karl V., Hand des Kaisers und Reichsombudsmann des Imperium Germanicum.</p>
+    <p class="titleblock">Seine Hoheit Karl V., Hand des Kaisers und Reichsombudsmann des Imperium Germanicum, zweithöchster Amtsträger des Reiches im Dienste Seiner Majestät des Kaisers.</p>
     <div class="prose">
     {paras(
-      "Karl V. ist wieder die Hand des Kaisers und somit der zweithöchste Amtsträger des Reiches. In der Zwischenzeit führte Ernst August VI., König von Hannover, das Amt vorübergehend.",
-      "Ernst August VI. bleibt Vorsitzender des Reichstags.",
+      "Karl V. führt wieder die Hand des Kaisers. Damit steht er nach Seiner Majestät dem Kaiser an der Spitze des Reiches und ist der zweithöchste Amtsträger des Imperium Germanicum.",
+      "Als Hand des Kaisers handelt er in dessen Namen: Er steht der Senatsverwaltung der Regierung Seiner Majestät vor und trägt als Reichsombudsmann Sorge dafür, dass der Wille der Krone im ganzen Reich Gehör und Befolgung findet.",
+      "In der Zwischenzeit hielt Ernst August VI., König von Hannover und Braunschweig-Lüneburg, das Amt vorübergehend und mit Treue für das Reich. Das Imperium dankt ihm für seinen Dienst; den Vorsitz im Reichstag führt er weiterhin.",
     )}
     </div>
   </div>
@@ -826,7 +827,8 @@ def page_hand():
 <section class="seat">
   <span class="eyebrow">Arbeitssitz &amp; Residenz</span>
   <div class="prose">{paras(
-    "Der Arbeitssitz der Senatsverwaltung der Regierung seiner Majestät, welcher die Hand des Kaisers vorsteht befindet sich im Berliner Schloss in der Reichshauptstadt.")}</div>
+    "Der Arbeitssitz der Senatsverwaltung der Regierung seiner Majestät, welcher die Hand des Kaisers vorsteht befindet sich im Berliner Schloss in der Reichshauptstadt.",
+    "Im Herzen von Groß-Berlin laufen unter seinem Dach die Geschäfte des Senats zusammen; von hier aus wirkt die Hand des Kaisers an der Seite der Krone.")}</div>
   <div class="figure-row" style="margin-top:28px">
     {figure("i020a6de4455d21a6", "Berliner Schloss", group="hand-sitz")}
   </div>
@@ -1056,6 +1058,14 @@ def page_reichsbehoerden():
   <a class="btn btn-line" href="{kartenlink("kanzlei")}">{esc(g["name"])} auf der Reichskarte {icon("arrow")}</a></div>
 </section>"""
 
+    # Amtslogos wie im Organigramm der Reichsverwaltung (nur Behörden, die eines haben)
+    LOGOS = {"crownestates": "i6b2e0c7d41a95f38", "inquisition": "i8fe9b680ffa65aa7", "krs": "i4dd5fb31eadc1d24", "polizei": "i06571bc6d6fa68fb",
+             "katastrophenschutz": "ibefc8b3d0f86bc55", "zoll": "i220ab438ca5e0e63", "schatzamt": "i72e1771e71aab604", "heroldsamt": "ibe1ff684acb859d3"}
+
+    def logo(b):
+        i = LOGOS.get(b["schl"])
+        return f'<span class="rb-logo">{img(i, "Logo: " + b["name"], "72px")}</span>' if i else ""
+
     def behoerden_karten(gruppe):
         out = []
         for b in RB.BEHOERDEN:
@@ -1064,7 +1074,7 @@ def page_reichsbehoerden():
             g = b.get("gebaeude") or {"name": b.get("bestand", "–")}
             out.append(f"""
 <article class="title-card rb-karte">
-  <header><h3><a href="{u(RB.seite(b))}">{esc(b["name"])}</a></h3><span class="rank">{esc(b["kurz"])}</span></header>
+  <header>{logo(b)}<div class="rb-kopf"><h3><a href="{u(RB.seite(b))}">{esc(b["name"])}</a></h3><span class="rank">{esc(b["kurz"])}</span></div></header>
   <div class="remark"><p>{esc(b["lead"])}</p></div>
   <p class="rb-meta"><b>Leitung:</b> {esc(b["leitung"])}<br><b>Dienstgebäude:</b> {esc(g["name"])}</p>
   <p><a class="link-arrow" href="{u(RB.seite(b))}">Zur Seite {icon("arrow")}</a></p>
@@ -1083,8 +1093,7 @@ def page_reichsbehoerden():
     )}
   </div>
 </div>
-<h2>Aufbau der Reichsverwaltung</h2>
-<div class="table-scroll"><table class="styles-table"><thead><tr><th>Säule</th><th>Leitung</th><th>Aufgabe</th></tr></thead><tbody>{saeulen_rows}</tbody></table></div>
+{kanzleramt_block()}
 <section class="seat">
   <span class="eyebrow">Interaktiv</span>
   <h2>Das Organigramm</h2>
@@ -1092,13 +1101,14 @@ def page_reichsbehoerden():
   {organigramm_verwaltung()}
   <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u("informationen/die-reichsbehoerden/organigramm/")}">Zum Organigramm {icon("arrow")}</a></div>
 </section>
+<h2>Aufbau der Reichsverwaltung</h2>
+<div class="table-scroll"><table class="styles-table"><thead><tr><th>Säule</th><th>Leitung</th><th>Aufgabe</th></tr></thead><tbody>{saeulen_rows}</tbody></table></div>
 <section class="seat">
   <span class="eyebrow">Für Angehörige der Reichsbehörden</span>
   <h2>Interne Ansicht</h2>
   <div class="prose"><p>Die Angehörigen der Reichsbehörden melden sich mit ihrem Discord-Konto an und sehen ihre Dienststelle: Personalverzeichnis, Haftregister und die Statistik des Zollwesens. Jede Behörde sieht nur ihre eigene Dienststelle, der Kronkanzler sieht alle.</p></div>
   <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u("informationen/die-reichsbehoerden/intern/")}">Zur internen Ansicht {icon("arrow")}</a></div>
 </section>
-{kanzleramt_block()}
 <h2>Die Behörden des Reiches</h2>
 <div class="prose">{paras(
   "Unter dem Kronkanzleramt arbeiten die Crown Estates und die Reichsbehörden. Jede hat ihre eigene Seite mit Aufgaben, Leitung und Dienstgebäude; die Dienstgebäude sind auf der Reichskarte verzeichnet. Die Gliederung entspricht dem Organigramm der Reichsverwaltung.",
