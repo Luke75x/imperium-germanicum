@@ -741,9 +741,10 @@ def page_sitzordnung():
                 t={"landesherr": esc(d["titel"]) + " mit Delegation", "gouvernement": "unter Reichsvertretung, Sitze vorgehalten",
                    "frei": "freie Reserve für künftige Teilstaaten"}[d["art"]], b=SZ.BLOCK)
             for i, d in enumerate(SZ.DELEGATIONEN))
-        kachel = "".join(f'<div class="sz-zahl"><b>{n}</b><span>{t}</span></div>' for n, t in (
-            (z["gesamt"], "Sitze im Saal"), (z["plenum"], "Plenum der Teilstaaten"), (z["verwaltung"], "Reichsverwaltungsbank"),
-            (z["senat"], "Senatsbank"), (z["delegationen"], "Delegationen der Landesherren")))
+        baenke = "".join(f'<li><span class="sw {k}"></span><span class="nm">{esc(n)}</span><span class="n">{c}</span></li>' for k, n, c in (
+            ("b-thron", "Thron (der Kaiser)", z["thron"]), ("b-praesidium", "Präsidium (Präsident des Reichstags)", z["praesidium"]),
+            ("b-verwaltung", "Reichsverwaltungsbank", z["verwaltung"]), ("b-senat", "Senatsbank (Kurfürsten)", z["senat"]),
+            ("b-plenum", "Plenum der Teilstaaten", z["plenum"])))
         return f"""
 <link rel="stylesheet" href="{asset("css/sitzordnung.css")}?v={_hash("css/sitzordnung.css")}">
 <div class="prose">
@@ -756,7 +757,7 @@ def page_sitzordnung():
   {SZ.svg()}
   <p class="sz-info" id="sz-info" aria-live="polite">Fahre über einen Sitz oder wähle eine Delegation in der Liste, um sie hervorzuheben.</p>
 </div>
-<div class="sz-zahlen">{kachel}</div>
+<div class="sz-summe"><p class="sz-gesamt"><b>{z["gesamt"]} Sitze</b></p><p>Die Sitze verteilen sich wie folgt:</p><ul class="sz-baenke">{baenke}</ul></div>
 <h2>Die Delegationen</h2>
 <p class="prose" style="color:var(--muted)">Der Sitz mit dem kräftigeren Rand ist der des Landesherrn. Gestrichelte Sitze sind vorgehalten oder frei.</p>
 <ul class="sz-legende">{legende}</ul>
