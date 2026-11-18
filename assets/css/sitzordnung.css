@@ -55,3 +55,11 @@
 .sz-layout .sz-wrap { margin: 0; }
 .sz-summe p { margin: 0 0 6px; color: var(--ink-2); }
 @media (max-width: 760px) { .sz-layout { grid-template-columns: 1fr; gap: 18px; } .sz-layout .sz-summe { order: 2; } }
+
+/* Anklickbare Sitze (Thron, Präsident, Reichsverwaltungsbank, Kurfürsten) */
+.sz-plan .sz-link { cursor: pointer; }
+.sz-plan .sz-link:hover .sz, .sz-plan .sz-link:focus-visible .sz { stroke: var(--ink); stroke-width: 2; stroke-opacity: 1; }
+.sz-plan .sz-link:focus-visible { outline: none; }
+.sz-plan .sz-senat.sz-offen { fill-opacity: .45; stroke-dasharray: 2.5 1.5; stroke-opacity: .9; }
+.sz-plan .sz-senat-del { fill: var(--gold-300); fill-opacity: .35; stroke: var(--gold-700); stroke-opacity: .35; }
+.sz-baenke .b-senat-del { background: color-mix(in srgb, var(--gold-300) 40%, transparent); }

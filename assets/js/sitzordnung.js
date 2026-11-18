@@ -22,7 +22,9 @@
     info.innerHTML = '<b></b><br><span></span>';
     info.firstChild.textContent = name || l;
     if (l && name && l.indexOf(name + ': ') === 0) l = l.slice(name.length + 2);
-    info.lastChild.textContent = l && l !== name ? l : (en ? 'Delegation of six seats (sovereign + five delegates)' : 'Delegation mit sechs Sitzen (Landesherr und fünf Delegierte)');
+    if (l && l.indexOf(name + ' · ') === 0) l = l.slice(name.length + 3);
+    var bank = g.classList.contains('bank');
+    info.lastChild.textContent = l && l !== name ? l : bank ? '' : (en ? 'Delegation of six seats (sovereign + five delegates)' : 'Delegation mit sechs Sitzen (Landesherr und fünf Delegierte)');
   }
   function aus() {
     if (fest) return zeige(fest, null);
@@ -30,7 +32,7 @@
     if (info) info.innerHTML = standard;
   }
   gruppen.forEach(function (g) {
-    g.addEventListener('mouseover', function (e) { zeige(g, e.target.closest('circle')); });
+    g.addEventListener('mouseover', function (e) { zeige(g, e.target.closest('circle, rect.sz')); });
     g.addEventListener('focus', function () { zeige(g, null); });
     g.addEventListener('mouseleave', aus);
     g.addEventListener('blur', aus);
