@@ -12,7 +12,7 @@
 .sz-plan .sz-verwaltung.sz-haupt { fill: var(--gold-500); stroke: var(--gold-700); }
 .sz-plan .sz-senat { fill: var(--gold-300); stroke: var(--gold-700); stroke-opacity: .8; }
 .sz-plan .pult { fill: var(--rule-strong); stroke: var(--ink); stroke-opacity: .4; }
-.sz-plan .tl { font: 600 7.5px var(--sans, system-ui); letter-spacing: .08em; text-transform: uppercase; fill: var(--muted); }
+.sz-plan .tl { font: 600 11px var(--sans, system-ui); letter-spacing: .08em; text-transform: uppercase; fill: var(--muted); }
 .sz-plan.fokus .dl:not(.an), .sz-plan.fokus .bank:not(.an) { opacity: .16; }
 .sz-plan .dl.an .sz, .sz-plan .bank.an .sz { transform: scale(1.18); }
 .sz-plan .dl:focus-visible { outline: none; }
