@@ -1199,7 +1199,7 @@ def page_kanzler():
     <div style="max-width:62%;margin:0 auto">{figure("i0315259ab08a3c08", "Amtswappen des Kronkanzlers", sizes="(min-width: 900px) 25vw, 60vw")}</div>
   </div>
   <div class="prose" style="margin-top:28px">{paras(
-    "Die Standarte des Kronkanzlers zeigt den schwarzen Doppeladler mit roter Bewehrung auf goldenem Grund, eingefasst von einem schwarzen Rand.",
+    "Die Standarte des Kronkanzlers zeigt den schwarzen Doppeladler mit roter Bewehrung auf goldenem Grund, eingefasst von einem Rand in den Farben Schwarz, Rot und Gold.",
     "Sie weht dort, wo der Kronkanzler in Ausübung seines Amtes im Namen des Souveräns zugegen ist.",
     "Daneben führt das Kronkanzleramt sein Amtswappen: den schwarzen Doppeladler mit Heiligenscheinen auf goldenem Schild, überhöht von der Krone des Reiches.",
   )}</div>

@@ -11,7 +11,7 @@ import os
 from playwright.async_api import async_playwright
 
 HIER = os.path.dirname(os.path.abspath(__file__))
-QUELLE = "/root/imperium_germanicum/assets/img/original/if0978cec8f01efe8.jpg"
+QUELLE = "/root/imperium-dienst/pass_bilder/wappen_quelle_alt_kaiserstandarte.jpg"   # alte Kaiserstandarte (gelb, schwarzer Rahmen); die Website zeigt seit 18.11.2026 eine neue
 ZIEL = os.path.join(HIER, "..", "pass_bilder")
 SCHILD = "[0.40, 0.38, 0.60, 0.78]"   # Kasten (Anteile des Ausschnitts): gelbe Flächen mit Schwerpunkt darin = Schildgrund, bleiben
 
