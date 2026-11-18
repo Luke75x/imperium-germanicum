@@ -1,0 +1,36 @@
+/* Sitzordnung des Reichstags (Seite /informationen/der-reichstag/sitzordnung/) */
+.sz-wrap { margin: 24px 0 8px; }
+.sz-plan { width: 100%; height: auto; display: block; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 8px; }
+.sz-plan .sz { stroke: var(--ink); stroke-opacity: .55; stroke-width: 1; transition: opacity .15s, transform .15s; transform-box: fill-box; transform-origin: center; }
+.sz-plan .sz-staat { fill: var(--c, #999); }
+.sz-plan .sz-vorgehalten { fill: var(--c, #999); fill-opacity: .28; stroke-dasharray: 3 2; }
+.sz-plan .sz-frei { fill: none; stroke-dasharray: 2 3; stroke-opacity: .45; }
+.sz-plan .sz-haupt { stroke-width: 2.6; stroke-opacity: .95; }
+.sz-plan .sz-thron { fill: var(--gold-500); stroke: var(--gold-700); stroke-width: 2.5; stroke-opacity: 1; }
+.sz-plan .sz-praesidium { fill: var(--navy-700); stroke-opacity: .9; }
+.sz-plan .sz-verwaltung { fill: var(--navy-800); }
+.sz-plan .sz-verwaltung.sz-haupt { fill: var(--gold-500); stroke: var(--gold-700); }
+.sz-plan .sz-senat { fill: var(--gold-300); stroke: var(--gold-700); stroke-opacity: .8; }
+.sz-plan .pult { fill: var(--rule-strong); stroke: var(--ink); stroke-opacity: .4; }
+.sz-plan .tl { font: 600 12px var(--sans, system-ui); letter-spacing: .12em; text-transform: uppercase; fill: var(--muted); }
+.sz-plan.fokus .dl:not(.an), .sz-plan.fokus .bank:not(.an) { opacity: .16; }
+.sz-plan .dl.an .sz, .sz-plan .bank.an .sz { transform: scale(1.18); }
+.sz-plan .dl:focus-visible { outline: none; }
+.sz-plan .dl:focus-visible .sz { stroke-width: 2.4; stroke-opacity: 1; }
+.sz-info { min-height: 3.2em; margin: 10px 0 0; padding: 10px 14px; border-left: 3px solid var(--gold-500); background: var(--paper); font-size: .975rem; color: var(--ink-2); }
+.sz-info b { color: var(--ink); }
+.sz-zahlen { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 22px 0 8px; }
+.sz-zahl { border: 1px solid var(--rule); background: var(--paper); padding: 14px 16px; }
+.sz-zahl b { display: block; font: 500 1.9rem/1.1 var(--serif); color: var(--ink); }
+.sz-zahl span { font-size: .875rem; color: var(--muted); }
+.sz-legende { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 6px 22px; }
+.sz-legende li { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-bottom: 1px solid var(--rule); cursor: pointer; border-radius: 3px; }
+.sz-legende li:hover, .sz-legende li.an { background: var(--navy-100); }
+.sz-legende .sw { flex: none; width: 16px; height: 16px; border-radius: 50%; background: var(--c, transparent); border: 1.5px solid var(--ink); border-color: color-mix(in srgb, var(--ink) 55%, transparent); }
+.sz-legende .sw.vorgehalten { opacity: .35; border-style: dashed; }
+.sz-legende .sw.frei { background: transparent; border-style: dotted; }
+.sz-legende .nm { flex: 1; min-width: 0; font-weight: 500; }
+.sz-legende .nm small { display: block; font-weight: 400; color: var(--muted); font-size: .8125rem; }
+.sz-legende .n { font-variant-numeric: tabular-nums; color: var(--muted); }
+.sz-bank-liste { margin: 8px 0 0; padding-left: 1.2em; line-height: 1.65; }
+@media (prefers-reduced-motion: reduce) { .sz-plan .sz { transition: none; } .sz-plan .dl.an .sz { transform: none; } }

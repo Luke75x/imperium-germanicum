@@ -13,6 +13,7 @@ import re
 
 import etikette
 import reichsbehoerden as RB
+import sitzordnung as SZ
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -708,6 +709,12 @@ def page_reichstag():
           "König und Kurfürst von Hannover und Braunschweig-Lüneburg", horizontal=True)}
 </div>
 <section class="seat">
+  <span class="eyebrow">Im Plenarsaal</span>
+  <h2>Die Sitzordnung</h2>
+  <div class="prose"><p>Im Plenarsaal des Reichstagsgebäudes führt jeder Landesherr eine Delegation von sechs Sitzen. Auf der Sitzordnung sind der Thron, das Präsidium, die Reichsverwaltungsbank, die Senatsbank und alle Delegationen der Teilstaaten verzeichnet.</p></div>
+  <div class="hero-actions" style="margin-top:22px"><a class="btn btn-navy" href="{u("informationen/der-reichstag/sitzordnung/")}">Zur Sitzordnung {icon("arrow")}</a></div>
+</section>
+<section class="seat">
   <span class="eyebrow">Für Mitglieder des Reichstages</span>
   <h2>Interne Sitzungen</h2>
   <div class="prose"><p>Der Präsident, die Abgeordneten und die Landesherren melden sich mit ihrem Discord-Konto an. Im internen Bereich werden Sitzungen terminiert, Anträge eingebracht und der Tagesordnung einer Sitzung zugesprochen.</p></div>
@@ -723,6 +730,56 @@ def page_reichstag():
     institution_page("informationen/der-reichstag/", "Der Reichstag", "Der Reichstag", "Legislative des Reiches",
                      "Der Reichstag ist die legislative Versammlung aller Oberhäupter der Teilstaaten des Imperium Germanicum.",
                      article)
+
+
+def page_sitzordnung():
+    def article():
+        z = SZ.zahlen()
+        legende = "".join(
+            '<li data-d="{i}"><span class="sw {k}" style="--c:{c}"></span><span class="nm">{n}<small>{t}</small></span><span class="n">{b} Sitze</span></li>'.format(
+                i=i, k={"landesherr": "", "gouvernement": "vorgehalten", "frei": "frei"}[d["art"]], c=d["farbe"] or "transparent", n=esc(d["name"]),
+                t={"landesherr": esc(d["titel"]) + " mit Delegation", "gouvernement": "unter Reichsvertretung, Sitze vorgehalten",
+                   "frei": "freie Reserve für künftige Teilstaaten"}[d["art"]], b=SZ.BLOCK)
+            for i, d in enumerate(SZ.DELEGATIONEN))
+        kachel = "".join(f'<div class="sz-zahl"><b>{n}</b><span>{t}</span></div>' for n, t in (
+            (z["gesamt"], "Sitze im Saal"), (z["plenum"], "Plenum der Teilstaaten"), (z["verwaltung"], "Reichsverwaltungsbank"),
+            (z["senat"], "Senatsbank"), (z["delegationen"], "Delegationen der Landesherren")))
+        return f"""
+<link rel="stylesheet" href="{asset("css/sitzordnung.css")}?v={_hash("css/sitzordnung.css")}">
+<div class="prose">
+  {paras(
+    "Der Plenarsaal des Reichstagsgebäudes in Groß-Berlin ist nach dem Vorbild eines Halbrundes angelegt. Vorn sitzt der Souverän auf dem Thron, daneben das Präsidium des Reichstags; links liegt die Reichsverwaltungsbank, rechts die Senatsbank, davor das Plenum der Teilstaaten.",
+    "Jeder Landesherr führt eine Delegation von sechs Sitzen: ihn selbst und fünf Delegierte, die den Sitzungen beiwohnen können. Die Delegationen sitzen von West nach Ost nach der Lage ihrer Hauptstadt.",
+  )}
+</div>
+<div class="sz-wrap">
+  {SZ.svg()}
+  <p class="sz-info" id="sz-info" aria-live="polite">Fahre über einen Sitz oder wähle eine Delegation in der Liste, um sie hervorzuheben.</p>
+</div>
+<div class="sz-zahlen">{kachel}</div>
+<h2>Die Delegationen</h2>
+<p class="prose" style="color:var(--muted)">Der Sitz mit dem kräftigeren Rand ist der des Landesherrn. Gestrichelte Sitze sind vorgehalten oder frei.</p>
+<ul class="sz-legende">{legende}</ul>
+<h2>Die Bänke</h2>
+<ul class="sz-bank-liste">
+  <li><b>Thron:</b> Dort, wo im Parlament sonst der Direktor sitzt, sitzt der Monarch. Einen Direktor des Reichstags gibt es nicht.</li>
+  <li><b>Präsidium:</b> Der Präsident des Reichstags leitet die Sitzungen; das Amt rotiert unter den Abgeordneten alle drei Monate.</li>
+  <li><b>Reichsverwaltungsbank (links, {z["verwaltung"]} Sitze):</b> der Kronkanzler und die Leiter der Reichsbehörden. Vorn nehmen der Kronkanzler und die Leiter der Behörden für Sicherheit und Ordnung sowie des Schatz- und Währungsamts, des Generalkonsulats und des Heroldsamts Platz, dahinter die Crown Estates, die Reichsämter, die Zentralbank und die Reichskasse. Es gibt keine weiteren Ämter.</li>
+  <li><b>Senatsbank (rechts, {z["senat"]} Sitze):</b> Plätze für die Kurfürsten des Senats. Der Kaiser sitzt auf dem Thron.</li>
+  <li><b>Plenum ({z["plenum"]} Sitze):</b> {z["delegationen"]} Delegationen der Landesherren, {z["vorgehalten"]} vorgehaltene Delegationen für Gebiete unter Reichsvertretung und {z["frei"]} freier Reserveblock.</li>
+</ul>
+<h2>Vorgehaltene und freie Sitze</h2>
+<div class="prose">
+  {paras(
+    "Für die Teilstaaten unter Reichsvertretung (Gouvernement Baden, Generalgouvernement Venedig) sind eigene Delegationen vorgehalten. Erhält ein solches Gebiet wieder einen Landesherrn, nimmt dessen Delegation den vorgehaltenen Platz ein, ohne dass sich die Sitzordnung ändert.",
+    "Der freie Reserveblock am östlichen Ende steht für einen künftig geschaffenen Teilstaat bereit. Ein neuer Landesherr erhält dort seine sechs Sitze.",
+  )}
+</div>
+<p><a class="link-arrow" href="{u("informationen/der-reichstag/")}">Zurück zum Reichstag {icon("arrow")}</a></p>
+<script src="{asset("js/sitzordnung.js")}?v={_hash("js/sitzordnung.js")}" defer></script>"""
+    institution_page("informationen/der-reichstag/sitzordnung/", "Sitzordnung", "Die Sitzordnung des Reichstags", "Plenarsaal",
+                     "Die Sitzordnung im Plenarsaal des Reichstags: Thron, Präsidium, Reichsverwaltungsbank, Senatsbank und die Delegationen der Landesherren.",
+                     article, parent=("informationen/der-reichstag/", "Der Reichstag"))
 
 
 def page_senat():
@@ -1900,6 +1957,7 @@ def main():
     page_hand()
     page_senat()
     page_reichstag()
+    page_sitzordnung()
     page_reichsgerichtshof()
     page_stabschefs()
     page_krs()
