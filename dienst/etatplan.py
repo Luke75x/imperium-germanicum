@@ -1314,8 +1314,8 @@ async def oeffentlich(request, k):
             '<div class="zf-skala"><span style="left:0%">0</span><span style="left:40%">40</span><span style="left:55%">55</span><span style="left:70%">70</span><span style="left:85%">85</span><span style="left:100%">100</span></div></div></div>')
     staatl = (f'<p class="sa-hinweis"><a href="{PFAD}?ziel={esc(ziel)}">Zur Etatverteilung mit Beträgen und Einstellungen</a></p>'
               if sa.hat_kassen(con, k) else "")
-    inhalt = (CSS + WK_CSS + ZUF_CSS + f'<h1>{amt.ic("chart-pie")} Etatübersicht</h1>'
-              f'<p class="az">Wofür geben Reich und Teilstaaten ihr Geld aus? Anteile am monatlichen Etat im {esc(sa._monatsname(monat_heute()))}.</p>'
+    inhalt = (CSS + WK_CSS + ZUF_CSS + __import__("teilstaat").kopf_mit_wappen(f'<h1>{amt.ic("chart-pie")} Etatübersicht</h1>', ziel[3:] if ziel != "reich" else "", gueltig[ziel])
+              + f'<p class="az">Wofür geben Reich und Teilstaaten ihr Geld aus? Anteile am monatlichen Etat im {esc(sa._monatsname(monat_heute()))}.</p>'
               f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{auswahl}</select></div>'
               '<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>' + lage
               + f'<div class="ep-raster"><div class="ep-torte" id="ep-torte"><svg viewBox="0 0 200 200" role="img" aria-label="Tortendiagramm des Etats {esc(gueltig[ziel])}"></svg>'

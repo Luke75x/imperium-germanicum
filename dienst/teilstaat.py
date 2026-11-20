@@ -10,8 +10,34 @@ import geld
 import schatzamt as sa
 from geld import mark
 
+import os
+
 esc = amt.esc
 PFAD = sa.PFAD + "teilstaat/"
+WAPPEN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wappen_staaten")   # <Karten-ID, z. B. s6>.png, Reihenfolge/Zuordnung siehe Memory teilstaat-wappen
+
+
+def wappen_html(sid, name=""):
+    """Wappen eines Teilstaats (Karten-ID wie „s6“) als <img> für Überschriften; leer, wenn noch kein Bild vorliegt."""
+    if not sid or not os.path.isfile(os.path.join(WAPPEN_DIR, f"{sid}.png")):
+        return ""
+    return f'<img class="ts-wappen" src="{sa.PFAD}wappen/{esc(sid)}.png" alt="Wappen {esc(name)}" loading="lazy">'
+
+
+WAPPEN_CSS = '<style>.ts-kopf{display:flex;align-items:center;gap:16px}.ts-kopf h1{margin:0}.ts-wappen{height:72px;width:auto;flex:none;filter:drop-shadow(0 1px 3px rgba(0,0,0,.35))}@media(max-width:520px){.ts-wappen{height:54px}}</style>'
+
+
+def kopf_mit_wappen(h1, sid, name=""):
+    w = wappen_html(sid, name)
+    return WAPPEN_CSS + f'<div class="ts-kopf">{w}{h1}</div>' if w else h1
+
+
+async def wappen(request):
+    sid = request.match_info["sid"]
+    pfad = os.path.join(WAPPEN_DIR, sid + ".png")
+    if not sid.isalnum() or not os.path.isfile(pfad):
+        raise web.HTTPNotFound()
+    return web.FileResponse(pfad, headers={"Cache-Control": "public, max-age=86400"})
 
 
 def _zeile(klasse, symbol, text, zusatz="", link=None):
@@ -116,7 +142,7 @@ async def seite(request, k):
     if verteidigung.darf_sehen(con, k, sid) and vtk:
         karten.append(karte("shield", "Verteidigung", sa.PFAD + f"verteidigung/{sid}/",
                             [f"Einsatzbereitschaft: <strong>{'–' if b is None else etatplan._de(b, 0) + ' %'}</strong>", f"{kzv['einheiten']:,} Einheiten".replace(",", ".")], "Bestand und Beschaffung →"))
-    inhalt = (f'<h1>{amt.ic("flag")} {esc(x["name"])}</h1>{amt.meldung(request)}'
+    inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("flag")} {esc(x["name"])}</h1>', sid, x["name"]) + amt.meldung(request) +
               f'<p class="az">Die Lage Ihres Teilstaats auf einen Blick. Die Reiter oben führen zu Etat, Land (Entwicklung, Energie, Krisen), Finanzen und Verteidigung.</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
               f'<h2>Auf einen Blick</h2><div class="sa-todo">{"".join(z)}</div>'
@@ -161,7 +187,7 @@ async def land(request, k):
     if n_kr:
         teile.insert(0, teile.pop())   # offene Krisen zuerst: Handlungszwang
     name = esc(kasse["name"].replace("Staatskasse ", ""))
-    inhalt = (f'<h1>{amt.ic("users")} Land · {name}</h1>{amt.meldung(request)}'
+    inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("users")} Land · {name}</h1>', sid, name) + amt.meldung(request) +
               '<p class="az">Wie sich der Teilstaat langfristig entwickelt: Bevölkerung und Wirtschaft (Entwicklung), die Energieversorgung und Krisen, auf die der Landesherr reagieren muss. '
               'Alles folgt aus dem Etat; die Werte ändern sich nur allmählich.</p>' + _abschnitte(None, teile))
     return sa.ant(request, k, "Land", "sa-ts-land", inhalt)
@@ -196,12 +222,13 @@ async def finanzen(request, k):
              ("notlage", "triangle-alert", "Notlage", notlage.rumpf_teilstaat(request, k, con, sid), in_not),
              ("umsaetze", "file-text", "Umsätze", umsatz, False)]
     name = esc(kasse["name"].replace("Staatskasse ", ""))
-    inhalt = (f'<h1>{amt.ic("wallet")} Finanzen · {name}</h1>{amt.meldung(request)}'
+    inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("wallet")} Finanzen · {name}</h1>', sid, name) + amt.meldung(request) +
               '<p class="az">Das Geld des Teilstaats: Kassen, Abgabe an das Reich, Goldreserven, die Lage bei einem Minus und die letzten Buchungen.</p>' + _abschnitte(None, teile))
     return sa.ant(request, k, "Finanzen", "sa-ts-fin", inhalt)
 
 
 def registrieren(app):
+    app.router.add_get(sa.PFAD + "wappen/{sid}.png", wappen)
     app.router.add_get(PFAD, seite)
     app.router.add_get(PFAD + "land/", land)
     app.router.add_get(PFAD + "finanzen/", finanzen)
