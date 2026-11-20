@@ -73,7 +73,7 @@ async def seite(request, k):
     abgabe = f'{etatplan._de(q)} %'
     rk = entwicklung.rueckhalt_fuer(con, liste, schl)
     kz = [("Staatskasse", mark(kasse["saldo"])), ("Etat im Monat", mark(x["summe"])), ("Abgabe an das Reich", abgabe),
-          ("Zufriedenheit", f'{etatplan._de(zuf["neu"], 0)} / 100')]
+          ]
     if rk:
         kz.insert(0, ("Rückhalt beim Volk", f'{etatplan._de(rk["wert"], 0)} · {rk["stufe"]}'))
 
@@ -143,9 +143,15 @@ async def seite(request, k):
     if verteidigung.darf_sehen(con, k, sid) and vtk:
         karten.append(karte("shield", "Verteidigung", sa.PFAD + f"verteidigung/{sid}/",
                             [f"Einsatzbereitschaft: <strong>{'–' if b is None else etatplan._de(b, 0) + ' %'}</strong>", f"{kzv['einheiten']:,} Einheiten".replace(",", ".")], "Bestand und Beschaffung →"))
+    zuf_block = (f'<div class="zf-kopf {etatplan._zf_klasse(zuf["neu"])}" style="margin:12px 0"><div><div class="zf-wert">{etatplan._de(zuf["neu"], 0)} <small>/ 100</small></div>'
+                 f'<div class="zf-stufe">{esc(zuf["stufe"])}</div></div><div class="zf-gross"><div class="zf-meta">Bevölkerungszufriedenheit · mit der Etatplanung der Regierung</div>'
+                 f'{etatplan.zuf_balken(zuf["neu"])}<div class="zf-skala"><span style="left:0%">0</span><span style="left:40%">40</span><span style="left:55%">55</span>'
+                 f'<span style="left:70%">70</span><span style="left:85%">85</span><span style="left:100%">100</span></div>'
+                 f'<div class="zf-meta">Zielwert bei diesem Etat: <b>{etatplan._de(zuf["ziel"], 0)}</b> · <a href="{sa.PFAD}etatverteilung/?ziel={schl}">Details unter Etat → Wirkung</a></div></div></div>')
     inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("flag")} {esc(x["name"])}</h1>', sid, x["name"]) + amt.meldung(request) +
               f'<p class="az">Die Lage Ihres Teilstaats auf einen Blick. Die Reiter oben führen zu Etat, Land (Entwicklung, Energie, Krisen), Finanzen und Verteidigung.</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
+              + etatplan.ZUF_CSS + zuf_block +
               f'<h2>Auf einen Blick</h2><div class="sa-todo">{"".join(z)}</div>'
               f'<h2>Bereiche</h2><div class="ts-karten">{"".join(karten)}</div>')
     return sa.ant(request, k, "Mein Teilstaat", "sa-teilstaat", inhalt)
