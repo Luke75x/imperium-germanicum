@@ -1225,7 +1225,9 @@ async def _seite(request, k, planung):
                    + demote(wirkung_html(bew, basis_ein, basis_rl, reich)) + demote(zuf_html(zuf, zuf_verlauf(con, ziel), reich))
                    + (demote(entwicklung.kurz_html(entw_d, f"{sa.PFAD}entwicklung/?ziel={ziel}", entwicklung.rueckhalt_fuer(con, liste, ziel), True)) if reich else land_link))
     tab_vergleich = (f'<p class="az">Anteile am eigenen Etat in %, alle Haushalte im Vergleich.</p><div class="ep-scroll">'
-                     f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div>')
+                     f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div>'
+                     + f'<h3>{amt.ic("landmark")} Haushaltsführung</h3>' + hf_tabelle(liste, ziel_liste, PFAD, ziel)
+                     + f'<h3>{amt.ic("users")} Bevölkerungszufriedenheit</h3>' + zuf_tabelle(liste, ziel_liste, PFAD, ziel))
     tab_aend = amt.tabelle(["Zeit", "Durch", "Änderung"], [(amt._zeit(v["zeit"]), esc(v["autor_name"]), esc(v["text"])) for v in verlauf], "Noch keine Änderungen.")
     tabs = [("verteilung", "Verteilung", tab_verteilung), ("wirkung", "Wirkung", tab_wirkung)]
     if not planung:
