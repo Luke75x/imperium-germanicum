@@ -966,6 +966,28 @@ def zuf_html(z, verlauf, reich=False, interaktiv=True):
               'Verteidigung zählt nicht.</p></details></section>')
 
 
+def vergleich_html(liste, ziel_liste, ziel):
+    """Vergleich aller Haushalte: Etatanteile, Haushaltsführung, Bevölkerungszufriedenheit (Reiter „Statistiken“ bei Mein Teilstaat, Reichshaushalt: Etat → Vergleich)."""
+    kopf = "".join(f'<th title="{esc(NAMEN[kat])}">{esc(NAMEN[kat][:11])}</th>' for kat, _ in KATEGORIEN)
+    vz = []
+    for s, n in ziel_liste:
+        if s == "reich":
+            ver = {kat: sum(x["verteilung_reich"].get(kat, 0) for x in liste) for kat, _ in KATEGORIEN}
+            pl = sum(x["reich"] for x in liste)
+        else:
+            x2 = next(x for x in liste if "ts-" + x["staat"] == s)
+            ver, pl = x2["verteilung_land"], x2["land"]
+        bw = liste[0]["wirkung_reich"] if s == "reich" else x2["wirkung_land"]
+        vz.append(f'<tr{" class=fokus" if s == ziel else ""}><td>{_wk(s, n)}<a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a></td><td>{_vz(round(haushaltsfuehrung(liste, s), 1), "%")}</td>'
+                  + "".join(f'<td>{_de(ver[kat] / pl * 100 if pl else 0)}</td>' for kat, _ in KATEGORIEN)
+                  + f'<td>{bw["boni"]} / {bw["mali"]}</td><td>{_vz(bw["summe"]["einnahmen"], "%")}</td>'
+                  + f'<td>{_de((liste[0]["zufriedenheit_reich"] if s == "reich" else x2["zufriedenheit_land"])["neu"], 0)}</td></tr>')
+    return (f'<p class="az">Anteile am eigenen Etat in %, alle Haushalte im Vergleich.</p><div class="ep-scroll">'
+            f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div>'
+            + f'<h3>{amt.ic("landmark")} Haushaltsführung</h3>' + hf_tabelle(liste, ziel_liste, PFAD, ziel)
+            + f'<h3>{amt.ic("users")} Bevölkerungszufriedenheit</h3>' + zuf_tabelle(liste, ziel_liste, PFAD, ziel))
+
+
 def _wk(s, n):
     import wappen
     return wappen.klein(s, n)
@@ -1195,21 +1217,6 @@ async def _seite(request, k, planung):
           (f"Rücklage der {kassen_name}", mark(kasse_rl["saldo"] if kasse_rl else 0), ""),
           ("Zuführung diesen Monat" if ruecklage >= 0 else f"Entnahme aus der {kassen_name}", mark(abs(ruecklage)), "ep-kz-rl"),
           ("Verteidigung", mark(betraege["verteidigung"]), "")]
-    # Vergleich aller Haushalte
-    kopf = "".join(f'<th title="{esc(NAMEN[kat])}">{esc(NAMEN[kat][:11])}</th>' for kat, _ in KATEGORIEN)
-    vz = []
-    for s, n in ziel_liste:
-        if s == "reich":
-            ver = {kat: sum(x["verteilung_reich"].get(kat, 0) for x in liste) for kat, _ in KATEGORIEN}
-            pl = sum(x["reich"] for x in liste)
-        else:
-            x2 = next(x for x in liste if "ts-" + x["staat"] == s)
-            ver, pl = x2["verteilung_land"], x2["land"]
-        bw = liste[0]["wirkung_reich"] if s == "reich" else x2["wirkung_land"]
-        vz.append(f'<tr><td><a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a></td><td>{_vz(round(haushaltsfuehrung(liste, s), 1), "%")}</td>'
-                  + "".join(f'<td>{_de(ver[kat] / pl * 100 if pl else 0)}</td>' for kat, _ in KATEGORIEN)
-                  + f'<td>{bw["boni"]} / {bw["mali"]}</td><td>{_vz(bw["summe"]["einnahmen"], "%")}</td>'
-                  + f'<td>{_de((liste[0]["zufriedenheit_reich"] if s == "reich" else x2["zufriedenheit_land"])["neu"], 0)}</td></tr>')
     verlauf = con.execute("SELECT * FROM ep_log WHERE schl=? ORDER BY id DESC LIMIT 15", (ziel,)).fetchall()
     titel = "Etat planen" if planung else "Etatverteilung"
     reich = ziel == "reich"
@@ -1224,14 +1231,10 @@ async def _seite(request, k, planung):
     tab_wirkung = (f'<p class="az">Was diese Verteilung bewirkt: Boni und Mali, Zufriedenheit der Bevölkerung{" und langfristige Entwicklung" if reich else ""}.</p>'
                    + demote(wirkung_html(bew, basis_ein, basis_rl, reich)) + demote(zuf_html(zuf, zuf_verlauf(con, ziel), reich))
                    + (demote(entwicklung.kurz_html(entw_d, f"{sa.PFAD}entwicklung/?ziel={ziel}", entwicklung.rueckhalt_fuer(con, liste, ziel), True)) if reich else land_link))
-    tab_vergleich = (f'<p class="az">Anteile am eigenen Etat in %, alle Haushalte im Vergleich.</p><div class="ep-scroll">'
-                     f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div>'
-                     + f'<h3>{amt.ic("landmark")} Haushaltsführung</h3>' + hf_tabelle(liste, ziel_liste, PFAD, ziel)
-                     + f'<h3>{amt.ic("users")} Bevölkerungszufriedenheit</h3>' + zuf_tabelle(liste, ziel_liste, PFAD, ziel))
     tab_aend = amt.tabelle(["Zeit", "Durch", "Änderung"], [(amt._zeit(v["zeit"]), esc(v["autor_name"]), esc(v["text"])) for v in verlauf], "Noch keine Änderungen.")
     tabs = [("verteilung", "Verteilung", tab_verteilung), ("wirkung", "Wirkung", tab_wirkung)]
-    if not planung:
-        tabs.append(("vergleich", "Vergleich", tab_vergleich))
+    if not planung and sa._reiter_kontext(request, k, con, "sa-etatverteilung")[0] != "ts":   # Mein Teilstaat: Vergleiche stehen im Reiter „Statistiken“
+        tabs.append(("vergleich", "Vergleich", vergleich_html(liste, ziel_liste, ziel)))
     tabs.append(("aenderungen", f"Änderungen ({len(verlauf)})", tab_aend))
     inhalt = (CSS + f'<h1>{amt.ic("pencil" if planung else "chart-pie")} {titel} · {esc(name)}</h1>{amt.meldung(request)}'
               f'<p class="az">Wie viel vom Ausgabenbudget fließt in welches Politikfeld? Das Tortendiagramm zeigt den gesamten Monatsetat im {esc(sa._monatsname(ab))}.</p>'

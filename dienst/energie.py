@@ -673,6 +673,17 @@ def _auf(titel, inhalt, symbol="clock"):
     return f'<details class="sa-auf"><summary>{amt.ic(symbol)}{esc(titel)}</summary>{inhalt}</details>'
 
 
+def vergleich_html(con, ziel=""):
+    """Vergleich aller Haushalte (eingeklappt); auch im Reiter „Statistiken“ bei Mein Teilstaat."""
+    reihen = []
+    for s, n in _ziele(con):
+        c = bilanz(con, s)
+        reihen.append((c["v_ges"], s, n, c))
+    reihen.sort(key=lambda r: (r[0], r[2]))
+    vgl = [(f'{__import__("wappen").klein(s, n)}<a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a>', gwh_text(c["bedarf"]), gwh_text(c["angebot"]), f'{_de(v * 100, 0)} %{ueberschuss_pz(c)}', f'{_de(c["erneuerbar"], 0)} %') for v, s, n, c in reihen]
+    return _auf("Vergleich aller Haushalte", amt.tabelle(["Haushalt", "Bedarf", "Erzeugung", "Versorgung", "Erneuerbare"], vgl, klasse="ee-tab"), "landmark")
+
+
 def _seitenhtml(request, k, con, ziel, eingebettet=False):
     import etatplan
     import entwicklung
@@ -735,14 +746,7 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
     diag = _verlauf_svg([(r["periode"], r["angebot"], r["bev"] + r["ind"] + r["mil"] + r["ver"]) for r in reversed(vl)])
     vz = [(esc(sa._monatsname(r["periode"])), gwh_text(r["angebot"]), gwh_text(r["bev"] + r["ind"] + r["mil"] + r["ver"]), f'{_de(r["v_ges"] * 100, 0)} %') for r in vl]
     verlauf_html = _auf(f"Verlauf ({len(vl)} Monate)", diag + amt.tabelle(["Monat", "Erzeugung", "Bedarf", "Versorgung"], vz, "Noch kein gebuchter Monat.", klasse="ee-tab"))
-    # Vergleich (eingeklappt)
-    reihen = []
-    for s, n in _ziele(con):
-        c = bilanz(con, s)
-        reihen.append((c["v_ges"], s, n, c))
-    reihen.sort(key=lambda r: (r[0], r[2]))
-    vgl = [(f'<a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a>', gwh_text(c["bedarf"]), gwh_text(c["angebot"]), f'{_de(v * 100, 0)} %{ueberschuss_pz(c)}', f'{_de(c["erneuerbar"], 0)} %') for v, s, n, c in reihen]
-    vgl_html = _auf("Vergleich aller Haushalte", amt.tabelle(["Haushalt", "Bedarf", "Erzeugung", "Versorgung", "Erneuerbare"], vgl, klasse="ee-tab"), "landmark")
+    vgl_html = vergleich_html(con)
     s_ = b["einstellung"]
     info = _auf("So funktioniert es",
                 '<p class="sa-hinweis">Die Bevölkerung verbraucht pauschal Energie, Industrie und Veredelung brauchen sie, das Militär nur wenig. Bei Knappheit wird zuerst die Bevölkerung versorgt, '

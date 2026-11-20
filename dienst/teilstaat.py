@@ -234,8 +234,34 @@ async def finanzen(request, k):
     return sa.ant(request, k, "Finanzen", "sa-ts-fin", inhalt)
 
 
+@sa.seite("staat")
+async def statistiken(request, k):
+    """Reiter „Statistiken“: allgemeine Vergleiche aller Haushalte (Etatanteile, Haushaltsführung, Zufriedenheit, Entwicklung, Energie, Reichsabgabe) – entlastet Überblick und Etat."""
+    import aufkommen
+    import energie
+    import entwicklung
+    import etatplan
+    kp = _kopf(request, k)
+    if not kp:
+        raise web.HTTPFound(PFAD)
+    con, regiert, sid, schl, kasse = kp
+    liste = aufkommen.berechnen(con, periode=etatplan.monat_heute())
+    ziele = etatplan.ziele(con, liste)
+    pfad = sa.PFAD + "etatuebersicht/"
+    teile = [("etat", "chart-pie", "Etat", etatplan.vergleich_html(liste, ziele, schl), False),
+             ("entwicklung", "users", "Entwicklung", entwicklung.tabelle(liste, ziele, pfad, schl, con), False),
+             ("energie", "zap", "Energie", energie.vergleich_html(con).replace("<details class=", "<details open class=", 1), False),
+             ("abgabe", "landmark", "Reichsabgabe", aufkommen.tabelle_html(liste), False)]
+    name = esc(kasse["name"].replace("Staatskasse ", ""))
+    inhalt = (etatplan.CSS + etatplan.ZUF_CSS + entwicklung.CSS + energie.CSS + kopf_mit_wappen(f'<h1>{amt.ic("chart-column")} Statistiken · {name}</h1>', sid, name) + amt.meldung(request)
+              + '<p class="az">Allgemeine Vergleiche aller Haushalte: Wie steht der eigene Teilstaat im Verhältnis zu den anderen? Ihr Teilstaat ist jeweils hervorgehoben.</p>'
+              + _abschnitte(None, teile))
+    return sa.ant(request, k, "Statistiken", "sa-ts-stat", inhalt)
+
+
 def registrieren(app):
     app.router.add_get(sa.PFAD + "wappen/{sid}.png", wappen)
     app.router.add_get(PFAD, seite)
     app.router.add_get(PFAD + "land/", land)
     app.router.add_get(PFAD + "finanzen/", finanzen)
+    app.router.add_get(PFAD + "statistiken/", statistiken)
