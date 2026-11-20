@@ -607,7 +607,7 @@ def tabelle(liste, ziel_liste, pfad, markiert="", con=None):
     zeilen = []
     for s, n in ziel_liste:
         if s == "reich":
-            d, n = liste[0].get("entwicklung_reich"), "Reichsunmittelbare Territorien (Reich)"
+            d, n = liste[0].get("entwicklung_reich"), "Reichsunmittelbare Territorien"
         else:
             d = next((x.get("entwicklung") for x in liste if "ts-" + x["staat"] == s), None)
         if not d:

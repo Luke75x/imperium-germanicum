@@ -638,7 +638,7 @@ CSS = """<style>
 def _ziele(con):
     import handel
     h = handel.halter(con)
-    return [("reich", "Das Reich")] + sorted([(s, n) for s, n in h.items() if s != "reich"], key=lambda x: x[1])
+    return [("reich", "Reichsunmittelbare Territorien")] + sorted([(s, n) for s, n in h.items() if s != "reich"], key=lambda x: x[1])
 
 
 def _balken(teile):

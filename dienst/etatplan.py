@@ -554,7 +554,7 @@ def darf_aendern(con, k, schl):
 
 def ziele(con, liste):
     """[(schl, Name)]: Reich und alle Teilstaaten (ohne Reichsunmittelbare Territorien)."""
-    return [("reich", "Reich")] + [("ts-" + x["staat"], x["name"]) for x in sorted(liste, key=lambda x: x["name"]) if not x["reichsgebiet"]]
+    return [("reich", "Reichsunmittelbare Territorien")] + [("ts-" + x["staat"], x["name"]) for x in sorted(liste, key=lambda x: x["name"]) if not x["reichsgebiet"]]
 
 
 # ---------------------------------------------------------------- Seite
@@ -1027,7 +1027,7 @@ def zuf_tabelle(liste, ziel_liste, pfad, markiert="", con=None):
     zeilen = []
     for s, n in ziel_liste:
         if s == "reich":
-            n = "Reichsunmittelbare Territorien (Reich)"
+            n = "Reichsunmittelbare Territorien"
         wert, stufe = _zuf_gesamt(con, liste, s)
         zeilen.append((wert, f'<tr{" class=fokus" if s == markiert else ""}><td>{_wk(s, n)}<a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td><td class="bar">{zuf_balken(wert)}</td>'
                              f'<td class="num">{_de(wert, 0)}</td><td class="num">{esc(stufe)}</td></tr>'))

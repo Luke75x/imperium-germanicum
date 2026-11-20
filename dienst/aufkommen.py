@@ -401,7 +401,7 @@ async def automatik(app):
 # ---------------------------------------------------------------- Seiten
 
 def _gebiet(sid, name):
-    return name + " (Reich)" if geld.ist_reichsgebiet({"id": sid, "name": name}) else name
+    return name
 
 
 def summen(liste):
