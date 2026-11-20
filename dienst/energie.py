@@ -696,12 +696,56 @@ def vergleich_html(con, ziel="", ohne_reich=False, nur=None, links=True, offen=F
     return tab if offen else _auf("Vergleich aller Haushalte", tab, "landmark")
 
 
-def produktion_html(mix, name=""):
+def verlauf_stat_html(con, schl, b_jetzt=None):
+    """Verlauf der Energie: je gebuchtem Monat (und der laufende) Erzeugung, Zukauf, Verkauf, Bedarf und Versorgung – Säulen (Erzeugung + Zukauf), Linien (Bedarf, Verkauf) und Tabelle."""
+    import etatplan
+    heute = etatplan.monat_heute()
+    zeilen, bekannt = [], set()
+    for r in reversed(con.execute("SELECT * FROM en_monat WHERE schl=? ORDER BY periode DESC LIMIT 12", (schl,)).fetchall()):
+        try:
+            erz = sum(float(v) for v in json.loads(r["mix"] or "{}").values())
+        except Exception:
+            erz = 0.0
+        zk, vk = markt_fluesse(con, schl, r["periode"])
+        zeilen.append({"p": r["periode"], "erz": erz, "zk": zk, "vk": vk, "bed": float(r["bev"] + r["ind"] + r["mil"] + r["ver"]), "v": float(r["v_ges"]), "laufend": False})
+        bekannt.add(r["periode"])
+    if b_jetzt is not None and heute not in bekannt:
+        zeilen.append({"p": heute, "erz": sum(float(v) for v in b_jetzt["mix"].values()), "zk": b_jetzt["zukauf"], "vk": b_jetzt["verkauf"],
+                       "bed": float(b_jetzt["bedarf"]), "v": float(b_jetzt["v_ges"]), "laufend": True})
+    if not zeilen:
+        return '<p class="az">Noch kein Verlauf: Sobald Monate gebucht sind, erscheinen hier Erzeugung, Zukauf und Verkauf.</p>'
+    w, h, l, r_, t, u = 640, 240, 84, 14, 14, 34
+    hoch = max(max(z["erz"] + z["zk"], z["bed"], z["vk"]) for z in zeilen) * 1.1 or 1
+    n = len(zeilen)
+    bw = min(46.0, (w - l - r_) / n * 0.62)
+    cx = lambda i: l + (w - l - r_) * (i + 0.5) / n
+    y = lambda v: t + (h - t - u) * (1 - v / hoch)
+    achse = "".join(f'<line x1="{l}" x2="{w - r_}" y1="{y(hoch * q):.1f}" y2="{y(hoch * q):.1f}" stroke="#ddd"/><text x="{l - 6}" y="{y(hoch * q) + 4:.1f}" text-anchor="end">{gwh_text(hoch * q)}</text>' for q in (0, .25, .5, .75, 1))
+    saeulen = ""
+    for i, z in enumerate(zeilen):
+        tip = (f'{z["p"]}{" (laufend)" if z["laufend"] else ""}: Erzeugung {gwh_text(z["erz"])}, zugekauft {gwh_text(z["zk"])}, verkauft {gwh_text(z["vk"])}, Bedarf {gwh_text(z["bed"])}, '
+               f'Versorgung {_de(z["v"] * 100, 0)} %')
+        saeulen += (f'<g><title>{esc(tip)}</title><rect x="{cx(i) - bw / 2:.1f}" y="{y(z["erz"]):.1f}" width="{bw:.1f}" height="{y(0) - y(z["erz"]):.1f}" fill="#1baf7a"{" opacity=\".6\"" if z["laufend"] else ""}/>'
+                    f'<rect x="{cx(i) - bw / 2:.1f}" y="{y(z["erz"] + z["zk"]):.1f}" width="{bw:.1f}" height="{y(z["erz"]) - y(z["erz"] + z["zk"]):.1f}" fill="#2a78d6"{" opacity=\".6\"" if z["laufend"] else ""}/></g>')
+    linie = lambda key, farbe, dash="": (f'<polyline fill="none" stroke="{farbe}" stroke-width="2.4" {dash} points="' + " ".join(f"{cx(i):.1f},{y(z[key]):.1f}" for i, z in enumerate(zeilen)) + '"/>'
+                                         + "".join(f'<circle cx="{cx(i):.1f}" cy="{y(z[key]):.1f}" r="3" fill="{farbe}"/>' for i, z in enumerate(zeilen)))
+    ticks = "".join(f'<text x="{cx(i):.1f}" y="{h - 12}" text-anchor="middle">{esc(z["p"][2:])}{"*" if z["laufend"] else ""}</text>' for i, z in enumerate(zeilen))
+    svg = (f'<svg class="ee-diagramm" viewBox="0 0 {w} {h}" role="img" aria-label="Energie im Verlauf: Erzeugung, Zukauf, Verkauf und Bedarf">{achse}{saeulen}'
+           f'{linie("bed", "#e34948", "stroke-dasharray=\"6 4\"")}{linie("vk", "#eda100")}{ticks}</svg>'
+           '<div class="ee-leg"><span style="--c:#1baf7a">Eigene Erzeugung</span><span style="--c:#2a78d6">Zugekauft</span><span style="--c:#eda100">Verkauft</span><span style="--c:#e34948">Bedarf</span></div>'
+           '<p class="zf-meta">* laufender Monat (noch nicht gebucht). Der Zukauf gilt nur im Monat, in dem er gekauft wurde.</p>')
+    tab = amt.tabelle(["Monat", "Erzeugung", "Zugekauft", "Verkauft", "Bedarf", "Versorgung"],
+                      [(esc(sa._monatsname(z["p"])) + (" (laufend)" if z["laufend"] else ""), gwh_text(z["erz"]), gwh_text(z["zk"]) if z["zk"] else "–", gwh_text(z["vk"]) if z["vk"] else "–",
+                        gwh_text(z["bed"]), f'{_de(z["v"] * 100, 0)} %') for z in reversed(zeilen)], klasse="ee-tab")
+    return f'<h2>{amt.ic("clock")} Verlauf</h2><p class="az">Wie viel erzeugt, zugekauft und verkauft wurde und wie hoch der Bedarf war.</p>' + svg + tab
+
+
+def produktion_html(mix, name="", verlauf=""):
     """Statistik „Energieproduktion“: 3D-Tortendiagramm (SVG) mit dem Anteil der Energieträger an der Erzeugung, dazu Legende mit GWh und Anteil. mix = {Typ: GWh}."""
     teile = [(TRAEGER.get(t, TYP[t][1]), float(mix.get(t, 0)), FARBEN[i], t) for i, (t, *_r) in enumerate(TYPEN) if float(mix.get(t, 0)) > 0]
     gesamt = sum(w for _, w, _, _ in teile)
     if gesamt <= 0:
-        return '<p class="az">Noch keine Erzeugung: Es sind keine Kraftwerke in Betrieb.</p>'
+        return '<p class="az">Noch keine Erzeugung: Es sind keine Kraftwerke in Betrieb.</p>' + verlauf
     cx, cy, rx, ry, tiefe = 150.0, 108.0, 128.0, 66.0, 26.0
     pt = lambda w, dy=0.0: (cx + rx * math.cos(w), cy + ry * math.sin(w) + dy)
     f = lambda p: f"{p[0]:.2f},{p[1]:.2f}"
@@ -743,7 +787,7 @@ def produktion_html(mix, name=""):
             f'<h2>{amt.ic("zap")} Energieproduktion</h2><p class="az">Welcher Energieträger wie viel der monatlichen Erzeugung liefert (inklusive der Leistungserhöhung aller Kraftwerke).</p>'
             f'<div class="ee-stat">{svg}<div><table class="ep-tab"><thead><tr><th>Energieträger</th><th class="num">Erzeugung</th><th class="num">Anteil</th></tr></thead><tbody>{zeilen}'
             f'<tr class="ep-fest"><td><b>Gesamt</b></td><td class="num"><b>{_de(gesamt, 0)} GWh</b></td><td class="num"><b>100 %</b></td></tr></tbody></table>'
-            f'<p class="zf-meta">Erneuerbar (Wasser, Wind, Sonne, Biomasse): {_de(saubere / gesamt * 100, 1)} % · Fossil und Kernkraft: {_de(100 - saubere / gesamt * 100, 1)} %</p></div></div>')
+            f'<p class="zf-meta">Erneuerbar (Wasser, Wind, Sonne, Biomasse): {_de(saubere / gesamt * 100, 1)} % · Fossil und Kernkraft: {_de(100 - saubere / gesamt * 100, 1)} %</p></div></div>' + verlauf)
 
 
 def _seitenhtml(request, k, con, ziel, eingebettet=False):
@@ -820,11 +864,11 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in sa.bereich_ziele(con, k, _ziele(con), ziel))
     if eingebettet:   # Abschnitt der Seite „Land“ (teilstaat.py): ohne Überschrift, Meldung und Haushaltsauswahl
         return entwicklung.CSS + CSS + sa.untertabs([("en-lage", "Übersicht", kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info),
-                                                      ("en-stat", "Statistik", produktion_html(b["mix"], name))])
+                                                      ("en-stat", "Statistik", produktion_html(b["mix"], name, verlauf_stat_html(con, ziel, b)))])
     return (entwicklung.CSS + CSS + f'<h1>{amt.ic("zap")} Energie · {esc(name)}</h1>{amt.meldung(request)}'
             ''
             + sa.untertabs([("en-lage", "Übersicht", kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info),
-                            ("en-stat", "Statistik", produktion_html(b["mix"], name))]))
+                            ("en-stat", "Statistik", produktion_html(b["mix"], name, verlauf_stat_html(con, ziel, b)))]))
 
 
 @sa.seite("staat")
