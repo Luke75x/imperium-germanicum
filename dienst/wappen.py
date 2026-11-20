@@ -27,3 +27,19 @@ def klein(sid, name="", hoehe=18):
         return ""
     return (f'<img src="{URL}{sid}.png" alt="" title="Wappen {html.escape(name)}" loading="lazy" '
             f'style="height:{hoehe}px;width:auto;max-width:{hoehe}px;object-fit:contain;vertical-align:-4px;margin-right:7px">')
+
+
+def kasse(r, hoehe=20):
+    """Icon einer Kasse (Konto-Zeile r): Teilstaats-/Verteidigungskassen = Wappen, Reichskasse und Reichsverteidigung = Reichswappen, Behördenkassen = Behördenlogo."""
+    stelle = (r["stelle"] or "") if r["stelle"] is not None else ""
+    if stelle[:3] in ("ts-", "vt-"):
+        return klein(stelle, r["name"], hoehe)
+    if stelle in ("reichskasse", "verteidigung"):
+        return klein("reich", r["name"], hoehe)
+    if r["art"] == "behoerde" and stelle:
+        import amt
+        for n in (stelle, {"kanzlei": "kanzler"}.get(stelle, stelle)):
+            if os.path.isfile(os.path.join(amt.LOGO_ORDNER, n + "-kurz.png")):
+                return (f'<img src="{amt.BASIS}logo/{n}-kurz.png" alt="" loading="lazy" title="{html.escape(r["name"])}" '
+                        f'style="height:{hoehe}px;width:auto;max-width:{hoehe + 6}px;object-fit:contain;vertical-align:-4px;margin-right:7px">')
+    return ""

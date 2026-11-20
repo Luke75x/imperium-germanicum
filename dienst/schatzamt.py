@@ -22,6 +22,7 @@ import anmeldung
 import bereiche
 import geld
 import meldewesen
+import wappen
 from geld import mark, nummer_anzeige
 
 esc = amt.esc
@@ -641,10 +642,20 @@ def _konto_waehlen(con, k, request):
 
 
 def _konto_auswahl(konten, aktiv, pfad):
+    """Auswahl des Kontos/der Kasse: ein Dropdown (statt einer Reiterleiste mit allen Kassen), bei vielen Kassen nach Art gruppiert."""
     if len(konten) < 2:
         return ""
-    return ('<p class="reiter">' + " ".join(
-        f'<a href="{pfad}?konto={r["id"]}" class="{"aktiv" if r["id"] == aktiv["id"] else ""}">{esc(r["name"])}</a>' for r in konten) + "</p>")
+    gruppen = {}
+    for r in konten:
+        gruppen.setdefault(geld.art_name(r), []).append(r)
+    opt = lambda r: f'<option value="{r["id"]}"{" selected" if r["id"] == aktiv["id"] else ""}>{esc(r["name"])}</option>'
+    if len(gruppen) > 1:
+        sel = "".join(f'<optgroup label="{esc(a)}">{"".join(opt(r) for r in rs)}</optgroup>' for a, rs in gruppen.items())
+    else:
+        sel = "".join(opt(r) for r in konten)
+    return (f'<form class="sa-leiste" method="get" action="{pfad}"><div><label for="ka">{"Kasse" if aktiv["art"] not in ("privat", "gewerbe") else "Konto"} wählen</label>'
+            f'<select id="ka" name="konto" onchange="this.form.submit()">{sel}</select></div>'
+            f'<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>')
 
 
 # ---------------------------------------------------------------- Bürger: Übersicht
@@ -862,7 +873,7 @@ def _kassen_zusatz(con, konten):
 def _karten(konten, zusatz=None):
     zusatz = zusatz or {}
     return "".join(
-        f'<div class="sa-karte"><small>{esc(geld.art_name(r))}</small><div class="sa-name">{esc(r["name"])}</div>'
+        f'<div class="sa-karte"><small>{esc(geld.art_name(r))}</small><div class="sa-name">{wappen.kasse(r)}{esc(r["name"])}</div>'
         f'<div class="sa-nr az">{nummer_anzeige(r["nummer"])}</div><div class="sa-saldo">{betrag_html(r["saldo"], False, kurz=True)}</div>'
         + (f'<p class="az sa-zusatz{" sa-rot" if zusatz[r["id"]].startswith("⚠") else ""}">{esc(zusatz[r["id"]])}</p>' if r["id"] in zusatz else "")
         + (f'<p class="az" style="color:var(--rot)">Gesperrt{": " + esc(r["sperrgrund"]) if r["sperrgrund"] else ""}</p>' if r["gesperrt"] else "")
@@ -888,7 +899,7 @@ async def konto_seite(request, k):
     monate = "".join(f'<option value="{x}"{" selected" if x == m else ""}>{_monatsname(x)}</option>' for x in _monate(con, r["id"]))
     titel = "Kassen & Umsätze" if modus(request, k) == "staat" else "Konto & Umsätze"
     inhalt = (f'<h1>{amt.ic("wallet")} {titel}</h1>{amt.meldung(request)}' + _konto_auswahl(konten, r, f"{PFAD}konto/")
-              + f'<div class="sa-karte" style="max-width:520px"><small>{esc(geld.art_name(r))}</small><div class="sa-name">{esc(r["name"])}</div>'
+              + f'<div class="sa-karte" style="max-width:520px"><small>{esc(geld.art_name(r))}</small><div class="sa-name">{wappen.kasse(r, 30)}{esc(r["name"])}</div>'
               f'<div class="sa-nr az">{nummer_anzeige(r["nummer"])} · eröffnet {amt._zeit(r["eroeffnet"], False)}</div>'
               f'<div class="sa-saldo">{betrag_html(r["saldo"], False)}</div></div>'
               f'<form class="sa-leiste" method="get"><input type="hidden" name="konto" value="{r["id"]}">'
