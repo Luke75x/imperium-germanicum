@@ -895,6 +895,9 @@ ZUF_CSS = """<style>
 .zf-tab td.num,.zf-tab th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .zf-tab td.bar{width:40%}
 .zf-live{border:1px solid var(--linie);border-radius:12px;padding:12px 16px;margin:10px 0 16px;background:#fff}
+.zf-skala2{position:relative;margin:2px 0 0}.zf-skala-leiste{position:relative;height:0}.zf-skala-leiste span{position:absolute;top:-18px;width:2px;height:18px;background:#0004;transform:translateX(-1px)}
+.zf-tipp{margin:6px 0 10px;padding:8px 12px;border-radius:8px;background:var(--hell);font-size:14px}
+tr.hb-top td{background:#e8f6ec}tr.hb-low td{background:#fdf1e6}
 .zf-live-z{display:flex;flex-wrap:wrap;gap:22px;margin:8px 0}.zf-live-z span{display:flex;flex-direction:column;font-size:13px;color:var(--grau)}
 .zf-live-z b{font-size:26px;color:var(--ink);line-height:1.1}.zf-live-z em{font-style:normal;font-weight:600;font-size:14px}
 .zf-s5{--zf:#13873f}.zf-s4{--zf:#1baf7a}.zf-s3{--zf:#eda100}.zf-s2{--zf:#eb6834}.zf-s1{--zf:#d13b3b}
@@ -919,8 +922,17 @@ function rechnen(){
  var ziel=g?s/g:0;if(Z.off===undefined)Z.off=Z.ziel0-ziel;ziel=Math.max(0,Math.min(100,ziel+Z.off));var neu=Z.alt===null?ziel:Z.alt+(ziel-Z.alt)*Z.traegheit,e=effekt(neu);
  var ges=Z.gew?Z.rest+Z.gew*neu:neu;ges=Math.max(0,Math.min(100,ges));var st=stufe(ges);
  var k=document.getElementById("zf-kopf");k.className="zf-kopf zf-s"+st[1];
+ (function(){var G=0,M={},keys=Object.keys(Z.gewichte).filter(function(k){return Z.gewichte[k]&&(D.wk.richt[k]||0)>=0.05});keys.forEach(function(k){G+=Z.gewichte[k]});
+  keys.forEach(function(k){var r=D.wk.richt[k],e=a[k]/r,n=100*(1-Math.exp(-1.6*e)),m=Z.gew*(Z.gewichte[k]/G)*160*Math.exp(-1.6*e)/r;M[k]=m;
+   var tr=document.querySelector('tr[data-hb="'+k+'"]');if(tr){tr.querySelector(".hb-a").textContent=zahl(a[k],1)+" %";tr.querySelector(".hb-n").textContent=zahl(n);tr.querySelector(".hb-m").textContent="+"+zahl(m,2);tr.className=""}});
+  var rk=keys.slice().sort(function(x,y){return M[y]-M[x]}),kann=rk.filter(function(k){return a[k]>0.4}).reverse();
+  rk.slice(0,3).forEach(function(k){var tr=document.querySelector('tr[data-hb="'+k+'"]');if(tr)tr.className="hb-top"});
+  kann.slice(0,3).forEach(function(k){var tr=document.querySelector('tr[data-hb="'+k+'"]');if(tr&&tr.className==="")tr.className="hb-low"});
+  var tp=document.getElementById("zv-tipp");if(tp&&rk.length&&kann.length){var von=kann[0],nach=rk[0],gain=M[nach]-M[von],nm=function(k){var q=document.querySelector('tr[data-hb="'+k+'"] td');return q?q.textContent:k};
+   tp.textContent=gain>0.005&&von!==nach?"Tipp: Ein Prozentpunkt von „"+nm(von)+"“ nach „"+nm(nach)+"“ verschieben bringt etwa "+zahl(gain,2)+" Punkte Gesamtzufriedenheit.":"Die Verteilung ist für die Zufriedenheit bereits nahezu optimal."}})();
  var dv=ges-Z.basis,dau=Z.gew?Math.max(0,Math.min(100,Z.rest+Z.gew*ziel)):ziel;
  function sv(id,tx,kl){var q=document.getElementById(id);if(q){q.textContent=tx;if(kl!==undefined)q.className=kl}}
+ (function(){var ns=null;for(var i=Z.stufen.length-1;i>=0;i--){if(Z.stufen[i][0]>ges){ns=Z.stufen[i];break}}sv("zv-stufe",ns?"Aktuell: "+st[0]+". Bis „"+ns[1]+"“ (ab "+ns[0]+") fehlen "+zahl(ns[0]-ges,1)+" Punkte.":"Höchste Stufe erreicht: "+st[0]+".")})();
  sv("zv-basis",zahl(Z.basis));sv("zv-neu",zahl(ges));sv("zv-dauer",zahl(dau));
  sv("zv-delta",(Math.abs(dv)<0.05?"±0":(dv>0?"+":"−")+Math.abs(dv).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})),Math.abs(dv)<0.05?"":dv>0?"wk-plus":"wk-minus");
  var zb=document.getElementById("zv-bar");if(zb){zb.style.width=ges.toFixed(1)+"%";zb.parentNode.className="zf-balken zf-s"+st[1]}
@@ -961,6 +973,40 @@ def _gesamt_teile(g):
     return (f'<details class="sa-auf" open><summary>{amt.ic("chart-column")}Woraus die Bevölkerungszufriedenheit besteht</summary>'
             '<table class="zf-tab"><thead><tr><th>Teil</th><th>Stand</th><th class="num">Note</th><th class="num">Gewicht</th></tr></thead>'
             f'<tbody>{zeilen}</tbody></table><p class="zf-meta">Prognose bei gleichem Etat: in 3 Monaten {_de(g["prognose3"], 0)}, auf Dauer {_de(g["langfristig"], 0)} ({pf}).</p></details>')
+
+
+ZUF_HINWEISE = {"zufriedenheit": "Etat auf die gewichtigen Politikfelder verteilen (Tabelle unten)",
+                "wohlstand": "Bildung, Forschung, Industrie und Infrastruktur heben das BIP pro Kopf – wirkt langsam über Monate",
+                "versorgung": "Gesundheit, Landwirtschaft und Umwelt (Wasser) halten die Grundversorgung oben",
+                "sicherheit": "Innere Sicherheit stärken, aber nicht übertreiben (zu viel erzeugt Überwachung)",
+                "bevoelkerung": "Gesundheit lässt die Bevölkerung wachsen",
+                "haushalt": "Keine Haushaltsnotlage: mehr als 80 Punkte sind hier nicht möglich",
+                "haushaltsfuehrung": "Rücklage bilden: jedes Prozent Rücklage bringt 1,5 Noten (kostet aber Ausgaben bei den Politikfeldern)"}
+
+
+def planhilfe_html(richt, g):
+    """Hilfe beim Etatplanen: Skala mit Stufen, nächste Stufe, die Teile der Zufriedenheit mit Spielraum und Hinweis, und die Hebel der Politikfelder (Gewinn je Prozentpunkt, live per ZUF_JS)."""
+    marken = "".join(f'<span style="left:{w}%">{w}</span>' for w in (0, 40, 55, 70, 85, 100))
+    stufen = "".join(f'<span style="left:{w}%" title="{esc(n)}"></span>' for w, n in ((40, "Unzufrieden"), (55, "Gespalten"), (70, "Zufrieden"), (85, "Sehr zufrieden")))
+    teile = ""
+    if g:
+        zeilen = "".join(
+            f'<tr><td>{esc(p["name"])}<br><small class="zf-meta">{esc(ZUF_HINWEISE.get(p["schluessel"], ""))}</small></td><td class="bar">{zuf_balken(p["score"])}</td>'
+            f'<td class="num">{_de(p["score"], 0)}</td><td class="num">{_de(p["gewicht"] * 100, 0)} %</td><td class="num">+{_de((100 - p["score"]) * p["gewicht"], 1)}</td></tr>'
+            for p in sorted(g["teile"], key=lambda p: -(100 - p["score"]) * p["gewicht"]))
+        teile = (f'<details class="sa-auf" open><summary>{amt.ic("chart-column")}Wo ist noch Luft nach oben?</summary>'
+                 '<table class="zf-tab"><thead><tr><th>Teil der Zufriedenheit</th><th>Stand</th><th class="num">Note</th><th class="num">Gewicht</th><th class="num" title="Punkte, die die Gesamtzufriedenheit bei Note 100 noch gewinnen könnte">Spielraum</th></tr></thead>'
+                 f'<tbody>{zeilen}</tbody></table></details>')
+    felder = sorted(((k, ZUF_GEWICHTE[k]) for k, _ in KATEGORIEN if ZUF_GEWICHTE.get(k) and float(richt.get(k, 0)) >= 0.05), key=lambda t: -t[1])
+    hebel = "".join(f'<tr data-hb="{k}"><td>{esc(NAMEN[k])}</td><td class="num hb-a">–</td><td class="num">{_de(float(richt.get(k, 0)))} %</td><td class="num hb-n">–</td><td class="num">{gw} %</td><td class="num hb-m">–</td></tr>'
+                    for k, gw in felder)
+    return (f'<div class="zf-skala2"><div class="zf-skala-leiste">{stufen}</div><div class="zf-skala">{marken}</div></div>'
+            '<p class="zf-meta" id="zv-stufe"></p>' + teile
+            + f'<details class="sa-auf" open><summary>{amt.ic("scale")}Welches Politikfeld bringt am meisten?</summary>'
+              '<p class="zf-meta">„Gewinn“ zeigt, wie viele Punkte die Gesamtzufriedenheit (auf Dauer) mit einem Prozentpunkt mehr Etat für dieses Feld gewinnt. '
+              'Mehr Geld bringt immer weniger: Felder über ihrem Richtwert gewinnen kaum noch, unter dem Richtwert viel.</p><p class="zf-tipp" id="zv-tipp"></p>'
+              '<table class="zf-tab" id="zf-hebel"><thead><tr><th>Politikfeld</th><th class="num">Anteil</th><th class="num">Richtwert</th><th class="num">Note</th><th class="num">Gewicht</th>'
+              f'<th class="num" title="Punkte Gesamtzufriedenheit je +1 Prozentpunkt Etat">Gewinn je +1 %</th></tr></thead><tbody>{hebel}</tbody></table></details>')
 
 
 def zuf_html(z, verlauf, reich=False, interaktiv=True, g=None):
@@ -1276,7 +1322,7 @@ async def _seite(request, k, planung):
                          f'<span>Nächster Monat<b id="zv-neu">{_de(gesamt_z["wert"], 0) if gesamt_z else "–"}</b><em id="zv-delta"></em></span>'
                          f'<span>Auf Dauer<b id="zv-dauer">–</b></span></div>'
                          f'<div class="zf-balken zf-s3"><i id="zv-bar" style="width:{gesamt_z["wert"] if gesamt_z else 0:.1f}%"></i></div>'
-                         f'<p class="zf-meta">Die Werte rechnen sich beim Verschieben der Regler sofort neu. Ausführlich unter „Wirkung“.</p></div>' if gesamt_z and planung else "")
+                         f'<p class="zf-meta">Die Werte rechnen sich beim Verschieben der Regler sofort neu. Ausführlich unter „Wirkung“.</p>' + planhilfe_html(richt, gesamt_z) + '</div>' if gesamt_z and planung else "")
                       + f'<div class="ep-raster"><div class="ep-torte" id="ep-torte"><svg viewBox="0 0 200 200" role="img" aria-label="Tortendiagramm des Etats {esc(name)}"></svg>'
                         '<div class="ep-tipp" id="ep-tipp"></div></div><div>' + form_in + '</div></div>')
     tab_wirkung = (f'<p class="az">Was diese Verteilung bewirkt: Boni und Mali, Zufriedenheit der Bevölkerung{" und langfristige Entwicklung" if reich else ""}.</p>'
