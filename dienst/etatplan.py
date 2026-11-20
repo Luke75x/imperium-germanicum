@@ -894,6 +894,9 @@ ZUF_CSS = """<style>
 .zf-tab th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--grau);font-weight:600}
 .zf-tab td.num,.zf-tab th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .zf-tab td.bar{width:40%}
+.zf-live{border:1px solid var(--linie);border-radius:12px;padding:12px 16px;margin:10px 0 16px;background:#fff}
+.zf-live-z{display:flex;flex-wrap:wrap;gap:22px;margin:8px 0}.zf-live-z span{display:flex;flex-direction:column;font-size:13px;color:var(--grau)}
+.zf-live-z b{font-size:26px;color:var(--ink);line-height:1.1}.zf-live-z em{font-style:normal;font-weight:600;font-size:14px}
 .zf-s5{--zf:#13873f}.zf-s4{--zf:#1baf7a}.zf-s3{--zf:#eda100}.zf-s2{--zf:#eb6834}.zf-s1{--zf:#d13b3b}
 .zf-s5 .zf-stufe,.zf-s4 .zf-stufe{color:#13663d}.zf-s3 .zf-stufe{color:#8a5d00}.zf-s2 .zf-stufe,.zf-s1 .zf-stufe{color:#a32020}
 .zf-verlauf{display:flex;align-items:flex-end;gap:3px;height:40px}
@@ -913,9 +916,14 @@ function rechnen(){
  var s=0,g=0;Object.keys(Z.gewichte).forEach(function(k){var gw=Z.gewichte[k],r=D.wk.richt[k]||0;if(!gw||r<0.05)return;
   var n=100*(1-Math.exp(-1.6*Math.max(0,a[k]/r)));s+=n*gw;g+=gw;
   var z=document.querySelector('[data-zf="'+k+'"]');if(z){z.querySelector("i").style.width=n.toFixed(1)+"%";z.querySelector(".zf-note").textContent=zahl(n)}});
- var ziel=g?s/g:0,neu=Z.alt===null?ziel:Z.alt+(ziel-Z.alt)*Z.traegheit,e=effekt(neu);
+ var ziel=g?s/g:0;if(Z.off===undefined)Z.off=Z.ziel0-ziel;ziel=Math.max(0,Math.min(100,ziel+Z.off));var neu=Z.alt===null?ziel:Z.alt+(ziel-Z.alt)*Z.traegheit,e=effekt(neu);
  var ges=Z.gew?Z.rest+Z.gew*neu:neu;ges=Math.max(0,Math.min(100,ges));var st=stufe(ges);
  var k=document.getElementById("zf-kopf");k.className="zf-kopf zf-s"+st[1];
+ var dv=ges-Z.basis,dau=Z.gew?Math.max(0,Math.min(100,Z.rest+Z.gew*ziel)):ziel;
+ function sv(id,tx,kl){var q=document.getElementById(id);if(q){q.textContent=tx;if(kl!==undefined)q.className=kl}}
+ sv("zv-basis",zahl(Z.basis));sv("zv-neu",zahl(ges));sv("zv-dauer",zahl(dau));
+ sv("zv-delta",(Math.abs(dv)<0.05?"±0":(dv>0?"+":"−")+Math.abs(dv).toLocaleString("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1})),Math.abs(dv)<0.05?"":dv>0?"wk-plus":"wk-minus");
+ var zb=document.getElementById("zv-bar");if(zb){zb.style.width=ges.toFixed(1)+"%";zb.parentNode.className="zf-balken zf-s"+st[1]}
  document.getElementById("zf-wert").innerHTML=zahl(ges)+" <small>/ 100</small>";document.getElementById("zf-stufe").textContent=st[0];
  document.getElementById("zf-bar").style.width=ges.toFixed(1)+"%";document.getElementById("zf-ziel").textContent=zahl(ziel);
  document.getElementById("zf-eff").textContent=Math.abs(e)<0.0005?"keine":(e>0?"+":"−")+Math.abs(e).toLocaleString("de-DE",{maximumFractionDigits:2})+" %";
@@ -940,9 +948,9 @@ def zuf_gesamt_teil(g, z):
     return w, g["wert"] - w * z["neu"]
 
 
-def zuf_daten(z, g=None):
+def zuf_daten(z, g=None, basis=None):
     gw, rest = zuf_gesamt_teil(g, z) if g else (0, 0)
-    return {"gew": gw, "rest": rest, "gewichte": ZUF_GEWICHTE, "alt": z["alt"], "stufen": ZUF_STUFEN, "wirkung": ZUF_WIRKUNG, "traegheit": ZUF_TRAEGHEIT}
+    return {"ziel0": z["ziel"], "gew": gw, "rest": rest, "basis": basis if basis is not None else (g["wert"] if g else z["neu"]), "gewichte": ZUF_GEWICHTE, "alt": z["alt"], "stufen": ZUF_STUFEN, "wirkung": ZUF_WIRKUNG, "traegheit": ZUF_TRAEGHEIT}
 
 
 def _gesamt_teile(g):
@@ -1122,6 +1130,10 @@ async def _seite(request, k, planung):
         kasse_rl, rl_satz, frei, deckel = x["kasse"], x["rl_satz_land"], x["frei_land"], x["gedeckelt_land"]
     entw_d = liste[0]["entwicklung_reich"] if ziel == "reich" else x["entwicklung"]
     gesamt_z = entwicklung.rueckhalt_fuer(con, liste, ziel)   # die eine Bevölkerungszufriedenheit (Skala 0–100)
+    if planung and ent and not eing:   # Vergleichswert: der Stand ohne den Entwurf (laufender Etat)
+        gesamt_basis = entwicklung.rueckhalt_fuer(con, aufkommen.berechnen(con, periode=ab), ziel)
+    else:
+        gesamt_basis = gesamt_z
     rl_w = bew["summe"]["ruecklage"]
     gebunden = kasse_gebunden(con, kasse_rl, ziel == "reich")
     kassen_name = "Reichskasse" if ziel == "reich" else "Staatskasse"
@@ -1141,7 +1153,7 @@ async def _seite(request, k, planung):
     fest_hinten = [{"id": "ruecklage", "name": "Rücklage der Staatskasse" if ziel != "reich" else "Rücklage der Reichskasse",
                     "betrag": max(0, ruecklage), "farbe": "#c4c6cb", "schraffur": False}]
     daten = {"gesamt": gesamt, "pool": budget, "vt_min": vt_min, "kategorien": kat_daten, "fest_vorn": fest_vorn, "fest_hinten": fest_hinten, "farben": PALETTE,
-             "wk": wirkung_daten(richt, basis_ein, basis_rl), "zuf": zuf_daten(zuf, gesamt_z),
+             "wk": wirkung_daten(richt, basis_ein, basis_rl), "zuf": zuf_daten(zuf, gesamt_z, gesamt_basis["wert"] if gesamt_basis else None),
              "rl": {"basis": basis_rl, "w": rl_w, "frei": frei, "kasse": kassen_name, "saldo": int(kasse_rl["saldo"]) if kasse_rl else 0}, "adj": adj, "bindung": _bindungen(con, ziel)}
     c = amt.csrf_feld(request)
     zeilen = []
@@ -1259,6 +1271,12 @@ async def _seite(request, k, planung):
     kz_html = f'<div class="kennzahlen">{"".join(f"<div><b{f' id={i}' if i else ''}>{esc(v)}</b><span{f' id={i}-t' if i else ''}>{esc(t)}</span></div>" for t, v, i in kz)}</div>'
     tab_verteilung = (schritt(1, "Mittel", "Was dem Haushalt im Monat zur Verfügung steht.") + kz_html + erkl
                       + schritt(2, "Verteilung", "Wohin das Geld fließt" + (": Regler verschieben, Entwurf speichern, in der Änderungsperiode einreichen." if darf else "."))
+                      + (f'<div class="zf-live"><div><b>{amt.ic("users")} Bevölkerungszufriedenheit</b> – so wirkt sich diese Verteilung aus</div>'
+                         f'<div class="zf-live-z"><span>Jetzt<b id="zv-basis">{_de(gesamt_basis["wert"], 0) if gesamt_basis else "–"}</b></span>'
+                         f'<span>Nächster Monat<b id="zv-neu">{_de(gesamt_z["wert"], 0) if gesamt_z else "–"}</b><em id="zv-delta"></em></span>'
+                         f'<span>Auf Dauer<b id="zv-dauer">–</b></span></div>'
+                         f'<div class="zf-balken zf-s3"><i id="zv-bar" style="width:{gesamt_z["wert"] if gesamt_z else 0:.1f}%"></i></div>'
+                         f'<p class="zf-meta">Die Werte rechnen sich beim Verschieben der Regler sofort neu. Ausführlich unter „Wirkung“.</p></div>' if gesamt_z and planung else "")
                       + f'<div class="ep-raster"><div class="ep-torte" id="ep-torte"><svg viewBox="0 0 200 200" role="img" aria-label="Tortendiagramm des Etats {esc(name)}"></svg>'
                         '<div class="ep-tipp" id="ep-tipp"></div></div><div>' + form_in + '</div></div>')
     tab_wirkung = (f'<p class="az">Was diese Verteilung bewirkt: Boni und Mali, Zufriedenheit der Bevölkerung{" und langfristige Entwicklung" if reich else ""}.</p>'
