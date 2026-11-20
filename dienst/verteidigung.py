@@ -274,6 +274,34 @@ def instandhaltung_monat(t, anzahl):
     return int(round(anzahl * t["preis"] * float(t["instandhaltung"]) / 100 / 12))
 
 
+SORT_JS = ("<script>(function(){document.querySelectorAll('table.sortierbar').forEach(function(t){var th=t.tHead.rows[0].cells,b=t.tBodies[0];"
+           "Array.prototype.forEach.call(th,function(h,i){if(h.hasAttribute('data-nosort'))return;h.style.cursor='pointer';h.tabIndex=0;h.title='Zum Sortieren klicken';"
+           "function go(){var auf=h.getAttribute('aria-sort')!=='ascending';Array.prototype.forEach.call(th,function(x){x.removeAttribute('aria-sort');"
+           "x.textContent=x.textContent.replace(/ [▲▼]$/,'')});h.setAttribute('aria-sort',auf?'ascending':'descending');h.textContent+=auf?' ▲':' ▼';"
+           "var rows=Array.prototype.slice.call(b.rows);function v(r){var c=r.cells[i],e=c.querySelector('[data-s]');return e?e.getAttribute('data-s'):c.textContent.trim()}"
+           "rows.sort(function(a,c){var x=v(a),y=v(c),nx=parseFloat(x),ny=parseFloat(y),r=(!isNaN(nx)&&!isNaN(ny)&&/^-?[0-9.]+$/.test(x)&&/^-?[0-9.]+$/.test(y))?nx-ny:x.localeCompare(y,'de');"
+           "return auf?r:-r});rows.forEach(function(r){b.appendChild(r)})}h.onclick=go;h.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}})})})()</script>")
+
+
+def _sk(wert, text):
+    """Zelle mit Sortierschlüssel für die klickbare Spaltensortierung."""
+    return f'<span data-s="{wert}">{text}</span>'
+
+
+def bestand_tabelle(b, mit_aktion=None):
+    """Bestandstabelle mit sortierbaren Spalten; mit_aktion: Funktion Zeile → HTML der zusätzlichen Spalte „Ausmustern“."""
+    zeilen = []
+    for x in b:
+        z = (_sk(esc(x["name"]).lower(), esc(x["name"])), _sk(esc(x["kategorie"]).lower(), esc(x["kategorie"])), _sk(x["anzahl"], f'{x["anzahl"]:,}'.replace(",", ".")),
+             _sk(x["wert"], geld.mark_kurz(x["wert"])), _sk(x["instandhaltung"], geld.mark_kurz(x["instandhaltung"])), _sk(x["bereitschaft"], _bereit_marke(x["bereitschaft"])))
+        zeilen.append(z + ((mit_aktion(x),) if mit_aktion else ()))
+    kopf = ["Gerät", "Kategorie", "Anzahl", "Wert", "Instandhaltung / Monat", "Bereitschaft"] + (["Ausmustern"] if mit_aktion else [])
+    t = amt.tabelle(kopf, zeilen, "Noch kein Militärgerät im Bestand.", klasse="sortierbar")
+    if mit_aktion:
+        t = t.replace("<th>Ausmustern</th>", "<th data-nosort>Ausmustern</th>")
+    return t + (SORT_JS if zeilen else "")
+
+
 def kennzahlen(con, stelle):
     b = bestand(con, stelle)
     wert = sum(x["wert"] for x in b)
@@ -512,14 +540,12 @@ async def reich_seite(request, k):
     b = bestand(con, stelle)
     kzs = [("Reichsverteidigungskasse", mark(kasse["saldo"])), ("Instandhaltung / Monat", mark(kz["instandhaltung"])),
            ("Gerätewert", mark(kz["wert"])), ("Einsatzbereitschaft", _pz(kz["bereitschaft"]))]
-    zeilen = [(esc(x["name"]), esc(x["kategorie"]), f'{x["anzahl"]:,}'.replace(",", "."), geld.mark_kurz(x["wert"]),
-               geld.mark_kurz(x["instandhaltung"]), _bereit_marke(x["bereitschaft"])) for x in b]
     vorg = con.execute("SELECT * FROM vt_vorgaenge WHERE stelle=? ORDER BY id DESC LIMIT 30", (stelle,)).fetchall()
     inhalt = (f'<p class="zurueck"><a href="{PFAD}">{amt.ic("arrow-left")}Verteidigung</a></p>'
               f'<h1>{amt.ic("shield")} Verteidigung · Reich</h1>{amt.meldung(request)}'
               '<p class="sa-hinweis">Bestand des Reiches und der Reichsunmittelbaren Gebiete. Nur Ansicht.</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kzs)}</div>'
-              '<h2>Bestand</h2>' + amt.tabelle(["Gerät", "Kategorie", "Anzahl", "Wert", "Instandhaltung / Monat", "Bereitschaft"], zeilen, "Noch kein Militärgerät im Bestand.")
+              '<h2>Bestand</h2>' + bestand_tabelle(b)
               + (f'<p class="sa-hinweis">Benötigtes Personal laut Gerät: {kz["besatzung"]:,} Soldaten.</p>'.replace(",", ".") if kz["besatzung"] else "")
               + f'<details class="sa-auf"><summary>{amt.ic("clock")}Vorgänge ({len(vorg)})</summary>'
               + amt.tabelle(["Zeit", "Vorgang", "Betrag", "Beschreibung", "Durch"],
@@ -553,16 +579,11 @@ async def land(request, k):
            ("Einsatzbereitschaft", _pz(kz["bereitschaft"]))]
     frei = etat - (kosten if pk is not None else 0) - kz["instandhaltung"]
     c = amt.csrf_feld(request)
-    zeilen = []
-    for x in b:
-        aus = ""
-        if darf:
-            aus = (f'<form class="sa-inline" method="post" action="{PFAD}{esc(sid)}/ausmustern" onsubmit="return confirm(\'Wirklich ausmustern?\')">{c}'
-                   f'<input type="hidden" name="typ" value="{esc(x["typ"])}"><input type="number" name="anzahl" min="1" max="{x["anzahl"]}" value="1" '
-                   f'aria-label="Anzahl"><button class="btn zweit klein" type="submit">Ausmustern</button></form>')
-        zeilen.append((esc(x["name"]), esc(x["kategorie"]), f'{x["anzahl"]:,}'.replace(",", "."), geld.mark_kurz(x["wert"]),
-                       geld.mark_kurz(x["instandhaltung"]), _bereit_marke(x["bereitschaft"])) + ((aus,) if darf else ()))
-    kopf = ["Gerät", "Kategorie", "Anzahl", "Wert", "Instandhaltung / Monat", "Bereitschaft"] + (["Ausmustern"] if darf else [])
+    def _aus(x):
+        return (f'<form class="sa-inline" method="post" action="{PFAD}{esc(sid)}/ausmustern" onsubmit="return confirm(\'Wirklich ausmustern?\')">{c}'
+                f'<input type="hidden" name="typ" value="{esc(x["typ"])}"><input type="number" name="anzahl" min="1" max="{x["anzahl"]}" value="1" '
+                f'aria-label="Anzahl"><button class="btn zweit klein" type="submit">Ausmustern</button></form>')
+    tab = bestand_tabelle(b, _aus if darf else None)
     aktionen = ""
     if darf:
         kat = katalog(con, True)
@@ -601,7 +622,7 @@ async def land(request, k):
               + (f'<p class="sa-status{" ok" if frei >= 0 else ""}">{amt.ic("check" if frei >= 0 else "clock")}'
                  + (f"Nach Personal und Instandhaltung bleiben vom Monatsetat {mark(frei)} für Beschaffungen."
                     if frei >= 0 else f"Personal und Instandhaltung übersteigen den Monatsetat um {mark(-frei)}.") + '</p>')
-              + '<h2>Bestand</h2>' + amt.tabelle(kopf, zeilen, "Noch kein Militärgerät beschafft.")
+              + '<h2>Bestand</h2>' + tab
               + (f'<p class="sa-hinweis">Benötigtes Personal laut Gerät: {kz["besatzung"]:,} Soldaten.</p>'.replace(",", ".") if kz["besatzung"] else "")
               + aktionen
               + f'<details class="sa-auf"><summary>{amt.ic("clock")}Vorgänge ({len(vorg)})</summary>'
