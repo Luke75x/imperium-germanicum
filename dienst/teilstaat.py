@@ -48,23 +48,14 @@ def _zeile(klasse, symbol, text, zusatz="", link=None):
     return f'<div class="{klasse}">{amt.ic(symbol)}<span>{text}{lnk}{zus}</span></div>'
 
 
-@sa.seite("staat")
-async def seite(request, k):
+async def ueberblick(request, k, con, sid, kasse, kopf=True):
+    """HTML des Reiters „Überblick“ eines Teilstaats (auch in der RP-Leitung: rpteilstaaten.py, dort kopf=False)."""
     import aufkommen
     import etatplan
     import entwicklung
     import notlage
     import verteidigung
-    con = request.app["db"]
-    regiert = sa._regierte(con, k)
-    if not regiert:
-        return sa.ant(request, k, "Mein Teilstaat", "sa-teilstaat",
-                      f'<h1>{amt.ic("flag")} Mein Teilstaat</h1><div class="hinweis">Dieser Bereich ist für Landesherren: Etat, Kassen, Verteidigung und Haushaltsnotlage '
-                      f'des eigenen Teilstaats. Ihnen ist kein Teilstaat zugeordnet. Den Haushalt des Reiches sehen Sie unter <a href="{sa.PFAD}haushalt/">Reichshaushalt</a>.</div>')
-    ziel = request.query.get("ziel", "")
-    sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regiert else next(iter(regiert))
     schl = "ts-" + sid
-    kasse = regiert[sid]
     monat = etatplan.monat_heute()
     liste = aufkommen.berechnen(con, periode=monat)
     x = next(y for y in liste if y["staat"] == sid)
@@ -147,12 +138,32 @@ async def seite(request, k):
                  f'{etatplan.zuf_balken(gw)}<div class="zf-skala"><span style="left:0%">0</span><span style="left:40%">40</span><span style="left:55%">55</span>'
                  f'<span style="left:70%">70</span><span style="left:85%">85</span><span style="left:100%">100</span></div>'
                  f'<div class="zf-meta"><a href="{sa.PFAD}etatverteilung/?ziel={schl}">Woraus sie besteht: Etat → Wirkung</a></div></div></div>')
-    inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("flag")} {esc(x["name"])}</h1>', sid, x["name"]) + amt.meldung(request) +
+    inhalt = ((kopf_mit_wappen(f'<h1>{amt.ic("flag")} {esc(x["name"])}</h1>', sid, x["name"]) + amt.meldung(request) if kopf else "") +
               f'<p class="az">Die Lage Ihres Teilstaats auf einen Blick. Die Reiter oben führen zu Etat, Land (Entwicklung, Energie, Krisen), Finanzen und Verteidigung.</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
               + etatplan.ZUF_CSS + zuf_block +
               f'<h2>Auf einen Blick</h2><div class="sa-todo">{"".join(z)}</div>'
               f'<h2>Bereiche</h2><div class="ts-karten">{"".join(karten)}</div>')
+    return inhalt
+
+
+@sa.seite("staat")
+async def seite(request, k):
+    import aufkommen
+    import etatplan
+    import entwicklung
+    import notlage
+    import verteidigung
+    con = request.app["db"]
+    regiert = sa._regierte(con, k)
+    if not regiert:
+        return sa.ant(request, k, "Mein Teilstaat", "sa-teilstaat",
+                      f'<h1>{amt.ic("flag")} Mein Teilstaat</h1><div class="hinweis">Dieser Bereich ist für Landesherren: Etat, Kassen, Verteidigung und Haushaltsnotlage '
+                      f'des eigenen Teilstaats. Ihnen ist kein Teilstaat zugeordnet. Den Haushalt des Reiches sehen Sie unter <a href="{sa.PFAD}haushalt/">Reichshaushalt</a>.</div>')
+    ziel = request.query.get("ziel", "")
+    sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regiert else next(iter(regiert))
+    kasse = regiert[sid]
+    inhalt = await ueberblick(request, k, con, sid, kasse)
     return sa.ant(request, k, "Mein Teilstaat", "sa-teilstaat", inhalt)
 
 
@@ -172,6 +183,24 @@ def _abschnitte(nav, teile):
     return sa.untertabs([(a, t, h.replace("<h2", "<h3").replace("</h2>", "</h3>"), w) for a, _, t, h, w in teile])
 
 
+def land_teile(request, k, con, sid, schl):
+    """Abschnitte des Reiters „Land“ (Entwicklung, Energie, Krisen) – auch für die RP-Leitung."""
+    import aufkommen
+    import energie
+    import entwicklung
+    import etatplan
+    import krisen
+    liste = aufkommen.berechnen(con, periode=etatplan.monat_heute())
+    ziele = etatplan.ziele(con, liste)
+    n_kr = krisen.offene_anzahl(con, schl)
+    teile = [("entwicklung", "users", "Entwicklung", entwicklung.rumpf(request, k, con, liste, schl, ziele, True), False),
+             ("energie", "zap", "Energie", energie._seitenhtml(request, k, con, schl, True), False),
+             ("krisen", "triangle-alert", f"Krisen ({n_kr})" if n_kr else "Krisen", krisen.rumpf(request, k, con, schl, True), bool(n_kr))]
+    if n_kr:
+        teile.insert(0, teile.pop())   # offene Krisen zuerst: Handlungszwang
+    return teile
+
+
 @sa.seite("staat")
 async def land(request, k):
     """Reiter „Land“: Entwicklung, Energie und Krisen eines Teilstaats auf einer Seite."""
@@ -184,14 +213,7 @@ async def land(request, k):
     if not kp:
         raise web.HTTPFound(PFAD)
     con, regiert, sid, schl, kasse = kp
-    liste = aufkommen.berechnen(con, periode=etatplan.monat_heute())
-    ziele = etatplan.ziele(con, liste)
-    n_kr = krisen.offene_anzahl(con, schl)
-    teile = [("entwicklung", "users", "Entwicklung", entwicklung.rumpf(request, k, con, liste, schl, ziele, True), False),
-             ("energie", "zap", "Energie", energie._seitenhtml(request, k, con, schl, True), False),
-             ("krisen", "triangle-alert", f"Krisen ({n_kr})" if n_kr else "Krisen", krisen.rumpf(request, k, con, schl, True), bool(n_kr))]
-    if n_kr:
-        teile.insert(0, teile.pop())   # offene Krisen zuerst: Handlungszwang
+    teile = land_teile(request, k, con, sid, schl)
     name = esc(kasse["name"].replace("Staatskasse ", ""))
     inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("users")} Land · {name}</h1>', sid, name) + amt.meldung(request) +
               '<p class="az">Wie sich der Teilstaat langfristig entwickelt: Bevölkerung und Wirtschaft (Entwicklung), die Energieversorgung und Krisen, auf die der Landesherr reagieren muss. '
@@ -199,17 +221,12 @@ async def land(request, k):
     return sa.ant(request, k, "Land", "sa-ts-land", inhalt)
 
 
-@sa.seite("staat")
-async def finanzen(request, k):
-    """Reiter „Finanzen“: Kassen, Reichsabgabe, Goldreserven, Haushaltsnotlage und letzte Umsätze eines Teilstaats."""
+def fin_teile(request, k, con, sid, kasse):
+    """Abschnitte des Reiters „Finanzen“ (Kassen, Gold, Notlage, Umsätze) – auch für die RP-Leitung."""
     import aufkommen
     import etatplan
     import gold
     import notlage
-    kp = _kopf(request, k)
-    if not kp:
-        raise web.HTTPFound(PFAD)
-    con, regiert, sid, schl, kasse = kp
     liste = aufkommen.berechnen(con, periode=etatplan.monat_heute())
     x = next(y for y in liste if y["staat"] == sid)
     q = x["quote"]
@@ -227,6 +244,21 @@ async def finanzen(request, k):
              ("gold", "coins", "Gold", gold.teilstaat_rumpf(request, k, con, sid, kasse), False),
              ("notlage", "triangle-alert", "Notlage", notlage.rumpf_teilstaat(request, k, con, sid), in_not),
              ("umsaetze", "file-text", "Umsätze", umsatz, False)]
+    return teile
+
+
+@sa.seite("staat")
+async def finanzen(request, k):
+    """Reiter „Finanzen“: Kassen, Reichsabgabe, Goldreserven, Haushaltsnotlage und letzte Umsätze eines Teilstaats."""
+    import aufkommen
+    import etatplan
+    import gold
+    import notlage
+    kp = _kopf(request, k)
+    if not kp:
+        raise web.HTTPFound(PFAD)
+    con, regiert, sid, schl, kasse = kp
+    teile = fin_teile(request, k, con, sid, kasse)
     name = esc(kasse["name"].replace("Staatskasse ", ""))
     inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("wallet")} Finanzen · {name}</h1>', sid, name) + amt.meldung(request) +
               '<p class="az">Das Geld des Teilstaats: Kassen, Abgabe an das Reich, Goldreserven, die Lage bei einem Minus und die letzten Buchungen.</p>' + _abschnitte(None, teile))

@@ -390,7 +390,7 @@ def reiter_html(request, k, con, aktiv):
 
 def nav(k, m="privat", schalter=False, aktiv="", con=None):
     if m == "rp":
-        mein = [("sa-rp", "layout-dashboard", "Lagebild", "rp/"), ("sa-rp-faelle", "folder-open", "Fälle", "rp/faelle/"),
+        mein = [("sa-rp", "layout-dashboard", "Lagebild", "rp/"), ("sa-rp-teilstaaten", "flag", "Die Teilstaaten", "rp/teilstaaten/"), ("sa-rp-faelle", "folder-open", "Fälle", "rp/faelle/"),
                 ("sa-rp-konten", "search", "Konten & Personen", "rp/konten/"), ("sa-rp-protokoll", "scroll-text", "Protokoll", "rp/protokoll/")]
         gruppen = [("RP-Leitung", mein),
                    ("Konfiguration", [("sa-rp-foerder", "package", "Förderstätten", "rp/foerderstaetten/"), ("sa-rp-handel", "percent", "Handel: Waren & Regeln", "rp/handel/"),

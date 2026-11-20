@@ -194,6 +194,7 @@ def index(con, k):
         add("Förderstätten anlegen & verwalten", "RP-Konfiguration", PFAD + "rp/foerderstaetten/", "foerderstaette lagerstaette rohstoffe foerderung ressourcen vorkommen anlegen bearbeiten", 2)
         add("Handel: Waren, Richtpreise, Sätze, Sperren", "RP-Konfiguration", PFAD + "rp/handel/", "handel konfiguration richtpreise waren saetze handelssperre embargo regeln", 1)
         add("Besitzkatalog & Kostenlauf", "RP-Konfiguration", PFAD + "rp/besitz/", "privatbesitz katalog fahrzeuge immobilien preise kostenlauf privatwirtschaft konfiguration", 1)
+        add("Die Teilstaaten (RP-Leitung)", "RP-Leitung", PFAD + "rp/teilstaaten/", "teilstaaten teilstaat stammdaten editieren name farbe hauptstadt fraktion wappen alles ansehen")
         add("Stellschrauben (Haushalt, Gold, Notlage, Verteidigung, Etats)", "RP-Konfiguration", PFAD + "rp/stellschrauben/",
             "stellschrauben konfiguration steuerquote wechselkurs reichsabgabe goldpreis notlage dispo verteidigungsetat behoerdenetats saetze einstellungen", 2)
         add("Sätze festlegen (Steuern, Gebühren)", "RP-Konfiguration", PFAD + "amt/tarife/", "tarife saetze steuersaetze gebuehren lohnsteuer sozialabgabe konfiguration", 1)
