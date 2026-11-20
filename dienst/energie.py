@@ -78,6 +78,7 @@ ANFORDERUNG = {"kohle": ("braunkohle", "Braunkohle"), "gas": ("erdgas", "Erdgas"
 INSTAND = {"kohle": 9000, "gas": 5000, "oel": 8000, "kern": 12000, "wasser": 3000, "wind": 6000, "solar": 4500, "biomasse": 15000}
 FARBEN = ["#6b7280", "#eb6834", "#8b5a2b", "#e34948", "#2a78d6", "#1baf7a", "#eda100", "#008300"]
 FOSSIL = ("kohle", "gas", "oel")
+TRAEGER = {"kohle": "Kohle", "gas": "Erdgas", "oel": "Erdöl", "kern": "Kernenergie", "wasser": "Wasserkraft", "wind": "Windkraft", "solar": "Solarenergie", "biomasse": "Biomasse"}
 KLIMA_NEUTRAL = 0.3375   # gewichteter Klima-Anteil der Standardmischung
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS en_kraftwerke (id INTEGER PRIMARY KEY AUTOINCREMENT, schl TEXT NOT NULL, typ TEXT NOT NULL, gwh REAL NOT NULL, ab TEXT NOT NULL DEFAULT '',
@@ -695,6 +696,56 @@ def vergleich_html(con, ziel="", ohne_reich=False, nur=None, links=True, offen=F
     return tab if offen else _auf("Vergleich aller Haushalte", tab, "landmark")
 
 
+def produktion_html(mix, name=""):
+    """Statistik „Energieproduktion“: 3D-Tortendiagramm (SVG) mit dem Anteil der Energieträger an der Erzeugung, dazu Legende mit GWh und Anteil. mix = {Typ: GWh}."""
+    teile = [(TRAEGER.get(t, TYP[t][1]), float(mix.get(t, 0)), FARBEN[i], t) for i, (t, *_r) in enumerate(TYPEN) if float(mix.get(t, 0)) > 0]
+    gesamt = sum(w for _, w, _, _ in teile)
+    if gesamt <= 0:
+        return '<p class="az">Noch keine Erzeugung: Es sind keine Kraftwerke in Betrieb.</p>'
+    cx, cy, rx, ry, tiefe = 150.0, 108.0, 128.0, 66.0, 26.0
+    pt = lambda w, dy=0.0: (cx + rx * math.cos(w), cy + ry * math.sin(w) + dy)
+    f = lambda p: f"{p[0]:.2f},{p[1]:.2f}"
+
+    def dunkler(c, q=0.72):
+        r, g, b = (int(c[i:i + 2], 16) for i in (1, 3, 5))
+        return "#%02x%02x%02x" % (int(r * q), int(g * q), int(b * q))
+    seiten, oben, w0 = [], [], -math.pi / 2
+    for n, w, c, t in teile:
+        w1 = w0 + 2 * math.pi * w / gesamt
+        titel = f"{n}: {_de(w, 0)} GWh ({_de(w / gesamt * 100, 1)} %)"
+        # Seitenwand nur im vorderen Halbkreis (0…π, unten im Bild)
+        s0, s1 = max(w0, 0.0), min(w1, math.pi)
+        if s1 > s0 + 1e-6:
+            gross = 1 if s1 - s0 > math.pi else 0
+            seiten.append(f'<path d="M{f(pt(s0))} A{rx},{ry} 0 {gross} 1 {f(pt(s1))} L{f(pt(s1, tiefe))} A{rx},{ry} 0 {gross} 0 {f(pt(s0, tiefe))} Z" fill="{dunkler(c)}" stroke="#0002"><title>{esc(titel)}</title></path>')
+        # Wand, wenn der Abschnitt über den Nullpunkt hinaus bis in den hinteren Halbkreis reicht (-π…0 → 2π…3π)
+        if w1 > 2 * math.pi + 1e-6:
+            e0, e1 = max(w0, 2 * math.pi), min(w1, 3 * math.pi)
+            gross = 1 if e1 - e0 > math.pi else 0
+            seiten.append(f'<path d="M{f(pt(e0))} A{rx},{ry} 0 {gross} 1 {f(pt(e1))} L{f(pt(e1, tiefe))} A{rx},{ry} 0 {gross} 0 {f(pt(e0, tiefe))} Z" fill="{dunkler(c)}" stroke="#0002"><title>{esc(titel)}</title></path>')
+        gross = 1 if w1 - w0 > math.pi else 0
+        if len(teile) == 1:
+            oben.append(f'<ellipse cx="{cx}" cy="{cy}" rx="{rx}" ry="{ry}" fill="{c}" stroke="#fff" stroke-width="1.5"><title>{esc(titel)}</title></ellipse>')
+        else:
+            oben.append(f'<path d="M{cx},{cy} L{f(pt(w0))} A{rx},{ry} 0 {gross} 1 {f(pt(w1))} Z" fill="{c}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><title>{esc(titel)}</title></path>')
+        w0 = w1
+    if len(teile) == 1:
+        seiten.append(f'<path d="M{cx - rx},{cy} L{cx - rx},{cy + tiefe} A{rx},{ry} 0 0 0 {cx + rx},{cy + tiefe} L{cx + rx},{cy} A{rx},{ry} 0 0 1 {cx - rx},{cy} Z" fill="{dunkler(teile[0][2])}"/>')
+    svg = (f'<svg class="ee-pie3d" viewBox="0 0 300 {cy + ry + tiefe + 22:.0f}" role="img" aria-label="Energieproduktion {esc(name)}: Anteil der Energieträger">'
+           f'<ellipse cx="{cx}" cy="{cy + ry + tiefe + 6}" rx="{rx * 0.92}" ry="9" fill="#0001"/>'
+           + "".join(seiten) + "".join(oben) + "</svg>")
+    zeilen = "".join(
+        f'<tr><td><span class="ep-farbe" style="background:{c}"></span>{esc(n)}</td><td class="num">{_de(w, 0)} GWh</td><td class="num">{_de(w / gesamt * 100, 1)} %</td></tr>'
+        for n, w, c, t in sorted(teile, key=lambda x: -x[1]))
+    saubere = sum(w for n, w, c, t in teile if t not in FOSSIL and t != "kern")
+    return (CSS + '<style>.ee-pie3d{width:100%;max-width:420px;height:auto;display:block;margin:6px auto;filter:drop-shadow(0 4px 6px #0002)}.ee-stat{display:grid;grid-template-columns:minmax(260px,420px) 1fr;gap:24px;align-items:center}'
+            '@media(max-width:800px){.ee-stat{grid-template-columns:1fr}}</style>'
+            f'<h2>{amt.ic("zap")} Energieproduktion</h2><p class="az">Welcher Energieträger wie viel der monatlichen Erzeugung liefert (inklusive der Leistungserhöhung aller Kraftwerke).</p>'
+            f'<div class="ee-stat">{svg}<div><table class="ep-tab"><thead><tr><th>Energieträger</th><th class="num">Erzeugung</th><th class="num">Anteil</th></tr></thead><tbody>{zeilen}'
+            f'<tr class="ep-fest"><td><b>Gesamt</b></td><td class="num"><b>{_de(gesamt, 0)} GWh</b></td><td class="num"><b>100 %</b></td></tr></tbody></table>'
+            f'<p class="zf-meta">Erneuerbar (Wasser, Wind, Sonne, Biomasse): {_de(saubere / gesamt * 100, 1)} % · Fossil und Kernkraft: {_de(100 - saubere / gesamt * 100, 1)} %</p></div></div>')
+
+
 def _seitenhtml(request, k, con, ziel, eingebettet=False):
     import etatplan
     import entwicklung
@@ -768,10 +819,12 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
                 'wer unter 60 % versorgt ist, darf dort zukaufen. Stilllegungen und Sätze legt die RP-Leitung fest.</p>', "info" if "info" in amt.ICONS else "clock")
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in sa.bereich_ziele(con, k, _ziele(con), ziel))
     if eingebettet:   # Abschnitt der Seite „Land“ (teilstaat.py): ohne Überschrift, Meldung und Haushaltsauswahl
-        return entwicklung.CSS + CSS + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info
+        return entwicklung.CSS + CSS + sa.untertabs([("en-lage", "Übersicht", kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info),
+                                                      ("en-stat", "Statistik", produktion_html(b["mix"], name))])
     return (entwicklung.CSS + CSS + f'<h1>{amt.ic("zap")} Energie · {esc(name)}</h1>{amt.meldung(request)}'
             ''
-            + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info)
+            + sa.untertabs([("en-lage", "Übersicht", kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info),
+                            ("en-stat", "Statistik", produktion_html(b["mix"], name))]))
 
 
 @sa.seite("staat")
