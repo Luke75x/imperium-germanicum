@@ -1,7 +1,7 @@
 """Entwicklung: langfristige Wirkung der Investitionen (Etatverteilung) auf Bevölkerung, Wirtschaft und Stimmung – modular.
 
 Aufbau
-- Jeder Haushalt (Teilstaat „ts-<sid>“, das Reich „reich“ = Freie Reichsgebiete) hat einen Zustand aus Indikatoren (ep_zustand, je gebuchtem Monat).
+- Jeder Haushalt (Teilstaat „ts-<sid>“, das Reich „reich“ = Reichsunmittelbare Territorien) hat einen Zustand aus Indikatoren (ep_zustand, je gebuchtem Monat).
 - Ein MODUL (Eintrag in MODULE) gehört zu einem oder mehreren Politikfeldern und besteht aus
     · Indikatoren: Zielwert aus der Erfüllung E = Anteil ÷ Richtwert der Politikfelder, mit Trägheit (der Wert nähert sich dem Ziel nur langsam);
     · Wirkungen: aus den (neuen) Indikatorwerten Effekte auf drei Hebel:
@@ -607,7 +607,7 @@ def tabelle(liste, ziel_liste, pfad, markiert="", con=None):
     zeilen = []
     for s, n in ziel_liste:
         if s == "reich":
-            d, n = liste[0].get("entwicklung_reich"), "Freie Reichsgebiete (Reich)"
+            d, n = liste[0].get("entwicklung_reich"), "Reichsunmittelbare Territorien (Reich)"
         else:
             d = next((x.get("entwicklung") for x in liste if "ts-" + x["staat"] == s), None)
         if not d:

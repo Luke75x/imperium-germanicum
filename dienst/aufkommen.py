@@ -5,7 +5,7 @@ umgerechnet in Kronen zum Wechselkurs. Reichsabgabe: Jeder Teilstaat führt eine
 (abgabequoten): Index aus Bevölkerung, Einkommen pro Kopf und Fläche (je Wurzel des Verhältnisses zum Durchschnitt, gewichtet,
 Vorgabe 40/40/20), so normiert, dass die theoretische Abgabe im Schnitt den „Reichsanteil“ (43 %) ergibt (mindestens quote_min). Die tatsächliche
 Abgabe ist hart auf quote_max (33 % des Etats) begrenzt, auch mit Zuschlag der Haushaltsnotlage; was ein Teilstaat ohne diese Grenze zahlen würde, wird
-mitgeführt (quote_theorie, reich_theorie). Rest an die Staatskasse; die Freien Reichsgebiete (geld.ist_reichsgebiet) sind kein Teilstaat, sondern das
+mitgeführt (quote_theorie, reich_theorie). Rest an die Staatskasse; die Reichsunmittelbaren Territorien (geld.ist_reichsgebiet) sind kein Teilstaat, sondern das
 Reich selbst – dort erhält die Reichskasse alles.
 Ausgaben: Pflichtausgaben (Soziales, Verteidigung, Infrastruktur, Bildung, Verwaltung der nicht spielenden Bevölkerung) als Quote der
 Einnahmen (Vorgabe 97 %) gehen zurück an die Volkswirtschaft; die übrigen 3 % sind der frei verfügbare Spielraum für Reich und Landesherren.
@@ -91,7 +91,7 @@ def abgabequoten_beide(daten, p, summen_heller=None, zuschlag=None):
     """(tatsächlich, theoretisch): {Teilstaat-ID: Reichsabgabe in %}. Theoretisch (ohne Obergrenze) – Index aus Bevölkerung, Einkommen pro Kopf und
     Fläche (Wurzel des Verhältnisses zum Durchschnitt der Teilstaaten bzw. zum BIP/Kopf des ganzen Reiches), gewichtet; normiert auf den Reichsanteil
     als nach Einnahmen gewichteten Durchschnitt; mindestens quote_min; dazu der Zuschlag der Haushaltsnotlage (Stufe 3). Tatsächlich: das Ganze, aber
-    höchstens quote_max (Vorgabe 33 %). Freie Reichsgebiete: 100 % (sie sind das Reich)."""
+    höchstens quote_max (Vorgabe 33 %). Reichsunmittelbare Territorien: 100 % (sie sind das Reich)."""
     w = dict(VORGABE_GEWICHTE, **(p.get("gewichte") or {}))
     wsum = sum(float(x) for x in w.values()) or 1
     lo, hi = float(p.get("quote_min", 20)), float(p.get("quote_max", 33))
@@ -130,7 +130,7 @@ def abgabequoten_beide(daten, p, summen_heller=None, zuschlag=None):
 def berechnen(con, p=None, periode=None, entwurf=None):
     """Monatlicher Haushalt je Teilstaat (siehe _berechnen) einschließlich der Entwicklung (entwicklung.py): erst ein Durchlauf ohne Entwicklung für Pläne und
     Richtwerte, daraus die Faktoren für Einwohner, BIP pro Kopf und Zufriedenheit, dann der eigentliche Durchlauf. Je Posten x["entwicklung"] (Teilstaaten) und
-    x["entwicklung_reich"] (Freie Reichsgebiete)."""
+    x["entwicklung_reich"] (Reichsunmittelbare Territorien)."""
     import entwicklung
     import etatplan
     periode = periode or etatplan.naechster_lauf(con)
@@ -179,13 +179,13 @@ def _berechnen(con, p, periode, entwurf, entw):
     tot_ar = sum(b["aus_r"] for b in basis)
     vv_reich = sum(b["vr0"] for b in basis) / tot_ar * 100 if tot_ar else 0
     plan_reich, richt_reich = etatplan.plan(con, "reich", vv_reich, periode, entwurf), etatplan.richtwerte(vv_reich)
-    w_reich = etatplan.bewerten(plan_reich, richt_reich)   # Boni/Mali des Reichsetats: Freie Reichsgebiete + Rücklage der Reichskasse
+    w_reich = etatplan.bewerten(plan_reich, richt_reich)   # Boni/Mali des Reichsetats: Reichsunmittelbare Territorien + Rücklage der Reichskasse
     # Rücklage: eigener Satz der Fassung (+ sparen, − aus der Kasse entnehmen) oder Vorgabe 100 − ausgabenquote; dazu die Etatwirkung (Pp.)
     rl_vorgabe = round(100 - aq * 100, 2)
     rl_r = etatplan.ruecklage_satz(con, "reich", periode, entwurf)
     rl_r = rl_vorgabe if rl_r is None else rl_r
     aq_r = max(0.0, 1 - rl_r / 100 - w_reich["summe"]["ruecklage"] / 100)
-    z_reich = etatplan.zufriedenheit(con, "reich", plan_reich, richt_reich, zpt("reich"))   # Bevölkerungszufriedenheit (Freie Reichsgebiete)
+    z_reich = etatplan.zufriedenheit(con, "reich", plan_reich, richt_reich, zpt("reich"))   # Bevölkerungszufriedenheit (Reichsunmittelbare Territorien)
     zw = []
     for b in basis:
         s = b["s"]
@@ -195,7 +195,7 @@ def _berechnen(con, p, periode, entwurf, entw):
             plan_l, richt_l = etatplan.plan(con, "ts-" + s["id"], vv, periode, entwurf), etatplan.richtwerte(vv)
             w_l = etatplan.bewerten(plan_l, richt_l)
             z_l = etatplan.zufriedenheit(con, "ts-" + s["id"], plan_l, richt_l, zpt("ts-" + s["id"]))
-        # Wirkung auf das Steueraufkommen: im Teilstaat dessen eigener Etat, in den Freien Reichsgebieten der Reichsetat; dazu die Zufriedenheit
+        # Wirkung auf das Steueraufkommen: im Teilstaat dessen eigener Etat, in den Reichsunmittelbaren Territorien der Reichsetat; dazu die Zufriedenheit
         f_ein = 1 + ((w_reich if b["rd"] else w_l)["summe"]["einnahmen"] + (z_reich if b["rd"] else z_l)["effekt"]) / 100
         summe = int(round(b["summe"] * f_ein))
         reich = summe if b["rd"] else int(round(summe * b["q"] / 100))
@@ -485,7 +485,7 @@ def erklaerung_html(p):
             f'<li>Rechnerisch ergibt das im Schnitt <b>{esc(str(p["reichsanteil"]))} %</b>, mindestens {esc(str(p.get("quote_min", 20)))} %. '
             f'<b>Höchstens {esc(str(p.get("quote_max", 33)))} % des Etats</b> gehen aber an das Reich – diese Obergrenze gilt immer, auch bei einem Zuschlag '
             'wegen Haushaltsnotlage. Was ein Teilstaat ohne die Grenze zahlen müsste, steht jeweils darunter („ohne Grenze“). '
-            'Die Freien Reichsgebiete sind das Reich selbst.</li>'
+            'Die Reichsunmittelbaren Territorien sind das Reich selbst.</li>'
             f'<li>¹ Pflichtausgaben für die Bevölkerung ({esc(str(p.get("ausgabenquote", 97)))} %) sind abgezogen – ein Teil davon ist als '
             f'<a href="{PFAD}verteidigung/">Verteidigungsetat</a> zweckgebunden; der Rest steht Reich und Landesherren frei zur Verfügung. '
             f'Wie das Ausgabenbudget auf Politikfelder verteilt wird, bestimmen Reich und Teilstaaten in der <a href="{PFAD}etatverteilung/">Etatverteilung</a>. '

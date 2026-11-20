@@ -4,7 +4,7 @@ Spieler können Güter aus einem Katalog (pb_katalog, Richtpreise in €, ÷ Wec
 Besitz gehört einer Person (Discord-Konto) und steht in einem Teilstaat (Standort / Zulassung).
 
 **Kauf** (Seite /schatzamt/besitz/): vom Privatkonto an die Volkswirtschaft (Händler, Art privatkauf) plus Erwerbsteuer an die Staatskasse des
-Standorts (Immobilien: Grunderwerbsteuer, Fahrzeuge: Zulassungsgebühr; Freie Reichsgebiete → Reichskasse). Wie bei Überweisungen ist eine gültige
+Standorts (Immobilien: Grunderwerbsteuer, Fahrzeuge: Zulassungsgebühr; Reichsunmittelbare Territorien → Reichskasse). Wie bei Überweisungen ist eine gültige
 Bankkarte nötig. **Laufende Kosten** je Monat (Hintergrundaufgabe, pb_laeufe sperrt Wiederholung je Monat, erster Lauf im Monat nach dem Kauf):
 Steuer (Kfz-/Grundsteuer, an die Staatskasse des Standorts), Versicherung und Unterhalt (an die Volkswirtschaft); Bemessung = aktueller Wert
 (Katalogpreis × Wertentwicklung p. a., mindestens 5 %). **Zahlungsrückstand:** reicht das Privatkonto nicht, wächst der Rückstand (rueckstand,

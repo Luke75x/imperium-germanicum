@@ -101,11 +101,11 @@ def einrichten(con):
     con.commit()
 
 
-REICHSGEBIETE = {"s2"}   # Freie Reichsgebiete = das Reich selbst (kein Teilstaat): alles läuft über die Reichskasse, keine Staatskasse
+REICHSGEBIETE = {"s2"}   # Reichsunmittelbare Territorien = das Reich selbst (kein Teilstaat): alles läuft über die Reichskasse, keine Staatskasse
 
 
 def ist_reichsgebiet(s):
-    """True für die Freien Reichsgebiete der Reichskarte (Staat-Eintrag als dict oder Teilstaat-ID). Sie sind kein Teilstaat,
+    """True für die Reichsunmittelbaren Territorien der Reichskarte (Staat-Eintrag als dict oder Teilstaat-ID). Sie sind kein Teilstaat,
     sondern das Reich selbst: keine Staatskasse, keine Reich/Land-Teilung, Einnahmen und Bestände gehören der Reichskasse."""
     import karte
     if isinstance(s, str):

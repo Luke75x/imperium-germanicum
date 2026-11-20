@@ -1,4 +1,4 @@
-"""Energiesystem: Angebot (Kraftwerke), Bedarf (Bevölkerung, Industrie, Veredelung, Militär), Versorgungslage und ihre Folgen – je Haushalt (Teilstaat „ts-<sid>“ und Reich „reich“ = Freie Reichsgebiete).
+"""Energiesystem: Angebot (Kraftwerke), Bedarf (Bevölkerung, Industrie, Veredelung, Militär), Versorgungslage und ihre Folgen – je Haushalt (Teilstaat „ts-<sid>“ und Reich „reich“ = Reichsunmittelbare Territorien).
 
 Einheit: GWh je Monat.
 

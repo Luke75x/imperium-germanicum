@@ -8,7 +8,7 @@ Etat (Steueraufkommen im Monat) eines Teilstaats = Abgabe an das Reich (nicht be
 + Landesanteil. Vom Landesanteil gehen „ausgabenquote“ % (Vorgabe 97 %) als Ausgabenbudget in die Politikfelder, der Rest ist die Rücklage der
 Staatskasse. Das Ausgabenbudget verteilt der Teilstaat selbst in Prozent auf die Kategorien (Summe höchstens 100 %; was nicht zugewiesen wird, bleibt zusätzlich
 als Rücklage in der Staatskasse – aufkommen.berechnen: pool_* = tatsächlich verteilter Betrag, budget_* = Ausgabenbudget vor dem Einbehalt). Das Reich verteilt sein Ausgabenbudget
-(Reichsanteil aller Steuern einschließlich der Freien Reichsgebiete) genauso.
+(Reichsanteil aller Steuern einschließlich der Reichsunmittelbaren Territorien) genauso.
 Wirkung: Der Anteil „Verteidigung“ ist echtes Geld – er fließt jeden Monat in die Verteidigungskasse (Teilstaat) bzw. Reichsverteidigungskasse
 (aufkommen.berechnen, verteidigung.py). Die übrigen Kategorien sind simulierte Ausgaben der Bevölkerung (Gegenkonto „Volkswirtschaft“); sie werden je
 Haushaltsmonat in ep_verteilung festgehalten.
@@ -336,7 +336,7 @@ def verteilung_speichern(con, lauf, x):
 # darüber nimmt er bis „saettigung“ ab (Überversorgung bringt nichts, das Geld fehlt anderswo). Sind alle Kategorien mindestens bei „bonus_ab“,
 # gibt es zusätzlich den Bonus „Ausgewogener Etat“. Ziel ist also ein ausgewogener Etat mit leichten Schwerpunkten.
 # Hebel: einnahmen = Steueraufkommen des Gebiets in % (trifft Reichsabgabe und Landesanteil gleichermaßen; beim Reich das Aufkommen der
-# Freien Reichsgebiete), ruecklage = Prozentpunkte des eigenen Anteils, die zusätzlich als Rücklage in der Kasse bleiben (negativ: Mehrausgaben),
+# Reichsunmittelbaren Territorien), ruecklage = Prozentpunkte des eigenen Anteils, die zusätzlich als Rücklage in der Kasse bleiben (negativ: Mehrausgaben),
 # bereitschaft = Punkte Einsatzbereitschaft des Militärgeräts je Monat (Verteidigungskasse bzw. Reichsverteidigungskasse).
 GRENZEN = {"malus_ab": 0.75, "malus_voll": 0.25, "bonus_ab": 0.9, "bonus_bis": 1.6, "saettigung": 2.4}
 HEBEL = {"einnahmen": ("Steueraufkommen", "%"), "ruecklage": ("Rücklage", "Pp."), "bereitschaft": ("Einsatzbereitschaft", "Pkt./Monat")}
@@ -513,7 +513,7 @@ def zuf_speichern(con, lauf, liste):
 
 
 def zuf_reichsweit(liste, con=None):
-    """Nach Einwohnern gewichtete Bevölkerungszufriedenheit des ganzen Reiches (Freie Reichsgebiete: Reichsetat); mit con die Gesamtskala, sonst nur der Politikfeld-Anteil."""
+    """Nach Einwohnern gewichtete Bevölkerungszufriedenheit des ganzen Reiches (Reichsunmittelbare Territorien: Reichsetat); mit con die Gesamtskala, sonst nur der Politikfeld-Anteil."""
     s = ew = 0
     for x in liste:
         z = x["zufriedenheit_reich"] if x["reichsgebiet"] else x.get("zufriedenheit_land")
@@ -553,7 +553,7 @@ def darf_aendern(con, k, schl):
 
 
 def ziele(con, liste):
-    """[(schl, Name)]: Reich und alle Teilstaaten (ohne Freie Reichsgebiete)."""
+    """[(schl, Name)]: Reich und alle Teilstaaten (ohne Reichsunmittelbare Territorien)."""
     return [("reich", "Reich")] + [("ts-" + x["staat"], x["name"]) for x in sorted(liste, key=lambda x: x["name"]) if not x["reichsgebiet"]]
 
 
@@ -835,7 +835,7 @@ def wirkung_html(bew, basis_ein, basis_rl, reich=False):
             unter = f'<small id="{i}-kr">{"keine Veränderung" if abs(v) < 0.0005 else "≈ " + ("+" if v > 0 else "−") + geld.mark_kurz(abs(int(basis * v / 100))) + " im Monat"}</small>'
         return f'<div><b id="{i}" class="{kl}">{_vz(v, einheit)}</b>{esc(titel)}{unter}</div>'
 
-    kz = (kachel("wk-ein", "Steueraufkommen" + (" der Freien Reichsgebiete" if reich else ""), s["einnahmen"], "%", basis_ein)
+    kz = (kachel("wk-ein", "Steueraufkommen" + (" der Reichsunmittelbaren Territorien" if reich else ""), s["einnahmen"], "%", basis_ein)
           + kachel("wk-rl", "Rücklage der " + ("Reichskasse" if reich else "Staatskasse"), s["ruecklage"], "Pp.", basis_rl)
           + kachel("wk-vt", "Einsatzbereitschaft je Monat", s["bereitschaft"], "Pkt.")
           + f'<div><b id="wk-bilanz">{bew["boni"]} Boni · {bew["mali"]} Mali</b>Bilanz</div>')
@@ -975,7 +975,7 @@ def zuf_html(z, verlauf, reich=False, interaktiv=True, g=None):
                     f'<td class="num">{g} %</td></tr>' for kat, n, g in sorted(z["teile"], key=lambda t: -t[2]))
     w = ZUF_WIRKUNG
     return (ZUF_CSS + f'<section class="zf" id="zf"><h2>{amt.ic("users")} Bevölkerungszufriedenheit</h2>'
-            f'<p class="az">Wie zufrieden ist die Bevölkerung {"der Freien Reichsgebiete mit dem Reich" if reich else "mit ihrer Regierung"}? '
+            f'<p class="az">Wie zufrieden ist die Bevölkerung {"der Reichsunmittelbaren Territorien mit dem Reich" if reich else "mit ihrer Regierung"}? '
             'Es gibt nur diese eine Skala (0–100). Sie rechnet alles zusammen: die Investitionen in die Politikfelder, die Haushaltsführung, die Haushaltslage, '
             'Wohlstand, Versorgung, Sicherheit und die Bevölkerungsentwicklung. Die Stimmung ändert sich nicht sofort: je gebuchtem Monat legt der Politikfeld-Anteil die Hälfte des Weges zum Zielwert zurück. '
             f'Die Politikfelder wirken außerdem auf das Steueraufkommen: ab {w["bonus_ab"]} Punkten +{_de(w["bonus"])} %, unter {w["malus_ab"]} Punkten '
@@ -1027,7 +1027,7 @@ def zuf_tabelle(liste, ziel_liste, pfad, markiert="", con=None):
     zeilen = []
     for s, n in ziel_liste:
         if s == "reich":
-            n = "Freie Reichsgebiete (Reich)"
+            n = "Reichsunmittelbare Territorien (Reich)"
         wert, stufe = _zuf_gesamt(con, liste, s)
         zeilen.append((wert, f'<tr{" class=fokus" if s == markiert else ""}><td>{_wk(s, n)}<a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td><td class="bar">{zuf_balken(wert)}</td>'
                              f'<td class="num">{_de(wert, 0)}</td><td class="num">{esc(stufe)}</td></tr>'))
@@ -1235,7 +1235,7 @@ async def _seite(request, k, planung):
         return f'<div class="ts-schritt"><span>{n}</span><h2>{titel}</h2></div>' + (f'<p class="az">{text}</p>' if text else "")
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}{" (Ihr Teilstaat)" if s in eigene else ""}</option>' for s, n in ziel_liste)
     erkl = (f'<details class="sa-auf"><summary>{amt.ic("scale")}Wie ist der Etat aufgebaut?</summary><div class="sa-erkl"><ol>'
-            + ('<li>Der Etat des Reiches ist sein Anteil an allen Steuern: die <b>Abgaben der Teilstaaten</b> und das gesamte Aufkommen der Freien Reichsgebiete.</li>'
+            + ('<li>Der Etat des Reiches ist sein Anteil an allen Steuern: die <b>Abgaben der Teilstaaten</b> und das gesamte Aufkommen der Reichsunmittelbaren Territorien.</li>'
                if ziel == "reich" else
                '<li>Der Etat ist das Steueraufkommen des Teilstaats im Monat. Ein Teil davon ist die <b>Abgabe an das Reich</b>; sie richtet sich nach Bevölkerung, '
                'Einkommen und Fläche und lässt sich <b>nicht beeinflussen</b>.</li>')
@@ -1351,7 +1351,7 @@ async def oeffentlich(request, k):
             f'<b class="{"wk-plus" if e > 0 else "wk-minus" if e < 0 else ""}">{_vz(e, "%")}</b></div>'
             f'<div class="zf-kopf {_zf_klasse(gz[0])}" style="margin:10px 0"><div><div class="zf-wert">{_de(gz[0], 0)} <small>/ 100</small></div>'
             f'<div class="zf-stufe">{esc(gz[1])}</div></div><div class="zf-gross"><div class="zf-meta">Bevölkerungszufriedenheit'
-            f'{" der Freien Reichsgebiete" if ziel == "reich" else ""}</div>{zuf_balken(gz[0])}'
+            f'{" der Reichsunmittelbaren Territorien" if ziel == "reich" else ""}</div>{zuf_balken(gz[0])}'
             '<div class="zf-skala"><span style="left:0%">0</span><span style="left:40%">40</span><span style="left:55%">55</span><span style="left:70%">70</span><span style="left:85%">85</span><span style="left:100%">100</span></div></div></div>')
     staatl = (f'<p class="sa-hinweis"><a href="{PFAD}?ziel={esc(ziel)}">Zur Etatverteilung mit Beträgen und Einstellungen</a></p>'
               if sa.hat_kassen(con, k) else "")

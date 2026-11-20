@@ -1,7 +1,7 @@
 """Verteidigung: Verteidigungsetats des Reiches und der Teilstaaten, Militärgerät (Katalog, Bestand, Beschaffung, Instandhaltung).
 
 Kassen (Kontoart „verteidigung“): Reichsverteidigungskasse (stelle „verteidigung“) und je Teilstaat eine Verteidigungskasse
-(„vt-<sid>“; die Freien Reichsgebiete sind das Reich und haben keine eigene).
+(„vt-<sid>“; die Reichsunmittelbaren Territorien sind das Reich und haben keine eigene).
 Geldquelle: Der Staatshaushalt (aufkommen.py) zweigt jeden Monat einen Teil der Pflichtausgaben als Verteidigungsetat ab –
 Vorgabe 2 % des BIP (NATO-Ziel). Davon gehen „anteil_reich“ % (Vorgabe 5 %) aus der Reichskasse an die Reichsverteidigungskasse,
 der Rest des Teilstaats aus seiner Staatskasse an seine Verteidigungskasse. Zusätzlich kann ein Landesherr aus der Staatskasse zuführen.
@@ -110,7 +110,7 @@ def einstellungen(con):
 # ---------------------------------------------------------------- Kassen und Rechte
 
 def kassen_sichern(con):
-    """Reichsverteidigungskasse und eine Verteidigungskasse je Teilstaat der aktuellen Karte (ohne Freie Reichsgebiete)."""
+    """Reichsverteidigungskasse und eine Verteidigungskasse je Teilstaat der aktuellen Karte (ohne Reichsunmittelbare Territorien)."""
     import karte
     import landespolizei
     geld._anlegen(con, "verteidigung", "Reichsverteidigungskasse", stelle="verteidigung")

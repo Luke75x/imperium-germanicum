@@ -150,7 +150,7 @@ def einstellungen(con):
 # ---------------------------------------------------------------- Halter, Rechte, Kassen
 
 def halter(con):
-    """{schl: Name}: das Reich und alle Teilstaaten der aktuellen Karte (ohne Freie Reichsgebiete)."""
+    """{schl: Name}: das Reich und alle Teilstaaten der aktuellen Karte (ohne Reichsunmittelbare Territorien)."""
     import karte
     import landespolizei
     out = {"reich": "Das Reich"}
@@ -820,7 +820,7 @@ async def ressourcen(request, k):
         zeilen += "</tr>"
     anz = "".join(f"<td>{sum(1 for s in namen if foerd.get(s, {}).get(r, 0) > 0)}</td>" for r, _ in RESSOURCEN)
     out = ('<p>Jahresförderung der Gebiete je Rohstoff, in der Einheit der Ware pro Jahr. „–“ bedeutet: kein Vorkommen – dort wird der Rohstoff nicht gefördert '
-           'und kann nicht als Rohstoff verkauft werden. Wechselt ein Gebiet den Teilstaat, wechselt die Förderung mit. „Das Reich“ umfasst die Freien Reichsgebiete. '
+           'und kann nicht als Rohstoff verkauft werden. Wechselt ein Gebiet den Teilstaat, wechselt die Förderung mit. „Das Reich“ umfasst die Reichsunmittelbaren Territorien. '
            'Monatliche Erzeugung = Jahresmenge ÷ 12, skaliert mit dem Industrie-Etat.</p>'
            f'<div class="hd-matrix"><table><thead><tr><th>Gebiet</th>{kopf}</tr></thead><tbody>{zeilen}<tr><td><i>Gebiete mit Vorkommen</i></td>{anz}</tbody></table></div>')
     sel = request.query.get("rohstoff", "")

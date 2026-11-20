@@ -20,6 +20,7 @@ WAPPEN_DIR = _w.DIR   # <Karten-ID, z. B. s6>.png, Reihenfolge/Zuordnung siehe M
 
 def wappen_html(sid, name=""):
     """Wappen eines Teilstaats (Karten-ID wie „s6“) als <img> für Überschriften; leer, wenn noch kein Bild vorliegt."""
+    sid = _w.datei(sid)
     if not sid or not os.path.isfile(os.path.join(WAPPEN_DIR, f"{sid}.png")):
         return ""
     return f'<img class="ts-wappen" src="{sa.PFAD}wappen/{esc(sid)}.png" alt="Wappen {esc(name)}" loading="lazy">'

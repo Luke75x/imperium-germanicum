@@ -40,7 +40,7 @@ ROLLE_LANDESHERR = "1522701576295415969"
 ROLLE_SOUVERAEN = "1522685953054081054"      # Imperator Rex
 # Zusatzämter von Regenten (Vizekönig … Bürgermeister), erscheinen in der Gebietsübersicht
 ROLLEN_AEMTER = ("1525947356049309788", "1525947448776986665", "1525947612639793253", "1555971841888223242", "1525948431267532860")
-REICHSGEBIETE = "Freie Reichsgebiete"        # kein Teilstaat: Kronkanzler und Souverän regieren
+REICHSGEBIETE = "Reichsunmittelbare Territorien"        # kein Teilstaat: Kronkanzler und Souverän regieren
 ROLLE_KANZLER = "1561856444913946664"
 # Fraktionsrollen, die zugleich etwas anderes bedeuten: „Heiliger Stuhl“ ist auch die Rolle des Klerus (Kardinal, Bischof …).
 # Sie zählt nur als Fraktion, wenn die Person keine andere Fraktionsrolle hat (z. B. Kardinal Baier → St. Longinus Orden).
@@ -83,7 +83,7 @@ T = {
            "resetName": "Heutigen Namen wiederherstellen", "save": "Speichern", "saved": "Gespeichert.", "saveError": "Speichern fehlgeschlagen.",
            "send": "Antrag senden", "setName": "Namen festlegen", "shareArea": "Anteil an der Fläche des Reiches",
            "sharePop": "Anteil an der Bevölkerung des Reiches", "sheetClose": "Zur Karte",
-           "source": "Einwohner: Eurostat, Stand {j}. Grenzen: © EuroGeographics (NUTS 2021).", "state": "Teilstaat", "reich": "Reichsgebiete", "und": "und", "vertreten": "vertreten durch",
+           "source": "Einwohner: Eurostat, Stand {j}. Grenzen: © EuroGeographics (NUTS 2021).", "state": "Teilstaat", "reich": "Reichsunmittelbare Territorien", "und": "und", "vertreten": "vertreten durch",
            "today": "heute", "todayName": "Heutiger Name", "toolPaint": "Malen", "toolPan": "Verschieben", "toolPick": "Pipette",
            "unassigned": "Kein Teilstaat", "undo": "Rückgängig", "vacant": "unbesetzt (kein Landesherr mit der Rolle „{f}“)",
            "pending": "Dein Antrag vom {d} auf „{n}“ liegt dem Kronkanzler vor.", "accepted": "Dein Antrag vom {d} auf „{n}“ wurde angenommen.",
@@ -111,7 +111,7 @@ T = {
            "resetName": "Restore today's name", "save": "Save", "saved": "Saved.", "saveError": "Saving failed.",
            "send": "Send request", "setName": "Set name", "shareArea": "Share of the Empire's area",
            "sharePop": "Share of the Empire's population", "sheetClose": "To the map",
-           "source": "Population: Eurostat, {j}. Boundaries: © EuroGeographics (NUTS 2021).", "state": "State", "reich": "Imperial territories", "und": "and", "vertreten": "represented by",
+           "source": "Population: Eurostat, {j}. Boundaries: © EuroGeographics (NUTS 2021).", "state": "State", "reich": "Imperial immediate territories", "und": "and", "vertreten": "represented by",
            "today": "today", "todayName": "Today's name", "toolPaint": "Paint", "toolPan": "Move", "toolPick": "Eyedropper",
            "unassigned": "No state", "undo": "Undo", "vacant": "vacant (no Landesherr with the role “{f}”)",
            "pending": "Your request of {d} for “{n}” is with the Crown Chancellor.", "accepted": "Your request of {d} for “{n}” was accepted.",

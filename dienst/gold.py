@@ -1,6 +1,6 @@
 """Goldreserven des Reiches, der Teilstaaten und der Zentralbank.
 
-Bestand in kg (gr_bestand je Stelle: 'reichskasse' Gold des Reiches – dazu gehören die Freien Reichsgebiete, die kein Teilstaat sind –,
+Bestand in kg (gr_bestand je Stelle: 'reichskasse' Gold des Reiches – dazu gehören die Reichsunmittelbaren Territorien, die kein Teilstaat sind –,
 'ts-<sid>' Staatskasse eines Teilstaats, 'zentralbank' Ankäufe der Zentralbank);
 jede Bewegung in gr_buchungen. Erstausstattung: werkzeuge/goldreserven.py (Goldbestände der Nationalbanken nach World Gold Council,
 anteilig nach dem BIP-Anteil der Gebiete am jeweiligen Land).
@@ -153,7 +153,7 @@ async def seite(request, k):
     namen = {r["stelle"]: r["name"] for r in rows}
     bew = con.execute("SELECT * FROM gr_buchungen WHERE art!='erstausstattung' ORDER BY id DESC LIMIT 30").fetchall()
     inhalt = (f'<h1>{amt.ic("coins")} Goldreserven</h1>{amt.meldung(request)}'
-              '<p class="az">Goldbestände des Reiches (Reichskasse, einschließlich der Freien Reichsgebiete), der Teilstaaten und der Zentralbank. '
+              '<p class="az">Goldbestände des Reiches (Reichskasse, einschließlich der Reichsunmittelbaren Territorien), der Teilstaaten und der Zentralbank. '
               'Ausgangsbestand nach den Goldreserven der Nationalbanken, anteilig nach der Wirtschaftsleistung der Gebiete.</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>{handel}'
               '<h2>Bestände</h2>' + amt.tabelle(["Halter", "Bestand", "Wert", "Anteil"], zeilen, "Noch keine Goldreserven.") + preisform

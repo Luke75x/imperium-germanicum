@@ -5,17 +5,24 @@ import os
 
 DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wappen_staaten")
 URL = "/schatzamt/wappen/"
+ALIAS = {"s2": "reich"}   # die Reichsunmittelbaren Territorien (Karten-ID s2) sind das Reich: Reichswappen
+
+
+def datei(sid):
+    sid = str(sid or "")
+    if sid.startswith("ts-"):
+        sid = sid[3:]
+    return ALIAS.get(sid, sid)
 
 
 def vorhanden(sid):
+    sid = datei(sid)
     return bool(sid) and str(sid).isalnum() and os.path.isfile(os.path.join(DIR, f"{sid}.png"))
 
 
 def klein(sid, name="", hoehe=18):
     """<img> in Tabellenhöhe (leer, wenn es kein Wappen gibt). sid: Karten-ID „s6“ oder Zielschlüssel „ts-s6“."""
-    sid = str(sid or "")
-    if sid.startswith("ts-"):
-        sid = sid[3:]
+    sid = datei(sid)
     if not vorhanden(sid):
         return ""
     return (f'<img src="{URL}{sid}.png" alt="" title="Wappen {html.escape(name)}" loading="lazy" '
