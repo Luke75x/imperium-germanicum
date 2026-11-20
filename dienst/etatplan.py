@@ -443,12 +443,20 @@ def bereitschaft_wirkung(con, periode=None):
 ZUF_GEWICHTE = {"soziales": 24, "gesundheit": 20, "bildung": 12, "innere_sicherheit": 12, "kultur": 8, "umwelt": 8, "transport": 6,
                 "landwirtschaft": 5, "industrie": 3, "forschung": 2, "infrastruktur": 8, "verteidigung": 0}
 ZUF_TRAEGHEIT = 0.5
+ZUF_BONUS_PT, ZUF_MALUS_PT = 5.0, 15.0   # Bonus auf ein Politikfeld hebt dessen Note um bis zu 5 Punkte, ein Malus senkt sie um bis zu 15 (Stärke wie bei den Boni/Mali)
 ZUF_STUFEN = [(85, "Sehr zufrieden"), (70, "Zufrieden"), (55, "Gespalten"), (40, "Unzufrieden"), (0, "Unruhen")]
 ZUF_WIRKUNG = {"bonus_ab": 85, "bonus": 0.5, "malus_ab": 55, "malus_je_punkt": 0.15, "malus_max": 4.0}
 
 
 def zuf_teilnote(e):
-    return 100.0 * (1 - math.exp(-1.6 * max(0.0, e)))
+    """Note 0–100 aus der Erfüllung e (Anteil ÷ Richtwert) plus Bonus bzw. Malus des Politikfelds (_stufe)."""
+    note = 100.0 * (1 - math.exp(-1.6 * max(0.0, e)))
+    stufe, st = _stufe(e)
+    if stufe == "bonus":
+        note += ZUF_BONUS_PT * st
+    elif stufe == "malus":
+        note -= ZUF_MALUS_PT * st
+    return max(0.0, min(100.0, note))
 
 
 def zuf_ziel(anteile, richt):
@@ -913,17 +921,19 @@ var D=JSON.parse(document.getElementById("ep-daten").textContent),Z=D.zuf;if(!Z|
 function zahl(v,s){return v.toLocaleString("de-DE",{minimumFractionDigits:s||0,maximumFractionDigits:s||0})}
 function stufe(w){for(var i=0;i<Z.stufen.length;i++)if(w>=Z.stufen[i][0])return [Z.stufen[i][1],Z.stufen.length-i];return ["",1]}
 function effekt(w){var x=Z.wirkung;if(w>=x.bonus_ab)return x.bonus;if(w<x.malus_ab)return -Math.min(x.malus_max,(x.malus_ab-w)*x.malus_je_punkt);return 0}
+function bm(e){var q=D.wk.grenzen;if(e<q.malus_ab)return -Z.malus*Math.min(1,(q.malus_ab-e)/(q.malus_ab-q.malus_voll));if(e<q.bonus_ab)return 0;if(e<=q.bonus_bis)return Z.bonus;if(e<q.saettigung)return Z.bonus*(q.saettigung-e)/(q.saettigung-q.bonus_bis);return 0}
+function nf(e){e=Math.max(0,e);return Math.max(0,Math.min(100,100*(1-Math.exp(-1.6*e))+bm(e)))}
 function rechnen(){
  var a={};[].forEach.call(document.querySelectorAll("input[type=number][data-kat]"),function(f){a[f.dataset.kat]=parseFloat(String(f.value).replace(",","."))||0});
  D.kategorien.forEach(function(k){if(!(k.id in a))a[k.id]=k.anteil});var S=0;for(var q in a)S+=a[q];if(S>0)for(var q in a)a[q]=a[q]*100/S;
  var s=0,g=0;Object.keys(Z.gewichte).forEach(function(k){var gw=Z.gewichte[k],r=D.wk.richt[k]||0;if(!gw||r<0.05)return;
-  var n=100*(1-Math.exp(-1.6*Math.max(0,a[k]/r)));s+=n*gw;g+=gw;
+  var n=nf(a[k]/r);s+=n*gw;g+=gw;
   var z=document.querySelector('[data-zf="'+k+'"]');if(z){z.querySelector("i").style.width=n.toFixed(1)+"%";z.querySelector(".zf-note").textContent=zahl(n)}});
  var ziel=g?s/g:0;if(Z.off===undefined)Z.off=Z.ziel0-ziel;ziel=Math.max(0,Math.min(100,ziel+Z.off));var neu=Z.alt===null?ziel:Z.alt+(ziel-Z.alt)*Z.traegheit,e=effekt(neu);
  var ges=Z.gew?Z.rest+Z.gew*neu:neu;ges=Math.max(0,Math.min(100,ges));var st=stufe(ges);
  var k=document.getElementById("zf-kopf");k.className="zf-kopf zf-s"+st[1];
  (function(){var G=0,M={},keys=Object.keys(Z.gewichte).filter(function(k){return Z.gewichte[k]&&(D.wk.richt[k]||0)>=0.05});keys.forEach(function(k){G+=Z.gewichte[k]});
-  keys.forEach(function(k){var r=D.wk.richt[k],e=a[k]/r,n=100*(1-Math.exp(-1.6*e)),m=Z.gew*(Z.gewichte[k]/G)*160*Math.exp(-1.6*e)/r;M[k]=m;
+  keys.forEach(function(k){var r=D.wk.richt[k],e=a[k]/r,n=nf(e),m=Z.gew*(Z.gewichte[k]/G)*(nf((a[k]+1)/r)-nf(e));M[k]=m;
    var tr=document.querySelector('tr[data-hb="'+k+'"]');if(tr){tr.querySelector(".hb-a").textContent=zahl(a[k],1)+" %";tr.querySelector(".hb-n").textContent=zahl(n);tr.querySelector(".hb-m").textContent="+"+zahl(m,2);tr.className=""}});
   var rk=keys.slice().sort(function(x,y){return M[y]-M[x]}),kann=rk.filter(function(k){return a[k]>0.4}).reverse();
   rk.slice(0,3).forEach(function(k){var tr=document.querySelector('tr[data-hb="'+k+'"]');if(tr)tr.className="hb-top"});
@@ -962,7 +972,7 @@ def zuf_gesamt_teil(g, z):
 
 def zuf_daten(z, g=None, basis=None):
     gw, rest = zuf_gesamt_teil(g, z) if g else (0, 0)
-    return {"ziel0": z["ziel"], "gew": gw, "rest": rest, "basis": basis if basis is not None else (g["wert"] if g else z["neu"]), "gewichte": ZUF_GEWICHTE, "alt": z["alt"], "stufen": ZUF_STUFEN, "wirkung": ZUF_WIRKUNG, "traegheit": ZUF_TRAEGHEIT}
+    return {"bonus": ZUF_BONUS_PT, "malus": ZUF_MALUS_PT, "ziel0": z["ziel"], "gew": gw, "rest": rest, "basis": basis if basis is not None else (g["wert"] if g else z["neu"]), "gewichte": ZUF_GEWICHTE, "alt": z["alt"], "stufen": ZUF_STUFEN, "wirkung": ZUF_WIRKUNG, "traegheit": ZUF_TRAEGHEIT}
 
 
 def _gesamt_teile(g):
@@ -970,12 +980,12 @@ def _gesamt_teile(g):
     zeilen = "".join(f'<tr><td>{esc(p["name"])}</td><td class="bar">{zuf_balken(p["score"])}</td><td class="num">{_de(p["score"], 0)}</td><td class="num">{_de(p["gewicht"] * 100, 0)} %</td></tr>'
                      for p in sorted(g["teile"], key=lambda p: -p["gewicht"]))
     pf = {"steigend": "steigt", "fallend": "sinkt", "stabil": "bleibt stabil"}[g["trend"]]
-    return (f'<details class="sa-auf" open><summary>{amt.ic("chart-column")}Woraus die Bevölkerungszufriedenheit besteht</summary>'
+    return (f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Woraus die Bevölkerungszufriedenheit besteht</summary>'
             '<table class="zf-tab"><thead><tr><th>Teil</th><th>Stand</th><th class="num">Note</th><th class="num">Gewicht</th></tr></thead>'
             f'<tbody>{zeilen}</tbody></table><p class="zf-meta">Prognose bei gleichem Etat: in 3 Monaten {_de(g["prognose3"], 0)}, auf Dauer {_de(g["langfristig"], 0)} ({pf}).</p></details>')
 
 
-ZUF_HINWEISE = {"zufriedenheit": "Etat auf die gewichtigen Politikfelder verteilen (Tabelle unten)",
+ZUF_HINWEISE = {"zufriedenheit": "Etat auf die gewichtigen Politikfelder verteilen; Boni auf Politikfelder heben, Mali senken die Note (Tabelle unten)",
                 "wohlstand": "Bildung, Forschung, Industrie und Infrastruktur heben das BIP pro Kopf – wirkt langsam über Monate",
                 "versorgung": "Gesundheit, Landwirtschaft und Umwelt (Wasser) halten die Grundversorgung oben",
                 "sicherheit": "Innere Sicherheit stärken, aber nicht übertreiben (zu viel erzeugt Überwachung)",
@@ -994,7 +1004,7 @@ def planhilfe_html(richt, g):
             f'<tr><td>{esc(p["name"])}<br><small class="zf-meta">{esc(ZUF_HINWEISE.get(p["schluessel"], ""))}</small></td><td class="bar">{zuf_balken(p["score"])}</td>'
             f'<td class="num">{_de(p["score"], 0)}</td><td class="num">{_de(p["gewicht"] * 100, 0)} %</td><td class="num">+{_de((100 - p["score"]) * p["gewicht"], 1)}</td></tr>'
             for p in sorted(g["teile"], key=lambda p: -(100 - p["score"]) * p["gewicht"]))
-        teile = (f'<details class="sa-auf" open><summary>{amt.ic("chart-column")}Wo ist noch Luft nach oben?</summary>'
+        teile = (f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Wo ist noch Luft nach oben?</summary>'
                  '<table class="zf-tab"><thead><tr><th>Teil der Zufriedenheit</th><th>Stand</th><th class="num">Note</th><th class="num">Gewicht</th><th class="num" title="Punkte, die die Gesamtzufriedenheit bei Note 100 noch gewinnen könnte">Spielraum</th></tr></thead>'
                  f'<tbody>{zeilen}</tbody></table></details>')
     felder = sorted(((k, ZUF_GEWICHTE[k]) for k, _ in KATEGORIEN if ZUF_GEWICHTE.get(k) and float(richt.get(k, 0)) >= 0.05), key=lambda t: -t[1])
@@ -1002,7 +1012,7 @@ def planhilfe_html(richt, g):
                     for k, gw in felder)
     return (f'<div class="zf-skala2"><div class="zf-skala-leiste">{stufen}</div><div class="zf-skala">{marken}</div></div>'
             '<p class="zf-meta" id="zv-stufe"></p>' + teile
-            + f'<details class="sa-auf" open><summary>{amt.ic("scale")}Welches Politikfeld bringt am meisten?</summary>'
+            + f'<details class="sa-auf"><summary>{amt.ic("scale")}Welches Politikfeld bringt am meisten?</summary>'
               '<p class="zf-meta">„Gewinn“ zeigt, wie viele Punkte die Gesamtzufriedenheit (auf Dauer) mit einem Prozentpunkt mehr Etat für dieses Feld gewinnt. '
               'Mehr Geld bringt immer weniger: Felder über ihrem Richtwert gewinnen kaum noch, unter dem Richtwert viel.</p><p class="zf-tipp" id="zv-tipp"></p>'
               '<table class="zf-tab" id="zf-hebel"><thead><tr><th>Politikfeld</th><th class="num">Anteil</th><th class="num">Richtwert</th><th class="num">Note</th><th class="num">Gewicht</th>'
@@ -1031,13 +1041,13 @@ def zuf_html(z, verlauf, reich=False, interaktiv=True, g=None):
     return (ZUF_CSS + f'<section class="zf" id="zf"><h2>{amt.ic("users")} Bevölkerungszufriedenheit</h2>'
             f'<p class="az">Wie zufrieden ist die Bevölkerung {"der Reichsunmittelbaren Territorien mit dem Reich" if reich else "mit ihrer Regierung"}? '
             'Es gibt nur diese eine Skala (0–100). Sie rechnet alles zusammen: die Investitionen in die Politikfelder, die Haushaltsführung, die Haushaltslage, '
-            'Wohlstand, Versorgung, Sicherheit und die Bevölkerungsentwicklung. Die Stimmung ändert sich nicht sofort: je gebuchtem Monat legt der Politikfeld-Anteil die Hälfte des Weges zum Zielwert zurück. '
+            'Wohlstand, Versorgung, Sicherheit und die Bevölkerungsentwicklung. Ein Bonus auf ein Politikfeld wirkt positiv auf die Zufriedenheit, ein Malus negativ. Die Stimmung ändert sich nicht sofort: je gebuchtem Monat legt der Politikfeld-Anteil die Hälfte des Weges zum Zielwert zurück. '
             f'Die Politikfelder wirken außerdem auf das Steueraufkommen: ab {w["bonus_ab"]} Punkten +{_de(w["bonus"])} %, unter {w["malus_ab"]} Punkten '
             f'(je Punkt {_de(w["malus_je_punkt"], 2)} %, höchstens {_de(w["malus_max"])} %) weniger.</p>' + kopf
             + (_gesamt_teile(g) if g else "")
             + f'<details class="sa-auf"><summary>{amt.ic("chart-column")}Politikfelder und Investitionen im Einzelnen</summary>'
               '<table class="zf-tab"><thead><tr><th>Politikfeld</th><th>Teilnote</th><th class="num">Note</th><th class="num">Gewicht</th></tr></thead>'
-              f'<tbody>{teile}</tbody></table><p class="zf-meta">Teilnote: 80 bei genau dem Richtwert, mehr Geld bringt immer weniger zusätzliche Zufriedenheit. '
+              f'<tbody>{teile}</tbody></table><p class="zf-meta">Teilnote: 80 bei genau dem Richtwert, mehr Geld bringt immer weniger zusätzliche Zufriedenheit. Ein Bonus auf das Politikfeld hebt die Note um bis zu 5 Punkte, ein Malus senkt sie um bis zu 15. '
               'Verteidigung zählt nicht.</p></details></section>')
 
 
@@ -1533,7 +1543,7 @@ async def statistiken(request, k):
 
     def abschnitt(titel, symbol, html, offen=False):
         return f'<details class="sa-auf st-kat"{" open" if offen else ""}><summary>{amt.ic(symbol)}{esc(titel)}</summary>{html}</details>'
-    teile = [("Etatverteilung der Haushalte", "chart-pie", vergleich_html(liste, ziele_l, mark_s, con, pfad), True),
+    teile = [("Etatverteilung der Haushalte", "chart-pie", vergleich_html(liste, ziele_l, mark_s, con, pfad), False),
              ("Haushaltsführung", "landmark", hf_tabelle(liste, ziele_l, pfad, mark_s), False),
              ("Bevölkerungszufriedenheit", "users", zuf_tabelle(liste, ziele_l, pfad, mark_s, con), False),
              ("Entwicklung", "users", entwicklung.tabelle(liste, ziele_l, pfad, mark_s, con), False),
