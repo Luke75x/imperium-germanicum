@@ -966,6 +966,11 @@ def zuf_html(z, verlauf, reich=False, interaktiv=True):
               'Verteidigung zählt nicht.</p></details></section>')
 
 
+def _wk(s, n):
+    import wappen
+    return wappen.klein(s, n)
+
+
 def zuf_tabelle(liste, ziel_liste, pfad, markiert=""):
     """Zufriedenheit aller Haushalte (öffentlich)."""
     zeilen = []
@@ -974,7 +979,7 @@ def zuf_tabelle(liste, ziel_liste, pfad, markiert=""):
             z, n = liste[0]["zufriedenheit_reich"], "Freie Reichsgebiete (Reich)"
         else:
             z = next(x for x in liste if "ts-" + x["staat"] == s)["zufriedenheit_land"]
-        zeilen.append((z["neu"], f'<tr{" class=fokus" if s == markiert else ""}><td><a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td><td class="bar">{zuf_balken(z["neu"])}</td>'
+        zeilen.append((z["neu"], f'<tr{" class=fokus" if s == markiert else ""}><td>{_wk(s, n)}<a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td><td class="bar">{zuf_balken(z["neu"])}</td>'
                                  f'<td class="num">{_de(z["neu"], 0)}</td><td class="num">{esc(z["stufe"])}</td></tr>'))
     reichsweit = zuf_reichsweit(liste)
     return (f'<p class="zf-meta">Im ganzen Reich (nach Einwohnern gewichtet): <b>{_de(reichsweit, 0)} / 100 – {esc(zuf_stufe(reichsweit))}</b></p>'
@@ -988,7 +993,7 @@ def hf_tabelle(liste, ziel_liste, pfad, markiert=""):
     for s, n in ziel_liste:
         hf = haushaltsfuehrung(liste, s)
         art = f'{_de(hf)} % gespart' if hf > 0.05 else f'{_de(-hf)} % entnommen' if hf < -0.05 else "ausgeglichen"
-        zeilen.append((hf, f'<tr{" class=fokus" if s == markiert else ""}><td><a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td>'
+        zeilen.append((hf, f'<tr{" class=fokus" if s == markiert else ""}><td>{_wk(s, n)}<a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td>'
                            f'<td class="num">{esc(art)}</td></tr>'))
     return ('<p class="zf-meta">Rücklage in Prozent des eigenen Steueranteils: plus = gespart, minus = zusätzlich aus der Kasse ausgegeben.</p>'
             '<table class="zf-tab"><thead><tr><th>Haushalt</th><th class="num">Rücklage</th></tr></thead><tbody>'

@@ -14,7 +14,8 @@ import os
 
 esc = amt.esc
 PFAD = sa.PFAD + "teilstaat/"
-WAPPEN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wappen_staaten")   # <Karten-ID, z. B. s6>.png, Reihenfolge/Zuordnung siehe Memory teilstaat-wappen
+import wappen as _w
+WAPPEN_DIR = _w.DIR   # <Karten-ID, z. B. s6>.png, Reihenfolge/Zuordnung siehe Memory teilstaat-wappen
 
 
 def wappen_html(sid, name=""):

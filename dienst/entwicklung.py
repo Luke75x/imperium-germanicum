@@ -632,7 +632,7 @@ def tabelle(liste, ziel_liste, pfad, markiert="", con=None):
         if con is not None:
             import krisen
             flags += [f'Krise: {krisen.KRISEN[a]["name"]}' for a in krisen.offene_arten(con, s)]
-        zeilen.append((d["hdi"], f'<tr{" class=fokus" if s == markiert else ""}><td><a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td>'
+        zeilen.append((d["hdi"], f'<tr{" class=fokus" if s == markiert else ""}><td>{__import__("wappen").klein(s, n)}<a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td>'
                                  f'<td class="num">{_de(d["hdi"], 3)}</td><td class="num">{_vz(d["bev_pp"] * 12)}</td>'
                                  f'<td class="num">{rk_text(con, liste, s)}</td>'
                                  f'<td class="num" style="white-space:normal;max-width:240px">{esc(", ".join(flags)) if flags else "–"}</td></tr>'))

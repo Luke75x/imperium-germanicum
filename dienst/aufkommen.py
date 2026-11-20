@@ -460,7 +460,7 @@ def tabelle_html(liste):
                                                  if not x["reichsgebiet"] and x["reich_theorie"] > x["reich"] else "")
         if NEUE_TABELLE:   # kompakt: Kennzahlen des Gebiets in eine Zeile, „frei“ unter „bleibt“
             frei = geld.mark_kurz(x["land"] - x["ausgaben_land"] - x["vert_land"]) if x["land"] else "–"
-            zeilen.append((f'<b>{esc(_gebiet(x["staat"], x["name"]))}</b><br><span class="az">{_ew(x["ew"])} Einw. · {_zahl(kopf)} € je Kopf · {_zahl(x["km2"])} km²</span>',
+            zeilen.append((f'{__import__("wappen").klein(x["staat"], x["name"])}<b>{esc(_gebiet(x["staat"], x["name"]))}</b><br><span class="az">{_ew(x["ew"])} Einw. · {_zahl(kopf)} € je Kopf · {_zahl(x["km2"])} km²</span>',
                            quote, geld.mark_kurz(x["summe"]), an_reich,
                            (geld.mark_kurz(x["land"]) + f'<br><span class="az" title="Nach Pflichtausgaben (¹)">davon frei¹ {frei}</span>') if x["land"] else "–"))
             continue
