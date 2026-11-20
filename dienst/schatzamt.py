@@ -272,10 +272,12 @@ def zur_finanz_seite(request, k, con, ziel, abschnitt):
         raise web.HTTPFound(f"{PFAD}teilstaat/finanzen/?ziel={ziel}" + ("&" + q if q else "") + "#" + abschnitt)
 
 
-UNTERTAB_JS = """<script>(function(){var w=document.currentScript.previousElementSibling;if(!w)return;var l=[].slice.call(w.querySelectorAll('.ts-nav a')),t=[].slice.call(w.querySelectorAll('.ts-tabteil'));
+UNTERTAB_JS = """<script>(function(){var w=document.currentScript.previousElementSibling;if(!w)return;
+var K=[].slice.call(w.children),nv=K.filter(function(e){return e.classList.contains('ts-nav')})[0],l=nv?[].slice.call(nv.querySelectorAll('a')):[],t=K.filter(function(e){return e.classList.contains('ts-tabteil')});
 function z(id){var f=false;t.forEach(function(e){var a=e.id==='t-'+id;e.hidden=!a;f=f||a});l.forEach(function(a){var on=a.getAttribute('data-t')===id;a.classList.toggle('aktiv',on&&f);if(on&&f)a.setAttribute('aria-current','true');else a.removeAttribute('aria-current')});return f}
 l.forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();var id=a.getAttribute('data-t');z(id);try{history.replaceState(null,'','#'+id)}catch(x){}})});
-var h=(location.hash||'').slice(1);if(!h||!z(h))z(l.length?l[0].getAttribute('data-t'):'')})();</script>"""
+var h=(location.hash||'').slice(1),el=h?document.getElementById('t-'+h):null,p=el?t.filter(function(e){return e!==el&&e.contains(el)})[0]:null;
+if(!h||!z(h))z(p?p.id.slice(2):(l.length?l[0].getAttribute('data-t'):''))})();</script>"""
 
 
 def untertabs(teile):
