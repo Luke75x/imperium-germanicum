@@ -652,6 +652,9 @@ def _gewaehlt(request, k, con, liste):
     ziel = request.query.get("ziel", "")
     if ziel not in gueltig:
         ziel = "ts-" + next(iter(regiert)) if regiert else "reich"
+    ziele = sa.bereich_ziele(con, k, ziele, ziel)   # Reichshaushalt nur Reich, Mein Teilstaat nur die eigenen Teilstaaten
+    if ziel not in dict(ziele):
+        ziel = ziele[0][0]
     return ziel, ziele
 
 

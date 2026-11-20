@@ -245,15 +245,16 @@ async def statistiken(request, k):
         raise web.HTTPFound(PFAD)
     con, regiert, sid, schl, kasse = kp
     liste = aufkommen.berechnen(con, periode=etatplan.monat_heute())
-    ziele = etatplan.ziele(con, liste)
+    ziele = [z for z in etatplan.ziele(con, liste) if z[0] != "reich"]   # Mein Teilstaat kennt nur Teilstaaten; das Reich hat seine eigene Verwaltung (Reichshaushalt)
+    liste = [x for x in liste if not x["reichsgebiet"]]
     pfad = sa.PFAD + "etatuebersicht/"
     teile = [("etat", "chart-pie", "Etat", etatplan.vergleich_html(liste, ziele, schl, con), False),
              ("entwicklung", "users", "Entwicklung", entwicklung.tabelle(liste, ziele, pfad, schl, con), False),
-             ("energie", "zap", "Energie", energie.vergleich_html(con).replace("<details class=", "<details open class=", 1), False),
+             ("energie", "zap", "Energie", energie.vergleich_html(con, ohne_reich=True).replace("<details class=", "<details open class=", 1), False),
              ("abgabe", "landmark", "Reichsabgabe", aufkommen.tabelle_html(liste), False)]
     name = esc(kasse["name"].replace("Staatskasse ", ""))
     inhalt = (etatplan.CSS + etatplan.ZUF_CSS + entwicklung.CSS + energie.CSS + kopf_mit_wappen(f'<h1>{amt.ic("chart-column")} Statistiken · {name}</h1>', sid, name) + amt.meldung(request)
-              + '<p class="az">Allgemeine Vergleiche aller Haushalte: Wie steht der eigene Teilstaat im Verhältnis zu den anderen? Ihr Teilstaat ist jeweils hervorgehoben.</p>'
+              + '<p class="az">Allgemeine Vergleiche aller Teilstaaten: Wie steht der eigene Teilstaat im Verhältnis zu den anderen? Ihr Teilstaat ist jeweils hervorgehoben.</p>'
               + _abschnitte(None, teile))
     return sa.ant(request, k, "Statistiken", "sa-ts-stat", inhalt)
 

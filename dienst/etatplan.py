@@ -1034,7 +1034,8 @@ def zuf_tabelle(liste, ziel_liste, pfad, markiert="", con=None):
         zeilen.append((wert, f'<tr{" class=fokus" if s == markiert else ""}><td>{_wk(s, n)}<a href="{pfad}?ziel={esc(s)}">{esc(n)}</a></td><td class="bar">{zuf_balken(wert)}</td>'
                              f'<td class="num">{_de(wert, 0)}</td><td class="num">{esc(stufe)}</td></tr>'))
     reichsweit = zuf_reichsweit(liste, con)
-    return (f'<p class="zf-meta">Im ganzen Reich (nach Einwohnern gewichtet): <b>{_de(reichsweit, 0)} / 100 – {esc(zuf_stufe(reichsweit))}</b></p>'
+    wo = "Im ganzen Reich" if any(s == "reich" for s, _ in ziel_liste) else "In allen Teilstaaten"
+    return (f'<p class="zf-meta">{wo} (nach Einwohnern gewichtet): <b>{_de(reichsweit, 0)} / 100 – {esc(zuf_stufe(reichsweit))}</b></p>'
             '<table class="zf-tab"><thead><tr><th>Haushalt</th><th>Bevölkerungszufriedenheit</th><th class="num">Wert</th><th class="num">Stimmung</th></tr></thead><tbody>'
             + "".join(z for _, z in sorted(zeilen, key=lambda t: -t[0])) + '</tbody></table>')
 
@@ -1083,6 +1084,9 @@ async def _seite(request, k, planung):
     ziel = request.query.get("ziel", "")
     if ziel not in gueltig:
         ziel = next((s for s in eigene if s in gueltig), ziel_liste[0][0] if planung else "reich")
+    ziel_liste = sa.bereich_ziele(con, k, ziel_liste, ziel)   # Reichshaushalt nur Reich, Mein Teilstaat nur die eigenen Teilstaaten
+    if ziel not in dict(ziel_liste):
+        ziel = ziel_liste[0][0]
     name = dict(ziel_liste)[ziel]
     ent = entwurf(con, ziel) if planung else None
     eing = eingereicht(con, ziel) if planung else None
@@ -1264,8 +1268,6 @@ async def _seite(request, k, planung):
                    + (demote(entwicklung.kurz_html(entw_d, f"{sa.PFAD}entwicklung/?ziel={ziel}", None, True)) if reich else land_link))
     tab_aend = amt.tabelle(["Zeit", "Durch", "Änderung"], [(amt._zeit(v["zeit"]), esc(v["autor_name"]), esc(v["text"])) for v in verlauf], "Noch keine Änderungen.")
     tabs = [("verteilung", "Verteilung", tab_verteilung), ("wirkung", "Wirkung", tab_wirkung)]
-    if not planung and sa._reiter_kontext(request, k, con, "sa-etatverteilung")[0] != "ts":   # Mein Teilstaat: Vergleiche stehen im Reiter „Statistiken“
-        tabs.append(("vergleich", "Vergleich", vergleich_html(liste, ziel_liste, ziel, con)))
     tabs.append(("aenderungen", f"Änderungen ({len(verlauf)})", tab_aend))
     inhalt = (CSS + f'<h1>{amt.ic("pencil" if planung else "chart-pie")} {titel} · {esc(name)}</h1>{amt.meldung(request)}'
               f'<p class="az">Wie viel vom Ausgabenbudget fließt in welches Politikfeld? Das Tortendiagramm zeigt den gesamten Monatsetat im {esc(sa._monatsname(ab))}.</p>'

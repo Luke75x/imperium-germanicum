@@ -248,6 +248,14 @@ def _regierte(con, k):
     return k["_sa_regiert"]
 
 
+def bereich_ziele(con, k, ziele, ziel):
+    """Haushaltsauswahl einer Seite: Reichshaushalt (ziel = reich) kennt nur das Reich, Mein Teilstaat nur die selbst regierten Teilstaaten. ziele = [(Schlüssel, Name)]."""
+    if ziel == "reich":
+        return [z for z in ziele if z[0] == "reich"]
+    reg = _regierte(con, k)
+    return [z for z in ziele if z[0] != "reich" and z[0][3:] in reg] or [z for z in ziele if z[0] == "reich"]
+
+
 def zur_land_seite(request, k, con, ziel, abschnitt):
     """Entwicklung, Energie und Krisen eines regierten Teilstaats liegen auf einer Seite (Reiter „Land“)."""
     if ziel.startswith("ts-") and ziel[3:] in _regierte(con, k):

@@ -673,15 +673,17 @@ def _auf(titel, inhalt, symbol="clock"):
     return f'<details class="sa-auf"><summary>{amt.ic(symbol)}{esc(titel)}</summary>{inhalt}</details>'
 
 
-def vergleich_html(con, ziel=""):
+def vergleich_html(con, ziel="", ohne_reich=False):
     """Vergleich aller Haushalte (eingeklappt); auch im Reiter „Statistiken“ bei Mein Teilstaat."""
     reihen = []
     for s, n in _ziele(con):
+        if ohne_reich and s == "reich":
+            continue
         c = bilanz(con, s)
         reihen.append((c["v_ges"], s, n, c))
     reihen.sort(key=lambda r: (r[0], r[2]))
     vgl = [(f'{__import__("wappen").klein(s, n)}<a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a>', gwh_text(c["bedarf"]), gwh_text(c["angebot"]), f'{_de(v * 100, 0)} %{ueberschuss_pz(c)}', f'{_de(c["erneuerbar"], 0)} %') for v, s, n, c in reihen]
-    return _auf("Vergleich aller Haushalte", amt.tabelle(["Haushalt", "Bedarf", "Erzeugung", "Versorgung", "Erneuerbare"], vgl, klasse="ee-tab"), "landmark")
+    return _auf("Vergleich aller Teilstaaten" if ohne_reich else "Vergleich aller Haushalte", amt.tabelle(["Haushalt", "Bedarf", "Erzeugung", "Versorgung", "Erneuerbare"], vgl, klasse="ee-tab"), "landmark")
 
 
 def _seitenhtml(request, k, con, ziel, eingebettet=False):
@@ -746,7 +748,6 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
     diag = _verlauf_svg([(r["periode"], r["angebot"], r["bev"] + r["ind"] + r["mil"] + r["ver"]) for r in reversed(vl)])
     vz = [(esc(sa._monatsname(r["periode"])), gwh_text(r["angebot"]), gwh_text(r["bev"] + r["ind"] + r["mil"] + r["ver"]), f'{_de(r["v_ges"] * 100, 0)} %') for r in vl]
     verlauf_html = _auf(f"Verlauf ({len(vl)} Monate)", diag + amt.tabelle(["Monat", "Erzeugung", "Bedarf", "Versorgung"], vz, "Noch kein gebuchter Monat.", klasse="ee-tab"))
-    vgl_html = vergleich_html(con)
     s_ = b["einstellung"]
     info = _auf("So funktioniert es",
                 '<p class="sa-hinweis">Die Bevölkerung verbraucht pauschal Energie, Industrie und Veredelung brauchen sie, das Militär nur wenig. Bei Knappheit wird zuerst die Bevölkerung versorgt, '
@@ -756,12 +757,12 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
                 'sie läuft nur, solange noch Energie frei ist. Veredelte Erzeugnisse im Lager geben bis zum Monatsende Boni (Treibstoff: bis +100 % Energie, Aluminium: bis +100 % Effizienz der Industrie, Stahl: bis −10 % Rüstungspreise); '
                 'die Richtmenge verbraucht der Monatswechsel, Überschuss lässt sich verkaufen, Zukauf zählt genauso. Der Bau wird sofort aus der Kasse bezahlt, aber nur, soweit der frei verfügbare Industrie-Etat reicht; Instandhaltung und Bau verringern, was der Industrie selbst bleibt. Kohle-, Gas-, Öl- und Kernkraftwerke brauchen ein Vorkommen (Braunkohle, Erdgas, Erdöl, Uran) im Gebiet. Überschüsse lassen sich am Energiemarkt verkaufen; '
                 'wer unter 60 % versorgt ist, darf dort zukaufen. Stilllegungen und Sätze legt die RP-Leitung fest.</p>', "info" if "info" in amt.ICONS else "clock")
-    gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in _ziele(con))
+    gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in sa.bereich_ziele(con, k, _ziele(con), ziel))
     if eingebettet:   # Abschnitt der Seite „Land“ (teilstaat.py): ohne Überschrift, Meldung und Haushaltsauswahl
         return entwicklung.CSS + CSS + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info
     return (entwicklung.CSS + CSS + f'<h1>{amt.ic("zap")} Energie · {esc(name)}</h1>{amt.meldung(request)}'
             f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div></form>'
-            + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + vgl_html + info)
+            + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info)
 
 
 @sa.seite("staat")
@@ -802,7 +803,7 @@ async def markt(request, k):
     ge = con.execute("SELECT * FROM en_geschaefte WHERE periode=? ORDER BY id DESC LIMIT 30", (b["periode"],)).fetchall()
     ge_html = _auf("Geschäfte in diesem Monat", amt.tabelle(["Zeit", "Verkäufer", "Käufer", "Menge", "Summe"], [(esc(amt._zeit(g["zeit"])), esc(namen.get(g["verkaeufer"], "")), esc(namen.get(g["kaeufer"], "")),
                                                                                                                     gwh_text(g["menge"]), geld.mark(g["summe"])) for g in ge], "Noch keine Geschäfte."))
-    gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in _ziele(con))
+    gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in sa.bereich_ziele(con, k, _ziele(con), ziel))
     inhalt = (CSS + f'<h1>{amt.ic("arrow-right-left")} Energiemarkt · {esc(namen[ziel])}</h1>{amt.meldung(request)}'
               f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div></form>'
               + kopf + hinweis + "<h2>Angebote</h2>" + tabelle + anbieten_html + ge_html + f'<p><a href="{PFAD}?ziel={esc(ziel)}">Zurück zu Energie</a></p>')
