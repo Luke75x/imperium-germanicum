@@ -52,6 +52,7 @@ geld.VORGABEN.setdefault("energie", {
     "mil_mwh_je_geraet": 8,       # MWh je Militärgerät und Monat
     "ver_stahl": 2.0, "ver_aluminium": 15.0, "ver_treibstoff": 0.6,   # MWh je Tonne Erzeugnis (Veredelung)
     "zuf_max": 45, "infra_max": 60, "ind_max": 70,   # größte Abzüge (Zufriedenheit in Punkten, Zielwerte der Indikatoren, Industrie)
+    "leistung_faktor": 120,       # % der Tabellenleistung aller Kraftwerke, auch der bestehenden (20.11.2026: +20 %; Instandhaltung bleibt auf der Tabellenleistung)
     "bau_faktor": 100,            # % der Baukosten
     "instand_faktor": 100,        # % der Instandhaltungssätze (Kr je erzeugter GWh, siehe INSTAND)
     "kauf_unter": 60,             # Versorgung in %, unter der am Energiemarkt gekauft werden darf
@@ -60,7 +61,7 @@ geld.VORGABEN.setdefault("energie", {
 SAETZE = [("haushalt_kwh", "Verbrauch je Einwohner (kWh/Monat)"), ("industrie_gwh_je_mio", "Industrie (GWh je Mio. € BIP)"), ("mil_mwh_je_geraet", "Militärgerät (MWh/Monat je Gerät)"),
           ("ver_stahl", "Veredelung Stahl (MWh/t)"), ("ver_aluminium", "Veredelung Aluminium (MWh/t)"),
           ("ver_treibstoff", "Veredelung Treibstoff (MWh/t)"), ("zuf_max", "Höchstabzug Zufriedenheit (Punkte)"), ("infra_max", "Höchstabzug Infrastruktur (Punkte)"),
-          ("ind_max", "Höchstabzug Industrie (Punkte)"), ("bau_faktor", "Baukosten (% der Tabelle)"), ("instand_faktor", "Instandhaltung (% der Tabelle)"),
+          ("ind_max", "Höchstabzug Industrie (Punkte)"), ("leistung_faktor", "Leistung aller Kraftwerke (% der Tabelle)"), ("bau_faktor", "Baukosten (% der Tabelle)"), ("instand_faktor", "Instandhaltung (% der Tabelle)"),
           ("kauf_unter", "Zukauf am Markt erlaubt unter Versorgung (%)"),
           ("richt_treibstoff", "Treibstoff für 100 % Bonus (t)"), ("richt_aluminium", "Aluminium für 100 % Bonus (t)"), ("richt_stahl", "Stahl für 100 % Bonus (t)")]
 BONUSWAREN = [("treibstoff", "Treibstoff"), ("aluminium", "Aluminium"), ("stahl", "Stahl")]
@@ -215,13 +216,19 @@ def kraftwerke(con, schl):
     return con.execute("SELECT * FROM en_kraftwerke WHERE schl=? ORDER BY typ, id", (schl,)).fetchall()
 
 
-def angebot(con, schl, periode):
-    """Erzeugung im Monat: Kraftwerke, die in Betrieb sind (Bauende erreicht) – {typ: GWh}."""
+def leistung(con):
+    """Leistungsfaktor aller Kraftwerke (Einstellung „leistung_faktor“, Vorgabe 120 %) als Multiplikator."""
+    return float(einstellungen(con)["leistung_faktor"]) / 100
+
+
+def angebot(con, schl, periode, nominal=False):
+    """Erzeugung im Monat: Kraftwerke, die in Betrieb sind (Bauende erreicht) – {typ: GWh}, mit dem Leistungsfaktor (nominal=True: Tabellenleistung, z. B. für die Instandhaltung)."""
     sichern(con, schl, periode)
+    f = 1.0 if nominal else leistung(con)
     out = {}
     for r in kraftwerke(con, schl):
         if not r["ab"] or r["ab"] <= periode:
-            out[r["typ"]] = out.get(r["typ"], 0.0) + float(r["gwh"])
+            out[r["typ"]] = out.get(r["typ"], 0.0) + float(r["gwh"]) * f
     return out
 
 
@@ -460,7 +467,7 @@ def lasten(con, schl, periode=None):
     import etatplan
     s = einstellungen(con)
     periode = periode or etatplan.monat_heute()
-    mix = angebot(con, schl, periode)
+    mix = angebot(con, schl, periode, nominal=True)   # Instandhaltung nach Tabellenleistung: mehr Leistung macht den Betrieb nicht teurer
     instand = int(round(sum(g * INSTAND.get(t, 0) for t, g in mix.items()) * float(s["instand_faktor"]) / 100 * 100))
     bau = bau_diesen_monat(con, schl, periode)
     return {"instand": instand, "bau": bau, "raten": bau, "summe": instand + bau}
@@ -535,7 +542,7 @@ def ausbauen(con, schl, typ, anzahl, k):
         raise geld.Fehler(f'Die {kc["name"]} ist nicht gedeckt: {anzahl} × {TYP[typ][1]} kosten {geld.mark(preis)}.')
     geld.buchen(con, kc["id"], geld.sonder(con, "volkswirtschaft")["id"], preis, "energie", f"Bau {anzahl} × {TYP[typ][1]}", k, bezug=f"ENERGIE-{schl}")
     con.execute("INSERT INTO en_kraftwerke (schl, typ, gwh, ab, bezahlt, von, zeit) VALUES (?,?,?,?,?,?,?)", (schl, typ, gwh, "", preis, k["name"], int(time.time())))
-    geld.protokoll(con, k, "Energie: Ausbau", f"{_name(con, schl)}: {anzahl} × {TYP[typ][1]} ({gwh_text(gwh)}/Monat) für {geld.mark(preis)} (zahlt {kc['name']})")
+    geld.protokoll(con, k, "Energie: Ausbau", f"{_name(con, schl)}: {anzahl} × {TYP[typ][1]} ({gwh_text(gwh * leistung(con))}/Monat) für {geld.mark(preis)} (zahlt {kc['name']})")
     _IND.clear()
     leeren()
     return preis, kc["name"]
