@@ -1190,6 +1190,19 @@ async def _seite(request, k, planung):
         gesamt_basis = entwicklung.rueckhalt_fuer(con, aufkommen.berechnen(con, periode=ab), ziel)
     else:
         gesamt_basis = gesamt_z
+    gesamt_heute, energie_hinweis = None, ""
+    if planung:
+        gesamt_heute = entwicklung.rueckhalt_fuer(con, aufkommen.berechnen(con, periode=monat_heute()), ziel)   # Stand des laufenden Monats (wie die Statistik)
+        import energie
+        try:
+            eb = energie.bilanz(con, ziel, ab)
+            ef = [e for e in energie.wirkungen_fuer(con, ziel, ab)[0] if e["hebel"] == "zuf_pt"]
+            if ef:
+                energie_hinweis = (f'<p class="zf-tipp" style="background:#fdf1e6">{amt.ic("zap")} <b>Energiemangel im {esc(sa._monatsname(ab))}:</b> Die Energieversorgung ist nur zu {_de(eb["v_ges"] * 100, 0)} % gedeckt '
+                                   f'(Zukäufe am Energiemarkt gelten nur für den Monat, in dem sie gekauft werden). Das senkt die Zufriedenheit um bis zu {_de(-ef[0]["wert"], 0)} Punkte. '
+                                   'Energie zukaufen oder Kraftwerke bauen, bevor der Monat beginnt.</p>')
+        except Exception:
+            pass
     rl_w = bew["summe"]["ruecklage"]
     gebunden = kasse_gebunden(con, kasse_rl, ziel == "reich")
     kassen_name = "Reichskasse" if ziel == "reich" else "Staatskasse"
@@ -1328,9 +1341,10 @@ async def _seite(request, k, planung):
     tab_verteilung = (schritt(1, "Mittel", "Was dem Haushalt im Monat zur Verfügung steht.") + kz_html + erkl
                       + schritt(2, "Verteilung", "Wohin das Geld fließt" + (": Regler verschieben, Entwurf speichern, in der Änderungsperiode einreichen." if darf else "."))
                       + (f'<div class="zf-live"><div><b>{amt.ic("users")} Bevölkerungszufriedenheit</b> – so wirkt sich diese Verteilung aus</div>'
-                         f'<div class="zf-live-z"><span>Jetzt<b id="zv-basis">{_de(gesamt_basis["wert"], 0) if gesamt_basis else "–"}</b></span>'
-                         f'<span>Nächster Monat<b id="zv-neu">{_de(gesamt_z["wert"], 0) if gesamt_z else "–"}</b><em id="zv-delta"></em></span>'
-                         f'<span>Auf Dauer<b id="zv-dauer">–</b></span></div>'
+                         f'<div class="zf-live-z"><span>Aktuell ({esc(sa._monatsname(monat_heute()))})<b id="zv-aktuell">{_de(gesamt_heute["wert"], 0) if gesamt_heute else "–"}</b></span>'
+                         f'<span>{esc(sa._monatsname(ab))} ohne Änderung<b id="zv-basis">{_de(gesamt_basis["wert"], 0) if gesamt_basis else "–"}</b></span>'
+                         f'<span>{esc(sa._monatsname(ab))} mit dieser Verteilung<b id="zv-neu">{_de(gesamt_z["wert"], 0) if gesamt_z else "–"}</b><em id="zv-delta"></em></span>'
+                         f'<span>Auf Dauer<b id="zv-dauer">–</b></span></div>' + energie_hinweis +
                          f'<div class="zf-balken zf-s3"><i id="zv-bar" style="width:{gesamt_z["wert"] if gesamt_z else 0:.1f}%"></i></div>'
                          f'<p class="zf-meta">Die Werte rechnen sich beim Verschieben der Regler sofort neu. Ausführlich unter „Wirkung“.</p>' + planhilfe_html(richt, gesamt_z) + '</div>' if gesamt_z and planung else "")
                       + f'<div class="ep-raster"><div class="ep-torte" id="ep-torte"><svg viewBox="0 0 200 200" role="img" aria-label="Tortendiagramm des Etats {esc(name)}"></svg>'
