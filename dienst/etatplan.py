@@ -1269,10 +1269,9 @@ async def _seite(request, k, planung):
     tab_aend = amt.tabelle(["Zeit", "Durch", "Änderung"], [(amt._zeit(v["zeit"]), esc(v["autor_name"]), esc(v["text"])) for v in verlauf], "Noch keine Änderungen.")
     tabs = [("verteilung", "Verteilung", tab_verteilung), ("wirkung", "Wirkung", tab_wirkung)]
     tabs.append(("aenderungen", f"Änderungen ({len(verlauf)})", tab_aend))
-    inhalt = (CSS + f'<h1>{amt.ic("pencil" if planung else "chart-pie")} {titel} · {esc(name)}</h1>{amt.meldung(request)}'
+    inhalt = (CSS + __import__("teilstaat").kopf_mit_wappen(f'<h1>{amt.ic("pencil" if planung else "chart-pie")} {titel} · {esc(name)}</h1>', ziel[3:] if ziel != "reich" else "reich", name) + amt.meldung(request) +
               f'<p class="az">Wie viel vom Ausgabenbudget fließt in welches Politikfeld? Das Tortendiagramm zeigt den gesamten Monatsetat im {esc(sa._monatsname(ab))}.</p>'
-              f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div>'
-              f'<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>' + umschalter + rechte
+              + umschalter + rechte
               + sa.untertabs(tabs)
               + f'<script type="application/json" id="ep-daten">{json.dumps(daten, ensure_ascii=False).replace("</", "<\\/")}</script><script>{JS}</script><script>{WK_JS}</script><script>{ZUF_JS}</script>' + (f'<script>{PLAN_JS}</script>' if darf else ""))
     return sa.ant(request, k, titel, "sa-etatplanung" if planung else "sa-etatverteilung", inhalt)
@@ -1358,7 +1357,7 @@ async def oeffentlich(request, k):
             '<div class="zf-skala"><span style="left:0%">0</span><span style="left:40%">40</span><span style="left:55%">55</span><span style="left:70%">70</span><span style="left:85%">85</span><span style="left:100%">100</span></div></div></div>')
     staatl = (f'<p class="sa-hinweis"><a href="{PFAD}?ziel={esc(ziel)}">Zur Etatverteilung mit Beträgen und Einstellungen</a></p>'
               if sa.hat_kassen(con, k) else "")
-    inhalt = (CSS + WK_CSS + ZUF_CSS + __import__("teilstaat").kopf_mit_wappen(f'<h1>{amt.ic("chart-pie")} Etatübersicht</h1>', ziel[3:] if ziel != "reich" else "", gueltig[ziel])
+    inhalt = (CSS + WK_CSS + ZUF_CSS + __import__("teilstaat").kopf_mit_wappen(f'<h1>{amt.ic("chart-pie")} Etatübersicht</h1>', ziel[3:] if ziel != "reich" else "reich", gueltig[ziel])
               + f'<p class="az">Wofür geben Reich und Teilstaaten ihr Geld aus? Anteile am monatlichen Etat im {esc(sa._monatsname(monat_heute()))}.</p>'
               f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{auswahl}</select></div>'
               '<noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>' + lage

@@ -673,17 +673,17 @@ def _auf(titel, inhalt, symbol="clock"):
     return f'<details class="sa-auf"><summary>{amt.ic(symbol)}{esc(titel)}</summary>{inhalt}</details>'
 
 
-def vergleich_html(con, ziel="", ohne_reich=False):
+def vergleich_html(con, ziel="", ohne_reich=False, nur=None):
     """Vergleich aller Haushalte (eingeklappt); auch im Reiter „Statistiken“ bei Mein Teilstaat."""
     reihen = []
     for s, n in _ziele(con):
-        if ohne_reich and s == "reich":
+        if (ohne_reich and s == "reich") or (nur is not None and s not in nur):
             continue
         c = bilanz(con, s)
         reihen.append((c["v_ges"], s, n, c))
     reihen.sort(key=lambda r: (r[0], r[2]))
     vgl = [(f'{__import__("wappen").klein(s, n)}<a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a>', gwh_text(c["bedarf"]), gwh_text(c["angebot"]), f'{_de(v * 100, 0)} %{ueberschuss_pz(c)}', f'{_de(c["erneuerbar"], 0)} %') for v, s, n, c in reihen]
-    return _auf("Vergleich aller Teilstaaten" if ohne_reich else "Vergleich aller Haushalte", amt.tabelle(["Haushalt", "Bedarf", "Erzeugung", "Versorgung", "Erneuerbare"], vgl, klasse="ee-tab"), "landmark")
+    return _auf("Ihre Teilstaaten" if nur is not None else "Vergleich aller Teilstaaten" if ohne_reich else "Vergleich aller Haushalte", amt.tabelle(["Haushalt", "Bedarf", "Erzeugung", "Versorgung", "Erneuerbare"], vgl, klasse="ee-tab"), "landmark")
 
 
 def _seitenhtml(request, k, con, ziel, eingebettet=False):
@@ -761,7 +761,7 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
     if eingebettet:   # Abschnitt der Seite „Land“ (teilstaat.py): ohne Überschrift, Meldung und Haushaltsauswahl
         return entwicklung.CSS + CSS + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info
     return (entwicklung.CSS + CSS + f'<h1>{amt.ic("zap")} Energie · {esc(name)}</h1>{amt.meldung(request)}'
-            f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div></form>'
+            ''
             + kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info)
 
 
@@ -805,7 +805,7 @@ async def markt(request, k):
                                                                                                                     gwh_text(g["menge"]), geld.mark(g["summe"])) for g in ge], "Noch keine Geschäfte."))
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in sa.bereich_ziele(con, k, _ziele(con), ziel))
     inhalt = (CSS + f'<h1>{amt.ic("arrow-right-left")} Energiemarkt · {esc(namen[ziel])}</h1>{amt.meldung(request)}'
-              f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div></form>'
+              ''
               + kopf + hinweis + "<h2>Angebote</h2>" + tabelle + anbieten_html + ge_html + f'<p><a href="{PFAD}?ziel={esc(ziel)}">Zurück zu Energie</a></p>')
     return sa.ant(request, k, "Energiemarkt", "sa-energie", inhalt)
 

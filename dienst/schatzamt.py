@@ -378,7 +378,8 @@ def reiter_html(request, k, con, aktiv):
         schl = "sa-teilstaat"
     else:
         links = "".join(f'<a href="{PFAD}{u}"{" class=aktiv aria-current=page" if t == tab else ""}>{esc(n)}</a>' for t, n, u in _reich_tabs(con, k))
-        kopf = f'<span class="sa-bereich-name">{amt.ic("landmark")}Reichshaushalt</span>'
+        import wappen as _wp
+        kopf = f'<span class="sa-bereich-name">{_wp.klein("reich", "Reich", 22)}{amt.ic("landmark")}Reichshaushalt</span>'
         schl = "sa-reich"
     banner = ""
     if bereich == "ts" and tab not in ("land",):

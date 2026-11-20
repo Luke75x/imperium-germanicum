@@ -699,7 +699,7 @@ def rumpf(request, k, con, liste, ziel, ziele, eingebettet=False):
                _vz((v.get("bev_faktor", 1) - 1) * 100)) for p, v in reversed(vl)]
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in ziele)
     kopfteil = ("" if eingebettet else f'<h1>{amt.ic("users")} Entwicklung · {esc(name)}</h1>{amt.meldung(request)}')
-    wahl = ("" if eingebettet else f'<form class="sa-leiste" method="get"><div><label for="zl">Haushalt</label><select id="zl" name="ziel" onchange="this.form.submit()">{gewaehlt}</select></div></form>')
+    wahl = ""   # keine Haushaltsauswahl: Teilstaat wählt man oben, das Reich hat nur sich selbst
     inhalt = (CSS + kopfteil +
               '<p class="az">Die Investitionen in die Politikfelder wirken langfristig auf Bevölkerung, Wirtschaft und Stimmung. Die Werte folgen der Etatverteilung nur '
               'allmählich: ein Monat mit hohen oder niedrigen Ausgaben ändert wenig, dauerhafte Weichenstellungen viel.</p>'
