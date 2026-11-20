@@ -74,8 +74,6 @@ async def seite(request, k):
     rk = entwicklung.rueckhalt_fuer(con, liste, schl)
     kz = [("Staatskasse", mark(kasse["saldo"])), ("Etat im Monat", mark(x["summe"])), ("Abgabe an das Reich", abgabe),
           ]
-    if rk:
-        kz.insert(0, ("Rückhalt beim Volk", f'{etatplan._de(rk["wert"], 0)} · {rk["stufe"]}'))
 
     # Handlungsbedarf
     z = []
@@ -87,7 +85,7 @@ async def seite(request, k):
                         f["text"], (sa.PFAD + f"krisen/?ziel={schl}", "Jetzt reagieren")))
     if rk:
         pf = {"steigend": "steigt", "fallend": "sinkt", "stabil": "bleibt stabil"}[rk["trend"]]
-        z.append(_zeile("warn" if rk["wert"] < 55 else "", "users", f'<b>{esc(rk["text"])}</b> Rückhalt {etatplan._de(rk["wert"], 0)} / 100, in 3 Monaten voraussichtlich {etatplan._de(rk["prognose3"], 0)}; '
+        z.append(_zeile("warn" if rk["wert"] < 55 else "", "users", f'<b>{esc(rk["text"])}</b> Bevölkerungszufriedenheit {etatplan._de(rk["wert"], 0)} / 100, in 3 Monaten voraussichtlich {etatplan._de(rk["prognose3"], 0)}; '
                         f'auf Dauer {pf} (bei gleichem Etat {etatplan._de(rk["langfristig"], 0)}).',
                         "; ".join(t["text"] for t in rk["gruende"]), (sa.PFAD + f"entwicklung/?ziel={schl}", "Einzelheiten")))
     eing, ent = etatplan.eingereicht(con, schl), etatplan.entwurf(con, schl)
@@ -134,7 +132,7 @@ async def seite(request, k):
                     [f"Etat im Monat: <strong>{esc(geld.mark_kurz(x['summe']))}</strong>", f"Abgabe an das Reich: <strong>{esc(abgabe)}</strong>",
                      f"{x['wirkung_land']['boni']} Boni · {x['wirkung_land']['mali']} Mali"], esc(ab_text) + " →"),
               karte("users", "Land", sa.PFAD + f"teilstaat/land/?ziel={schl}",
-                    [f"Entwicklung, Energie, Krisen", f"HDI <strong>{etatplan._de(x['entwicklung']['hdi'], 3)}</strong> · Zufriedenheit <strong>{etatplan._de(zuf['neu'], 0)}</strong>"],
+                    [f"Entwicklung, Energie, Krisen", f"HDI <strong>{etatplan._de(x['entwicklung']['hdi'], 3)}</strong> · Zufriedenheit <strong>{etatplan._de(rk['wert'] if rk else zuf['neu'], 0)}</strong>"],
                     (f"{n_kr} offene Krise{'n' if n_kr != 1 else ''}" if n_kr else "Keine offene Krise") + " →"),
               karte("wallet", "Finanzen", sa.PFAD + f"teilstaat/finanzen/?ziel={schl}",
                     [f"Staatskasse: <strong>{esc(mark(kasse['saldo']))}</strong>"] + ([f"Verteidigungskasse: <strong>{esc(mark(vtk['saldo']))}</strong>"] if vtk else [])
@@ -143,11 +141,12 @@ async def seite(request, k):
     if verteidigung.darf_sehen(con, k, sid) and vtk:
         karten.append(karte("shield", "Verteidigung", sa.PFAD + f"verteidigung/{sid}/",
                             [f"Einsatzbereitschaft: <strong>{'–' if b is None else etatplan._de(b, 0) + ' %'}</strong>", f"{kzv['einheiten']:,} Einheiten".replace(",", ".")], "Bestand und Beschaffung →"))
-    zuf_block = (f'<div class="zf-kopf {etatplan._zf_klasse(zuf["neu"])}" style="margin:12px 0"><div><div class="zf-wert">{etatplan._de(zuf["neu"], 0)} <small>/ 100</small></div>'
-                 f'<div class="zf-stufe">{esc(zuf["stufe"])}</div></div><div class="zf-gross"><div class="zf-meta">Bevölkerungszufriedenheit · mit der Etatplanung der Regierung</div>'
-                 f'{etatplan.zuf_balken(zuf["neu"])}<div class="zf-skala"><span style="left:0%">0</span><span style="left:40%">40</span><span style="left:55%">55</span>'
+    gw, gs = (rk["wert"], rk["stufe"]) if rk else (zuf["neu"], zuf["stufe"])
+    zuf_block = (f'<div class="zf-kopf {etatplan._zf_klasse(gw)}" style="margin:12px 0"><div><div class="zf-wert">{etatplan._de(gw, 0)} <small>/ 100</small></div>'
+                 f'<div class="zf-stufe">{esc(gs)}</div></div><div class="zf-gross"><div class="zf-meta">Bevölkerungszufriedenheit (alles zusammen gerechnet)</div>'
+                 f'{etatplan.zuf_balken(gw)}<div class="zf-skala"><span style="left:0%">0</span><span style="left:40%">40</span><span style="left:55%">55</span>'
                  f'<span style="left:70%">70</span><span style="left:85%">85</span><span style="left:100%">100</span></div>'
-                 f'<div class="zf-meta">Zielwert bei diesem Etat: <b>{etatplan._de(zuf["ziel"], 0)}</b> · <a href="{sa.PFAD}etatverteilung/?ziel={schl}">Details unter Etat → Wirkung</a></div></div></div>')
+                 f'<div class="zf-meta"><a href="{sa.PFAD}etatverteilung/?ziel={schl}">Woraus sie besteht: Etat → Wirkung</a></div></div></div>')
     inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("flag")} {esc(x["name"])}</h1>', sid, x["name"]) + amt.meldung(request) +
               f'<p class="az">Die Lage Ihres Teilstaats auf einen Blick. Die Reiter oben führen zu Etat, Land (Entwicklung, Energie, Krisen), Finanzen und Verteidigung.</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
@@ -248,7 +247,7 @@ async def statistiken(request, k):
     liste = aufkommen.berechnen(con, periode=etatplan.monat_heute())
     ziele = etatplan.ziele(con, liste)
     pfad = sa.PFAD + "etatuebersicht/"
-    teile = [("etat", "chart-pie", "Etat", etatplan.vergleich_html(liste, ziele, schl), False),
+    teile = [("etat", "chart-pie", "Etat", etatplan.vergleich_html(liste, ziele, schl, con), False),
              ("entwicklung", "users", "Entwicklung", entwicklung.tabelle(liste, ziele, pfad, schl, con), False),
              ("energie", "zap", "Energie", energie.vergleich_html(con).replace("<details class=", "<details open class=", 1), False),
              ("abgabe", "landmark", "Reichsabgabe", aufkommen.tabelle_html(liste), False)]

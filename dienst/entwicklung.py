@@ -350,21 +350,22 @@ def entwickeln(con, schl, anteile, richt, periode, kopf_ratio=1.0, ind_faktor=1.
             "kriminalitaet": 3500 * math.exp((NEUTRAL - neu["sicherheit"]) / 40), "einkommen_index": einkommen, "kopf_ratio": kopf_ratio}
 
 
-# ---------------------------------------------------------------- Rückhalt beim Volk (Gesamtbild)
+# ---------------------------------------------------------------- Bevölkerungszufriedenheit, Gesamtbild (intern „Rückhalt“; die EINE Skala der Oberfläche)
 # Wie steht die Bevölkerung voraussichtlich zu ihrem Landesherrn (Reich: zur Reichsregierung)? Gewichteter Wert 0–100 aus sechs Teilen; nur Anzeige, ohne eigene Folgen.
 # Prognose: derselbe Etat, die Entwicklung läuft 3 Monate bzw. 4 Jahre weiter (Indikatoren folgen ihren Zielwerten, die Zufriedenheit mit ihrer Trägheit).
 
-RUECKHALT_STUFEN = [(85, "Verehrt", "Das Volk verehrt seinen Landesherrn."), (70, "Starker Rückhalt", "Das Volk steht hinter seinem Landesherrn."),
-                    (55, "Gespalten", "Das Volk ist über seinen Landesherrn gespalten."), (40, "Unbeliebt", "Das Volk murrt gegen seinen Landesherrn."),
-                    (25, "Offene Kritik", "Es gibt Proteste und offene Kritik am Landesherrn."), (0, "Aufstand droht", "Das Volk steht kurz vor dem Aufstand gegen seinen Landesherrn.")]
+RUECKHALT_STUFEN = [(85, "Sehr zufrieden", "Die Bevölkerung ist sehr zufrieden mit ihrer Regierung."), (70, "Zufrieden", "Die Bevölkerung ist zufrieden."),
+                    (55, "Gespalten", "Die Bevölkerung ist gespalten."), (40, "Unzufrieden", "Die Bevölkerung murrt und ist unzufrieden."),
+                    (0, "Unruhen", "Es drohen Proteste, Unruhen und Aufruhr.")]
 HAUSHALT_PUNKTE = {0: 80, 1: 55, 2: 40, 3: 25, 4: 10}
 # (Schlüssel, Name, Gewicht, Neutralwert, Text bei Plus, Text bei Minus)
-RUECKHALT_TEILE = [("zufriedenheit", "Allgemeine Zufriedenheit", 0.45, NEUTRAL, "Die Bürger sind insgesamt zufrieden", "Die Bürger sind insgesamt unzufrieden"),
+RUECKHALT_TEILE = [("zufriedenheit", "Politikfelder und Investitionen", 0.40, NEUTRAL, "Die Investitionen in die Politikfelder kommen bei den Bürgern an", "Die Bürger vermissen Investitionen in die Politikfelder"),
                    ("wohlstand", "Wohlstand", 0.15, 70.0, "Die Wirtschaft floriert", "Die Wirtschaft schwächelt"),
                    ("versorgung", "Versorgung", 0.15, NEUTRAL, "Gesundheit, Nahrung und Wasser sind gut gesichert", "Gesundheit, Nahrung und Wasser sind schlecht gesichert"),
                    ("sicherheit", "Sicherheit und Freiheit", 0.10, NEUTRAL, "Die Bürger fühlen sich sicher und frei", "Die Bürger fühlen sich unsicher oder überwacht"),
                    ("bevoelkerung", "Bevölkerungsentwicklung", 0.05, 70.0, "Das Land wächst", "Das Land schrumpft"),
-                   ("haushalt", "Haushaltslage", 0.10, 80.0, "Die Staatsfinanzen sind geordnet", "Die Staatskasse steckt in der Haushaltsnotlage")]
+                   ("haushalt", "Haushaltslage", 0.10, 80.0, "Die Staatsfinanzen sind geordnet", "Die Staatskasse steckt in der Haushaltsnotlage"),
+                   ("haushaltsfuehrung", "Haushaltsführung", 0.05, 70.0, "Der Haushalt wird solide geführt", "Der Haushalt zehrt die Rücklagen auf")]
 
 
 def rueckhalt_stufe(wert):
@@ -385,12 +386,13 @@ def haushalt_stufe(con, schl):
     return stufe
 
 
-def rueckhalt_aus(st, zuf, kopf_pct, bev_pp, stufe):
+def rueckhalt_aus(st, zuf, kopf_pct, bev_pp, stufe, hf=0.0):
     """Rückhalt aus einem Zustand: {"wert", "teile": [{schluessel, name, score, gewicht, beitrag, text}]}; beitrag = Abweichung vom Neutralzustand in Punkten."""
     scores = {"zufriedenheit": zuf, "wohlstand": _clamp(70 + 3 * kopf_pct, 0, 100),
               "versorgung": _clamp(0.4 * st["gesundheit"] + 0.4 * st["ernaehrung"] + 0.2 * st["wasser"], 0, 100),
               "sicherheit": _clamp(st["sicherheit"] - 0.6 * max(0.0, st["ueberwachung"] - 20), 0, 100),
-              "bevoelkerung": _clamp(70 + 12 * bev_pp * 12, 0, 100), "haushalt": HAUSHALT_PUNKTE[stufe]}
+              "bevoelkerung": _clamp(70 + 12 * bev_pp * 12, 0, 100), "haushalt": HAUSHALT_PUNKTE[stufe],
+              "haushaltsfuehrung": _clamp(70 + 1.5 * hf, 30, 100)}   # hf = Rücklage in % des Steueranteils: Sparen hebt, Entnahme aus der Kasse senkt
     teile, wert = [], 0.0
     for k, name, g, neutral, plus, minus in RUECKHALT_TEILE:
         sc = scores[k]
@@ -406,13 +408,13 @@ def rueckhalt_aus(st, zuf, kopf_pct, bev_pp, stufe):
     return {"wert": _clamp(wert, 0, 100), "teile": teile}
 
 
-def rueckhalt(con, schl, d, zuf, anteile, richt):
+def rueckhalt(con, schl, d, zuf, anteile, richt, hf=0.0):
     """Rückhalt jetzt, in drei Monaten und auf Dauer (bei gleichbleibendem Etat). d = Entwicklung des Haushalts (entwickeln), zuf = Zufriedenheit (etatplan.zufriedenheit)."""
     import etatplan
     stufe = haushalt_stufe(con, schl)
     st = {i: v["neu"] for i, v in d["zustand"].items()}
     st["bev_faktor"] = d["bev_faktor"]
-    jetzt = rueckhalt_aus(st, zuf["neu"], d["kopf_pct"], d["bev_pp"], stufe)
+    jetzt = rueckhalt_aus(st, zuf["neu"], d["kopf_pct"], d["bev_pp"], stufe, hf)
     E = erfuellung(anteile, richt)
     z_basis = etatplan.zuf_ziel(anteile, richt)[0]
     z, werte = zuf["neu"], {}
@@ -420,7 +422,7 @@ def rueckhalt(con, schl, d, zuf, anteile, richt):
         st, _, _, sm = _schritt(st, E, {"zuf": z})
         z = z + (_clamp(z_basis + sm["zuf"], 0, 100) - z) * etatplan.ZUF_TRAEGHEIT
         if monat in (3, 48):
-            werte[monat] = rueckhalt_aus(st, z, sm["kopf"], sm["bev_pp"], stufe)
+            werte[monat] = rueckhalt_aus(st, z, sm["kopf"], sm["bev_pp"], stufe, hf)
     r3, rl = werte[3], werte[48]
     stufe_name, text = rueckhalt_stufe(jetzt["wert"])
     delta = rl["wert"] - jetzt["wert"]
@@ -441,7 +443,8 @@ def rueckhalt_fuer(con, liste, schl):
             return None
         d, zuf, anteile, richt = x["entwicklung"], x["zufriedenheit_land"], x["plan_land"], x["richt_land"]
     if "_rueckhalt" not in x:
-        x["_rueckhalt"] = rueckhalt(con, schl, d, zuf, anteile, richt)
+        import etatplan
+        x["_rueckhalt"] = rueckhalt(con, schl, d, zuf, anteile, richt, etatplan.haushaltsfuehrung(liste, schl))
     return x["_rueckhalt"]
 
 
@@ -568,7 +571,7 @@ def _pfeil(r):
 
 
 def rueckhalt_html(r, reich=False):
-    """Die Karte „Rückhalt beim Volk“: Wert, Stufe, Prognose, Teile und wichtigste Gründe."""
+    """Die Bevölkerungszufriedenheit (die einzige Skala): Wert, Stufe, Prognose, Teile und wichtigste Gründe."""
     if not r:
         return ""
     wer = "der Reichsregierung" if reich else "des Landesherrn"
@@ -579,11 +582,11 @@ def rueckhalt_html(r, reich=False):
         f'<small>{_de(t["score"], 0)}</small></div>' for t in r["teile"])
     gruende = "".join(f'<li>{"▲" if t["beitrag"] > 0 else "▼"} {esc(t["text"])}</li>' for t in r["gruende"])
     return (f'<div class="en-rueck"><div class="en-rueck-kopf"><div><div class="en-rueck-wert">{_de(r["wert"], 0)}<small> / 100</small></div>'
-            f'<div class="en-rueck-stufe">{esc(r["stufe"])}</div></div><div><b>Rückhalt beim Volk {wer}</b><br><span class="az">{esc(text)}</span></div></div>'
+            f'<div class="en-rueck-stufe">{esc(r["stufe"])}</div></div><div><b>Bevölkerungszufriedenheit</b><br><span class="az">{esc(text)}</span></div></div>'
             f'<div class="en-rueck-zeit"><span>Jetzt<b>{_de(r["wert"], 0)}</b></span><span>in 3 Monaten<b>{_de(r["prognose3"], 0)}</b></span>'
             f'<span>auf Dauer, bei gleichem Etat<b>{_de(r["langfristig"], 0)}</b></span><span>Tendenz<b>{esc(_pfeil(r))}</b></span></div>'
             + (f'<ul class="sa-hinweis" style="margin:8px 0 0;padding:0;list-style:none">{gruende}</ul>' if gruende else "")
-            + f'<details class="sa-auf" style="margin:10px 0 0"><summary>{amt.ic("chart-column")}Woraus der Rückhalt besteht</summary><div class="en-rueck-teile">{teile}</div></details></div>')
+            + f'<details class="sa-auf" style="margin:10px 0 0"><summary>{amt.ic("chart-column")}Woraus die Bevölkerungszufriedenheit besteht</summary><div class="en-rueck-teile">{teile}</div></details></div>')
 
 
 def kurz_html(d, link=None, r=None, reich=False):
@@ -600,7 +603,7 @@ def rk_text(con, liste, schl):
 
 
 def tabelle(liste, ziel_liste, pfad, markiert="", con=None):
-    """Öffentlich: HDI, Bevölkerungswachstum, Rückhalt beim Volk und Auffälligkeiten je Haushalt (ohne Beträge)."""
+    """Öffentlich: HDI, Bevölkerungswachstum, Bevölkerungszufriedenheit und Auffälligkeiten je Haushalt (ohne Beträge)."""
     zeilen = []
     for s, n in ziel_liste:
         if s == "reich":
@@ -637,7 +640,7 @@ def tabelle(liste, ziel_liste, pfad, markiert="", con=None):
                                  f'<td class="num">{rk_text(con, liste, s)}</td>'
                                  f'<td class="num" style="white-space:normal;max-width:240px">{esc(", ".join(flags)) if flags else "–"}</td></tr>'))
     return ('<p class="zf-meta">HDI aus Gesundheit, Bildung und Einkommen. Bevölkerungswachstum pro Jahr bei der heutigen Gesundheitsversorgung.</p>'
-            '<div style="overflow-x:auto"><table class="zf-tab"><thead><tr><th>Haushalt</th><th class="num">HDI</th><th class="num">Wachstum</th><th class="num" title="Wie steht die Bevölkerung voraussichtlich zu ihrem Landesherrn">Rückhalt</th><th class="num">Auffällig</th></tr></thead><tbody>'
+            '<div style="overflow-x:auto"><table class="zf-tab"><thead><tr><th>Haushalt</th><th class="num">HDI</th><th class="num">Wachstum</th><th class="num" title="Gesamtbild aus Politikfeldern, Investitionen, Haushaltsführung, Wohlstand, Versorgung und Sicherheit">Zufriedenheit</th><th class="num">Auffällig</th></tr></thead><tbody>'
             + "".join(z for _, z in sorted(zeilen, key=lambda t: -t[0])) + '</tbody></table></div>')
 
 
@@ -680,7 +683,7 @@ def rumpf(request, k, con, liste, ziel, ziele, eingebettet=False):
           ("Lebenserwartung", f'{_de(d["lebenserwartung"], 1)} Jahre')]
     kz2 = [("Bevölkerungswachstum pro Jahr", _vz(d["bev_pp"] * 12)), ("Bevölkerung gegenüber der Karte", _vz((ew / ew0 - 1) * 100 if ew0 else 0)),
            ("BIP pro Kopf durch Investitionen", _vz(d["kopf_pct"])), ("Preise für Militärgüter", _vz(d["ruestung_pct"])),
-           ("Straftaten je 100.000 Einwohner", f'{d["kriminalitaet"]:,.0f}'.replace(",", ".")), ("Zufriedenheit", f'{_de(zuf["neu"], 0)} / 100')]
+           ("Straftaten je 100.000 Einwohner", f'{d["kriminalitaet"]:,.0f}'.replace(",", "."))]
     kz_html = lambda xs: f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in xs)}</div>'
     rk = rueckhalt_fuer(con, liste, ziel)
     module = "".join(
