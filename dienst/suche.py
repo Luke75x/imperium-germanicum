@@ -124,6 +124,7 @@ def index(con, k):
             "laufende kosten fixkosten versicherung unterhalt grundsteuer kfzsteuer pfaendung privatwirtschaft", 2)
         add("Bankkarte & PIN", "Mein Geld", PFAD + "bankkarte/", "karte pin bankkarte beantragen sperren entsperren ec girokarte")
         add("Etatübersicht", "Information", PFAD + "etatuebersicht/", "haushalt etat oeffentlich staatsausgaben tortendiagramm")
+        add("Statistiken", "Information", PFAD + "statistiken/", "statistik vergleich haushalte etat haushaltsfuehrung zufriedenheit entwicklung energie reichsabgabe teilstaaten")
         add("Tarife & Sätze", "Information", PFAD + "tarife/", "steuersatz steuersaetze gebuehren lohnsteuer stufentarif sozialabgabe kronsteuer leitzins wechselkurs umsatzsteuer grunderwerbsteuer zulassung")
         add("Postfach", "Weiteres", amt.BASIS + "postfach/", "post nachrichten mail ig adresse")
         add("Mein Profil", "Weiteres", "/profil/", "profil einstellungen konto")

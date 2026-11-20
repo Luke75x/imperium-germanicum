@@ -161,7 +161,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe", "sa-bankkarte", "sa-besitz")     # Seiten, die nur die Privatperson betreffen
-NUR_STAAT = ("sa-ts-stat", "sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-ts-land", "sa-ts-fin", "sa-teilstaat", "sa-reich", "sa-handel")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
+NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-ts-land", "sa-ts-fin", "sa-teilstaat", "sa-reich", "sa-handel")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_kassen(con, k):
@@ -210,7 +210,7 @@ def konten_im_modus(con, k, m):
 def _umschalter(m, aktiv, staat=True, rp=False):
     def a(wert, text, klasse="", titel=""):
         ziel = PFAD + "modus/" + wert
-        if aktiv and aktiv not in ("sa-start", "sa-konto", "sa-ueberweisen", "sa-tarife", "sa-etatuebersicht"):
+        if aktiv and aktiv not in ("sa-start", "sa-konto", "sa-ueberweisen", "sa-tarife", "sa-etatuebersicht", "sa-statistiken"):
             ziel += "?weiter=" + quote(PFAD)
         kl = (klasse + (" aktiv" if m == wert else "")).strip()
         return (f'<a href="{ziel}" class="{kl}"{" aria-current=true" if m == wert else ""}' + (f' title="{titel}" aria-label="{titel}"' if titel else "") + f'>{text}</a>')
@@ -287,7 +287,7 @@ def untertabs(teile):
 
 def _ts_url(tab, sid, regiert):
     z = "ts-" + sid
-    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "land": f"teilstaat/land/?ziel={z}", "fin": f"teilstaat/finanzen/?ziel={z}", "stat": f"teilstaat/statistiken/?ziel={z}", "vt": f"verteidigung/{sid}/"}[tab]
+    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "land": f"teilstaat/land/?ziel={z}", "fin": f"teilstaat/finanzen/?ziel={z}", "vt": f"verteidigung/{sid}/"}[tab]
 
 
 def _teilstaat_tabs(con, k, sid):
@@ -295,7 +295,7 @@ def _teilstaat_tabs(con, k, sid):
     import verteidigung
     import krisen
     n_kr = krisen.offene_anzahl(con, "ts-" + sid)
-    tabs = [("start", "Überblick"), ("etat", "Etat"), ("land", f"Land ({n_kr} Krise{'n' if n_kr != 1 else ''})" if n_kr else "Land"), ("fin", "Finanzen"), ("stat", "Statistiken")]
+    tabs = [("start", "Überblick"), ("etat", "Etat"), ("land", f"Land ({n_kr} Krise{'n' if n_kr != 1 else ''})" if n_kr else "Land"), ("fin", "Finanzen")]
     if verteidigung.darf_sehen(con, k, sid):
         tabs.append(("vt", "Verteidigung"))
     return tabs
@@ -314,7 +314,7 @@ def _reich_tabs(con, k):
 
 def _reiter_kontext(request, k, con, aktiv):
     """(Bereich, Teilstaat-ID, Reiter) der aktuellen Seite: Bereich 'ts' = Mein Teilstaat, 'reich' = Reichshaushalt; None = Seite gehört zu keinem Bereich."""
-    if aktiv not in ("sa-teilstaat", "sa-ts-land", "sa-ts-fin", "sa-ts-stat", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-verteidigung", "sa-notlage", "sa-konto",
+    if aktiv not in ("sa-teilstaat", "sa-ts-land", "sa-ts-fin", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-verteidigung", "sa-notlage", "sa-konto",
                      "sa-staatshaushalt", "sa-finanzen", "sa-etats", "sa-gold"):
         return None
     regiert = _regierte(con, k)
@@ -323,9 +323,9 @@ def _reiter_kontext(request, k, con, aktiv):
     if aktiv == "sa-teilstaat":
         sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regiert else next(iter(regiert), None)
         return ("ts", sid, "start") if sid else None
-    if aktiv in ("sa-ts-land", "sa-ts-fin", "sa-ts-stat"):
+    if aktiv in ("sa-ts-land", "sa-ts-fin"):
         sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regiert else next(iter(regiert), None)
-        return ("ts", sid, {"sa-ts-land": "land", "sa-ts-fin": "fin", "sa-ts-stat": "stat"}[aktiv]) if sid else None
+        return ("ts", sid, {"sa-ts-land": "land", "sa-ts-fin": "fin"}[aktiv]) if sid else None
     if aktiv in ("sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen"):
         tab = {"sa-etatverteilung": "etat", "sa-etatplanung": "etat", "sa-entwicklung": "entw", "sa-energie": "energie", "sa-krisen": "krisen"}[aktiv]
         if ziel.startswith("ts-") and ziel[3:] in regiert:
@@ -416,10 +416,10 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
             markt = [e for e in haushalt if e[0] == "sa-handel"]
             haushalt = [e for e in haushalt if e[0] != "sa-handel"]
             gruppen = [("Staatliche Kassen" if kassen else "Dienstlich", mein), ("Haushalt", haushalt), ("Markt", markt),
-                       ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
+                       ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-statistiken", "chart-column", "Statistiken", "statistiken/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
         else:
           gruppen = [("Staatliche Kassen" if kassen else "Dienstlich", mein), ("Haushalt", haushalt),
-                   ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
+                   ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-statistiken", "chart-column", "Statistiken", "statistiken/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
         gruppen = [g for g in gruppen if g[1]]
         mein = mein + [e for e in haushalt if e[0] in ("sa-teilstaat", "sa-reich", "sa-verteidigung")][:4 - len(mein)]
     else:
@@ -428,7 +428,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
                 ("sa-gehalt", "banknote", "Gehalt", "gehalt/"), ("sa-gewerbe", "store", "Gewerbe", "gewerbe/"),
                 ("sa-besitz", "car", "Besitz", "besitz/")]
         gruppen = [("Bankkarte", [("sa-bankkarte", "credit-card", "Bankkarte & PIN", "bankkarte/")]), ("Mein Geld", mein),
-                   ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
+                   ("Information", [("sa-etatuebersicht", "chart-pie", "Etatübersicht", "etatuebersicht/"), ("sa-statistiken", "chart-column", "Statistiken", "statistiken/"), ("sa-tarife", "percent", "Tarife & Sätze", "tarife/")])]
     if m == "rp":
         pass
     elif m == "staat" and geld.ist_beamter(k):

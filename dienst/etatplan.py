@@ -987,8 +987,8 @@ def zuf_html(z, verlauf, reich=False, interaktiv=True, g=None):
               'Verteidigung zählt nicht.</p></details></section>')
 
 
-def vergleich_html(liste, ziel_liste, ziel, con=None):
-    """Vergleich aller Haushalte: Etatanteile, Haushaltsführung, Bevölkerungszufriedenheit (Reiter „Statistiken“ bei Mein Teilstaat, Reichshaushalt: Etat → Vergleich)."""
+def vergleich_html(liste, ziel_liste, ziel, con=None, pfad=None):
+    """Tabelle: Etatanteile aller Haushalte (öffentliche Seite Statistiken)."""
     kopf = "".join(f'<th title="{esc(NAMEN[kat])}">{esc(NAMEN[kat][:11])}</th>' for kat, _ in KATEGORIEN)
     vz = []
     for s, n in ziel_liste:
@@ -999,14 +999,12 @@ def vergleich_html(liste, ziel_liste, ziel, con=None):
             x2 = next(x for x in liste if "ts-" + x["staat"] == s)
             ver, pl = x2["verteilung_land"], x2["land"]
         bw = liste[0]["wirkung_reich"] if s == "reich" else x2["wirkung_land"]
-        vz.append(f'<tr{" class=fokus" if s == ziel else ""}><td>{_wk(s, n)}<a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a></td><td>{_vz(round(haushaltsfuehrung(liste, s), 1), "%")}</td>'
+        vz.append(f'<tr{" class=fokus" if s == ziel else ""}><td>{_wk(s, n)}<a href="{pfad or PFAD}?ziel={esc(s)}">{esc(n)}</a></td><td>{_vz(round(haushaltsfuehrung(liste, s), 1), "%")}</td>'
                   + "".join(f'<td>{_de(ver[kat] / pl * 100 if pl else 0)}</td>' for kat, _ in KATEGORIEN)
                   + f'<td>{bw["boni"]} / {bw["mali"]}</td><td>{_vz(bw["summe"]["einnahmen"], "%")}</td>'
                   + f'<td>{_de(_zuf_gesamt(con, liste, s)[0], 0)}</td></tr>')
     return (f'<p class="az">Anteile am eigenen Etat in %, alle Haushalte im Vergleich.</p><div class="ep-scroll">'
-            f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div>'
-            + f'<h3>{amt.ic("landmark")} Haushaltsführung</h3>' + hf_tabelle(liste, ziel_liste, PFAD, ziel)
-            + f'<h3>{amt.ic("users")} Bevölkerungszufriedenheit</h3>' + zuf_tabelle(liste, ziel_liste, PFAD, ziel, con))
+            f'<table class="liste ep-vergleich"><thead><tr><th>Haushalt</th><th title="Rücklage in % des eigenen Steueranteils (− = Entnahme aus der Kasse)">Rücklage</th>{kopf}<th title="Boni / Mali">Boni/Mali</th><th title="Wirkung auf das Steueraufkommen">Aufkommen</th><th title="Bevölkerungszufriedenheit">Zufr.</th></tr></thead><tbody>{"".join(vz)}</tbody></table></div>')
 
 
 def _wk(s, n):
@@ -1453,10 +1451,41 @@ async def einreichen_post(request):
     sa.weiter(f"{PFAD_PLAN}?ziel={ziel}", f"Etat eingereicht; er gilt ab {sa._monatsname(ab)}.")
 
 
+PFAD_STAT = sa.PFAD + "statistiken/"
+
+
+@sa.seite()
+async def statistiken(request, k):
+    """Öffentliche Statistiken (alle angemeldeten Nutzer): Vergleiche aller Haushalte, je Kategorie ein aufklappbarer Abschnitt (details). Aus Mein Teilstaat herausgelöst."""
+    import aufkommen
+    import energie
+    import entwicklung
+    con = request.app["db"]
+    liste = aufkommen.berechnen(con, periode=monat_heute())
+    ziele_l = ziele(con, liste)
+    eigene = [r["stelle"] for r in geld.regierte_staatskassen(con, k)]
+    mark_s = next((s for s in eigene if s in dict(ziele_l)), "")   # der eigene Teilstaat wird hervorgehoben
+    pfad = PFAD_OEFF
+
+    def abschnitt(titel, symbol, html, offen=False):
+        return f'<details class="sa-auf st-kat"{" open" if offen else ""}><summary>{amt.ic(symbol)}{esc(titel)}</summary>{html}</details>'
+    teile = [("Etatverteilung der Haushalte", "chart-pie", vergleich_html(liste, ziele_l, mark_s, con, pfad), True),
+             ("Haushaltsführung", "landmark", hf_tabelle(liste, ziele_l, pfad, mark_s), False),
+             ("Bevölkerungszufriedenheit", "users", zuf_tabelle(liste, ziele_l, pfad, mark_s, con), False),
+             ("Entwicklung", "users", entwicklung.tabelle(liste, ziele_l, pfad, mark_s, con), False),
+             ("Energie", "zap", energie.vergleich_html(con, links=False, offen=True), False),
+             ("Steuern und Reichsabgabe", "coins", aufkommen.tabelle_html(liste), False)]
+    inhalt = (CSS + ZUF_CSS + entwicklung.CSS + energie.CSS + f'<h1>{amt.ic("chart-column")} Statistiken</h1>{amt.meldung(request)}'
+              '<p class="az">Vergleiche aller Haushalte, ohne Beträge einzelner Kassen. Jeder Abschnitt lässt sich aufklappen; Ihr eigener Teilstaat ist hervorgehoben.</p>'
+              + "".join(abschnitt(*x) for x in teile))
+    return sa.ant(request, k, "Statistiken", "sa-statistiken", inhalt)
+
+
 def registrieren(app):
     einrichten(app["db"])
     app.router.add_get(PFAD, seite)
     app.router.add_get(PFAD_PLAN, planung_seite)
     app.router.add_get(PFAD_OEFF, oeffentlich)
+    app.router.add_get(PFAD_STAT, statistiken)
     app.router.add_post(PFAD_PLAN + "entwurf", entwurf_post)
     app.router.add_post(PFAD_PLAN + "einreichen", einreichen_post)

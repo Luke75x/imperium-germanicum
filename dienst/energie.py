@@ -673,8 +673,8 @@ def _auf(titel, inhalt, symbol="clock"):
     return f'<details class="sa-auf"><summary>{amt.ic(symbol)}{esc(titel)}</summary>{inhalt}</details>'
 
 
-def vergleich_html(con, ziel="", ohne_reich=False, nur=None):
-    """Vergleich aller Haushalte (eingeklappt); auch im Reiter „Statistiken“ bei Mein Teilstaat."""
+def vergleich_html(con, ziel="", ohne_reich=False, nur=None, links=True, offen=False):
+    """Vergleich aller Haushalte: eingeklappt, mit offen=True nur die Tabelle (öffentliche Seite Statistiken)."""
     reihen = []
     for s, n in _ziele(con):
         if (ohne_reich and s == "reich") or (nur is not None and s not in nur):
@@ -682,8 +682,10 @@ def vergleich_html(con, ziel="", ohne_reich=False, nur=None):
         c = bilanz(con, s)
         reihen.append((c["v_ges"], s, n, c))
     reihen.sort(key=lambda r: (r[0], r[2]))
-    vgl = [(f'{__import__("wappen").klein(s, n)}<a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a>', gwh_text(c["bedarf"]), gwh_text(c["angebot"]), f'{_de(v * 100, 0)} %{ueberschuss_pz(c)}', f'{_de(c["erneuerbar"], 0)} %') for v, s, n, c in reihen]
-    return _auf("Ihre Teilstaaten" if nur is not None else "Vergleich aller Teilstaaten" if ohne_reich else "Vergleich aller Haushalte", amt.tabelle(["Haushalt", "Bedarf", "Erzeugung", "Versorgung", "Erneuerbare"], vgl, klasse="ee-tab"), "landmark")
+    vgl = [(__import__("wappen").klein(s, n) + (f'<a href="{PFAD}?ziel={esc(s)}">{esc(n)}</a>' if links else esc(n)), gwh_text(c["bedarf"]), gwh_text(c["angebot"]),
+            f'{_de(v * 100, 0)} %{ueberschuss_pz(c)}', f'{_de(c["erneuerbar"], 0)} %') for v, s, n, c in reihen]
+    tab = amt.tabelle(["Haushalt", "Bedarf", "Erzeugung", "Versorgung", "Erneuerbare"], vgl, klasse="ee-tab")
+    return tab if offen else _auf("Vergleich aller Haushalte", tab, "landmark")
 
 
 def _seitenhtml(request, k, con, ziel, eingebettet=False):
