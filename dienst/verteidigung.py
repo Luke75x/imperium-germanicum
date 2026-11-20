@@ -474,6 +474,7 @@ async def uebersicht(request, k):
                               ("Besoldung Führungsstab / Monat", (f'{mark(pk_r)}<br><span class="az">{n_r} Besoldete</span>' if n_r else "keine Besoldeten") if pk is not None else "–"),
                               ("Zahlt", "Oberbefehlshaber und Stabschefs")])
              + (f'<div class="sa-aktionen"><a class="btn zweit" href="{sa.PFAD}konto/?konto={rk["id"]}">{amt.ic("wallet")}Umsätze</a></div>' if darf_reich(k) else "")
+             + f'<div class="sa-aktionen"><a class="btn zweit" href="{PFAD}reich/">{amt.ic("shield")}Gerätebestand</a></div>'
              + '</div>')
     erkl = ('<div class="sa-erkl"><b>So ist die Verteidigung finanziert</b><ol>'
             f'<li>Den Verteidigungsanteil bestimmen Reich und Teilstaaten selbst in der <a href="{sa.PFAD}etatverteilung/">Etatverteilung</a>. Als Vorgabe gelten '
@@ -496,6 +497,35 @@ async def uebersicht(request, k):
               + ('<h2>Teilstaaten</h2>' + amt.tabelle(["Teilstaat", "Kasse", "Etat / Monat", "Personal / Monat", "Instandhaltung / Monat", "Gerätewert",
                                                       "Einsatzbereitschaft"], zeilen, "Keine Teilstaaten.", klasse="sa-haushalt") if zeilen else "") + stell)
     return sa.ant(request, k, "Verteidigung", "sa-verteidigung", inhalt)
+
+
+@sa.seite("verteidigung")
+async def reich_seite(request, k):
+    """Gerätebestand des Reiches (Reichsverteidigungskasse, Stelle „verteidigung“): nur Ansicht."""
+    con = request.app["db"]
+    if not sicht(con, k)["reich"]:
+        return sa.ant(request, k, "Kein Zugang", "sa-verteidigung", '<h1>Kein Zugang</h1><div class="warnung">Den Gerätebestand des Reiches sehen '
+                      'Führungsstab, Schatzamt-Leitung und Berechtigte des Reiches.</div>', 403)
+    kasse = reichskasse(con)
+    stelle = kasse["stelle"]
+    kz = kennzahlen(con, stelle)
+    b = bestand(con, stelle)
+    kzs = [("Reichsverteidigungskasse", mark(kasse["saldo"])), ("Instandhaltung / Monat", mark(kz["instandhaltung"])),
+           ("Gerätewert", mark(kz["wert"])), ("Einsatzbereitschaft", _pz(kz["bereitschaft"]))]
+    zeilen = [(esc(x["name"]), esc(x["kategorie"]), f'{x["anzahl"]:,}'.replace(",", "."), geld.mark_kurz(x["wert"]),
+               geld.mark_kurz(x["instandhaltung"]), _bereit_marke(x["bereitschaft"])) for x in b]
+    vorg = con.execute("SELECT * FROM vt_vorgaenge WHERE stelle=? ORDER BY id DESC LIMIT 30", (stelle,)).fetchall()
+    inhalt = (f'<p class="zurueck"><a href="{PFAD}">{amt.ic("arrow-left")}Verteidigung</a></p>'
+              f'<h1>{amt.ic("shield")} Verteidigung · Reich</h1>{amt.meldung(request)}'
+              '<p class="sa-hinweis">Bestand des Reiches und der Reichsunmittelbaren Gebiete. Nur Ansicht.</p>'
+              f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kzs)}</div>'
+              '<h2>Bestand</h2>' + amt.tabelle(["Gerät", "Kategorie", "Anzahl", "Wert", "Instandhaltung / Monat", "Bereitschaft"], zeilen, "Noch kein Militärgerät im Bestand.")
+              + (f'<p class="sa-hinweis">Benötigtes Personal laut Gerät: {kz["besatzung"]:,} Soldaten.</p>'.replace(",", ".") if kz["besatzung"] else "")
+              + f'<details class="sa-auf"><summary>{amt.ic("clock")}Vorgänge ({len(vorg)})</summary>'
+              + amt.tabelle(["Zeit", "Vorgang", "Betrag", "Beschreibung", "Durch"],
+                            [(amt._zeit(v["zeit"]), esc(ARTEN.get(v["art"], v["art"])), mark(v["betrag"]), esc(v["text"]), esc(v["autor_name"])) for v in vorg],
+                            "Noch keine Vorgänge.") + '</details>')
+    return sa.ant(request, k, "Verteidigung Reich", "sa-verteidigung", inhalt)
 
 
 @sa.seite("verteidigung")
@@ -723,6 +753,7 @@ def registrieren(app):
     r.add_post(PFAD + "saetze", saetze_post)
     r.add_get(PFAD + "katalog/", katalog_seite)
     r.add_post(PFAD + "katalog/", katalog_post)
+    r.add_get(PFAD + "reich/", reich_seite)
     r.add_get(PFAD + "{sid}/", land)
     r.add_post(PFAD + "{sid}/beschaffen", beschaffen_post)
     r.add_post(PFAD + "{sid}/ausmustern", ausmustern_post)
