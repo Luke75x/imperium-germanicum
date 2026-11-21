@@ -50,8 +50,19 @@ import rpteilstaaten
 import geld_api
 
 
+@web.middleware
+async def frisch(request, handler):
+    """Alle sehen sofort den aktuellen Stand: Antworten ohne eigene Cache-Regel werden nicht zwischengespeichert
+    (Seiten und Daten: no-store; Dateien: no-cache, d. h. kurz beim Server nachfragen, 304 wenn unverändert)."""
+    resp = await handler(request)
+    if isinstance(resp, web.StreamResponse) and not resp.prepared and "Cache-Control" not in resp.headers:
+        art = resp.content_type or ""
+        resp.headers["Cache-Control"] = "no-store" if art.startswith(("text/", "application/json")) else "no-cache"
+    return resp
+
+
 def erstellen():
-    app = web.Application(client_max_size=2 * 1024 * 1024, middlewares=[bankkarte.pin_sperre])
+    app = web.Application(client_max_size=2 * 1024 * 1024, middlewares=[frisch, bankkarte.pin_sperre])
     app["db"] = db.verbinden()
     app["discord"] = dc = discord_api.Discord()
     app.on_startup.append(dc.start)

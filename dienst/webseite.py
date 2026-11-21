@@ -87,7 +87,7 @@ def seite(titel, inhalt, extra_head=""):
     return (f'<!doctype html><html lang="de"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><base href="/">'
             f'<title>{esc(titel)} – Imperium Germanicum</title><meta name="robots" content="noindex,nofollow">'
-            f'<meta name="theme-color" content="#12183c">{head}{CSS}{extra_head}</head>'
+            f'<meta name="theme-color" content="#12183c">{head}{CSS}{extra_head}<script>addEventListener("pageshow",function(e){{if(e.persisted)location.reload()}})</script></head>'
             f'<body>{anfang}<main id="inhalt" tabindex="-1">{inhalt}</main>{fuss}</body></html>')
 
 

@@ -442,7 +442,7 @@ def seite_html(request, modus, konto, csrf, version, rollen):
                    f'<div class="dialog-actions"><button type="button" class="btn btn-line" data-gebiet-zu>{L("Schließen", "Close")}</button></div></dialog>')
     inhalt = (f'{kopf}<div class="section wiki"><div class="wrap with-aside wiki-cols"><div class="wiki-main">{wurzel}</div>{aside}</div></div>'
               f'{dialoge}<script type="application/json" id="karte-cfg">{cfg_json}</script>')
-    v = int(time.time() // 86400)
+    v = int(max(os.path.getmtime(f"{config.WEBROOT}/assets/{d}") for d in ("css/wiki.css", "js/karte.js")))   # neu laden, sobald die Dateien wechseln
     head = f'<link rel="stylesheet" href="/assets/css/wiki.css?v={v}">\n<script src="/assets/js/karte.js?v={v}" defer></script>'
     if modus == "bearbeiten":
         head += '\n<meta name="robots" content="noindex">'
@@ -737,7 +737,7 @@ async def antrag_entscheiden(request):
 async def png(request):
     if not os.path.exists(karte_bild.PFAD):
         raise web.HTTPNotFound()
-    return web.FileResponse(karte_bild.PFAD, headers={"Cache-Control": "public, max-age=300"})
+    return web.FileResponse(karte_bild.PFAD, headers={"Cache-Control": "no-cache"})
 
 
 async def _bild_beim_start(app):

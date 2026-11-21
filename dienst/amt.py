@@ -1640,7 +1640,7 @@ async def logo_datei(request):
     pfad = os.path.join(LOGO_ORDNER, name)
     if not os.path.isfile(pfad):
         raise web.HTTPNotFound()
-    return web.FileResponse(pfad, headers={"Cache-Control": "public, max-age=3600"})
+    return web.FileResponse(pfad, headers={"Cache-Control": "no-cache"})
 
 
 def registrieren(app):

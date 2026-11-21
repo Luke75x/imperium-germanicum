@@ -39,7 +39,7 @@ async def wappen(request):
     pfad = os.path.join(WAPPEN_DIR, sid + ".png")
     if not sid.isalnum() or not os.path.isfile(pfad):
         raise web.HTTPNotFound()
-    return web.FileResponse(pfad, headers={"Cache-Control": "public, max-age=86400"})
+    return web.FileResponse(pfad, headers={"Cache-Control": "no-cache"})
 
 
 def _zeile(klasse, symbol, text, zusatz="", link=None):

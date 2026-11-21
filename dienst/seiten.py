@@ -25,6 +25,14 @@ def _vorlage():
     return _cache[1]
 
 
+def _css_version():
+    """Version von wiki.css nach Änderungszeit: neue Fassung wird sofort geladen, unveränderte bleibt im Cache."""
+    try:
+        return int(os.path.getmtime(f"{config.WEBROOT}/assets/css/wiki.css"))
+    except OSError:
+        return int(time.time() // 86400)
+
+
 def _konto_html(konto, csrf, pfad):
     """Konto in der Kopfleiste (Stil .topbar .wiki-user aus wiki.css)."""
     if not konto:
@@ -41,9 +49,9 @@ def seite(titel, inhalt, kopf="", body_klasse="", konto=None, csrf="", pfad=None
     text = _vorlage()
     text = re.sub(r"<title>.*?</title>", lambda m: f"<title>{html.escape(titel)} – Imperium Germanicum</title>", text, 1, re.S)
     if pfad is not None and "wiki.css" not in kopf:   # Kopfleiste mit Konto (.wiki-user) ist in wiki.css gestaltet
-        kopf += f'\n<link rel="stylesheet" href="/assets/css/wiki.css?v={int(time.time() // 86400)}">'
-    if kopf:
-        text = text.replace("</head>", kopf + "\n</head>", 1)
+        kopf += f'\n<link rel="stylesheet" href="/assets/css/wiki.css?v={_css_version()}">'
+    kopf += '\n<script>addEventListener("pageshow",function(e){if(e.persisted)location.reload()})</script>'   # Seite aus dem Zurück-Cache (Handy) neu laden, damit sie aktuell ist
+    text = text.replace("</head>", kopf + "\n</head>", 1)
     if canonical:
         text = re.sub(r'<link rel="canonical" href="[^"]*">', lambda m: f'<link rel="canonical" href="{config.SITE_URL}{canonical}">', text, 1)
     if lang != "de":

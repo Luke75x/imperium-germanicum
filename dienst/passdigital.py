@@ -299,7 +299,7 @@ async def bild(request):
     name = request.match_info["name"]
     if name not in ("wappen.png", "wappen_gold.png", "stempel_adler.png"):
         raise web.HTTPNotFound()
-    return web.FileResponse(os.path.join(BILDER, name), headers={"Cache-Control": "public, max-age=86400"})
+    return web.FileResponse(os.path.join(BILDER, name), headers={"Cache-Control": "no-cache"})
 
 
 def nav(k):
