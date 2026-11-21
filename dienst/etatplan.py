@@ -588,6 +588,7 @@ CSS = """<style>
 .ep-farbe{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:8px}
 .ep-farbe.schraffur{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.75) 0 2px,transparent 2px 5px)}
 .ep-fest td{color:var(--grau)}
+.ep-mobil{display:none}
 .ep-tab input[type=number]{width:84px;text-align:right;padding:4px 6px}
 .ep-tab input[type=range]{width:120px;vertical-align:middle;accent-color:var(--ink)}
 .ep-summe{display:flex;gap:10px;align-items:center;margin:10px 0;font-weight:600}
@@ -616,6 +617,7 @@ CSS = """<style>
  .ep-torte{max-width:300px}
  .ep-tab input[type=range]{display:none}
  .ep-tab th:nth-child(3),.ep-tab td:nth-child(3){display:none}
+ .ep-mobil{display:block;font-size:10.5px;color:var(--grau);font-weight:400;line-height:1.25;margin-top:2px}
  .ep-tab td:first-child{white-space:normal}
  .ep-tab input[type=number]{width:70px}
  .ep-tab th,.ep-tab td{padding:6px 4px}
@@ -659,7 +661,7 @@ function rlRechnen(){var e=document.getElementById("ep-rl");if(!e||!D.rl)return;
  D.fest_hinten[0].betrag=Math.max(0,rl);
  function t(id,v){var o=document.getElementById(id);if(o)o.textContent=v}
  t("ep-kz-pool",kurz(pool));t("ep-kz-rl",kurz(Math.abs(rl)));t("ep-kz-rl-t",rl>=0?"Zuführung diesen Monat":"Entnahme aus der "+R.kasse);
- var z=document.getElementById("ep-entnahme-zeile");if(z)z.hidden=rl>=0;t("ep-entnahme-betrag",kurz(Math.max(0,-rl)));t("ep-entnahme-pz",pz(D.gesamt?Math.max(0,-rl)/D.gesamt*100:0));
+ var z=document.getElementById("ep-entnahme-zeile");if(z)z.hidden=rl>=0;t("ep-entnahme-betrag",kurz(Math.max(0,-rl)));t("ep-entnahme-pz",pz(D.gesamt?Math.max(0,-rl)/D.gesamt*100:0));t("ep-entnahme-mobil",pz(D.gesamt?Math.max(0,-rl)/D.gesamt*100:0)+" vom ganzen Etat");
  var i=document.getElementById("ep-rl-info");if(i)i.innerHTML=(p>0.05?"Rücklage: <b>"+pz(p)+"</b> ("+de(rl)+") bleiben im Monat in der "+R.kasse+".":
   p<-0.05?"Entnahme: <b>"+pz(-p)+"</b> ("+de(-rl)+") kommen im Monat zusätzlich aus der "+R.kasse+" – den Politikfeldern zugeordnet."+(ged?" Begrenzt auf die freien Mittel der Kasse.":""):"Ausgeglichen: der ganze Steueranteil wird ausgegeben.")}
 function zeichnen(){
@@ -688,7 +690,7 @@ function zeichnen(){
   svg.appendChild(el)});
  s.forEach(function(x){var z=document.querySelector('[data-zeile="'+x.id+'"]');if(!z)return;
   var b=z.querySelector(".ep-betrag"),a=z.querySelector(".ep-anteil-gesamt");if(b)b.textContent=kurz(x.betrag);b&&b.setAttribute("title",de(x.betrag));
-  if(a)a.textContent=pz(x.betrag/gesamt*100)});
+  if(a)a.textContent=pz(x.betrag/gesamt*100);var m=z.querySelector(".ep-mobil");if(m)m.textContent=pz(x.betrag/gesamt*100)+" vom ganzen Etat"});
  summe()}
 function zeigen(x,e){var r=torte.getBoundingClientRect();zeigenAn(x,(e.clientX-r.left)/r.width*200,(e.clientY-r.top)/r.height*200);fokus(x.id,true)}
 function zeigenAn(x,px,py){var gesamt=D.gesamt||1,bd=D.bindung&&D.bindung[x.id],h="<b>"+x.name+"</b><br>"+pz(x.betrag/gesamt*100)+" des Etats";
@@ -1229,7 +1231,8 @@ async def _seite(request, k, planung):
     for f in fest_vorn:
         zeilen.append(f'<tr class="ep-fest" data-zeile="{f["id"]}"><td><span class="ep-farbe" style="background:{f["farbe"]}"></span>{esc(f["name"])}</td>'
                       f'<td class="num">–</td><td class="num ep-anteil-gesamt">{_de(f["betrag"] / gesamt * 100 if gesamt else 0)} %</td>'
-                      f'<td class="num"><span title="{mark(f["betrag"])}">{geld.mark_kurz(f["betrag"])}</span></td></tr>')
+                      f'<td class="num"><span title="{mark(f["betrag"])}">{geld.mark_kurz(f["betrag"])}</span>'
+                      f'<span class="ep-mobil">{_de(f["betrag"] / gesamt * 100 if gesamt else 0)} % vom ganzen Etat</span></td></tr>')
     for i, kd in enumerate(kat_daten):
         kat = kd["id"]
         farbe = f'<span class="ep-farbe{" schraffur" if kd["schraffur"] else ""}" style="background-color:{kd["farbe"]}"></span>'
@@ -1241,7 +1244,8 @@ async def _seite(request, k, planung):
             anteil_zelle = f'{_de(v[kat])} %'
         zeilen.append(f'<tr data-zeile="{kat}"><td>{farbe}{esc(NAMEN[kat])}</td><td class="num">{anteil_zelle}</td>'
                       f'<td class="num ep-anteil-gesamt">{_de(betraege[kat] / gesamt * 100 if gesamt else 0)} %</td>'
-                      f'<td class="num"><span class="ep-betrag" title="{mark(betraege[kat])}">{geld.mark_kurz(betraege[kat])}</span></td></tr>')
+                      f'<td class="num"><span class="ep-betrag" title="{mark(betraege[kat])}">{geld.mark_kurz(betraege[kat])}</span>'
+                      f'<span class="ep-mobil">{_de(betraege[kat] / gesamt * 100 if gesamt else 0)} % vom ganzen Etat</span></td></tr>')
     for f in fest_hinten:   # die Rücklage ist eine Zeile der Tabelle und funktioniert wie ein Politikfeld
         if darf:
             r_zelle = (f'<input type="range" id="ep-rl-r" min="-100" max="100" step="0.1" value="{max(-100, min(100, r_zeile)):.1f}" aria-label="Rücklage Regler"> '
@@ -1250,10 +1254,12 @@ async def _seite(request, k, planung):
             r_zelle = f'{_de(r_zeile)} %'
         zeilen.append(f'<tr data-zeile="{f["id"]}"><td><span class="ep-farbe" style="background:{f["farbe"]}"></span>{esc(f["name"])}</td>'
                       f'<td class="num">{r_zelle}</td><td class="num ep-anteil-gesamt">{_de(f["betrag"] / gesamt * 100 if gesamt else 0)} %</td>'
-                      f'<td class="num"><span class="ep-betrag" title="{mark(f["betrag"])}">{geld.mark_kurz(f["betrag"])}</span></td></tr>')
+                      f'<td class="num"><span class="ep-betrag" title="{mark(f["betrag"])}">{geld.mark_kurz(f["betrag"])}</span>'
+                      f'<span class="ep-mobil">{_de(f["betrag"] / gesamt * 100 if gesamt else 0)} % vom ganzen Etat</span></td></tr>')
     zeilen.append(f'<tr class="ep-fest ep-entnahme" id="ep-entnahme-zeile"{"" if ruecklage < 0 else " hidden"}><td><span class="ep-farbe ep-farbe-leer"></span>'
                   f'Entnahme aus der {kassen_name}</td><td class="num">–</td><td class="num" id="ep-entnahme-pz">{_de(-ruecklage / gesamt * 100 if gesamt else 0)} %</td>'
-                  f'<td class="num"><span id="ep-entnahme-betrag">{geld.mark_kurz(max(0, -ruecklage))}</span></td></tr>')
+                  f'<td class="num"><span id="ep-entnahme-betrag">{geld.mark_kurz(max(0, -ruecklage))}</span>'
+                  f'<span class="ep-mobil" id="ep-entnahme-mobil">{_de(-ruecklage / gesamt * 100 if gesamt else 0)} % vom ganzen Etat</span></td></tr>')
     tabelle = ('<table class="ep-tab"><thead><tr><th>Kategorie</th><th class="num">Anteil am eigenen Etat</th><th class="num">Anteil am Etat</th>'
                f'<th class="num">Betrag / Monat</th></tr></thead><tbody>{"".join(zeilen)}</tbody></table>')
     kasse_info = (f'<div class="ep-kasse">{amt.ic("landmark")}<span>Rücklage der {esc(kassen_name)} (Gesamtwert): <b>{esc(mark(kasse_rl["saldo"] if kasse_rl else 0))}</b>'
