@@ -56,6 +56,8 @@ geld.VORGABEN.setdefault("energie", {
     "bau_faktor": 100,            # % der Baukosten
     "instand_faktor": 100,        # % der Instandhaltungssätze (Kr je erzeugter GWh, siehe INSTAND)
     "kauf_unter": 60,             # Versorgung in %, unter der am Energiemarkt gekauft werden darf
+    "speicher_pz": 30,            # Batterie: Kapazität in % des Monatsbedarfs (22.11.2026)
+    "speicher_wirkung": 90,       # Batterie: Ladewirkungsgrad in % (der Rest geht beim Laden verloren)
     "richt_treibstoff": 100000, "richt_aluminium": 100000, "richt_stahl": 100000,   # Tonnen im Lager für 100 % Bonus (und Verbrauch je Monatswechsel)
 })
 SAETZE = [("haushalt_kwh", "Verbrauch je Einwohner (kWh/Monat)"), ("industrie_gwh_je_mio", "Industrie (GWh je Mio. € BIP)"), ("mil_mwh_je_geraet", "Militärgerät (MWh/Monat je Gerät)"),
@@ -63,6 +65,7 @@ SAETZE = [("haushalt_kwh", "Verbrauch je Einwohner (kWh/Monat)"), ("industrie_gw
           ("ver_treibstoff", "Veredelung Treibstoff (MWh/t)"), ("zuf_max", "Höchstabzug Zufriedenheit (Punkte)"), ("infra_max", "Höchstabzug Infrastruktur (Punkte)"),
           ("ind_max", "Höchstabzug Industrie (Punkte)"), ("leistung_faktor", "Leistung aller Kraftwerke (% der Tabelle)"), ("bau_faktor", "Baukosten (% der Tabelle)"), ("instand_faktor", "Instandhaltung (% der Tabelle)"),
           ("kauf_unter", "Zukauf am Markt erlaubt unter Versorgung (%)"),
+          ("speicher_pz", "Batterie: Kapazität (% des Monatsbedarfs)"), ("speicher_wirkung", "Batterie: Ladewirkungsgrad (%)"),
           ("richt_treibstoff", "Treibstoff für 100 % Bonus (t)"), ("richt_aluminium", "Aluminium für 100 % Bonus (t)"), ("richt_stahl", "Stahl für 100 % Bonus (t)")]
 BONUSWAREN = [("treibstoff", "Treibstoff"), ("aluminium", "Aluminium"), ("stahl", "Stahl")]
 BONUS_MAX = {"treibstoff": 100.0, "aluminium": 100.0, "stahl": 10.0}   # % bei vollem Bonus: Energieerzeugung +, Effizienz der Industrie +, Preise für Militärgerät −
@@ -90,6 +93,7 @@ CREATE TABLE IF NOT EXISTS en_nutzung (id INTEGER PRIMARY KEY AUTOINCREMENT, per
     text TEXT NOT NULL DEFAULT '', autor TEXT NOT NULL DEFAULT '', zeit INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS en_nu_s ON en_nutzung (schl, periode);
 CREATE TABLE IF NOT EXISTS en_lauf (periode TEXT PRIMARY KEY, zeit INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS en_speicher (periode TEXT NOT NULL, schl TEXT NOT NULL, anfang REAL NOT NULL, entladung REAL NOT NULL, ladung REAL NOT NULL, ende REAL NOT NULL, PRIMARY KEY (periode, schl));
 CREATE TABLE IF NOT EXISTS en_raten (id INTEGER PRIMARY KEY AUTOINCREMENT, schl TEXT NOT NULL, text TEXT NOT NULL, gesamt INTEGER NOT NULL, offen INTEGER NOT NULL,
     rate INTEGER NOT NULL, zuletzt TEXT NOT NULL DEFAULT '', zeit INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS en_angebote (id INTEGER PRIMARY KEY AUTOINCREMENT, periode TEXT NOT NULL, schl TEXT NOT NULL, menge REAL NOT NULL, rest REAL NOT NULL,
@@ -111,6 +115,10 @@ def einrichten(con):
 
 def einstellungen(con):
     return dict(geld.VORGABEN["energie"], **geld.einstellung(con, "energie"))
+
+
+def _gwh(x):
+    return f"{_de(x, 1)} GWh"
 
 
 def _de(x, st=1):
@@ -289,6 +297,12 @@ def leeren():
     _CACHE.clear()
 
 
+def speicher_anfang(con, schl, periode):
+    """Füllstand der Batterie (GWh) zu Monatsbeginn: Endstand des letzten gebuchten Monats vor `periode` (0 ohne Vorgänger)."""
+    r = con.execute("SELECT ende FROM en_speicher WHERE schl=? AND periode<? ORDER BY periode DESC LIMIT 1", (schl, periode)).fetchone()
+    return float(r["ende"]) if r else 0.0
+
+
 def bilanz(con, schl, periode=None, frisch=False):
     """Energiebilanz eines Haushalts im Monat. Verteilung bei Knappheit: Bevölkerung → Militär → Industrie und Veredelung."""
     import etatplan
@@ -309,22 +323,31 @@ def bilanz(con, schl, periode=None, frisch=False):
     boni = boni_berechnen(con, schl, hh + ind_roh + mil, s)
     erz = erz_roh * (1 + BONUS_MAX["treibstoff"] / 100 * boni["treibstoff"]["anteil"])   # Treibstoff: Energiegewinnung effizienter
     ind = ind_roh / (1 + BONUS_MAX["aluminium"] / 100 * boni["aluminium"]["anteil"])     # Aluminium: Industrie effizienter
-    S = erz + zukauf - verkauf
+    S0 = erz + zukauf - verkauf
     ver = veredelung_verbrauch(con, schl, periode)
+    bedarf = hh + ind + mil + ver
+    # Batterie: Überschuss lädt sie (mit Verlust, bis zur Kapazität), ein Defizit entlädt sie – der Füllstand wandert von Monat zu Monat
+    anf = speicher_anfang(con, schl, periode)
+    kap = float(s["speicher_pz"]) / 100 * bedarf
+    entl = min(anf, max(0.0, bedarf - S0))
+    wirk = float(s["speicher_wirkung"]) / 100
+    uebrig = anf - entl
+    ladung = min(max(0.0, S0 - bedarf) * wirk, max(0.0, kap - uebrig))   # gespeicherte Energie (netto)
+    S = S0 + entl
     rest = S
     g_hh = min(rest, hh); rest -= g_hh
     g_mil = min(rest, mil); rest -= g_mil
     g_ind = min(rest, ind + ver)
-    bedarf = hh + ind + mil + ver
     v = lambda g, b: (g / b) if b > 1e-9 else 1.0
     fossil = sum(mix.get(t, 0) for t in FOSSIL)
     klima = sum(mix.get(t, 0) * TYP[t][4] for t in mix) / erz_roh if erz_roh else 0.0
     b = {"periode": periode, "schl": schl, "ew": ew, "bip": bip, "hh": hh, "ind": ind, "mil": mil, "ver": ver, "bedarf": bedarf, "angebot": S, "mix": mix,
          "v_hh": v(g_hh, hh), "v_mil": v(g_mil, mil), "v_ind": v(g_ind, ind + ver), "v_ges": min(1.0, v(S, bedarf)), "frei": S - bedarf, "n_mil": n_mil,
          "erzeugung": erz, "erzeugung_roh": erz_roh, "boni": boni, "zukauf": zukauf, "verkauf": verkauf, "reserviert": reserviert, "frei_ver": S - bedarf - reserviert,
-         "markt_frei": max(0.0, erz - verkauf - bedarf - reserviert),
+         "markt_frei": max(0.0, erz - verkauf - bedarf - reserviert),   # verkaufen lässt sich nur der Überschuss der eigenen Erzeugung, nicht die Batterie
          "fossil": fossil / erz_roh * 100 if erz_roh else 0.0, "erneuerbar": sum(mix.get(t, 0) for t in ("wasser", "wind", "solar", "biomasse")) / erz_roh * 100 if erz_roh else 0.0,
-         "klima": klima, "einstellung": s}
+         "klima": klima, "einstellung": s,
+         "speicher": {"anfang": anf, "entladung": entl, "ladung": ladung, "ende": uebrig + ladung, "kapazitaet": kap, "wirkung": wirk * 100}}
     _CACHE[(schl, periode)] = (time.time(), b)
     return b
 
@@ -441,6 +464,8 @@ def speichern(con, periode, liste):
         except Exception:
             log.exception("Energiemonat %s/%s nicht speicherbar", periode, schl)
             continue
+        sp = b["speicher"]
+        con.execute("INSERT OR REPLACE INTO en_speicher (periode, schl, anfang, entladung, ladung, ende) VALUES (?,?,?,?,?,?)", (periode, schl, sp["anfang"], sp["entladung"], sp["ladung"], sp["ende"]))
         con.execute("INSERT OR REPLACE INTO en_monat (periode, schl, angebot, bev, ind, mil, ver, v_hh, v_ind, v_ges, ew, mix) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (periode, schl, b["angebot"], b["hh"], b["ind"], b["mil"], b["ver"], b["v_hh"], b["v_ind"], b["v_ges"], int(b["ew"]), json.dumps(b["mix"])))
     leeren()
@@ -824,6 +849,20 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
     # Bedarf
     verbr = [("Bevölkerung", b["hh"], b["v_hh"], "#2a78d6"), ("Militär", b["mil"], b["v_mil"], "#6250d6"), ("Industrie", b["ind"], b["v_ind"], "#eb6834"), ("Veredelung", b["ver"], b["v_ind"], "#eda100")]
     zeilen = [(esc(n), gwh_text(w), f'{_de(v * 100, 0)} %') for n, w, v, _ in verbr if w > 0]
+    sp = b["speicher"]
+    fuell = (sp["ende"] / sp["kapazitaet"] * 100) if sp["kapazitaet"] > 0 else 0.0
+    if sp["entladung"] > 0.0005:
+        sp_text = f'Die Batterie gleicht das Defizit aus: Entnahme {_gwh(sp["entladung"])} in diesem Monat.'
+    elif sp["ladung"] > 0.0005:
+        sp_text = f'Überschuss lädt die Batterie: voraussichtlich +{_gwh(sp["ladung"])} (Wirkungsgrad {_de(sp["wirkung"], 0)} %).'
+    else:
+        sp_text = "Weder Überschuss noch Defizit – die Batterie bleibt unverändert."
+    speicher_html = ('<h2>Batterie</h2><p class="az">Überschüssige Energie wird gespeichert und deckt in späteren Monaten Defizite. Verkaufte Energie lädt die Batterie nicht.</p>'
+                     '<div class="kennzahlen">'
+                     f'<div><b>{_gwh(sp["anfang"])}</b>Füllstand zu Monatsbeginn</div><div><b>{_gwh(sp["ende"])}</b>voraussichtlich zum Monatsende</div>'
+                     f'<div><b>{_gwh(sp["kapazitaet"])}</b>Kapazität ({_de(float(b["einstellung"]["speicher_pz"]), 0)} % des Monatsbedarfs)</div></div>'
+                     f'<div style="height:12px;border:1px solid var(--linie);border-radius:999px;overflow:hidden;margin:6px 0 4px" role="img" aria-label="Füllstand {_de(fuell, 0)} %">'
+                     f'<div style="height:100%;width:{max(0.0, min(100.0, fuell)):.1f}%;background:var(--ink)"></div></div><p class="az">{esc(sp_text)} Füllstand zum Monatsende: {_de(fuell, 0)} %.</p>')
     bedarf_html = _balken([(n, w, c) for n, w, _, c in verbr]) + amt.tabelle(["Verbraucher", "Bedarf", "Versorgt"], zeilen, klasse="ee-tab")
     # Erzeugung
     mix_teile = [(TYP[t][1], b["mix"].get(t, 0), FARBEN[i]) for i, (t, *_r) in enumerate(TYPEN)]
@@ -872,11 +911,11 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
                 'wer unter 60 % versorgt ist, darf dort zukaufen. Stilllegungen und Sätze legt die RP-Leitung fest.</p>', "info" if "info" in amt.ICONS else "clock")
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in sa.bereich_ziele(con, k, _ziele(con), ziel))
     if eingebettet:   # Abschnitt der Seite „Land“ (teilstaat.py): ohne Überschrift, Meldung und Haushaltsauswahl
-        return entwicklung.CSS + CSS + sa.untertabs([("en-lage", "Übersicht", kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info),
+        return entwicklung.CSS + CSS + sa.untertabs([("en-lage", "Übersicht", kopf + lage_html + speicher_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info),
                                                       ("en-stat", "Statistik", produktion_html(b["mix"], name, verlauf_stat_html(con, ziel, b)))])
     return (entwicklung.CSS + CSS + f'<h1>{amt.ic("zap")} Energie · {esc(name)}</h1>{amt.meldung(request)}'
             ''
-            + sa.untertabs([("en-lage", "Übersicht", kopf + lage_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info),
+            + sa.untertabs([("en-lage", "Übersicht", kopf + lage_html + speicher_html + "<h2>Bedarf</h2>" + bedarf_html + "<h2>Erzeugung</h2>" + mix_html + boni_html + nutz_html + verlauf_html + info),
                             ("en-stat", "Statistik", produktion_html(b["mix"], name, verlauf_stat_html(con, ziel, b)))]))
 
 
