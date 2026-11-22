@@ -140,7 +140,8 @@ def regierte(con, k):
     """Teilstaat-IDs, deren Verteidigungskasse das Konto führt (wie die Staatskasse; Leitung des Schatzamts: alle)."""
     if geld.ist_leitung(k):
         return {r["stelle"][3:] for r in con.execute("SELECT stelle FROM gk_konten WHERE art='verteidigung' AND stelle LIKE 'vt-%'")}
-    return {r["stelle"][3:] for r in geld.regierte_staatskassen(con, k)}
+    import befugnisse
+    return {r["stelle"][3:] for r in geld.regierte_staatskassen(con, k)} | befugnisse.sids(con, k, "verteidigung")   # + eingestellte Personen mit Befugnis
 
 
 def darf_geraet(con, k, sid, mit_zwang=False):
@@ -220,7 +221,8 @@ def sicht(con, k):
         alle = ist_fuehrungsstab(k) or bereiche._alle(k) or geld.ist_leitung(k)
         mil = ist_stab(con, k)   # nur General- und Offiziersstab; Unteroffiziere und Mannschaften sehen den Etat nicht
         eigene = staaten_von(con, k["rollen"]) if mil else set()
-        sids = {r["stelle"][3:] for r in geld.regierte_staatskassen(con, k, mit_zwang=True)} | eigene
+        import befugnisse
+        sids = {r["stelle"][3:] for r in geld.regierte_staatskassen(con, k, mit_zwang=True)} | eigene | befugnisse.sids(con, k, "verteidigung")
         reich = alle or (mil and not eigene)
         k["_vt_sicht"] = {"alle": alle, "sids": sids, "reich": reich, "irgendwas": alle or bool(sids) or reich}
     return k["_vt_sicht"]

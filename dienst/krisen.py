@@ -563,7 +563,7 @@ def rumpf(request, k, con, ziel, eingebettet=False):
     """Krisenseite eines Teilstaats; eingebettet=True: Abschnitt der Seite „Land“ (ohne Überschrift und Meldung)."""
     import etatplan
     faelle = con.execute("SELECT * FROM kr_faelle WHERE schl=? ORDER BY CASE status WHEN 'offen' THEN 0 ELSE 1 END, beginn DESC LIMIT 40", (ziel,)).fetchall()
-    darf = etatplan.darf_aendern(con, k, ziel)
+    darf = etatplan.darf_aendern(con, k, ziel, None)
     lage = lage_aktuell(con, ziel)
     name = _teilstaat_name(con, ziel)
     offene_html = "".join(_fall_html(con, k, f, darf, request, lage) for f in faelle if f["status"] == "offen")
@@ -601,7 +601,7 @@ async def reagieren_post(request):
     f = con.execute("SELECT * FROM kr_faelle WHERE id=?", (fall,)).fetchone()
     if not f:
         raise web.HTTPNotFound()
-    if not etatplan.darf_aendern(con, k, f["schl"]):
+    if not etatplan.darf_aendern(con, k, f["schl"], None):
         raise web.HTTPForbidden(text="Auf diese Krise darf nur der Landesherr des Teilstaats reagieren.")
     try:
         text = reagieren(con, k, fall, str(form.get("option", "")), etatplan.monat_heute())

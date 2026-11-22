@@ -552,13 +552,17 @@ def _rl_text(pz, betrag, kassen_name, gedeckelt=False):
     return 'Ausgeglichen: der ganze Steueranteil wird ausgegeben.'
 
 
-def darf_aendern(con, k, schl):
+def darf_aendern(con, k, schl, recht="etat"):
+    """Etat/Energie/Handel eines Haushalts ändern. recht: Befugnis eines eingestellten Schatzamts-Angehörigen (befugnisse.py: „etat“, „energie“; None = nur Regent)."""
     if not k or not k["mitglied"]:
         return False
     if schl == "reich":
         # Serveradministratoren (ohne Kaiser-/Kronkanzleramt) sehen den Reichshaushalt nur OOC und geben nichts aus (Bau, Etat, Handel).
         return geld.ist_leitung(k) and not (amt.ist_ooc_admin(k) and not (set(geld._behoerde()["leitung"]) & set(k["rollen"])))
-    return any(r["stelle"] == schl for r in geld.regierte_staatskassen(con, k))
+    if any(r["stelle"] == schl for r in geld.regierte_staatskassen(con, k)):
+        return True
+    import befugnisse
+    return bool(recht) and schl.startswith("ts-") and befugnisse.befugt(con, k, schl[3:], recht)
 
 
 def ziele(con, liste):

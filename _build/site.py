@@ -186,6 +186,8 @@ INSTITUTIONEN = [
      "idf73bcf2259c33f2"),
     ("informationen/die-reichsbehoerden/", "Die Reichsbehörden", "Die Reichsbehörden",
      "Erfahre mehr über die Reichsbehörden des Imperium Germanicum", "i416b7a1e6d04b155"),
+    ("informationen/die-teilstaaten/", "Die Teilstaaten", "Die Teilstaaten",
+     "Wähle einen Teilstaat und sieh dir Wappen, Regent, Bevölkerung und Wirtschaft an", "i416b7a1e6d04b155"),
 ]
 
 # Einträge, die im Untermenü und in der Übersicht zwei Spalten einnehmen

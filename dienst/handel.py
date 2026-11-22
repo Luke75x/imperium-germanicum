@@ -162,7 +162,7 @@ def halter(con):
 
 def darf(con, k, schl):
     import etatplan
-    return etatplan.darf_aendern(con, k, schl)
+    return etatplan.darf_aendern(con, k, schl, "energie")
 
 
 def meine_halter(con, k):

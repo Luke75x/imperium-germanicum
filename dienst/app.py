@@ -93,7 +93,11 @@ def erstellen():
     verteidigung.registrieren(app)
     notlage.registrieren(app)
     etatplan.registrieren(app)
+    import befugnisse
+    befugnisse.einrichten(app["db"])
     teilstaat.registrieren(app)
+    import teilstaaten_info
+    teilstaaten_info.registrieren(app)
     entwicklung.registrieren(app)
     energie.registrieren(app)
     handel.registrieren(app)

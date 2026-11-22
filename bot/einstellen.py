@@ -34,13 +34,32 @@ def ist_kanzler(user: discord.Member) -> bool:
 
 
 def darf_einstellen(user: discord.Member, schluessel: str) -> bool:
-    """Reichsverwaltung nur Kronkanzler/Kaiser, alle anderen Institutionen jeder Landesherr (und der Kaiser)."""
+    """Reichsverwaltung nur Kronkanzler/Kaiser, Schatz- und Währungsamt Kronkanzler/Kaiser und (bis Inspektor) Landesherren, alle anderen jeder Landesherr (und der Kaiser)."""
+    if schluessel == "schatzamt":
+        return ist_kanzler(user) or ist_landesherr(user)
     return ist_kanzler(user) if schluessel in dg.NUR_KANZLER else ist_landesherr(user)
+
+
+def schatzamt_grenze(user: discord.Member, schluessel: str, index: int):
+    """Fehlertext, wenn ein Landesherr im Schatz- und Währungsamt über Inspektor hinaus einstellen will."""
+    if schluessel == "schatzamt" and not ist_kanzler(user) and index > dg.SCHATZAMT_LANDESHERR_BIS:
+        return "Im Schatz- und Währungsamt stellen Regenten bis einschließlich Inspektor ein; höhere Dienstgrade vergeben Kronkanzler und Kaiser."
+    return None
+
+
+def inspektor_art(member: discord.Member) -> str:
+    """„Reichsinspektor“ / „Landesinspektor“ eines Schatzamts-Angehörigen mit Dienstgrad Inspektor, sonst leer."""
+    ids = {r.id for r in member.roles}
+    if dg.INSTITUTIONEN["schatzamt"][1] not in ids or dg.RAENGE["schatzamt"][dg.SCHATZAMT_LANDESHERR_BIS][2] not in ids:
+        return ""
+    return "Reichsinspektor" if dg.REICHSINSPEKTOR_ROLLE in ids else "Landesinspektor"
 
 
 def aktueller_rang(member: discord.Member, schluessel: str):
     """Index des höchsten Dienstgrads dieser Institution, den die Person trägt (oder None)."""
     ids = {r.id for r in member.roles}
+    if schluessel == "schatzamt" and dg.INSTITUTIONEN["schatzamt"][1] not in ids:
+        return None   # die Dienstgrad-Rollen teilt das Amt mit der Reichsverwaltung
     treffer = [i for i, (_, _, rid) in enumerate(dg.RAENGE[schluessel]) if rid in ids]
     return max(treffer) if treffer else None
 
@@ -61,7 +80,7 @@ def andere_institution(member: discord.Member, schluessel: str):
     return None
 
 
-async def anwenden(guild: discord.Guild, ziel: discord.Member, schluessel: str, index: int, grund: str):
+async def anwenden(guild: discord.Guild, ziel: discord.Member, schluessel: str, index: int, grund: str, durch: discord.Member | None = None):
     """Setzt Dienstgrad und Rollen. Gibt (Fehlertext oder None, vorheriger Index oder None) zurück."""
     stufe, name, rid = dg.RAENGE[schluessel][index]
     alt = aktueller_rang(ziel, schluessel)
@@ -71,8 +90,15 @@ async def anwenden(guild: discord.Guild, ziel: discord.Member, schluessel: str, 
     if rolle is None:
         return f"Die Rolle für {name} fehlt auf dem Server.", alt
     eigene = {rid_ for _, _, rid_ in dg.RAENGE[schluessel]}
+    if schluessel == "schatzamt":
+        eigene |= {dg.REICHSINSPEKTOR_ROLLE, dg.LANDESINSPEKTOR_ROLLE} - {None}   # Inspektor-Art wird bei jeder Änderung neu bestimmt
     behalten = [r for r in ziel.roles if r.id not in eigene and r.id not in GRUPPEN_IDS and not r.is_default()]
     neu = behalten + [rolle]
+    if schluessel == "schatzamt" and index == dg.SCHATZAMT_LANDESHERR_BIS and durch is not None:
+        art = dg.REICHSINSPEKTOR_ROLLE if ist_kanzler(durch) else dg.LANDESINSPEKTOR_ROLLE   # Reichsorgan → Reichsinspektor, Regent → Landesinspektor
+        zusatz = guild.get_role(art) if art else None
+        if zusatz:
+            neu.append(zusatz)
     # Gruppenrollen: genau die, die zu den verbleibenden Dienstgraden passen
     gruppen = {dg.gruppe(stufe)}
     ids = {r.id for r in neu}
@@ -128,7 +154,7 @@ class Einstellen(commands.Cog):
         if person.bot or (person.id == inter.user.id and inter.user.id != config.KAISER_ID):
             await inter.response.send_message("Diese Person kann nicht eingestellt werden (Bots und man selbst).", ephemeral=True)
             return
-        fehler = self.pruefen(inter.user, person, schluessel, index)
+        fehler = schatzamt_grenze(inter.user, schluessel, index) or self.pruefen(inter.user, person, schluessel, index)
         if fehler:
             await inter.response.send_message(fehler, ephemeral=True)
             return
@@ -155,7 +181,7 @@ class Einstellen(commands.Cog):
 
         await inter.response.defer(ephemeral=True)
         try:
-            text, alt = await anwenden(inter.guild, person, schluessel, index, f"/einstellen durch {inter.user}")
+            text, alt = await anwenden(inter.guild, person, schluessel, index, f"/einstellen durch {inter.user}", inter.user)
         except discord.HTTPException as e:
             log.exception("Rollenänderung fehlgeschlagen")
             await inter.followup.send(f"Die Rollen konnten nicht geändert werden ({e.status}).", ephemeral=True)
@@ -164,6 +190,8 @@ class Einstellen(commands.Cog):
             await inter.followup.send(text, ephemeral=True)
             return
         await self.log_senden(person, schluessel, index, alt, inter.user)
+        if schluessel == "schatzamt" and index == dg.SCHATZAMT_LANDESHERR_BIS:
+            bezeichnung = "Reichsinspektor" if ist_kanzler(inter.user) else "Landesinspektor"
         await inter.followup.send(f"{person.mention} wurde {'befördert' if alt is not None else 'eingestellt'}: **{bezeichnung}** ({dg.INSTITUTIONEN[schluessel][0]}).", ephemeral=True)
 
     @einstellen.autocomplete("dienstgrad")

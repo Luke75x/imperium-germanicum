@@ -803,7 +803,7 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
     b = bilanz(con, ziel, frisch=True)
     name = dict(_ziele(con))[ziel]
     stufe_, text = lage(b)
-    darf = etatplan.darf_aendern(con, k, ziel)
+    darf = etatplan.darf_aendern(con, k, ziel, "energie")
     kz = lambda xs: f'<div class="kennzahlen">{"".join(f"<div><b>{v if isinstance(v, Roh) else esc(v)}</b>{esc(t)}</div>" for t, v in xs)}</div>'
     kennz = [("Versorgung", Roh(f'{_de(b["v_ges"] * 100, 0)} %{ueberschuss_pz(b)}')), ("Erzeugung", gwh_text(b["erzeugung"])), ("Bedarf", gwh_text(b["bedarf"])),
              ("Überschuss" if b["frei"] >= 0 else "Fehlbetrag", Roh(esc(gwh_text(abs(b["frei"]))) + verkauf_klein(b))), ("Erneuerbare", f'{_de(b["erneuerbar"], 0)} %')]
@@ -886,7 +886,7 @@ async def markt(request, k):
     con = request.app["db"]
     ziel = _ziel(request, k, con)
     b = bilanz(con, ziel, frisch=True)
-    darf = etatplan.darf_aendern(con, k, ziel)
+    darf = etatplan.darf_aendern(con, k, ziel, "energie")
     namen = dict(_ziele(con))
     erlaubt = kauf_erlaubt(b)
     fehl = max(0.0, b["bedarf"] - b["angebot"])
@@ -966,7 +966,7 @@ def _anzahl(s):
 def _recht(con, k, form):
     z = str(form.get("ziel", ""))
     import etatplan
-    if z not in {s for s, _ in _ziele(con)} or not etatplan.darf_aendern(con, k, z):
+    if z not in {s for s, _ in _ziele(con)} or not etatplan.darf_aendern(con, k, z, "energie"):
         raise web.HTTPForbidden(text="Für diesen Haushalt dürfen Sie keine Kraftwerke bauen.")
     return z
 

@@ -13,6 +13,7 @@ from geld import mark
 import os
 
 esc = amt.esc
+amt.ICONS.setdefault("settings", '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>')
 PFAD = sa.PFAD + "teilstaat/"
 import wappen as _w
 WAPPEN_DIR = _w.DIR   # <Karten-ID, z. B. s6>.png, Reihenfolge/Zuordnung siehe Memory teilstaat-wappen
@@ -266,6 +267,69 @@ async def finanzen(request, k):
     return sa.ant(request, k, "Finanzen", "sa-ts-fin", inhalt)
 
 
+def _regent_kopf(request, k):
+    """(con, sid, kasse) des Teilstaats aus ?ziel=, den das Konto WIRKLICH regiert – sonst None."""
+    con = request.app["db"]
+    ziel = request.query.get("ziel", "") or ""
+    regent = {r["stelle"][3:]: r for r in geld.regierte_staatskassen(con, k)}
+    if not regent:
+        return None
+    sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regent else next(iter(regent))
+    return con, sid, regent[sid], regent
+
+
+@sa.seite("staat")
+async def einstellungen(request, k):
+    """Mein Teilstaat → Einstellungen: der Regent gibt eingestellten Personen (Schatzamt) einzelne Befugnisse für diesen Teilstaat."""
+    import befugnisse
+    kp = _regent_kopf(request, k)
+    if not kp:
+        return sa.ant(request, k, "Einstellungen", "sa-ts-einst", f'<h1>{amt.ic("settings")} Einstellungen</h1><div class="hinweis">Die Einstellungen eines Teilstaats sind dem Regenten vorbehalten.</div>', 403)
+    con, sid, kasse, regent = kp
+    schl = "ts-" + sid
+    name = esc(kasse["name"].replace("Staatskasse ", ""))
+    vorhanden = befugnisse.liste(con, sid)
+    personen = sorted((m for m in await request.app["discord"].mitglieder() if befugnisse.SCHATZAMT_ROLLE in m["rollen"]), key=lambda m: m["name"].lower())
+    wahl = ""
+    if len(regent) > 1:
+        opt = "".join(f'<option value="{sa.PFAD}teilstaat/einstellungen/?ziel=ts-{esc(s_)}"{" selected" if s_ == sid else ""}>{esc(r["name"].replace("Staatskasse ", ""))}</option>' for s_, r in regent.items())
+        wahl = f'<p><select aria-label="Teilstaat wählen" onchange="location.href=this.value">{opt}</select></p>'
+    zeilen = []
+    for m in personen:
+        mein = vorhanden.get(m["id"], set())
+        haken = "".join(f'<label class="sa-haken" style="margin:2px 0"><input type="checkbox" name="recht" value="{r}"{" checked" if r in mein else ""}>'
+                        f'<span><b>{esc(t)}</b><br><span class="az" style="margin:0">{esc(b)}</span></span></label>' for r, (t, b) in befugnisse.RECHTE.items())
+        zeilen.append((esc(m["name"]),
+                       f'<form method="post" action="{sa.PFAD}teilstaat/einstellungen/speichern">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(schl)}">'
+                       f'<input type="hidden" name="person" value="{esc(m["id"])}">{haken}<button class="btn zweit" type="submit">{amt.ic("check")}Speichern</button></form>'))
+    tab = (amt.tabelle(["Eingestellte Person", "Befugnisse in diesem Teilstaat"], zeilen, "Noch niemand im Schatz- und Währungsamt eingestellt.") if zeilen
+           else '<p class="az">Noch niemand ist im Kaiserlichen Schatz- und Währungsamt eingestellt. Mit <code>/einstellen</code> in Discord stellen Sie Personen ein; hier geben Sie ihnen dann Befugnisse.</p>')
+    inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("settings")} Einstellungen · {name}</h1>', sid, name) + amt.meldung(request) +
+              '<p class="az">Hier legen Sie fest, was bei den im Schatz- und Währungsamt eingestellten Personen in Ihrem Teilstaat erlaubt ist. Die Befugnisse gelten nur für diesen Teilstaat; '
+              'Sie können sie jederzeit ändern oder entziehen. Ohne Befugnis sehen die Personen nichts von Ihrem Teilstaat.</p>' + wahl + tab)
+    return sa.ant(request, k, "Einstellungen", "sa-ts-einst", inhalt)
+
+
+@sa.seite("staat")
+async def einstellungen_speichern(request, k):
+    import befugnisse
+    form = await sa.formular(request)
+    ziel = str(form.get("ziel", ""))
+    con = request.app["db"]
+    regent = {r["stelle"] for r in geld.regierte_staatskassen(con, k)}
+    if ziel not in regent:
+        raise web.HTTPForbidden(text="Nur der Regent des Teilstaats darf Befugnisse vergeben.")
+    person = str(form.get("person", ""))
+    m = next((x for x in await request.app["discord"].mitglieder() if x["id"] == person), None)
+    if not m or befugnisse.SCHATZAMT_ROLLE not in m["rollen"]:
+        sa.weiter(f"{sa.PFAD}teilstaat/einstellungen/?ziel={ziel}", "Diese Person ist nicht im Schatz- und Währungsamt eingestellt.", True)
+    rechte = [r for r in form.getall("recht", []) if r in befugnisse.RECHTE]
+    befugnisse.setzen(con, ziel[3:], person, rechte, k["name"])
+    geld.protokoll(con, k, "Befugnisse", f'{ziel}: {m["name"]} → ' + (", ".join(befugnisse.RECHTE[r][0] for r in rechte) or "keine Befugnisse"))
+    con.commit()
+    sa.weiter(f"{sa.PFAD}teilstaat/einstellungen/?ziel={ziel}", f'Befugnisse von {m["name"]} gespeichert.')
+
+
 async def statistiken_alt(request):
     raise web.HTTPFound(sa.PFAD + "statistiken/")   # die Statistiken sind jetzt öffentlich (etatplan.statistiken)
 
@@ -275,4 +339,6 @@ def registrieren(app):
     app.router.add_get(PFAD, seite)
     app.router.add_get(PFAD + "land/", land)
     app.router.add_get(PFAD + "finanzen/", finanzen)
+    app.router.add_get(PFAD + "einstellungen/", einstellungen)
+    app.router.add_post(PFAD + "einstellungen/speichern", einstellungen_speichern)
     app.router.add_get(PFAD + "statistiken/", statistiken_alt)

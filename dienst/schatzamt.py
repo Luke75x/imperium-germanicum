@@ -162,7 +162,7 @@ table.sa-haushalt td:nth-child(n+2),table.sa-haushalt th:nth-child(n+2){text-ali
 MODUS_COOKIE = "sa_modus"
 PRIVATARTEN = ("privat", "gewerbe")
 NUR_PRIVAT = ("sa-steuern", "sa-gehalt", "sa-gewerbe", "sa-bankkarte", "sa-besitz")     # Seiten, die nur die Privatperson betreffen
-NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-ts-land", "sa-ts-fin", "sa-teilstaat", "sa-reich", "sa-handel")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
+NUR_STAAT = ("sa-finanzen", "sa-gold", "sa-etats", "sa-staatshaushalt", "sa-verteidigung", "sa-notlage", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-ts-land", "sa-ts-fin", "sa-ts-einst", "sa-teilstaat", "sa-reich", "sa-handel")                     # staatliche Information: nur mit staatlichem Zugriff einsehbar
 
 
 def hat_kassen(con, k):
@@ -170,7 +170,9 @@ def hat_kassen(con, k):
     if not k or not k["mitglied"]:
         return False
     if "_sa_kassen" not in k:
-        k["_sa_kassen"] = geld.ist_beamter(k) or any(r["art"] not in PRIVATARTEN for r in geld.verfuegbare_konten(con, k))
+        import befugnisse
+        k["_sa_kassen"] = (geld.ist_beamter(k) or any(r["art"] not in PRIVATARTEN for r in geld.verfuegbare_konten(con, k))
+                           or bool(befugnisse.sids(con, k)))   # eingestellte Person mit Befugnissen eines Regenten
     return k["_sa_kassen"]
 
 
@@ -244,7 +246,14 @@ def _regierte(con, k):
         staaten = karte.aktuell(con)["stand"]["staaten"]
         eigene = karte.fraktionen(set(k["rollen"]), staaten)
         own = {x["id"] for x in staaten if x.get("fraktion") in eigene}   # der eigene Teilstaat steht vorn, dann alphabetisch
-        rs = sorted(geld.regierte_staatskassen(con, k), key=lambda r: (r["stelle"][3:] not in own, r["name"]))
+        import befugnisse
+        rs = list(geld.regierte_staatskassen(con, k))
+        vorhanden = {r["stelle"] for r in rs}
+        for sid_ in sorted(befugnisse.sids(con, k)):   # Teilstaaten, in denen ein Regent der Person Befugnisse gegeben hat
+            r = geld.stellenkonto(con, "ts-" + sid_)
+            if r and r["stelle"] not in vorhanden:
+                rs.append(r)
+        rs = sorted(rs, key=lambda r: (r["stelle"][3:] not in own, r["name"]))
         k["_sa_regiert"] = {r["stelle"][3:]: r for r in rs}
     return k["_sa_regiert"]
 
@@ -290,7 +299,12 @@ def untertabs(teile):
 
 def _ts_url(tab, sid, regiert):
     z = "ts-" + sid
-    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "land": f"teilstaat/land/?ziel={z}", "fin": f"teilstaat/finanzen/?ziel={z}", "vt": f"verteidigung/{sid}/"}[tab]
+    return PFAD + {"start": f"teilstaat/?ziel={z}", "etat": f"etatverteilung/?ziel={z}", "land": f"teilstaat/land/?ziel={z}", "fin": f"teilstaat/finanzen/?ziel={z}", "einst": f"teilstaat/einstellungen/?ziel={z}", "vt": f"verteidigung/{sid}/"}[tab]
+
+
+def ist_regent(con, k, sid):
+    """Regiert das Konto den Teilstaat wirklich (nicht nur per Befugnis eines Regenten)? Nur dann gibt es „Einstellungen“."""
+    return any(r["stelle"] == "ts-" + sid for r in geld.regierte_staatskassen(con, k))
 
 
 def _teilstaat_tabs(con, k, sid):
@@ -301,6 +315,8 @@ def _teilstaat_tabs(con, k, sid):
     tabs = [("start", "Überblick"), ("etat", "Etat"), ("land", f"Land ({n_kr} Krise{'n' if n_kr != 1 else ''})" if n_kr else "Land"), ("fin", "Finanzen")]
     if verteidigung.darf_sehen(con, k, sid):
         tabs.append(("vt", "Verteidigung"))
+    if ist_regent(con, k, sid):
+        tabs.append(("einst", "Einstellungen"))
     return tabs
 
 
@@ -317,7 +333,7 @@ def _reich_tabs(con, k):
 
 def _reiter_kontext(request, k, con, aktiv):
     """(Bereich, Teilstaat-ID, Reiter) der aktuellen Seite: Bereich 'ts' = Mein Teilstaat, 'reich' = Reichshaushalt; None = Seite gehört zu keinem Bereich."""
-    if aktiv not in ("sa-teilstaat", "sa-ts-land", "sa-ts-fin", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-verteidigung", "sa-notlage", "sa-konto",
+    if aktiv not in ("sa-teilstaat", "sa-ts-land", "sa-ts-fin", "sa-ts-einst", "sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen", "sa-verteidigung", "sa-notlage", "sa-konto",
                      "sa-staatshaushalt", "sa-finanzen", "sa-etats", "sa-gold"):
         return None
     regiert = _regierte(con, k)
@@ -326,9 +342,9 @@ def _reiter_kontext(request, k, con, aktiv):
     if aktiv == "sa-teilstaat":
         sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regiert else next(iter(regiert), None)
         return ("ts", sid, "start") if sid else None
-    if aktiv in ("sa-ts-land", "sa-ts-fin"):
+    if aktiv in ("sa-ts-land", "sa-ts-fin", "sa-ts-einst"):
         sid = ziel[3:] if ziel.startswith("ts-") and ziel[3:] in regiert else next(iter(regiert), None)
-        return ("ts", sid, {"sa-ts-land": "land", "sa-ts-fin": "fin"}[aktiv]) if sid else None
+        return ("ts", sid, {"sa-ts-land": "land", "sa-ts-fin": "fin", "sa-ts-einst": "einst"}[aktiv]) if sid else None
     if aktiv in ("sa-etatverteilung", "sa-etatplanung", "sa-entwicklung", "sa-energie", "sa-krisen"):
         tab = {"sa-etatverteilung": "etat", "sa-etatplanung": "etat", "sa-entwicklung": "entw", "sa-energie": "energie", "sa-krisen": "krisen"}[aktiv]
         if ziel.startswith("ts-") and ziel[3:] in regiert:

@@ -18,8 +18,9 @@ INSTITUTIONEN = {
     "zoll": ("Kaiserliche Zollverwaltung", 1557187375006875758),
     "kks": ("Kaiserlicher Katastrophenschutz", 1557187293100515328),
     "reichsverwaltung": ("Reichsverwaltung", 1526348059984789504),
+    "schatzamt": ("Kaiserliches Schatz- und Währungsamt", 1574139894765195337),   # am 22.11.2026 neu angelegte Rolle
 }
-ZIVIL = {"reichsverwaltung"}      # Beamtenlaufbahn: keine Stufen OF/OR, keine Sammelrolle „Abteilungen“, keine Gruppenrollen
+ZIVIL = {"reichsverwaltung", "schatzamt"}      # Beamtenlaufbahn: keine Stufen OF/OR, keine Sammelrolle „Abteilungen“, keine Gruppenrollen
 NUR_KANZLER = {"reichsverwaltung"}  # einstellen darf nur der Kronkanzler (oder der Kaiser), sonst jeder Landesherr
 SAMMELROLLE_ABTEILUNGEN = 1526342856438972556     # Rolle „Abteilungen“, kommt mit jeder Institutionsrolle
 GRUPPENROLLEN = {"mannschaften": 1522921421398081689, "unteroffiziere": 1522917239769141428,
@@ -204,3 +205,14 @@ def braucht_genehmigung(stufe: str) -> bool:
 def bezeichnung(schluessel: str, index: int) -> str:
     stufe, name, _ = RAENGE[schluessel][index]
     return name if stufe == "RV" else f"{stufe} {name}"
+
+
+# Kaiserliches Schatz- und Währungsamt: dieselbe Beamtenlaufbahn wie die Reichsverwaltung (gleiche Dienstgrad-Rollen), aber eigene Institutionsrolle.
+# Regenten (Landesherren) stellen bis einschließlich Inspektor ein, höhere Dienstgrade nur Kronkanzler und Kaiser.
+# Inspektor: Einstellung durch ein Reichsorgan (Kronkanzler, Kaiser) = Reichsinspektor (Zusatzrolle REICHSINSPEKTOR_ROLLE), durch einen Regenten = Landesinspektor.
+# Landesinspektor hat (noch) keine eigene Discord-Rolle, weil der Server das Limit von 250 Rollen erreicht hat: Landesinspektor = Inspektor ohne Reichsinspektor-Rolle.
+# Sobald eine Rolle frei ist: ID unten eintragen, dann vergibt der Bot sie zusätzlich.
+RAENGE["schatzamt"] = list(RAENGE["reichsverwaltung"])
+SCHATZAMT_LANDESHERR_BIS = 2          # Index „Inspektor“ in RAENGE["schatzamt"]
+REICHSINSPEKTOR_ROLLE = 1574139896011030680
+LANDESINSPEKTOR_ROLLE = None
