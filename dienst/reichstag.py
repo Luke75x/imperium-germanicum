@@ -346,7 +346,7 @@ LOGO = ("reichstag", "Der Reichstag")   # amt_logos/reichstag-kopf.png (Adler ü
 def _portal(request, k, aktiv):
     con, b = request.app["db"], _basis(request)
     haupt = [("rt-start", "layout-grid", "Übersicht", ""), ("rt-sitzungen", "calendar", "Sitzungen", "sitzungen/"),
-             ("rt-antraege", "file-text", "Anträge", "antraege/"), ("rt-verhalten", "users", "Abstimmungsverhalten", "abstimmungsverhalten/")]
+             ("rt-antraege", "file-text", "Anträge", "antraege/"), ("rt-verhalten", "users", "Abgeordnete", "abgeordnete/")]
     gruppen = [("Reichstag", haupt + [("rt-archiv", "archive", "Archiv", "archiv/")])]
     if ist_praesidium(k):
         laufend = con.execute("SELECT id FROM reichstag_sitzungen WHERE status = 'laeuft' ORDER BY termin LIMIT 1").fetchone()
@@ -621,6 +621,42 @@ async def archiv(request):
     return _rahmen(request, "Archiv", "Reichstag", inhalt, aktiv="rt-archiv", icon="archive")
 
 
+def _abg_reiter(request, aktiv):
+    b = _basis(request)
+    return ('<div class="reiter">' + "".join(f'<a href="{b}{p}"' + (' class="aktiv" aria-current="page"' if p == aktiv else "") + f">{t}</a>"
+            for p, t in (("abgeordnete/", "Anwesenheit"), ("abstimmungsverhalten/", "Abstimmungsverhalten"))) + "</div>")
+
+
+ROLLEN_NAMEN = ((ROLLE_PRAESIDIUM, "Präsidium"), (ROLLE_LANDESHERR, "Landesherr"), (ROLLE_ABGEORDNETER, "Abgeordnete/r"), (ROLLE_REICHSTAG, "Reichstag"))
+
+
+@anmeldung.angemeldet(ist_mitglied, MITGLIEDS_HINWEIS)
+async def abgeordnete_liste(request):
+    """Alle Abgeordneten für die kommende Sitzung; bei einer ernannten Vertretung steht der Vertreter als Teilnehmer."""
+    con, basis = request.app["db"], _basis(request)
+    s = con.execute("SELECT * FROM reichstag_sitzungen WHERE status IN ('angekuendigt', 'laeuft') ORDER BY termin LIMIT 1").fetchone()
+    voters = await _abgeordnete(request)
+    vt = _vertreter(con)
+    mit_stimmen = {r[0] for r in con.execute("SELECT DISTINCT konto_id FROM reichstag_stimmen")}
+    zeilen, vertreten = [], 0
+    for m in voters:
+        rolle = next((n for r, n in ROLLEN_NAMEN if r in m["rollen"]), "")
+        name = f'<a href="{basis}abgeordnete/{m["id"]}/">{esc(m["name"])}</a>' if m["id"] in mit_stimmen else esc(m["name"])
+        v = vt.get(m["id"])
+        vertreten += bool(v)
+        zeilen.append(_td(name, esc(rolle), (f'<strong>{esc(v)}</strong>' if v else esc(m["name"])), _badge("Vertreten", "aktiv") if v else _badge("Persönlich")))
+    if s:
+        kopf = (f'<p class="az">Teilnehmer der <a href="{basis}sitzung/{s["id"]}/"><b>{s["nummer"]}. Sitzung</b></a> am {_zeit(s["termin"])} – '
+                "bei einer Vertretung nimmt die ernannte Person teil.</p>")
+    else:
+        kopf = '<p class="az">Zurzeit ist keine Sitzung angekündigt. Die Liste zeigt den aktuellen Stand der Vertretungen.</p>'
+    inhalt = (_abg_reiter(request, "abgeordnete/") + _kennzahlen([(len(voters), "Abgeordnete", "#liste"), (len(voters) - vertreten, "nehmen persönlich teil", "#liste"),
+                                                                   (vertreten, "werden vertreten", "#liste")]) + kopf
+              + '<div id="liste">' + _tabelle(["Abgeordnete/r", "Rolle", "Teilnahme", "Stand"], zeilen, "Keine Abgeordneten gefunden.") + "</div>"
+              + '<p class="az">Eine Vertretung ernennen Abgeordnete im Discord mit <code>/vertreter</code>.</p>')
+    return _rahmen(request, "Abgeordnete", "Teilnahme an der kommenden Sitzung", inhalt, aktiv="rt-verhalten", icon="users")
+
+
 @anmeldung.angemeldet(ist_mitglied, MITGLIEDS_HINWEIS)
 async def verhalten_seite(request):
     con, basis = request.app["db"], _basis(request)
@@ -628,9 +664,9 @@ async def verhalten_seite(request):
     for r in con.execute("""SELECT konto_id, MAX(name) name, SUM(stimme='ja') ja, SUM(stimme='nein') nein, SUM(stimme='enthaltung') enth,
                                    SUM(stimme='abwesend') abw FROM reichstag_stimmen GROUP BY konto_id ORDER BY name COLLATE NOCASE"""):
         zeilen.append(_td(f'<a href="{basis}abgeordnete/{r["konto_id"]}/">{esc(r["name"])}</a>', str(r["ja"]), str(r["nein"]), str(r["enth"]), str(r["abw"])))
-    inhalt = (_tabelle(["Abgeordnete/r", "Ja", "Nein", "Enthaltung", "Abwesend"], zeilen, "Noch keine Abstimmung erfasst.", "liste rt-verhalten")
+    inhalt = (_abg_reiter(request, "abstimmungsverhalten/") + _tabelle(["Abgeordnete/r", "Ja", "Nein", "Enthaltung", "Abwesend"], zeilen, "Noch keine Abstimmung erfasst.", "liste rt-verhalten")
               + '<p class="az">Gezählt werden alle erfassten Abstimmungen beendeter und laufender Sitzungen.</p>')
-    return _rahmen(request, "Abstimmungsverhalten", "Reichstag", inhalt, aktiv="rt-verhalten", icon="users")
+    return _rahmen(request, "Abstimmungsverhalten", "Reichstag", inhalt, aktiv="rt-verhalten", brot=[("Abgeordnete", basis + "abgeordnete/")], icon="users")
 
 
 @anmeldung.angemeldet(ist_mitglied, MITGLIEDS_HINWEIS)
@@ -655,7 +691,7 @@ async def abgeordneter_seite(request):
     inhalt = (_kennzahlen([(z["ja"], "Ja", "#abstimmungen"), (z["nein"], "Nein", "#abstimmungen"), (z["enthaltung"], "Enthaltungen", "#abstimmungen"), (z["abwesend"], "abwesend", "#abstimmungen")])
               + '<h2 id="abstimmungen">Abstimmungen</h2>' + _tabelle(["Sitzung", "Datum", "Antrag", "Stimme", "Ergebnis"] + (["Notiz (Präsidium)"] if praes else []), zeilen)
               + "<h2>Eingereichte Anträge</h2>" + _tabelle(["Antrag", "Stand"], eigene, "Keine Anträge eingereicht."))
-    return _rahmen(request, rows[0]["name"], "Abstimmungsverhalten", inhalt, aktiv="rt-verhalten", brot=[("Abstimmungsverhalten", basis + "abstimmungsverhalten/")], icon="users")
+    return _rahmen(request, rows[0]["name"], "Abstimmungsverhalten", inhalt, aktiv="rt-verhalten", brot=[("Abgeordnete", basis + "abgeordnete/"), ("Abstimmungsverhalten", basis + "abstimmungsverhalten/")], icon="users")
 
 
 # ---------------------------------------------------------------- Aktionen (Präsidium)
@@ -884,6 +920,7 @@ def registrieren(app):
         app.router.add_get(b + "abstimmungsverhalten/", verhalten_seite)
         app.router.add_get(b + "sitzung/{id}/", sitzung_seite)
         app.router.add_get(b + "antrag/{id}/", antrag_seite)
+        app.router.add_get(b + "abgeordnete/", abgeordnete_liste)
         app.router.add_get(b + "abgeordnete/{id}/", abgeordneter_seite)
         app.router.add_post(b + "sitzung-anlegen", sitzung_anlegen)
         app.router.add_post(b + "sitzung/{id}/aktion", sitzung_aktion)
