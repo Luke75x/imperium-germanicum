@@ -1,10 +1,10 @@
-"""Liquid-Glass-Gestaltung der RP-Ansicht (/schatzamt/rp/ und alles, was im RP-Modus angezeigt wird).
+"""Liquid-Glass-Gestaltung des Schatzamt-Portals (/schatzamt/, alle Modi: Staatl., Privat, RP; seit 23.11.2026, zuerst nur RP).
 
 Angelehnt an iOS „Liquid Glass“: schwebende, durchscheinende Ebenen für Seitenleiste, Kopf, Tableiste und Sheets (Blur + Sättigung, heller Lichtrand,
 weicher Schatten), große Radien, Kapsel-Knöpfe, ein Segment-Umschalter mit gleitender Glaspille und weiche Federbewegungen. Die Farben bleiben die des
 Portals (--ink, --akzent, --rot …); nur Flächen, Ränder, Schatten und Formen ändern sich. Inhaltskarten bekommen keinen Blur (Leistung), nur Glanz.
 
-Eingebunden von schatzamt.ant, wenn die Seite im RP-Modus erscheint. Alle Regeln mit `html:root` vorn, damit sie die Grundregeln (auch html.min) schlagen.
+Eingebunden von schatzamt.ant für jede Seite des Portals (andere Portale wie Amtsseite oder Reichstag nicht). Alle Regeln mit `html:root` vorn, damit sie die Grundregeln (auch html.min) schlagen.
 SCHNELL ZURÜCK: GLAS = False + systemctl restart imperium-dienst.
 """
 GLAS = True
@@ -67,6 +67,16 @@ html:root .rp-ooc::before{content:"";width:7px;height:7px;border-radius:50%;back
 html:root main{max-width:1180px}
 html:root .kennzahlen div,html:root .rp-staat,html:root .rp-kachel,html:root .rp-massnahme,html:root .rp-chip,html:root .rp-leiste a.aktiv,html:root .ts-tabs .ts-tabteil>.ts-karte,
 html:root details.sa-auf,html:root .rs-block,html:root .rt-karten a{background:var(--glas-dicht);border:1px solid var(--glas-rand);box-shadow:var(--glas-schatten),var(--glas-licht)}
+html:root .ts-karte,html:root .sa-karte,html:root .sa-pruef,html:root .sa-schnell a,html:root .sa-erkl,html:root .sa-todo>div,html:root .zf-kopf{
+ background:var(--glas-dicht);border:1px solid var(--glas-rand);box-shadow:var(--glas-schatten),var(--glas-licht);border-radius:20px}
+html:root .sa-todo>div.warn{border-color:rgba(22,23,26,.4);box-shadow:inset 3px 0 0 var(--ink),var(--glas-schatten)}
+html:root .ts-karte,html:root .sa-schnell a{transition:transform .25s var(--feder),box-shadow .25s var(--weich),background .2s}
+html:root a.ts-karte:hover,html:root .sa-schnell a:hover{background:#fff;box-shadow:0 14px 40px rgba(16,24,40,.12),var(--glas-licht);transform:translateY(-1px)}
+html:root a.ts-karte:active,html:root .sa-schnell a:active{transform:scale(.98)}
+html:root .sa-bereich .reiter{border-bottom:0;gap:4px;padding:4px;background:rgba(22,23,26,.05);border-radius:999px;display:inline-flex;flex-wrap:nowrap;max-width:100%;overflow-x:auto;scrollbar-width:none}
+html:root .sa-bereich .reiter a{border:0;margin:0;padding:7px 15px;border-radius:999px;white-space:nowrap;transition:background .2s,color .2s}
+html:root .sa-bereich .reiter a:hover{background:rgba(255,255,255,.6);color:var(--ink)}
+html:root .sa-bereich .reiter a.aktiv{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(16,24,40,.12),inset 0 1px 0 #fff}
 html:root .kennzahlen div{border-radius:20px}
 html:root .rp-staat,html:root .rp-kachel,html:root .rp-massnahme{border-radius:20px}
 html:root .rp-kzl>div:has(a):hover,html:root .rp-staat:hover,html:root .rp-kachel:hover,html:root .rp-chip:hover{border-color:var(--glas-rand);background:#fff;box-shadow:0 14px 40px rgba(16,24,40,.12),var(--glas-licht);transform:translateY(-1px)}
