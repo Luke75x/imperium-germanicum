@@ -15,6 +15,7 @@ THREAD_VISEN = [1565505165048553503,        # Erteilte Aufenthaltsvisen (Beitrit
                 1565505917829652613]        # dasselbe als Thread in der Einwanderungsbehörde
 EINWANDERER_ROLLE = 1522930374332780614     # Rolle für neu Beigetretene
 AUDIENZ_KANAL = 1523025487847227402         # 🤴🏼｜Audienzzimmer (Sprachkanal), Beitritt des Kaisers löst die DM aus
+EIGENER_KANAL_WARTERAUM = 1560335284665843865  # » Eigener Kanal (Sprachkanal): Beitritt löst die Frage nach einem eigenen Kanal aus (kanal.py)
 NEWS_KANAL = 1522995542047723581            # 📰｜news, dort erscheint die Generalaudienz
 # Reichstag: wer /antrag nutzen darf (Reichstag, Abgeordneter, Präsidium, Landesherr), Rest im Imperium-Dienst
 REICHSTAG_ROLLEN = {1522700666856800447, 1528931629819494454, 1522701497413144776, 1522701576295415969}
