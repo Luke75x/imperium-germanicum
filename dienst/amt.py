@@ -1634,7 +1634,7 @@ async def api_ticket_geschlossen(request):
 async def logo_datei(request):
     name = request.match_info["name"]
     schl = name[:-4] if name.endswith(".png") else ""
-    erlaubt = {l[1] for l in LOGOS} | {"reichsbehoerden"} | {b["schl"] for b in BEHOERDEN}
+    erlaubt = {l[1] for l in LOGOS} | {"reichsbehoerden", "reichstag"} | {b["schl"] for b in BEHOERDEN}
     if schl.rsplit("-", 1)[0] not in erlaubt and schl not in erlaubt:
         raise web.HTTPNotFound()
     pfad = os.path.join(LOGO_ORDNER, name)

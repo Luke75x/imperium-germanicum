@@ -209,6 +209,7 @@ for _n, _d in {
     amt.ICONS.setdefault(_n, _d)
 
 STIL = """<style>
+.seite .logo{padding:6px 14px 18px}.seite .logo img{max-height:none;width:100%;max-width:210px;margin:0 auto;object-position:center}
 .rt-badge{display:inline-flex}
 .status.rt-ok{color:var(--ok)}.status.rt-nein{color:var(--rot)}
 .status.rt-aktiv{background:var(--ink);color:#fff;border-color:var(--ink)}
@@ -339,7 +340,7 @@ def _zuweisen(request, antrag_id, kommende):
 
 MITGLIEDS_HINWEIS = "Die internen Sitzungen stehen den Mitgliedern des Reichstags offen (Abgeordnete, Landesherren, Präsidium)."
 
-LOGO = ("reichsbehoerden", "Der Reichstag")
+LOGO = ("reichstag", "Der Reichstag")   # amt_logos/reichstag-kopf.png (Adler über „DER REICHSTAG“) und -kurz.png (nur Adler)
 
 
 def _portal(request, k, aktiv):
