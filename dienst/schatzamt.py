@@ -538,7 +538,7 @@ def ant(request, k, titel, aktiv, inhalt, status=200):
     glas = glas_js = ""
     import rp_glas
     if rp_glas.GLAS:   # Liquid-Glass-Gestaltung des ganzen Schatzamt-Portals (Staatl., Privat, RP)
-        glas, glas_js = rp_glas.CSS, rp_glas.JS
+        glas, glas_js = rp_glas.CSS, rp_glas.JS + (rp_glas.sheets_js() if rp_glas.SHEETS else "")
         if amt.ist_ooc_admin(k):
             portal["ooc"] = ""
             portal["suche"] = rp_glas.ooc_pille() + portal.get("suche", "")
