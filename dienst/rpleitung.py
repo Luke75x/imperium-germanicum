@@ -254,7 +254,7 @@ def aktion_schreiben(con, k, fall, art, text, buchung=None):
 
 def benachrichtigen(request, r, text):
     if text and r["inhaber_id"] and not request.get("rp_vorschau"):
-        sa.dm(request, r["inhaber_id"], text[:1500])
+        sa.dm(request, r["inhaber_id"], text[:1500], art="rp")
 
 
 def konten_der_person(con, r):

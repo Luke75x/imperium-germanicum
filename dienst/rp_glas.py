@@ -10,7 +10,7 @@ SCHNELL ZURÜCK: GLAS = False + systemctl restart imperium-dienst.
 GLAS = True
 
 CSS = """<style id="rp-glas">
-html:root{--glas:rgba(255,255,255,.62);--glas-dicht:rgba(255,255,255,.8);--glas-rand:rgba(255,255,255,.75);--glas-linie:rgba(22,23,26,.07);
+html:root{--glas:rgba(255,255,255,.62);--glas-kopf:rgba(255,255,255,.55);--glas-leiste:rgba(255,255,255,.6);--glas-blatt:rgba(255,255,255,.78);--glas-sheet:rgba(255,255,255,.9);--glas-dicht:rgba(255,255,255,.8);--glas-rand:rgba(255,255,255,.75);--glas-linie:rgba(22,23,26,.07);
  --glas-schatten:0 10px 34px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.05);--glas-licht:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.25);
  --glas-blur:saturate(180%) blur(22px);--feder:cubic-bezier(.2,.9,.25,1.12);--weich:cubic-bezier(.2,.8,.2,1)}
 html:root body{background:#f4f5f7;background-image:radial-gradient(1100px 620px at 12% -8%,rgba(31,78,140,.07),transparent 60%),
@@ -21,7 +21,7 @@ html:root body{background:#f4f5f7;background-image:radial-gradient(1100px 620px 
  html:root .seite{position:sticky;top:12px;height:calc(100vh - 24px);margin:12px 0 12px 12px;border-radius:24px;border:1px solid var(--glas-rand);
   background:var(--glas);-webkit-backdrop-filter:var(--glas-blur);backdrop-filter:var(--glas-blur);box-shadow:var(--glas-schatten),var(--glas-licht)}
  html:root .kopf{margin:12px 12px 0 16px;border-radius:22px;border:1px solid var(--glas-rand);top:12px;min-height:60px;padding:10px 14px 10px 20px;
-  background:rgba(255,255,255,.55);-webkit-backdrop-filter:var(--glas-blur);backdrop-filter:var(--glas-blur);box-shadow:var(--glas-schatten),var(--glas-licht)}
+  background:var(--glas-kopf);-webkit-backdrop-filter:var(--glas-blur);backdrop-filter:var(--glas-blur);box-shadow:var(--glas-schatten),var(--glas-licht)}
 }
 html:root .seite a.ein{border-radius:12px;transition:background .2s var(--weich),transform .2s var(--weich)}
 html:root .seite a.ein:hover{background:rgba(255,255,255,.6)}
@@ -35,14 +35,14 @@ html:root .knopf-rund:hover{background:rgba(255,255,255,.7)}
 html:root .knopf-rund:active{transform:scale(.92)}
 
 @media (max-width:800px){
- html:root .kopf{background:rgba(255,255,255,.58);-webkit-backdrop-filter:var(--glas-blur);backdrop-filter:var(--glas-blur);border-bottom:1px solid var(--glas-linie)}
+ html:root .kopf{background:var(--glas-kopf);-webkit-backdrop-filter:var(--glas-blur);backdrop-filter:var(--glas-blur);border-bottom:1px solid var(--glas-linie)}
  html:root body{padding-bottom:calc(var(--tab) + 24px + env(safe-area-inset-bottom))}
  html:root .tableiste{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));height:var(--tab);padding:0 6px;border-radius:30px;
-  border:1px solid var(--glas-rand);background:rgba(255,255,255,.6);-webkit-backdrop-filter:var(--glas-blur);backdrop-filter:var(--glas-blur);
+  border:1px solid var(--glas-rand);background:var(--glas-leiste);-webkit-backdrop-filter:var(--glas-blur);backdrop-filter:var(--glas-blur);
   box-shadow:0 12px 36px rgba(16,24,40,.16),var(--glas-licht)}
  html:root .tableiste a,html:root .tableiste button{border-radius:24px;margin:6px 0;transition:background .2s var(--weich)}
  html:root .tableiste .aktiv{color:var(--ink);background:rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(16,24,40,.08),inset 0 1px 0 #fff}
- html:root .seite{background:rgba(255,255,255,.78);-webkit-backdrop-filter:var(--glas-blur);backdrop-filter:var(--glas-blur);border-radius:28px 28px 0 0;
+ html:root .seite{background:var(--glas-blatt);-webkit-backdrop-filter:var(--glas-blur);backdrop-filter:var(--glas-blur);border-radius:28px 28px 0 0;
   box-shadow:0 -12px 40px rgba(16,24,40,.18),var(--glas-licht)}
  html:root .blatt-kopf{background:transparent}
  html:root .schleier{background:rgba(15,17,21,.22);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
@@ -106,7 +106,7 @@ html:root table:not(.daten){background:transparent}
 html:root .rp-ac{border-radius:16px;background:rgba(255,255,255,.86);-webkit-backdrop-filter:var(--glas-blur);backdrop-filter:var(--glas-blur);border-color:var(--glas-rand)}
 
 /* ---- Sheets ---- */
-html:root dialog.rp-sheet{background:rgba(255,255,255,.9);-webkit-backdrop-filter:var(--glas-blur);backdrop-filter:var(--glas-blur);border:1px solid var(--glas-rand);
+html:root dialog.rp-sheet{background:var(--glas-sheet);-webkit-backdrop-filter:var(--glas-blur);backdrop-filter:var(--glas-blur);border:1px solid var(--glas-rand);
  border-radius:28px;box-shadow:0 30px 80px rgba(16,24,40,.28),var(--glas-licht)}
 html:root dialog.rp-sheet::backdrop{background:rgba(15,17,21,.22);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 html:root dialog.rp-sheet[open]{animation:rp-auf .42s var(--feder) both}

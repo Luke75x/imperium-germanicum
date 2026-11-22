@@ -415,7 +415,7 @@ async def _melden(app, con, f, text):
     try:
         kasse = geld.stellenkonto(con, f["schl"])
         for kid in await notlage.empfaenger(app, con, kasse):
-            await app["discord"].dm(kid, text)
+            await app["discord"].dm(kid, text, art="krise")
     except Exception:
         log.exception("Krisenmeldung fehlgeschlagen")
 

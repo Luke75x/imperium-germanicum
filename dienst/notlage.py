@@ -302,7 +302,7 @@ async def melden(app, con, ereignisse):
     for r, text in ereignisse:
         try:
             for kid in await empfaenger(app, con, r):
-                await app["discord"].dm(kid, f"⚠ Haushaltsnotlage – {r['name']}\n{text}\n{amt.config.SITE_URL}{PFAD}")
+                await app["discord"].dm(kid, f"⚠ Haushaltsnotlage – {r['name']}\n{text}\n{amt.config.SITE_URL}{PFAD}", art="notlage")
         except Exception:
             log.exception("Meldung zur Haushaltsnotlage fehlgeschlagen")
 

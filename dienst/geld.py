@@ -34,6 +34,8 @@ BUCHUNGSART = {"ueberweisung": "Überweisung", "gehalt": "Gehalt", "lohnsteuer":
                "umbuchung": "Umbuchung", "kronsteuer": "Kronsteuer", "verteidigungsetat": "Verteidigungsetat", "ruestung": "Rüstungsbeschaffung",
                "instandhaltung": "Instandhaltung (Militärgerät)", "ruestung_erloes": "Erlös aus Ausmusterung", "handel": "Handel"}
 
+NACH_BUCHUNG = []   # [fn(con, konto_von, konto_an, betrag, art, zweck, k)] nach jeder Buchung in derselben Transaktion (benachrichtigung.buchung)
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS gk_konten (
     id INTEGER PRIMARY KEY AUTOINCREMENT, nummer TEXT NOT NULL UNIQUE, art TEXT NOT NULL, name TEXT NOT NULL,
@@ -311,6 +313,12 @@ def buchen(con, von, an, betrag, art, zweck="", k=None, bezug="", minus=False, c
     cur = con.execute("INSERT INTO gk_buchungen (zeit, von, an, betrag, art, zweck, bezug, autor_id, autor_name, saldo_von, saldo_an) "
                       "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                       (int(time.time()), von, an, betrag, art, zweck[:200], bezug, k["id"] if k else "", k["name"] if k else "System", sv, sa))
+    for f in NACH_BUCHUNG:
+        try:
+            f(con, konto(con, von) if von else None, konto(con, an) if an else None, betrag, art, zweck, k)
+        except Exception as e:   # eine Benachrichtigung darf keine Buchung verhindern
+            import logging
+            logging.getLogger("geld").warning("Nach der Buchung: %s", e)
     if commit:
         con.commit()
     return cur.lastrowid

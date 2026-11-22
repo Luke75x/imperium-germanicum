@@ -345,7 +345,7 @@ async def senden(request):
     for kid, _adr in empf:
         if kid != k["id"] and einstellung(con, kid, "dm") == "1":
             asyncio.create_task(request.app["discord"].dm(
-                kid, f"📬 Neue interne Nachricht von {absender}: „{betreff}“\n{config.SITE_URL}{BASIS}postfach/{nid}/"))
+                kid, f"📬 Neue interne Nachricht von {absender}: „{betreff}“\n{config.SITE_URL}{BASIS}postfach/{nid}/", art="post"))
     amt._umleiten(BASIS + "postfach/gesendet/", "Nachricht gesendet.")
 
 

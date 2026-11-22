@@ -1020,7 +1020,7 @@ def dm_text(a):
 async def _nachzahlung_melden(app, nz):
     for z in nz:
         try:
-            await app["discord"].dm(z["konto_id"], f"Dein einbehaltenes Gehalt für {_monat(z['periode'])} wurde nachgezahlt: {mark(z['netto'])} netto von „{z['zahlstelle']}“ "
+            await app["discord"].dm(z["konto_id"], art="gehalt", text=f"Dein einbehaltenes Gehalt für {_monat(z['periode'])} wurde nachgezahlt: {mark(z['netto'])} netto von „{z['zahlstelle']}“ "
                                                    f"auf dein Konto.\n{config.SITE_URL}{PFAD}gehalt/")
         except Exception:
             pass
@@ -1043,11 +1043,11 @@ async def lohnlauf_ausfuehren(request):
         con.rollback()
         sa.weiter(pfad, str(e), True)
     for a in con.execute("SELECT * FROM bs_abrechnungen WHERE lauf=?", (lauf,)).fetchall():
-        sa.dm(request, a["konto_id"], dm_text(a))
+        sa.dm(request, a["konto_id"], dm_text(a), art="gehalt")
     uebersprungen = json.loads(con.execute("SELECT uebersprungen FROM bs_laeufe WHERE id=?", (lauf,)).fetchone()[0] or "[]")
     for u in uebersprungen:
         sa.dm(request, u["konto_id"], f"Dein Gehalt für {_monat(periode)} wurde einbehalten: Die Kasse „{u['zahlstelle']}“ ist nicht gedeckt "
-                                      f"(Haushaltsnotlage). Es wird automatisch nachgezahlt, sobald die Kasse wieder im Plus ist.")
+                                      f"(Haushaltsnotlage). Es wird automatisch nachgezahlt, sobald die Kasse wieder im Plus ist.", art="gehalt")
     nz = nachzahlen(con)   # frühere Rückstände, falls die Zahlstelle inzwischen wieder gedeckt ist
     await _nachzahlung_melden(request.app, nz)
     sa.weiter(f"{PFAD}amt/lohnlauf/{lauf}/", f"Lohnlauf {_monat(periode)} ausgeführt: {len(liste) - len(uebersprungen)} Abrechnungen"

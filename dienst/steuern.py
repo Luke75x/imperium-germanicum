@@ -361,7 +361,7 @@ async def amt_neu_post(request):
 def _dm_bescheid(request, r, b, text=None):
     if r["inhaber_id"]:
         sa.dm(request, r["inhaber_id"], text or (f"Das Kaiserliche Schatz- und Währungsamt hat einen Bescheid festgesetzt: {ARTEN.get(b['steuerart'])} "
-                                                 f"{mark(b['betrag'])}, fällig am {_d(b['faellig'])} ({az(b)}).\n{amt.config.SITE_URL}{PFAD}steuern/{b['id']}/"))
+                                                 f"{mark(b['betrag'])}, fällig am {_d(b['faellig'])} ({az(b)}).\n{amt.config.SITE_URL}{PFAD}steuern/{b['id']}/"), art="steuer")
 
 
 @sa.seite("beamter")

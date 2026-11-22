@@ -109,6 +109,10 @@ def erstellen():
     rpteilstaaten.registrieren(app)
     geld_api.registrieren(app)
     rpleitung.registrieren(app)
+    import benachrichtigung
+    import profil_sa
+    benachrichtigung.registrieren(app)
+    profil_sa.registrieren(app)
     return app
 
 

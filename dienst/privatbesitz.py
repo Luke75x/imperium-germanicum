@@ -287,7 +287,7 @@ def lauf(con, periode, k=None):
 async def _senden(app, nachrichten):
     for konto_id, text in nachrichten:
         try:
-            await app["discord"].dm(konto_id, text)
+            await app["discord"].dm(konto_id, text, art="besitz")
         except Exception:
             log.exception("Besitz: Nachricht an %s nicht zugestellt", konto_id)
 

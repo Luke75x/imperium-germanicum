@@ -106,8 +106,17 @@ class Discord:
         self._mitglieder = (time.time(), liste)
         return liste
 
-    async def dm(self, nutzer_id, text):
-        """Direktnachricht vom Bot; Fehler (z. B. DMs gesperrt) nur protokollieren."""
+    async def dm(self, nutzer_id, text, art=None):
+        """Direktnachricht vom Bot; Fehler (z. B. DMs gesperrt) nur protokollieren.
+        art: Art der Benachrichtigung (benachrichtigung.ARTEN) – dann gelten die Einstellungen des Nutzers (aus, Ruhezeit → später)."""
+        if art:
+            import benachrichtigung
+            e = benachrichtigung.pruefen(nutzer_id, art)
+            if e == "aus":
+                return False
+            if e == "spaeter":
+                benachrichtigung.vormerken(benachrichtigung.CON, nutzer_id, art, text)
+                return True
         auth = {"Authorization": "Bot " + self.bot_token}
         try:
             async with self.session.post(API + "/users/@me/channels", json={"recipient_id": nutzer_id}, headers=auth) as r:

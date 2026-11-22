@@ -127,7 +127,7 @@ def index(con, k):
         add("Statistiken", "Information", PFAD + "statistiken/", "statistik vergleich haushalte etat haushaltsfuehrung zufriedenheit entwicklung energie reichsabgabe teilstaaten")
         add("Tarife & Sätze", "Information", PFAD + "tarife/", "steuersatz steuersaetze gebuehren lohnsteuer stufentarif sozialabgabe kronsteuer leitzins wechselkurs umsatzsteuer grunderwerbsteuer zulassung")
         add("Postfach", "Weiteres", amt.BASIS + "postfach/", "post nachrichten mail ig adresse")
-        add("Mein Profil", "Weiteres", "/profil/", "profil einstellungen konto")
+        add("Mein Profil", "Weiteres", PFAD + "profil/", "profil einstellungen konto darstellung transparenz glas benachrichtigungen bot dm nachrichten ruhezeit sitzungen")
         if anmeldung._amt_zugang(k):
             add("Amtsseite", "Weiteres", amt.BASIS, "behoerden akten buerger verfahren")
         for e in _eigene(con, k):

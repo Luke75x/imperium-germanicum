@@ -162,6 +162,12 @@ def pin_pruefen(con, karte, pin):
     n = karte["fehlversuche"] + 1
     if n >= MAX_VERSUCHE:
         con.execute("UPDATE bk_karten SET fehlversuche=0, gesperrt_bis=? WHERE id=?", (jetzt + SPERRE_MIN * 60, karte["id"]))
+        try:
+            import benachrichtigung
+            benachrichtigung.melden(con, karte["konto_id"], "bankkarte", f"🔒 Deine Bankkarte …{karte['nummer'][-4:]} ist nach {MAX_VERSUCHE} falschen PIN-Eingaben "
+                                    f"für {SPERRE_MIN} Minuten gesperrt. Warst du das nicht, ändere deine PIN im Schatzamt unter „Bankkarte & PIN“.")
+        except Exception:
+            pass
         return "gesperrt", SPERRE_MIN * 60
     con.execute("UPDATE bk_karten SET fehlversuche=? WHERE id=?", (n, karte["id"]))
     return "falsch", MAX_VERSUCHE - n
@@ -216,8 +222,8 @@ def braucht_pin(con, request, k):
     if erste not in MEIN_GELD + DUAL:
         return False
     if erste in DUAL:
-        c = request.cookies.get(sa.MODUS_COOKIE)
-        if (c == "staat" and sa.hat_staat(con, k)) or (c == "rp" and sa.ist_rp(k)):
+        c = sa.modus(request, k)   # Cookie oder die im Profil gewählte Startansicht
+        if c in ("staat", "rp"):
             return False
     if len(teile) > 1 and teile[1].isdigit() and geld.ist_beamter(k):   # gehalt/<id>, konto/<id>/pdf
         return False

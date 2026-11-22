@@ -200,6 +200,10 @@ def modus(request, k):
     """'staat', 'privat' oder 'rp' (gewählt per Umschalter, gespeichert im Cookie; ohne Zugriff immer 'privat')."""
     if "sa_modus" not in request:
         c = request.cookies.get(MODUS_COOKIE)
+        import profil_sa
+        start = profil_sa.startmodus(request.app["db"], k)   # gewählte Startansicht beim Öffnen des Portals (von außerhalb)
+        if start and (not c or (request.path == PFAD and "/schatzamt/" not in request.headers.get("Referer", ""))):
+            c = start
         if c == "rp" and ist_rp(k):
             request["sa_modus"] = "rp"
         elif c == "staat" and hat_staat(request.app["db"], k):
@@ -471,7 +475,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
         weiter.append(("post", "mail", "Postfach", amt.BASIS + "postfach/"))
     if anmeldung._amt_zugang(k):
         weiter.append(("amtsseite", "layout-grid", "Amtsseite", amt.BASIS))
-    weiter.append(("profil", "users", "Mein Profil", "/profil/"))
+    weiter.append(("sa-profil", "users", "Mein Profil", "profil/"))   # bleibt im Portal (profil_sa.py)
     gruppen.append(("Weiteres", weiter))
     out = {"basis": PFAD, "gruppen": gruppen, "haupt": mein[:4], "logo": geld.STELLE, "name": "Schatzamt"}
     if schalter:
@@ -538,6 +542,8 @@ def ant(request, k, titel, aktiv, inhalt, status=200):
         if amt.ist_ooc_admin(k):
             portal["ooc"] = ""
             portal["suche"] = rp_glas.ooc_pille() + portal.get("suche", "")
+    import profil_sa
+    glas += profil_sa.darstellung_css(request.app["db"], k)   # persönliche Darstellung (Transparenz, Unschärfe, Bewegung, Dichte)
     return web.Response(status=status, content_type="text/html", headers={"Cache-Control": "no-store"},
                         text=amt.rahmen(titel, nav_aktiv, CSS + glas + _kennzahlen_kurz(reiter + inhalt) + glas_js, k, request["csrf"], portal=portal))
 
@@ -584,9 +590,9 @@ def weiter(pfad, text, fehler=False):
     raise web.HTTPSeeOther(pfad + ("&" if "?" in pfad else "?") + "m=" + quote(text) + ("&f=1" if fehler else ""))
 
 
-def dm(request, konto_id, text):
+def dm(request, konto_id, text, art=None):
     if konto_id:
-        asyncio.get_event_loop().create_task(request.app["discord"].dm(konto_id, text))
+        asyncio.get_event_loop().create_task(request.app["discord"].dm(konto_id, text, art=art))
 
 
 def betrag_html(pf, vorzeichen=True, kurz=False):
