@@ -65,7 +65,7 @@ CSS = """<style>
 .rp-chip form{display:inline;margin:0}
 .rp-chip .rp-weg{border:0;background:none;padding:0 0 0 2px;cursor:pointer;color:var(--grau);font-size:15px;line-height:1}
 .rp-chip .rp-weg:hover{color:var(--rot)}
-.rp-fuell{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 0}
+.rp-fuell{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 10px}
 .rp-fuell button{border:1px dashed var(--linie);border-radius:999px;background:#fff;padding:2px 10px;font-size:12.5px;cursor:pointer;color:var(--grau)}
 .rp-fuell button:hover{border-color:var(--ink);color:var(--ink)}
 .rp-massnahme{border:1px solid var(--linie);border-radius:14px;padding:14px 16px;margin:12px 0 18px}

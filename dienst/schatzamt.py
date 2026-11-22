@@ -531,8 +531,15 @@ def ant(request, k, titel, aktiv, inhalt, status=200):
         if m == "rp":   # RP-Leitung: neuer Fall von jeder Seite aus
             portal["suche"] = (f'<a class="knopf-rund" href="{PFAD}rp/faelle/?neu=1" title="Neuer Fall" aria-label="Neuen Fall eröffnen" '
                                f'style="margin-right:8px;flex:none">{amt.ic("plus")}</a>') + portal["suche"]
+    glas = glas_js = ""
+    import rp_glas
+    if m == "rp" and rp_glas.GLAS:   # Liquid-Glass-Gestaltung der RP-Ansicht
+        glas, glas_js = rp_glas.CSS, rp_glas.JS
+        if amt.ist_ooc_admin(k):
+            portal["ooc"] = ""
+            portal["suche"] = rp_glas.ooc_pille() + portal.get("suche", "")
     return web.Response(status=status, content_type="text/html", headers={"Cache-Control": "no-store"},
-                        text=amt.rahmen(titel, nav_aktiv, CSS + _kennzahlen_kurz(reiter + inhalt), k, request["csrf"], portal=portal))
+                        text=amt.rahmen(titel, nav_aktiv, CSS + glas + _kennzahlen_kurz(reiter + inhalt) + glas_js, k, request["csrf"], portal=portal))
 
 
 def seite(recht=None):

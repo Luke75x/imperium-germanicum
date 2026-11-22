@@ -642,7 +642,7 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
 </aside>
 <div class="spalte">
 <header class="kopf"><a class="logo" href="{basis}" title="{esc(logo_name)} – {esc(seitenname)}"><img src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a>{portal.get("kopf_zusatz", "") if portal else ""}<span class="raum"></span>{suche}</header>
-<main id="inhalt">{OOC_HINWEIS if ist_ooc_admin(k) else ""}{inhalt}</main>
+<main id="inhalt">{(portal.get("ooc", OOC_HINWEIS) if portal else OOC_HINWEIS) if ist_ooc_admin(k) else ""}{inhalt}</main>
 </div></div>
 <div class="schleier" id="schleier"></div>
 <nav class="tableiste" aria-label="Schnellzugriff">{tabs}</nav>
