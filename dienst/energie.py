@@ -103,6 +103,8 @@ CREATE INDEX IF NOT EXISTS en_ge_p ON en_geschaefte (periode, verkaeufer, kaeufe
 
 def einrichten(con):
     con.executescript(SCHEMA)
+    if "aus_kasse" not in [r[1] for r in con.execute("PRAGMA table_info(en_kraftwerke)")]:
+        con.execute("ALTER TABLE en_kraftwerke ADD COLUMN aus_kasse INTEGER NOT NULL DEFAULT 0")
     con.execute("DELETE FROM en_kraftwerke WHERE von='Erstausstattung'")   # frühere erfundene Erstausstattung (mit Reserve und Kernkraft) – wird real neu angelegt
     con.commit()
 
@@ -457,9 +459,9 @@ def bau_diesen_monat(con, schl, periode=None):
     from datetime import datetime
     periode = periode or etatplan.monat_heute()
     summe = 0
-    for r in con.execute("SELECT bezahlt, zeit FROM en_kraftwerke WHERE schl=? AND bezahlt>0", (schl,)):
+    for r in con.execute("SELECT bezahlt, aus_kasse, zeit FROM en_kraftwerke WHERE schl=? AND bezahlt>0", (schl,)):
         if datetime.fromtimestamp(r["zeit"]).strftime("%Y-%m") == periode:
-            summe += int(r["bezahlt"])
+            summe += max(0, int(r["bezahlt"]) - int(r["aus_kasse"]))   # der Teil direkt aus der Kasse belastet den Industrie-Etat nicht
     return summe
 
 
@@ -521,7 +523,7 @@ def baubar(con, schl, typ):
     return False, f"kein {name}vorkommen"
 
 
-def ausbauen(con, schl, typ, anzahl, k):
+def ausbauen(con, schl, typ, anzahl, k, aus_kasse=0, fehlbetrag=False):
     """Baut `anzahl` Kraftwerke sofort und bezahlt den ganzen Preis auf einmal aus der Staats- bzw. Reichskasse (an die Volkswirtschaft). Voraussetzung: Der Preis liegt
     im frei verfügbaren Betrag des Industrie-Etats und die Kasse ist gedeckt."""
     import handel
@@ -536,17 +538,22 @@ def ausbauen(con, schl, typ, anzahl, k):
     gwh = anzahl * TYP[typ][2]
     sichern(con, schl)
     frei = industrie_frei(con, schl)
-    if preis > frei:
-        raise geld.Fehler(f'Der Industrie-Etat reicht nicht: {anzahl} × {TYP[typ][1]} kosten {geld.mark(preis)}, frei verfügbar sind {geld.mark(frei)}.')
     kc = handel.kasse(con, schl)
+    # Teil, den die Staats-/Reichskasse über den Industrie-Etat hinaus direkt trägt: gewählter Betrag und/oder der Fehlbetrag zum freien Etat
+    aus_kasse = max(0, min(int(aus_kasse or 0), preis))
+    if fehlbetrag:
+        aus_kasse = max(aus_kasse, preis - frei)
+    if preis - aus_kasse > frei:
+        raise geld.Fehler(f'Der Industrie-Etat reicht nicht: {anzahl} × {TYP[typ][1]} kosten {geld.mark(preis)}, frei verfügbar sind {geld.mark(frei)}. '
+                          f'Lass einen Teil von der {kc["name"]} tragen (mindestens {geld.mark(preis - frei)}).')
     if kc["saldo"] < preis:
         raise geld.Fehler(f'Die {kc["name"]} ist nicht gedeckt: {anzahl} × {TYP[typ][1]} kosten {geld.mark(preis)}.')
     geld.buchen(con, kc["id"], geld.sonder(con, "volkswirtschaft")["id"], preis, "energie", f"Bau {anzahl} × {TYP[typ][1]}", k, bezug=f"ENERGIE-{schl}")
-    con.execute("INSERT INTO en_kraftwerke (schl, typ, gwh, ab, bezahlt, von, zeit) VALUES (?,?,?,?,?,?,?)", (schl, typ, gwh, "", preis, k["name"], int(time.time())))
-    geld.protokoll(con, k, "Energie: Ausbau", f"{_name(con, schl)}: {anzahl} × {TYP[typ][1]} ({gwh_text(gwh * leistung(con))}/Monat) für {geld.mark(preis)} (zahlt {kc['name']})")
+    con.execute("INSERT INTO en_kraftwerke (schl, typ, gwh, ab, bezahlt, aus_kasse, von, zeit) VALUES (?,?,?,?,?,?,?,?)", (schl, typ, gwh, "", preis, aus_kasse, k["name"], int(time.time())))
+    geld.protokoll(con, k, "Energie: Ausbau", f"{_name(con, schl)}: {anzahl} × {TYP[typ][1]} ({gwh_text(gwh * leistung(con))}/Monat) für {geld.mark(preis)} (zahlt {kc['name']}" + (f", davon {geld.mark(aus_kasse)} direkt aus der Kasse über den Industrie-Etat hinaus" if aus_kasse else "") + ")")
     _IND.clear()
     leeren()
-    return preis, kc["name"]
+    return preis, kc["name"], aus_kasse
 
 
 # ---------------------------------------------------------------- Energiemarkt
@@ -828,6 +835,8 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
         ausbau = (f'<h3>Kraftwerke bauen</h3><form class="ee-form" method="post" action="{PFAD}ausbau">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(ziel)}">'
                   f'<div><label for="ea-t">Kraftwerk</label><select id="ea-t" name="typ">{opt}</select></div>'
                   '<div><label for="ea-n">Anzahl</label><input id="ea-n" name="anzahl" type="number" min="1" max="100" value="1" required></div>'
+                  f'<div><label for="ea-k">Direkt aus der Kasse (Kr, optional)</label><input id="ea-k" name="aus_kasse" type="text" inputmode="decimal" placeholder="0,00"></div>'
+                  f'<div class="sa-haken"><input id="ea-f" name="fehlbetrag" type="checkbox" value="1"><label for="ea-f" style="margin:0">Fehlbetrag zum Industrie-Etat aus der Kasse decken</label></div>'
                   f'<button class="btn" type="submit">{amt.ic("zap")}Bauen</button></form>')
     etat, ls = industrie_betrag(con, ziel), lasten(con, ziel)
     frei_ind = max(0, etat - ls["summe"])
@@ -859,7 +868,7 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
                 '14–0 %: Energienot, stärkste Mali und Abwanderung. Mali treffen Zufriedenheit, Infrastruktur und Industrie. Fossile Kraftwerke belasten das Klima. '
                 f'Veredelung: Stahl {_de(float(s_["ver_stahl"]), 1)}, Aluminium {_de(float(s_["ver_aluminium"]), 1)}, Treibstoff {_de(float(s_["ver_treibstoff"]), 1)} MWh je Tonne – '
                 'sie läuft nur, solange noch Energie frei ist. Veredelte Erzeugnisse im Lager geben bis zum Monatsende Boni (Treibstoff: bis +100 % Energie, Aluminium: bis +100 % Effizienz der Industrie, Stahl: bis −10 % Rüstungspreise); '
-                'die Richtmenge verbraucht der Monatswechsel, Überschuss lässt sich verkaufen, Zukauf zählt genauso. Der Bau wird sofort aus der Kasse bezahlt, aber nur, soweit der frei verfügbare Industrie-Etat reicht; Instandhaltung und Bau verringern, was der Industrie selbst bleibt. Kohle-, Gas-, Öl- und Kernkraftwerke brauchen ein Vorkommen (Braunkohle, Erdgas, Erdöl, Uran) im Gebiet. Überschüsse lassen sich am Energiemarkt verkaufen; '
+                'die Richtmenge verbraucht der Monatswechsel, Überschuss lässt sich verkaufen, Zukauf zählt genauso. Der Bau wird sofort aus der Kasse bezahlt, soweit der frei verfügbare Industrie-Etat reicht; darüber hinaus lässt sich ein Betrag (oder der Fehlbetrag) direkt von der Staats- bzw. Reichskasse tragen, ohne den Industrie-Etat zu belasten; Instandhaltung und Bau verringern, was der Industrie selbst bleibt. Kohle-, Gas-, Öl- und Kernkraftwerke brauchen ein Vorkommen (Braunkohle, Erdgas, Erdöl, Uran) im Gebiet. Überschüsse lassen sich am Energiemarkt verkaufen; '
                 'wer unter 60 % versorgt ist, darf dort zukaufen. Stilllegungen und Sätze legt die RP-Leitung fest.</p>', "info" if "info" in amt.ICONS else "clock")
     gewaehlt = "".join(f'<option value="{esc(s)}"{" selected" if s == ziel else ""}>{esc(n)}</option>' for s, n in sa.bereich_ziele(con, k, _ziele(con), ziel))
     if eingebettet:   # Abschnitt der Seite „Land“ (teilstaat.py): ohne Überschrift, Meldung und Haushaltsauswahl
@@ -967,12 +976,13 @@ async def ausbau_post(request):
     z = _recht(con, k, form)
     back = f"{PFAD}?ziel={z}"
     try:
-        preis, zahler = ausbauen(con, z, str(form.get("typ", "")), _anzahl(form.get("anzahl")), k)
+        preis, zahler, kasse = ausbauen(con, z, str(form.get("typ", "")), _anzahl(form.get("anzahl")), k,
+                                        aus_kasse=geld.betrag_lesen(form.get("aus_kasse", "")) or 0, fehlbetrag=bool(form.get("fehlbetrag")))
         con.commit()
     except geld.Fehler as e:
         con.rollback()
         sa.weiter(back, str(e), True)
-    sa.weiter(back, f"Gebaut. Die {zahler} zahlt {geld.mark(preis)} auf einmal.")
+    sa.weiter(back, f"Gebaut. Die {zahler} zahlt {geld.mark(preis)} auf einmal" + (f", davon {geld.mark(kasse)} direkt aus der Kasse über den Industrie-Etat hinaus." if kasse else "."))
 
 
 async def anbieten_post(request):
