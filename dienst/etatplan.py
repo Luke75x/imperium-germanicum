@@ -1565,6 +1565,16 @@ async def statistiken(request, k):
     eigene = [r["stelle"] for r in geld.regierte_staatskassen(con, k)]
     mark_s = next((s for s in eigene if s in dict(ziele_l)), "")   # der eigene Teilstaat wird hervorgehoben
     pfad = PFAD_OEFF
+    import statistik_ts   # Statistiken je Teilstaat (?staat=ts-…) und Wappenleiste zur Auswahl
+    staat = request.query.get("staat", "")
+    x = next((y for y in liste if "ts-" + y["staat"] == staat and not y["reichsgebiet"]), None)
+    if x:
+        import wappen
+        inhalt = (CSS + statistik_ts.leiste(liste, staat)
+                  + f'<h1>{wappen.klein(x["staat"], x["name"], 30)}{esc(x["name"])} · Statistik</h1>{amt.meldung(request)}'
+                  '<p class="az">Kennzahlen und Diagramme des Teilstaats im laufenden Monat, ohne Salden einzelner Kassen. Über jedem Diagrammelement steht der genaue Wert; '
+                  'jedes Diagramm gibt es auch als Tabelle.</p>' + statistik_ts.seite_html(con, liste, x))
+        return sa.ant(request, k, f'Statistik · {x["name"]}', "sa-statistiken", inhalt)
 
     def abschnitt(titel, symbol, html, offen=False):
         return f'<details class="sa-auf st-kat"{" open" if offen else ""}><summary>{amt.ic(symbol)}{esc(titel)}</summary>{html}</details>'
@@ -1574,8 +1584,9 @@ async def statistiken(request, k):
              ("Entwicklung", "users", entwicklung.tabelle(liste, ziele_l, pfad, mark_s, con), False),
              ("Energie", "zap", energie.vergleich_html(con, links=False, offen=True), False),
              ("Steuern und Reichsabgabe", "coins", aufkommen.tabelle_html(liste), False)]
-    inhalt = (CSS + ZUF_CSS + entwicklung.CSS + energie.CSS + f'<h1>{amt.ic("chart-column")} Statistiken</h1>{amt.meldung(request)}'
-              '<p class="az">Vergleiche aller Haushalte, ohne Beträge einzelner Kassen. Jeder Abschnitt lässt sich aufklappen; Ihr eigener Teilstaat ist hervorgehoben.</p>'
+    inhalt = (CSS + ZUF_CSS + entwicklung.CSS + energie.CSS + statistik_ts.leiste(liste, "") + f'<h1>{amt.ic("chart-column")} Statistiken</h1>{amt.meldung(request)}'
+              '<p class="az">Vergleiche aller Haushalte, ohne Beträge einzelner Kassen. Jeder Abschnitt lässt sich aufklappen; Ihr eigener Teilstaat ist hervorgehoben. '
+              'Oben einen Teilstaat wählen, um seine eigenen Diagramme zu sehen.</p>'
               + "".join(abschnitt(*x) for x in teile))
     return sa.ant(request, k, "Statistiken", "sa-statistiken", inhalt)
 

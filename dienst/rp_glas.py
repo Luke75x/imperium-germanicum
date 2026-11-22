@@ -67,7 +67,7 @@ html:root .rp-ooc::before{content:"";width:7px;height:7px;border-radius:50%;back
 html:root main{max-width:1180px}
 html:root .kennzahlen div,html:root .rp-staat,html:root .rp-kachel,html:root .rp-massnahme,html:root .rp-chip,html:root .rp-leiste a.aktiv,html:root .ts-tabs .ts-tabteil>.ts-karte,
 html:root details.sa-auf,html:root .rs-block,html:root .rt-karten a{background:var(--glas-dicht);border:1px solid var(--glas-rand);box-shadow:var(--glas-schatten),var(--glas-licht)}
-html:root .ts-karte,html:root .sa-karte,html:root .sa-pruef,html:root .sa-schnell a,html:root .sa-erkl,html:root .sa-todo>div,html:root .zf-kopf{
+html:root .st-karte,html:root .ts-karte,html:root .sa-karte,html:root .sa-pruef,html:root .sa-schnell a,html:root .sa-erkl,html:root .sa-todo>div,html:root .zf-kopf{
  background:var(--glas-dicht);border:1px solid var(--glas-rand);box-shadow:var(--glas-schatten),var(--glas-licht);border-radius:20px}
 html:root .sa-todo>div.warn{border-color:rgba(22,23,26,.4);box-shadow:inset 3px 0 0 var(--ink),var(--glas-schatten)}
 html:root .ts-karte,html:root .sa-schnell a{transition:transform .25s var(--feder),box-shadow .25s var(--weich),background .2s}
