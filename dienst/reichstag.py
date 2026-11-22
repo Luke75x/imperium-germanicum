@@ -60,6 +60,10 @@ CREATE TABLE IF NOT EXISTS reichstag_tagesordnung (
 CREATE TABLE IF NOT EXISTS reichstag_stimmen (
     sitzung_id INTEGER NOT NULL, antrag_id INTEGER NOT NULL, konto_id TEXT NOT NULL, name TEXT NOT NULL, stimme TEXT NOT NULL,
     PRIMARY KEY (sitzung_id, antrag_id, konto_id));
+CREATE TABLE IF NOT EXISTS reichstag_notizen (
+    sitzung_id INTEGER NOT NULL, antrag_id INTEGER NOT NULL, konto_id TEXT NOT NULL, notiz TEXT NOT NULL,
+    geaendert INTEGER NOT NULL, geaendert_von TEXT NOT NULL,
+    PRIMARY KEY (sitzung_id, antrag_id, konto_id));
 """
 
 
@@ -474,6 +478,26 @@ async def sitzung_seite(request):
         if panels:
             inhalt += '<h2 class="rt-sec">Abstimmungen erfassen</h2>' + panels
 
+    if praes and top:
+        voters = await _abgeordnete(request)
+        titel = {a["id"]: a["titel"] for a in con.execute("SELECT id, titel FROM reichstag_antraege")}
+        panels = ""
+        for t in top:
+            aid = t["antrag_id"]
+            notizen = {r["konto_id"]: r["notiz"] for r in con.execute("SELECT konto_id, notiz FROM reichstag_notizen WHERE sitzung_id = ? AND antrag_id = ?", (s["id"], aid))}
+            stm = {r["konto_id"]: r["stimme"] for r in con.execute("SELECT konto_id, stimme FROM reichstag_stimmen WHERE sitzung_id = ? AND antrag_id = ?", (s["id"], aid))}
+            personen = {m["id"]: m["name"] for m in voters}
+            for r in con.execute("SELECT konto_id, name FROM reichstag_stimmen WHERE sitzung_id = ? AND antrag_id = ?", (s["id"], aid)):
+                personen.setdefault(r["konto_id"], r["name"])
+            zeilen = "".join(f'<tr><td>{esc(n)}</td><td>{STIMMEN.get(stm.get(kid), "–")}</td>'
+                             f'<td><textarea name="n_{esc(kid)}" rows="2" maxlength="1000" aria-label="Notiz zu {esc(n)}" style="width:100%">{esc(notizen.get(kid, ""))}</textarea></td></tr>'
+                             for kid, n in sorted(personen.items(), key=lambda x: x[1].lower()))
+            panels += _panel(f'Notizen: {esc(titel[aid])}', _form(
+                request, "notizen", f'<input type="hidden" name="sitzung" value="{s["id"]}"><input type="hidden" name="antrag" value="{aid}">'
+                f'<div class="table-scroll"><table class="styles-table is-grid"><thead><tr><th>Abgeordnete/r</th><th>Stimme</th><th>Notiz (nur Präsidium)</th></tr></thead><tbody>{zeilen}</tbody></table></div>'
+                '<button class="btn btn-navy" type="submit">Notizen speichern</button>'))
+        inhalt += '<h2 class="rt-sec">Notizen zum Abstimmungsverhalten</h2><p class="callout">Diese Notizen sieht nur das Präsidium.</p>' + panels
+
     fertig = [t for t in top if t["ergebnis"]]
     if fertig:
         stimmen = {(r["antrag_id"], r["konto_id"]): r["stimme"] for r in con.execute("SELECT * FROM reichstag_stimmen WHERE sitzung_id = ?", (s["id"],))}
@@ -525,12 +549,15 @@ async def abgeordneter_seite(request):
                           WHERE st.konto_id = ? ORDER BY s.termin DESC, t.position""", (kid,)).fetchall()
     if not rows:
         raise web.HTTPNotFound()
+    praes = ist_praesidium(request["konto"])
+    nz = {(r["sitzung_id"], r["antrag_id"]): r["notiz"] for r in con.execute("SELECT * FROM reichstag_notizen WHERE konto_id = ?", (kid,))} if praes else {}
     zeilen = [_td(f'<a href="{basis}sitzung/{r["sitzung_id"]}/">{r["nummer"]}. Sitzung</a>', _zeit(r["termin"], False),
-                  f'<a href="{basis}antrag/{r["antrag_id"]}/">{esc(r["titel"])}</a>', f'<strong>{STIMMEN[r["stimme"]]}</strong>', _ergebnis_badge(r["ergebnis"]))
+                  f'<a href="{basis}antrag/{r["antrag_id"]}/">{esc(r["titel"])}</a>', f'<strong>{STIMMEN[r["stimme"]]}</strong>', _ergebnis_badge(r["ergebnis"]),
+                  *([esc(nz.get((r["sitzung_id"], r["antrag_id"]), "")).replace("\n", "<br>")] if praes else []))
               for r in rows]
     eigene = [_td(f'<a href="{basis}antrag/{a["id"]}/">Nr. {a["id"]} {esc(a["titel"])}</a>', _antrag_badge(a["status"]))
               for a in con.execute("SELECT * FROM reichstag_antraege WHERE einreicher_id = ? ORDER BY id DESC", (kid,))]
-    inhalt = ('<h2 class="rt-sec" style="margin-top:0">Abstimmungen</h2>' + _tabelle(["Sitzung", "Datum", "Antrag", "Stimme", "Ergebnis"], zeilen)
+    inhalt = ('<h2 class="rt-sec" style="margin-top:0">Abstimmungen</h2>' + _tabelle(["Sitzung", "Datum", "Antrag", "Stimme", "Ergebnis"] + (["Notiz (Präsidium)"] if praes else []), zeilen)
               + '<h2 class="rt-sec">Eingereichte Anträge</h2>' + _tabelle(["Antrag", "Stand"], eigene, "Keine Anträge eingereicht."))
     return _rahmen(request, rows[0]["name"], "Abstimmungsverhalten", inhalt, aktiv="abstimmungsverhalten/", brot=[("Abstimmungsverhalten", basis + "abstimmungsverhalten/")])
 
@@ -653,6 +680,27 @@ async def abstimmung(request):
     _zurueck(request, ziel)
 
 
+async def notizen(request):
+    k, form = await _formular(request, ist_praesidium)
+    con = request.app["db"]
+    sid, aid = str(form.get("sitzung", "")), str(form.get("antrag", ""))
+    t = con.execute("SELECT 1 FROM reichstag_tagesordnung WHERE sitzung_id = ? AND antrag_id = ?", (sid, aid)).fetchone() if sid.isdigit() and aid.isdigit() else None
+    if not t:
+        _zurueck(request, "", False, "Tagesordnungspunkt nicht gefunden")
+    ziel = f"sitzung/{sid}/"
+    jetzt = int(time.time())
+    for feld, wert in form.items():
+        if not feld.startswith("n_"):
+            continue
+        kid, text = feld[2:], str(wert).strip()[:1000]
+        if text:
+            con.execute("INSERT OR REPLACE INTO reichstag_notizen VALUES (?, ?, ?, ?, ?, ?)", (sid, aid, kid, text, jetzt, k["name"]))
+        else:
+            con.execute("DELETE FROM reichstag_notizen WHERE sitzung_id = ? AND antrag_id = ? AND konto_id = ?", (sid, aid, kid))
+    con.commit()
+    _zurueck(request, ziel)
+
+
 # ---------------------------------------------------------------- Anträge aus dem Discord (Bot-Befehl /antrag)
 
 async def api_antrag(request):
@@ -713,4 +761,5 @@ def registrieren(app):
         app.router.add_post(b + "sitzung/{id}/aktion", sitzung_aktion)
         app.router.add_post(b + "tagesordnung", tagesordnung)
         app.router.add_post(b + "abstimmung", abstimmung)
+        app.router.add_post(b + "notizen", notizen)
     app.router.add_post("/intern-api/reichstag/antrag", api_antrag)
