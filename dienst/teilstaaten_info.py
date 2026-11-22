@@ -104,9 +104,6 @@ async def seite_teilstaaten(request):
     wahl_id = request.query.get("staat", "")
     s = next((x for x in staaten if x["id"] == wahl_id), None)
     basis = ("/en" if en else "") + PFAD
-    opt = "".join(f'<option value="{esc(x["id"])}"{" selected" if s and x["id"] == s["id"] else ""}>{esc(x["name"])}</option>' for x in staaten)
-    menue = (f'<form class="ts-wahl" method="get" action="{basis}"><div><label for="ts-staat">Teilstaat wählen</label><select id="ts-staat" name="staat" onchange="this.form.submit()">'
-             f'{"" if s else "<option value=\"\" selected>– bitte auswählen –</option>"}{opt}</select></div><noscript><button class="btn btn-navy" type="submit">Anzeigen</button></noscript></form>')
     karten = "".join(f'<a href="{basis}?staat={esc(x["id"])}"{" aria-current=\"page\"" if s and x["id"] == s["id"] else ""}>{teilstaat.wappen_html(x["id"], x["name"]) or "<span></span>"}<b>{esc(x["name"])}</b></a>' for x in staaten)
     erweitert = _eingestellt(con, k)
     if s:
@@ -114,12 +111,12 @@ async def seite_teilstaaten(request):
         x = next(y for y in liste if y["staat"] == s["id"])
         karte_html = _steckbrief(con, s, x, await _regent(request, s), erweitert)
     else:
-        karte_html = '<p class="lead">Wähle oben einen Teilstaat, um seinen Steckbrief zu sehen: Wappen, Regent, Bevölkerung, Wirtschaft und Entwicklung.</p>'
+        karte_html = '<p class="lead">Wähle unten einen Teilstaat, um seinen Steckbrief zu sehen: Wappen, Regent, Bevölkerung, Wirtschaft und Entwicklung.</p>'
     hinweis = ("" if erweitert else '<div class="ts-hinweis">Hier stehen die öffentlichen Angaben. Angestellte des Kaiserlichen Schatz- und Währungsamts sehen nach der Anmeldung zusätzlich Etat und Energieversorgung.</div>')
     krumen = '<li><a href="/">Hauptseite</a></li><li><a href="/informationen/">Informationen</a></li><li><span aria-current="page">Die Teilstaaten</span></li>'
     kopf = ('<div class="page-head"><div class="wrap"><nav class="breadcrumb" aria-label="Brotkrumen"><ol>' + krumen + '</ol></nav>'
             '<span class="eyebrow">Staatsaufbau</span><h1>Die Teilstaaten</h1></div></div>')
-    inhalt = kopf + f'<div class="section"><div class="wrap">{menue}{karte_html}{hinweis}<h3>Alle Teilstaaten</h3><div class="ts-karten">{karten}</div></div></div>'
+    inhalt = kopf + f'<div class="section"><div class="wrap">{karte_html}{hinweis}<h3>Alle Teilstaaten</h3><div class="ts-karten">{karten}</div></div></div>'
     return web.Response(text=seite("Die Teilstaaten", inhalt, kopf=CSS, konto=k, csrf=request.get("csrf", ""), pfad=request.path, lang="en" if en else "de"),
                         content_type="text/html", headers={"Cache-Control": "no-store"})
 
