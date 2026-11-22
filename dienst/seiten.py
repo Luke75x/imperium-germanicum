@@ -34,13 +34,14 @@ def _css_version():
 
 
 def _konto_html(konto, csrf, pfad):
-    """Konto in der Kopfleiste (Stil .topbar .wiki-user aus wiki.css)."""
+    """Konto in der Kopfleiste. Seit 23.11.2026 zeigt assets/js/site.js das Profilmenü auf allen Seiten; hier steht nur noch der Rückfall ohne JavaScript
+    (sonst erschienen Name und „Abmelden“ doppelt)."""
     if not konto:
-        return (f'<span class="wiki-user"><a href="/anmelden/?weiter={html.escape(pfad)}">'
-                '<span class="lbl">Anmelden</span></a></span>')
-    return (f'<span class="wiki-user"><span><span class="lbl">{html.escape(konto["name"])}</span></span>'
-            f'<form method="post" action="/abmelden/"><input type="hidden" name="csrf" value="{html.escape(csrf)}">'
-            f'<input type="hidden" name="weiter" value="{html.escape(pfad)}"><button type="submit">Abmelden</button></form></span>')
+        inner = (f'<a href="/anmelden/?weiter={html.escape(pfad)}"><span class="lbl">Anmelden</span></a>')
+    else:
+        inner = (f'<form method="post" action="/abmelden/"><input type="hidden" name="csrf" value="{html.escape(csrf)}">'
+                 f'<input type="hidden" name="weiter" value="{html.escape(pfad)}"><button type="submit">Abmelden</button></form>')
+    return f'<noscript><span class="wiki-user">{inner}</span></noscript>'
 
 
 def seite(titel, inhalt, kopf="", body_klasse="", konto=None, csrf="", pfad=None, lang="de", canonical=None):

@@ -215,28 +215,37 @@ button.link-arrow { background: none; border: 0; border-bottom: 1px solid var(--
 
 /* ---------- Kopfbereich ---------- */
 
-.topbar { background: var(--navy-950); color: rgba(255,255,255,.72); font-size: .8125rem; }
-.topbar .wrap { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 38px; }
-.topbar a { color: rgba(255,255,255,.82); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+/* Kopfleiste (neu 23.11.2026): links Kanäle, rechts Sprache · Design | Konto */
+.topbar { position: relative; background: var(--navy-950); color: rgba(255,255,255,.72); font-size: .8125rem; }
+.topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-500) 30%, var(--gold-500) 70%, transparent); opacity: .35; }
+.topbar .wrap { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; }
+.topbar a { color: rgba(255,255,255,.78); text-decoration: none; display: inline-flex; align-items: center; gap: 7px; transition: color .15s, background-color .15s, border-color .15s; }
 .topbar a:hover { color: var(--gold-300); }
-.topbar svg { width: 14px; height: 14px; }
-.topbar-links { display: flex; gap: 22px; }
-.topbar-tools { display: flex; align-items: center; gap: 14px; }
-.lang-switch { display: inline-flex; border: 1px solid rgba(255,255,255,.3); border-radius: var(--radius); overflow: hidden; }
-.lang-switch a { display: inline-flex; align-items: center; padding: 4px 9px; line-height: 1; opacity: .6; }
-.lang-switch a:hover { opacity: 1; }
-.lang-switch .flag { width: 22px; height: 14px; display: block; border: 1px solid rgba(0,0,0,.25); }
-.lang-switch a[aria-current] { background: var(--gold-500); color: var(--navy-950); opacity: 1; }
-.lang-switch a[aria-current]:hover { color: var(--navy-950); }
+.topbar svg { width: 15px; height: 15px; flex: none; }
+.topbar-links { display: flex; gap: 2px; margin-left: -10px; }
+.topbar-links a { padding: 6px 10px; border-radius: var(--radius); }
+.topbar-links a:hover { background: rgba(255,255,255,.06); }
+.topbar-tools { display: flex; align-items: center; gap: 8px; }
+.topbar-tools .trenner { width: 1px; height: 20px; background: rgba(255,255,255,.16); margin: 0 4px; }
+/* Sprache als Segment „DE | EN“ (Text statt Flaggen) */
+.lang-switch { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid rgba(255,255,255,.14); border-radius: var(--radius); background: rgba(255,255,255,.04); }
+.lang-switch a { padding: 5px 8px; line-height: 1; font: 600 .6875rem/1 var(--sans); letter-spacing: .14em; color: rgba(255,255,255,.6); border-radius: var(--radius); }
+.lang-switch a::after { content: attr(data-lang); text-transform: uppercase; }
+.lang-switch .flag { display: none; }
+.lang-switch a:hover { color: #fff; background: rgba(255,255,255,.06); }
+.lang-switch a[aria-current] { background: var(--gold-500); color: var(--navy-950); }
+.lang-switch a[aria-current]:hover { color: var(--navy-950); background: var(--gold-300); }
 .theme-toggle {
-  display: inline-grid; place-items: center; width: 30px; height: 26px; padding: 0; cursor: pointer;
-  background: none; border: 1px solid rgba(255,255,255,.3); border-radius: var(--radius); color: rgba(255,255,255,.85);
+  display: inline-grid; place-items: center; width: 30px; height: 28px; padding: 0; cursor: pointer;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.14); border-radius: var(--radius); color: rgba(255,255,255,.82);
+  transition: color .15s, border-color .15s;
 }
-.theme-toggle:hover { color: var(--gold-300); border-color: var(--gold-300); }
+.theme-toggle:hover { color: var(--gold-300); border-color: rgba(228,203,122,.5); }
 .theme-toggle svg { grid-area: 1 / 1; width: 15px; height: 15px; }
 :root[data-theme="dark"] .theme-toggle svg:nth-child(2) { display: none; }
 :root:not([data-theme="dark"]) .theme-toggle svg:nth-child(1) { display: none; }
-@media (max-width: 520px) { .topbar-links .lbl { display: none; } .topbar-links { gap: 16px; } }
+@media (max-width: 640px) { .topbar-links .lbl { display: none; } .topbar-links { gap: 0; } .topbar-links a { padding: 8px; } }
+@media (pointer: coarse) { .topbar .wrap { min-height: 48px; } .lang-switch a { padding: 8px 10px; } .theme-toggle { width: 36px; height: 34px; } }
 
 .site-header {
   position: sticky; top: 0; z-index: 50;
@@ -853,26 +862,28 @@ a.zoom:hover .zoom-hint, a.zoom:focus-visible .zoom-hint { opacity: 1; }
 /* ---------- Anmeldung & Profilmenü (Kopfleiste) ---------- */
 
 .konto { position: relative; z-index: 80; display: inline-flex; }
-.konto-anmelden .lbl { white-space: nowrap; }
-.konto-knopf {
-  display: inline-flex; align-items: center; gap: 8px; padding: 2px 4px 2px 2px; cursor: pointer;
-  background: none; border: 0; color: rgba(255,255,255,.88); font: inherit;
+.topbar .konto-anmelden, .konto-knopf {
+  display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px 0 3px; cursor: pointer; font: inherit; font-weight: 500;
+  border: 1px solid rgba(255,255,255,.14); border-radius: var(--radius); background: rgba(255,255,255,.04); color: rgba(255,255,255,.9);
+  transition: color .15s, border-color .15s, background-color .15s;
 }
-.konto-knopf:hover, .konto-knopf[aria-expanded="true"] { color: var(--gold-300); }
+.topbar .konto-anmelden { padding: 0 12px; border-color: rgba(228,203,122,.55); color: var(--gold-300); }
+.topbar .konto-anmelden:hover { background: var(--gold-500); border-color: var(--gold-500); color: var(--navy-950); }
+.konto-knopf:hover, .konto-knopf[aria-expanded="true"] { border-color: rgba(228,203,122,.5); color: var(--gold-300); }
 .konto-initialen {
-  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
-  background: var(--gold-500); color: var(--navy-950); font: 600 .625rem/1 var(--sans); letter-spacing: .02em;
+  display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius);
+  background: var(--gold-500); color: var(--navy-950); font: 700 .625rem/1 var(--sans); letter-spacing: .04em;
 }
-.konto-name { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.konto-knopf .pfeil { width: 12px; height: 12px; opacity: .7; }
+.konto-name { max-width: 20ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.konto-knopf .pfeil { width: 12px; height: 12px; opacity: .65; transition: transform .2s; }
+.konto-knopf[aria-expanded="true"] .pfeil { transform: rotate(180deg); }
 .konto-menue {
-  position: absolute; right: 0; top: calc(100% + 8px); min-width: 220px;
+  position: absolute; right: 0; top: calc(100% + 8px); min-width: 230px;
   background: var(--white); color: var(--ink); border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow);
   padding: 6px 0; font-size: .9375rem;
 }
 .konto-menue[hidden] { display: none; }
-.konto-menue-kopf { padding: 8px 16px 10px; border-bottom: 1px solid var(--rule); margin-bottom: 6px; }
-.konto-menue-kopf small { display: block; color: var(--muted); font-size: .6875rem; letter-spacing: .14em; text-transform: uppercase; }
+.konto-menue-kopf { display: none; padding: 8px 16px 10px; border-bottom: 1px solid var(--rule); margin-bottom: 6px; }
 .konto-menue-kopf strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar .konto-menue a, .konto-menue button {
   display: block; width: 100%; text-align: left; padding: 8px 16px; color: var(--ink); background: none; border: 0;
@@ -880,7 +891,8 @@ a.zoom:hover .zoom-hint, a.zoom:focus-visible .zoom-hint { opacity: 1; }
 }
 .topbar .konto-menue a:hover, .konto-menue button:hover { background: var(--paper); color: var(--ink); }
 .konto-menue form { border-top: 1px solid var(--rule); margin-top: 6px; padding-top: 6px; }
-@media (max-width: 520px) { .konto-name, .konto-anmelden .lbl { display: none; } }
+@media (max-width: 640px) { .konto-name, .konto-knopf .pfeil { display: none; } .konto-knopf { padding: 0 3px; } .konto-menue-kopf { display: block; } }
+@media (pointer: coarse) { .konto-knopf, .topbar .konto-anmelden { height: 34px; } }
 
 /* Reichsbehörden: Kartenraster und Listen */
 .rb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 18px; align-items: stretch; }

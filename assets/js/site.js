@@ -50,7 +50,11 @@
   if (tools && window.fetch) {
     var konto = document.createElement("div");
     konto.className = "konto";
-    tools.insertBefore(konto, tools.firstChild);
+    var trenner = document.createElement("span");   // Konto steht ganz rechts, abgesetzt von Sprache und Design
+    trenner.className = "trenner";
+    trenner.setAttribute("aria-hidden", "true");
+    tools.appendChild(trenner);
+    tools.appendChild(konto);
     var el = function (tag, attrs, text) {
       var e = document.createElement(tag);
       for (var k in attrs) { if (Object.prototype.hasOwnProperty.call(attrs, k)) e.setAttribute(k, attrs[k]); }
@@ -76,10 +80,10 @@
         btn.appendChild(el("span", { "class": "konto-name" }, d.name));
         btn.insertAdjacentHTML("beforeend", '<svg class="pfeil" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>');
         var menue = el("div", { "class": "konto-menue", id: "konto-menue", hidden: "" });
-        var kopf = el("div", { "class": "konto-menue-kopf" });
-        kopf.appendChild(el("small", {}, TX.account));
+        var kopf = el("div", { "class": "konto-menue-kopf" });   // nur am Handy sichtbar, wo der Name im Knopf fehlt
         kopf.appendChild(el("strong", {}, d.name));
         menue.appendChild(kopf);
+        btn.setAttribute("aria-label", TX.account + ": " + d.name);
         var eintrag = function (href, text) { menue.appendChild(el("a", { href: href }, text)); };
         eintrag("/profil/", TX.profile);
         eintrag("/profil/dokumente/", TX.docs);
