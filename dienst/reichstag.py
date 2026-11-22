@@ -60,6 +60,8 @@ CREATE TABLE IF NOT EXISTS reichstag_tagesordnung (
 CREATE TABLE IF NOT EXISTS reichstag_stimmen (
     sitzung_id INTEGER NOT NULL, antrag_id INTEGER NOT NULL, konto_id TEXT NOT NULL, name TEXT NOT NULL, stimme TEXT NOT NULL,
     PRIMARY KEY (sitzung_id, antrag_id, konto_id));
+CREATE TABLE IF NOT EXISTS reichstag_vertreter (
+    konto_id TEXT PRIMARY KEY, vertreter_id TEXT NOT NULL, vertreter_name TEXT NOT NULL, seit INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS reichstag_notizen (
     sitzung_id INTEGER NOT NULL, antrag_id INTEGER NOT NULL, konto_id TEXT NOT NULL, notiz TEXT NOT NULL,
     geaendert INTEGER NOT NULL, geaendert_von TEXT NOT NULL,
@@ -69,7 +71,18 @@ CREATE TABLE IF NOT EXISTS reichstag_notizen (
 
 def einrichten(con):
     con.executescript(SCHEMA)
+    if "vertreter" not in [r[1] for r in con.execute("PRAGMA table_info(reichstag_stimmen)")]:
+        con.execute("ALTER TABLE reichstag_stimmen ADD COLUMN vertreter TEXT NOT NULL DEFAULT ''")
     con.commit()
+
+
+def _vertreter(con):
+    """Aktuelle Vertretungen {Konto-ID des Abgeordneten: Name des Vertreters}."""
+    return {r["konto_id"]: r["vertreter_name"] for r in con.execute("SELECT konto_id, vertreter_name FROM reichstag_vertreter")}
+
+
+def _mit_vertreter(name_html, vertreter):
+    return name_html + (f'<br><span class="az">Vertreten durch: {esc(vertreter)}</span>' if vertreter else "")
 
 
 # ---------------------------------------------------------------- Rechte und Hilfen
@@ -532,11 +545,12 @@ async def sitzung_seite(request):
     # Abstimmungen erfassen
     if praes and s["status"] == "laeuft":
         voters = await _abgeordnete(request)
+        vt = _vertreter(con)
         panels = ""
         for t in top:
             if t["ergebnis"]:
                 continue
-            zeilen = "".join(f'<tr><td data-l="Abgeordnete/r">{esc(m["name"])}</td><td data-l="Stimme"><select name="s_{m["id"]}" aria-label="Stimme von {esc(m["name"])}"><option value="">–</option>'
+            zeilen = "".join(f'<tr><td data-l="Abgeordnete/r">{_mit_vertreter(esc(m["name"]), vt.get(m["id"]))}</td><td data-l="Stimme"><select name="s_{m["id"]}" aria-label="Stimme von {esc(m["name"])}"><option value="">–</option>'
                              + "".join(f'<option value="{w}">{b}</option>' for w, b in STIMMEN.items()) + "</select></td></tr>" for m in voters)
             aid = t["antrag_id"]
             panels += _panel(f'Abstimmung: {esc(titel[aid])}', _form(
@@ -553,6 +567,7 @@ async def sitzung_seite(request):
     # Notizen des Präsidiums
     if praes and top:
         voters = await _abgeordnete(request)
+        vt = _vertreter(con)
         panels = ""
         for t in top:
             aid = t["antrag_id"]
@@ -561,7 +576,7 @@ async def sitzung_seite(request):
             personen = {m["id"]: m["name"] for m in voters}
             for r in con.execute("SELECT konto_id, name FROM reichstag_stimmen WHERE sitzung_id = ? AND antrag_id = ?", (s["id"], aid)):
                 personen.setdefault(r["konto_id"], r["name"])
-            zeilen = "".join(f'<tr><td data-l="Abgeordnete/r">{esc(nm)}</td><td data-l="Stimme">{STIMMEN.get(stm.get(kid), "–")}</td>'
+            zeilen = "".join(f'<tr><td data-l="Abgeordnete/r">{_mit_vertreter(esc(nm), vt.get(kid))}</td><td data-l="Stimme">{STIMMEN.get(stm.get(kid), "–")}</td>'
                              f'<td data-l="Notiz"><textarea name="n_{esc(kid)}" rows="2" maxlength="1000" aria-label="Notiz zu {esc(nm)}">{esc(notizen.get(kid, ""))}</textarea></td></tr>'
                              for kid, nm in sorted(personen.items(), key=lambda x: x[1].lower()))
             panels += _panel(f'Notizen: {esc(titel[aid])}', _form(
@@ -576,8 +591,11 @@ async def sitzung_seite(request):
     if fertig:
         stimmen = {(r["antrag_id"], r["konto_id"]): r["stimme"] for r in con.execute("SELECT * FROM reichstag_stimmen WHERE sitzung_id = ?", (s["id"],))}
         namen = {r["konto_id"]: r["name"] for r in con.execute("SELECT DISTINCT konto_id, name FROM reichstag_stimmen WHERE sitzung_id = ?", (s["id"],))}
+        vert = {}
+        for r in con.execute("SELECT konto_id, vertreter FROM reichstag_stimmen WHERE sitzung_id = ? AND vertreter != ''", (s["id"],)):
+            vert.setdefault(r["konto_id"], r["vertreter"])
         kopf = ["Abgeordnete/r"] + [f'Nr. {t["antrag_id"]}' for t in fertig]
-        zeilen = [_td(f'<a href="{basis}abgeordnete/{kid}/">{esc(nm)}</a>', *[STIMMEN.get(stimmen.get((t["antrag_id"], kid)), "–") for t in fertig])
+        zeilen = [_td(_mit_vertreter(f'<a href="{basis}abgeordnete/{kid}/">{esc(nm)}</a>', vert.get(kid)), *[STIMMEN.get(stimmen.get((t["antrag_id"], kid)), "–") for t in fertig])
                   for kid, nm in sorted(namen.items(), key=lambda x: x[1].lower())]
         inhalt += _schritt(n, "Abstimmungsverhalten dieser Sitzung") + _tabelle(kopf, zeilen)
     return _rahmen(request, f"{s['nummer']}. Sitzung – {s['titel']}", "Sitzung des Reichstages", inhalt, aktiv="rt-leitung" if (praes and s["status"] == "laeuft") else "rt-sitzungen",
@@ -628,7 +646,7 @@ async def abgeordneter_seite(request):
     nz = {(r["sitzung_id"], r["antrag_id"]): r["notiz"] for r in con.execute("SELECT * FROM reichstag_notizen WHERE konto_id = ?", (kid,))} if praes else {}
     z = {w: sum(1 for r in rows if r["stimme"] == w) for w in STIMMEN}
     zeilen = [_td(f'<a href="{basis}sitzung/{r["sitzung_id"]}/">{r["nummer"]}. Sitzung</a>', _zeit(r["termin"], False),
-                  f'<a href="{basis}antrag/{r["antrag_id"]}/">{esc(r["titel"])}</a>', f'<strong>{STIMMEN[r["stimme"]]}</strong>', _ergebnis_badge(r["ergebnis"]),
+                  f'<a href="{basis}antrag/{r["antrag_id"]}/">{esc(r["titel"])}</a>', f'<strong>{STIMMEN[r["stimme"]]}</strong>' + (f'<br><span class="az">Vertreten durch: {esc(r["vertreter"])}</span>' if r["vertreter"] else ""), _ergebnis_badge(r["ergebnis"]),
                   *([esc(nz.get((r["sitzung_id"], r["antrag_id"]), "")).replace("\n", "<br>")] if praes else []))
               for r in rows]
     eigene = [_td(f'<a href="{basis}antrag/{a["id"]}/">Nr. {a["id"]} {esc(a["titel"])}</a>', _antrag_badge(a["status"]))
@@ -739,9 +757,11 @@ async def abstimmung(request):
     ziel = f"sitzung/{t['sitzung_id']}/"
     namen = {m["id"]: m["name"] for m in await request.app["discord"].mitglieder()}
     con.execute("DELETE FROM reichstag_stimmen WHERE sitzung_id = ? AND antrag_id = ?", (t["sitzung_id"], t["antrag_id"]))
+    vt = _vertreter(con)
     for feld, wert in form.items():
         if feld.startswith("s_") and wert in STIMMEN and feld[2:] in namen:
-            con.execute("INSERT INTO reichstag_stimmen VALUES (?, ?, ?, ?, ?)", (t["sitzung_id"], t["antrag_id"], feld[2:], namen[feld[2:]], wert))
+            con.execute("INSERT INTO reichstag_stimmen (sitzung_id, antrag_id, konto_id, name, stimme, vertreter) VALUES (?, ?, ?, ?, ?, ?)",
+                        (t["sitzung_id"], t["antrag_id"], feld[2:], namen[feld[2:]], wert, vt.get(feld[2:], "")))
     z = _zaehlen(con, t["sitzung_id"], t["antrag_id"])
     wahl = form.get("ergebnis", "auto")
     if wahl in ("vertagt", "zurueckgezogen"):
@@ -810,6 +830,36 @@ async def api_antrag(request):
     return web.json_response({"ok": True, "id": nr, "url": url})
 
 
+async def api_vertreter(request):
+    """Bot-Befehl /vertreter: Vertreter ernennen (vertreter_id) oder aufheben (leer). Nur lokal, mit Bot-Token."""
+    if not secrets.compare_digest(request.headers.get("X-Bot-Token", ""), request.app["discord"].bot_token):
+        raise web.HTTPForbidden()
+    d = await request.json()
+    dc, con = request.app["discord"], request.app["db"]
+    try:
+        k = await dc.konto_neu(str(d.get("konto_id", "")))
+    except Exception:
+        return web.json_response({"ok": False, "fehler": "Konto nicht gefunden."})
+    if not ist_mitglied(k):
+        return web.json_response({"ok": False, "fehler": "Einen Vertreter können nur Abgeordnete und Landesherren des Reichstags ernennen."})
+    vid = str(d.get("vertreter_id") or "")
+    alt = con.execute("SELECT * FROM reichstag_vertreter WHERE konto_id = ?", (k["id"],)).fetchone()
+    if not vid:
+        con.execute("DELETE FROM reichstag_vertreter WHERE konto_id = ?", (k["id"],))
+        con.commit()
+        return web.json_response({"ok": True, "aktion": "aufgehoben", "alt": alt["vertreter_name"] if alt else ""})
+    if vid == k["id"]:
+        return web.json_response({"ok": False, "fehler": "Du kannst dich nicht selbst vertreten."})
+    person = next((m for m in await dc.mitglieder() if m["id"] == vid), None)
+    if not person:
+        return web.json_response({"ok": False, "fehler": "Diese Person ist kein Mitglied des Servers."})
+    con.execute("INSERT OR REPLACE INTO reichstag_vertreter VALUES (?, ?, ?, ?)", (k["id"], vid, person["name"], int(time.time())))
+    con.commit()
+    await dc.dm(vid, f"**{k['name']}** hat dich zum Vertreter im Reichstag ernannt. Bei Sitzungen wird dein Name in der Anwesenheits- und Abstimmungsliste "
+                     f"unter seinem/ihrem Namen als „Vertreten durch“ geführt.")
+    return web.json_response({"ok": True, "aktion": "ernannt", "name": person["name"]})
+
+
 async def pruefen_sitzordnung(request):
     """nginx auth_request für /informationen/der-reichstag/sitzordnung/ (vorerst versteckt): 204 nur für Kaiser und Kronkanzler,
     401 ohne Anmeldung (→ Anmeldung), sonst 403 (nginx zeigt dann 404). Nur lokal erreichbar."""
@@ -840,3 +890,4 @@ def registrieren(app):
         app.router.add_post(b + "abstimmung", abstimmung)
         app.router.add_post(b + "notizen", notizen)
     app.router.add_post("/intern-api/reichstag/antrag", api_antrag)
+    app.router.add_post("/intern-api/reichstag/vertreter", api_vertreter)
