@@ -161,14 +161,18 @@ async def seite(request, k):
     staaten = sorted((s for s in karte.aktuell(con)["stand"]["staaten"] if not geld.ist_reichsgebiet(s)), key=lambda s: s["name"])
     ziel = request.query.get("ziel", "")
     s = next((x for x in staaten if "ts-" + x["id"] == ziel), None)
-    auswahl = "".join(f'<option value="ts-{esc(x["id"])}"{" selected" if s and x["id"] == s["id"] else ""}>{esc(x["name"])}</option>' for x in staaten)
-    wahl = (f'<form class="rt-wahl" method="get"><div><label for="rt-ziel">Teilstaat wählen</label><select id="rt-ziel" name="ziel" onchange="this.form.submit()">'
-            f'{"" if s else "<option value=\"\" selected>– bitte auswählen –</option>"}{auswahl}</select></div><noscript><button class="btn zweit" type="submit">Anzeigen</button></noscript></form>')
+    import rpleitung
+    import wappen
+    leiste = ('<nav class="rp-leiste" aria-label="Teilstaat wählen">'
+              + "".join(f'<a href="{PFAD}?ziel=ts-{esc(x["id"])}"{" class=aktiv aria-current=page" if s and x["id"] == s["id"] else ""}>'
+                        f'{wappen.klein(x["id"], x["name"], 34) or amt.ic("flag")}<span>{esc(x["name"])}</span></a>' for x in staaten) + "</nav>"
+              + '<script>(function(){var a=document.querySelector(".rp-leiste a.aktiv");if(a){var n=a.parentNode;n.scrollLeft=a.offsetLeft-n.clientWidth/2+a.offsetWidth/2}})()</script>')
+    wahl = rpleitung.CSS + leiste
     if not s:
-        karten = "".join(f'<a href="{PFAD}?ziel=ts-{esc(x["id"])}">{teilstaat.wappen_html(x["id"], x["name"]) or "<span></span>"}<b>{esc(x["name"])}</b></a>' for x in staaten)
         inhalt = (CSS + f'<h1>{amt.ic("flag")} Die Teilstaaten</h1>{amt.meldung(request)}'
-                  '<p class="az">Zuerst einen Teilstaat wählen, danach sieht die RP-Leitung alles von ihm: Überblick, Etat, Land, Finanzen und die Stammdaten (editierbar).</p>' + wahl
-                  + f'<div class="rt-karten">{karten}</div>')
+                  '<p class="az">Zuerst einen Teilstaat wählen, danach sieht die RP-Leitung alles von ihm: Überblick, Etat, Land, Finanzen, Kassen, Konfiguration und die Stammdaten (editierbar).</p>'
+                  + rpleitung.CSS + rpleitung.staaten_raster(con)
+                  )
         return sa.ant(request, k, "Die Teilstaaten", "sa-rp-teilstaaten", inhalt)
     sid, schl = s["id"], "ts-" + s["id"]
     kasse = geld.stellenkonto(con, schl)

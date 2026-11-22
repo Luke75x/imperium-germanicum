@@ -197,8 +197,9 @@ def index(con, k):
         add("Die Teilstaaten (RP-Leitung)", "RP-Leitung", PFAD + "rp/teilstaaten/", "teilstaaten teilstaat stammdaten editieren name farbe hauptstadt fraktion wappen alles ansehen")
         add("Stellschrauben (Haushalt, Gold, Notlage, Verteidigung, Etats)", "RP-Konfiguration", PFAD + "rp/stellschrauben/",
             "stellschrauben konfiguration steuerquote wechselkurs reichsabgabe goldpreis notlage dispo verteidigungsetat behoerdenetats saetze einstellungen", 2)
-        add("Sätze festlegen (Steuern, Gebühren)", "RP-Konfiguration", PFAD + "amt/tarife/", "tarife saetze steuersaetze gebuehren lohnsteuer sozialabgabe konfiguration", 1)
-        add("RP-Lagebild", "RP-Leitung", PFAD + "rp/", "rp leitung lagebild")
+        add("Steuer- & Gebührensätze festlegen", "RP-Konfiguration", PFAD + "amt/tarife/", "tarife saetze steuersaetze gebuehren lohnsteuer sozialabgabe konfiguration", 1)
+        add("RP-Lagebild", "RP-Leitung", PFAD + "rp/", "rp leitung lagebild leitstand")
+        add("Konfiguration (Übersicht)", "RP-Konfiguration", PFAD + "rp/konfiguration/", "konfiguration einstellungen uebersicht", 1)
         add("RP-Fälle", "RP-Leitung", PFAD + "rp/faelle/", "faelle untersuchungen")
         add("RP: Konten & Personen", "RP-Leitung", PFAD + "rp/konten/", "konten personen suche")
         add("RP-Protokoll", "RP-Leitung", PFAD + "rp/protokoll/", "log protokoll zeitleiste konfiguration aenderungen")
@@ -208,12 +209,42 @@ def index(con, k):
     return E
 
 
+def rp_daten(con, q):
+    """Datentreffer für die RP-Leitung: Buchung „#1234“, Konten (Name, Nummer, Discord-ID), Fälle, Teilstaaten. [(Wertung, Eintrag)]"""
+    q = " ".join(str(q).split())[:80]
+    out = []
+    R = PFAD + "rp/"
+    m = re.fullmatch(r"#?\s*(\d{1,9})", q)
+    if m and q.startswith("#"):
+        b = con.execute("SELECT id, betrag, zweck FROM gk_buchungen WHERE id=?", (int(m.group(1)),)).fetchone()
+        if b:
+            out.append((1000, Eintrag(f'Buchung #{b["id"]} · {geld.mark(b["betrag"])}', "RP: Buchung – " + (b["zweck"] or "")[:60], f'{R}buchung/{b["id"]}/')))
+        return out
+    if len(q) < 2:
+        return out
+    n = geld.nummer_gueltig(q)
+    for r in con.execute("SELECT * FROM gk_konten WHERE (nummer=? OR inhaber_id=? OR lower(name) LIKE lower(?)) AND stelle NOT IN ('zentralbank','volkswirtschaft') "
+                         "ORDER BY (lower(name) LIKE lower(?)) DESC, name LIMIT 8", (n or "", q, f"%{q}%", f"{q}%")):
+        w = 60 if (n and r["nummer"] == n) or r["inhaber_id"] == q else (40 if norm(r["name"]).startswith(norm(q)) else 25)
+        out.append((w, Eintrag(r["name"], f'RP: Konto – {geld.art_name(r)} {geld.nummer_anzeige(r["nummer"])}', f'{R}konto/{r["id"]}/')))
+    try:
+        for f in con.execute("SELECT id, titel, status FROM rp_faelle WHERE lower(titel) LIKE lower(?) ORDER BY id DESC LIMIT 5", (f"%{q}%",)):
+            out.append((30, Eintrag(f["titel"], "RP: Fall" + ("" if f["status"] == "offen" else " (abgeschlossen)"), f'{R}fall/{f["id"]}/')))
+    except Exception:
+        pass
+    import handel
+    for schl, name in handel.halter(con).items():
+        if schl != "reich" and norm(q) in norm(name):
+            out.append((35, Eintrag(name, "RP: Teilstaat – alles ansehen", f'{R}teilstaaten/?ziel={schl}')))
+    return out
+
+
 def suchen(con, k, q):
     """[(Wertung, Eintrag)] absteigend."""
     tokens = norm(q).split()
-    if not tokens:
+    if not tokens and not str(q).strip().startswith("#"):
         return []
-    res = []
+    res = [(max(bewerten(e, tokens), w) + 60, e) for w, e in rp_daten(con, q)] if (k and k["mitglied"] and k["admin"]) else []   # Daten vor Seiten
     for e in index(con, k):
         w = bewerten(e, tokens)
         if w:
@@ -259,7 +290,7 @@ i.addEventListener("input",function(){clearTimeout(t);var q=i.value.trim();if(q.
 i.addEventListener("keydown",function(e){if(b.hidden)return;if(e.key==="ArrowDown"){e.preventDefault();setze(1)}else if(e.key==="ArrowUp"){e.preventDefault();setze(-1)}
  else if(e.key==="Enter"&&idx>=0){e.preventDefault();links()[idx].click()}else if(e.key==="Escape"){zu()}});
 document.addEventListener("click",function(e){if(!f.contains(e.target))zu()});
-addEventListener("keydown",function(e){if(e.key==="/"&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();var k=document.querySelector(".kopf");if(k)k.classList.add("suche-offen");i.focus()}})})()</script>"""
+addEventListener("keydown",function(e){if((e.key==="/"&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))||((e.ctrlKey||e.metaKey)&&(e.key==="k"||e.key==="K"))){e.preventDefault();var k=document.querySelector(".kopf");if(k)k.classList.add("suche-offen");i.focus()}})})()</script>"""
 
 
 def leiste(q=""):
@@ -284,7 +315,7 @@ async def seite(request, k):
     if not q:
         rows = ""
         hinweis = ('<p class="az">Gib ein oder mehrere Stichwörter ein – etwa <b>Goldreserve Pfalz-Bayern</b>, <b>Etat Polizei</b>, <b>Kfz-Steuer</b> oder <b>Villa kaufen</b>. '
-                   'Die Suche findet nur, was du einsehen darfst. Tipp: Mit der Taste <b>/</b> springst du in die Suchleiste.</p>')
+                   'Die Suche findet nur, was du einsehen darfst. Tipp: Mit <b>/</b> oder <b>Strg+K</b> (Mac: ⌘K) springst du in die Suchleiste.</p>')
     else:
         rows = "".join(f'<li><a href="{esc(e.url)}"><b>{esc(e.titel)}</b><small>{esc(e.bereich)}</small></a></li>' for _, e in res[:MAX_TREFFER])
         rows = (f'<ul class="sv-liste">{rows}</ul>' + (f'<p class="az">Weitere Treffer ({len(res) - MAX_TREFFER}) – bitte die Suche eingrenzen.</p>' if len(res) > MAX_TREFFER else "")) if rows else \

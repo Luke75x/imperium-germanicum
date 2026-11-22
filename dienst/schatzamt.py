@@ -418,14 +418,15 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
         mein = [("sa-rp", "layout-dashboard", "Lagebild", "rp/"), ("sa-rp-teilstaaten", "flag", "Die Teilstaaten", "rp/teilstaaten/"), ("sa-rp-faelle", "folder-open", "Fälle", "rp/faelle/"),
                 ("sa-rp-konten", "search", "Konten & Personen", "rp/konten/"), ("sa-rp-protokoll", "scroll-text", "Protokoll", "rp/protokoll/")]
         gruppen = [("RP-Leitung", mein),
-                   ("Konfiguration", [("sa-rp-foerder", "package", "Förderstätten", "rp/foerderstaetten/"), ("sa-rp-handel", "percent", "Handel: Waren & Regeln", "rp/handel/"),
+                   ("Konfiguration", [("sa-rp-konfig", "layout-grid", "Übersicht", "rp/konfiguration/"),
+                                      ("sa-rp-stell", "sliders-horizontal", "Stellschrauben", "rp/stellschrauben/"),
+                                      ("sa-amt-tarife", "percent", "Steuer- & Gebührensätze", "amt/tarife/"),
+                                      ("sa-rp-foerder", "pickaxe", "Förderstätten", "rp/foerderstaetten/"), ("sa-rp-handel", "ship", "Handel: Waren & Regeln", "rp/handel/"),
                                       ("sa-rp-energie", "zap", "Energie: Sätze & Anlagen", "rp/energie/"),
                                       ("sa-rp-besitz", "car", "Besitzkatalog & Kosten", "rp/besitz/"),
-                                      ("sa-rp-katalog", "wrench", "Gerätekatalog", "verteidigung/katalog/"),
-                                      ("sa-rp-stell", "pencil", "Stellschrauben", "rp/stellschrauben/")]),
+                                      ("sa-rp-katalog", "wrench", "Gerätekatalog", "verteidigung/katalog/")]),
                    ("Hilfsmittel", [("sa-amt-bankkarten", "credit-card", "Bankkarten", "amt/bankkarten/"),
-                                                          ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/"),
-                                                          ("sa-amt-tarife", "percent", "Sätze festlegen", "amt/tarife/")])]
+                                    ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/")])]
     elif m == "staat":
         kassen = con is None or hat_kassen(con, k)
         vt = con is None or hat_verteidigung(con, k)
@@ -493,12 +494,17 @@ def _kennzahlen_kurz(html_):
 NEUE_NAVIGATION = True
 
 
-def _brotkrumen(portal, schl, titel):
-    """Brotkrumenleiste „Schatzamt › Gruppe › Seite“ aus der Seitenleiste (Gruppe und Eintrag des aktiven Schlüssels)."""
+def _brotkrumen(portal, schl, titel, detail=False):
+    """Brotkrumenleiste „Schatzamt › Gruppe › Seite“ aus der Seitenleiste (Gruppe und Eintrag des aktiven Schlüssels).
+    detail=True (Unterseiten wie ein Fall oder ein Konto): „… › Seite (Link) › Titel“."""
     for gname, eintraege in portal["gruppen"]:
         for e in eintraege:
             if e[0] == schl:
                 teile = [f'<a href="{PFAD}">Schatzamt</a>', esc(gname)]
+                if detail and titel and titel != e[2]:
+                    ziel = e[3] if e[3].startswith("/") else PFAD + e[3]
+                    teile += [f'<a href="{ziel}">{esc(e[2])}</a>', f'<span aria-current="page">{esc(titel)}</span>']
+                    return '<nav class="sa-krumen" aria-label="Pfad">' + " › ".join(teile) + '</nav>'
                 teile.append(f'<span aria-current="page">{esc(e[2])}</span>')
                 return '<nav class="sa-krumen" aria-label="Pfad">' + " › ".join(teile) + '</nav>'
     return ""
@@ -518,10 +524,13 @@ def ant(request, k, titel, aktiv, inhalt, status=200):
     reiter, nav_aktiv = reiter_html(request, k, request.app["db"], aktiv)   # Reiter Teilstaat / Reichshaushalt; die Seitenleiste markiert den Bereich
     portal = nav(k, m, schalter, nav_aktiv, request.app["db"])
     if NEUE_NAVIGATION and aktiv != "sa-start":
-        reiter = _brotkrumen(portal, nav_aktiv, titel) + reiter
+        reiter = _brotkrumen(portal, nav_aktiv, titel, detail=aktiv in ("sa-rp-faelle", "sa-rp-konten")) + reiter
     if k["mitglied"]:
         import suche
         portal["suche"] = suche.leiste(request.query.get("q", "") if aktiv == "sa-suche" else "")
+        if m == "rp":   # RP-Leitung: neuer Fall von jeder Seite aus
+            portal["suche"] = (f'<a class="knopf-rund" href="{PFAD}rp/faelle/?neu=1" title="Neuer Fall" aria-label="Neuen Fall eröffnen" '
+                               f'style="margin-right:8px;flex:none">{amt.ic("plus")}</a>') + portal["suche"]
     return web.Response(status=status, content_type="text/html", headers={"Cache-Control": "no-store"},
                         text=amt.rahmen(titel, nav_aktiv, CSS + _kennzahlen_kurz(reiter + inhalt), k, request["csrf"], portal=portal))
 

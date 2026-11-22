@@ -71,17 +71,83 @@ CSS = """<style>
 .rp-massnahme{border:1px solid var(--linie);border-radius:14px;padding:14px 16px;margin:12px 0 18px}
 .rp-massnahme .sa-leiste{margin:0 0 10px}
 .rp-knoepfe{display:flex;flex-wrap:wrap;gap:8px}
+.rp-knoepfe .rp-kachel{flex:1 1 150px;padding:10px 12px}
 .rp-knoepfe .btn .icon{margin-right:6px}
 .rp-filter{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:10px 0 14px}
 .rp-filter>div{display:flex;flex-direction:column;gap:3px}
 .rp-seiten{display:flex;gap:10px;align-items:center;margin:12px 0}
 button.rp-storno{border:1px solid var(--linie);border-radius:999px;background:#fff;padding:2px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap}
 button.rp-storno:hover{border-color:var(--rot);color:var(--rot)}
+/* Autovervollständigung der Kontofelder */
+.rp-ac-feld{position:relative}
+.rp-ac{position:absolute;left:0;right:0;z-index:30;margin-top:4px;background:#fff;border:1px solid var(--linie);border-radius:12px;box-shadow:0 12px 32px #0002;overflow:hidden;max-height:300px;overflow-y:auto}
+.rp-ac button{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:9px 12px;text-align:left;font:inherit;font-size:14px;cursor:pointer;color:var(--ink)}
+.rp-ac button small{margin-left:auto;color:var(--grau);font-size:12px;white-space:nowrap}
+.rp-ac button:hover,.rp-ac button.an{background:var(--hell)}
+.rp-ac img{height:18px;width:auto;max-width:18px}
+/* Leitstand */
+.rp-staaten{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px;margin:10px 0 22px}
+.rp-staat{display:flex;gap:10px;align-items:center;border:1px solid var(--linie);border-radius:14px;padding:10px 12px;color:var(--ink);text-decoration:none;background:#fff;min-width:0}
+.rp-staat:hover{border-color:var(--ink)}
+.rp-staat img{height:36px;width:30px;object-fit:contain;flex:none}
+.rp-staat b{display:block;font-size:13.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rp-staat span{min-width:0}
+.rp-staat.warn{border-color:var(--rot);box-shadow:inset 3px 0 0 var(--rot)}
+.rp-marken{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.rp-marken i{font-style:normal;font-size:11px;line-height:1;padding:3px 7px;border-radius:999px;background:var(--hell);color:var(--grau)}
+.rp-marken i.rot{background:#fbeaea;color:var(--rot)}
+.rp-spalten{display:grid;grid-template-columns:1fr;gap:0 28px}
+@media (min-width:1100px){.rp-spalten{grid-template-columns:1fr 1fr}}
+.rp-spalten>section{min-width:0}
+/* Wappenleiste (Die Teilstaaten) */
+.rp-leiste{display:flex;gap:6px;overflow-x:auto;scrollbar-width:thin;padding:4px 2px 10px;margin:6px 0 10px;scroll-snap-type:x proximity}
+.rp-leiste a{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;width:84px;padding:8px 4px;border:1px solid transparent;border-radius:12px;color:var(--grau);text-decoration:none;font-size:11.5px;line-height:1.2;text-align:center;scroll-snap-align:start}
+.rp-leiste a:hover{background:var(--hell);color:var(--ink)}
+.rp-leiste a.aktiv{border-color:var(--ink);color:var(--ink);font-weight:600;background:#fff}
+.rp-leiste img{height:34px;width:30px;object-fit:contain}
+/* Kacheln (Maßnahmen, Konfiguration) */
+.rp-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin:10px 0 16px}
+.rp-kachel{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;border:1px solid var(--linie);border-radius:14px;background:#fff;padding:14px;cursor:pointer;font:inherit;color:var(--ink);text-decoration:none;min-width:0}
+.rp-kachel:hover{border-color:var(--ink)}
+.rp-kachel .icon{width:22px;height:22px}
+.rp-kachel b{font-size:14.5px}
+.rp-kachel small{color:var(--grau);font-size:12.5px;line-height:1.35}
+.rp-kachel.gefahr .icon{color:var(--rot)}
+.rp-kachel[disabled]{opacity:.45;cursor:not-allowed}
+/* Sheets (Dialoge) */
+dialog.rp-sheet{border:0;border-radius:18px;padding:0;width:calc(100% - 32px);max-width:600px;box-shadow:0 24px 70px #0004;color:var(--ink)}
+dialog.rp-sheet::backdrop{background:#0006}
+.rp-sheet-kopf{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--linie)}
+.rp-sheet-titel{font-size:16px;color:var(--ink);display:flex;align-items:center;gap:8px}
+dialog.rp-sheet:focus,dialog.rp-sheet:focus-visible{outline:none}
+.rp-sheet-inhalt{padding:12px 18px 18px;max-height:min(72vh,720px);overflow:auto}
+.rp-sheet-inhalt .sa-formular{margin:0}
+@media (max-width:800px){dialog.rp-sheet{margin:auto 0 0;width:100%;max-width:100%;border-radius:18px 18px 0 0;max-height:88vh}
+ .rp-sheet-inhalt{max-height:calc(88vh - 60px);padding-bottom:calc(18px + env(safe-area-inset-bottom))}}
+.rp-vorschau{border:1px solid var(--linie);border-radius:12px;padding:10px 14px;margin:8px 0 12px;background:var(--hell)}
 </style>"""
 
-FUELL_JS = """<script>document.addEventListener("click",function(e){var b=e.target.closest(".rp-fuell button");if(!b)return;e.preventDefault();
-var i=document.getElementById(b.getAttribute("data-feld"));if(i){i.value=b.getAttribute("data-wert");i.dispatchEvent(new Event("input"))}});
-(function(){var f=document.getElementById("rp-mfall"),t=document.getElementById("rp-mtitel");if(!f||!t)return;function u(){t.hidden=f.value!=="neu"}f.onchange=u;u()})();</script>"""
+FUELL_JS = """<script>(function(){
+document.addEventListener("click",function(e){var b=e.target.closest(".rp-fuell button");if(b){e.preventDefault();
+ var i=document.getElementById(b.getAttribute("data-feld"));if(i){i.value=b.getAttribute("data-wert");i.dispatchEvent(new Event("change"))}return}
+ var o=e.target.closest("[data-sheet]");if(o){e.preventDefault();var d=document.getElementById(o.getAttribute("data-sheet"));if(d&&d.showModal){d.showModal();var f=d.querySelector("input:not([type=hidden]),textarea,select");if(f&&!f.value)f.focus()}return}
+ var z=e.target.closest("[data-zu]");if(z){e.preventDefault();var dd=z.closest("dialog");if(dd)dd.close();return}
+ if(e.target.tagName==="DIALOG"&&e.target.classList.contains("rp-sheet")){var r=e.target.getBoundingClientRect();if(e.clientY<r.top||e.clientY>r.bottom||e.clientX<r.left||e.clientX>r.right)e.target.close()}
+ if(!e.target.closest(".rp-ac-feld"))document.querySelectorAll(".rp-ac").forEach(function(a){a.hidden=true})});
+var h=(location.hash||"").slice(1),d=h?document.getElementById(h):null;if(d&&d.tagName==="DIALOG"&&d.showModal)d.showModal();
+document.querySelectorAll("dialog[data-auf]").forEach(function(x){if(x.showModal)x.showModal()});
+var f=document.getElementById("rp-mfall"),t=document.getElementById("rp-mtitel");if(f&&t){var u=function(){t.hidden=f.value!=="neu"};f.onchange=u;u()}
+var T=null;
+function zeige(inp){var box=inp.parentNode.querySelector(".rp-ac"),q=inp.value.trim();if(!box)return;if(q.length<2){box.hidden=true;return}
+ clearTimeout(T);T=setTimeout(function(){fetch("/schatzamt/rp/konten.json?q="+encodeURIComponent(q),{credentials:"same-origin"}).then(function(r){return r.json()}).then(function(l){
+  box.innerHTML="";l.forEach(function(x,n){var b=document.createElement("button");b.type="button";b.innerHTML=x.s+"<span></span><small></small>";b.querySelector("span").textContent=x.n;b.querySelector("small").textContent=x.a+" · "+x.nr;
+   b.onmousedown=function(ev){ev.preventDefault();inp.value=x.w;box.hidden=true};box.appendChild(b)});box.hidden=!l.length})},140)}
+document.addEventListener("input",function(e){if(e.target.classList&&e.target.classList.contains("rp-konto"))zeige(e.target)});
+document.addEventListener("keydown",function(e){var inp=e.target;if(!inp.classList||!inp.classList.contains("rp-konto"))return;var box=inp.parentNode.querySelector(".rp-ac");if(!box||box.hidden)return;
+ var bs=[].slice.call(box.querySelectorAll("button")),n=bs.findIndex(function(b){return b.classList.contains("an")});
+ if(e.key==="ArrowDown"||e.key==="ArrowUp"){e.preventDefault();if(n>=0)bs[n].classList.remove("an");n=(n+(e.key==="ArrowDown"?1:-1)+bs.length)%bs.length;bs[n].classList.add("an")}
+ else if(e.key==="Enter"&&n>=0){e.preventDefault();bs[n].onmousedown(e)}else if(e.key==="Escape"){box.hidden=true}});
+})();</script>"""
 
 AKTIONEN = {"raub": "Raub / Diebstahl", "einziehen": "Beschlagnahme", "rueckgabe": "Rückgabe / Entschädigung", "strafe": "Geldstrafe",
             "sperren": "Konto sperren", "freigeben": "Konto freigeben", "storno": "Buchung stornieren", "notiz": "Notiz",
@@ -126,7 +192,11 @@ def konto_finden(con, text):
 
 
 def konto_liste(con):
-    """<datalist> mit allen Konten zur Eingabehilfe."""
+    """Früher: <datalist> mit allen Konten. Ersetzt durch die Autovervollständigung (rp/konten.json); bleibt leer, damit alte Aufrufe nichts ausgeben."""
+    return ""
+
+
+def _konto_liste_alt(con):
     opt = "".join(f'<option value="{esc(r["name"])}" label="{esc(geld.art_name(r))} {esc(nummer_anzeige(r["nummer"]))}">'
                   for r in con.execute("SELECT * FROM gk_konten WHERE stelle NOT IN ('zentralbank','volkswirtschaft') ORDER BY art, name"))
     return f'<datalist id="rp-konten">{opt}</datalist>'
@@ -137,8 +207,8 @@ def konto_feld(fid, name, bez, wert="", pflicht=True, vorschlaege=()):
     fuell = ""
     if vorschlaege:
         fuell = '<div class="rp-fuell">' + "".join(f'<button type="button" data-feld="{fid}" data-wert="{esc(w)}">{esc(n)}</button>' for w, n in vorschlaege) + "</div>"
-    return (f'<div><label for="{fid}">{esc(bez)}</label><input type="text" id="{fid}" name="{name}" list="rp-konten" autocomplete="off"'
-            f'{" required" if pflicht else ""} value="{esc(wert)}" placeholder="Name, Kontonummer oder Discord-ID">{fuell}</div>')
+    return (f'<div class="rp-ac-feld"><label for="{fid}">{esc(bez)}</label><input type="text" id="{fid}" name="{name}" class="rp-konto" autocomplete="off" spellcheck="false"'
+            f'{" required" if pflicht else ""} value="{esc(wert)}" placeholder="Name, Kontonummer oder Discord-ID"><div class="rp-ac" role="listbox" hidden></div>{fuell}</div>')
 
 
 def kennung(con, r):
@@ -183,7 +253,7 @@ def aktion_schreiben(con, k, fall, art, text, buchung=None):
 
 
 def benachrichtigen(request, r, text):
-    if text and r["inhaber_id"]:
+    if text and r["inhaber_id"] and not request.get("rp_vorschau"):
         sa.dm(request, r["inhaber_id"], text[:1500])
 
 
@@ -381,6 +451,43 @@ def _filter_konten(con, f):
     return []
 
 
+def teilstaaten_lage(con):
+    """Je Teilstaat: offene Krisen, Haushaltsnotlage, Kasse im Minus, gesperrte Kasse (für den Leitstand)."""
+    import handel
+    import krisen
+    import notlage
+    out = []
+    for schl, name in handel.halter(con).items():
+        if schl == "reich":
+            continue
+        sid = schl[3:]
+        kassen = con.execute("SELECT * FROM gk_konten WHERE stelle IN (?,?)", (schl, "vt-" + sid)).fetchall()
+        out.append({"sid": sid, "schl": schl, "name": name, "krisen": krisen.offene_anzahl(con, schl),
+                    "notlage": any(notlage.offener_fall(con, r["id"]) for r in kassen),
+                    "minus": any(r["saldo"] < 0 for r in kassen), "gesperrt": any(r["gesperrt"] for r in kassen)})
+    return sorted(out, key=lambda x: (-(x["krisen"] + 2 * x["notlage"] + x["minus"] + x["gesperrt"]), x["name"]))
+
+
+def staaten_raster(con):
+    import wappen
+    kacheln = []
+    for x in teilstaaten_lage(con):
+        m = []
+        if x["krisen"]:
+            m.append(f'<i class="rot">{x["krisen"]} Krise{"n" if x["krisen"] != 1 else ""}</i>')
+        if x["notlage"]:
+            m.append('<i class="rot">Notlage</i>')
+        if x["minus"]:
+            m.append('<i class="rot">Kasse im Minus</i>')
+        if x["gesperrt"]:
+            m.append('<i class="rot">Kasse gesperrt</i>')
+        ziel = "#land" if x["krisen"] else ("#finanzen" if m else "")
+        kacheln.append(f'<a class="rp-staat{" warn" if m else ""}" href="{PFAD}teilstaaten/?ziel={esc(x["schl"])}{ziel}">'
+                       f'{wappen.klein(x["sid"], x["name"], 36) or amt.ic("flag")}<span><b>{esc(x["name"])}</b>'
+                       f'<span class="rp-marken">{"".join(m) or "<i>ruhig</i>"}</span></span></a>')
+    return f'<div class="rp-staaten">{"".join(kacheln)}</div>'
+
+
 @sa.seite("rp")
 async def lagebild(request, k):
     con = request.app["db"]
@@ -398,45 +505,82 @@ async def lagebild(request, k):
     def nm(i):
         r = geld.konto(con, i) if i else None
         return _konto_link(r) if r else "–"
-    gz = [(amt._zeit(b["zeit"]), f'<a href="{PFAD}buchung/{b["id"]}/">#{b["id"]}</a>', nm(b["von"]), nm(b["an"]), esc(b["zweck"]),
+    gz = [(f'<a href="{PFAD}buchung/{b["id"]}/">#{b["id"]}</a>', f'{nm(b["von"])} → {nm(b["an"])}<br><small class="az">{esc(b["zweck"])}</small>',
            f'<span class="sa-betrag">{mark(b["betrag"])}</span>',
            amt.status_marke("ok", "storniert") if b["id"] in storniert else f'<a class="rp-chip" href="{PFAD}buchung/{b["id"]}/">{amt.ic("rotate-ccw")}Storno</a>')
           for b in gross]
     neu = con.execute("SELECT * FROM gk_konten WHERE art IN ('privat','gewerbe') AND eroeffnet>=? ORDER BY id DESC LIMIT 8", (seit,)).fetchall()
-    nz = [(amt._zeit(r["eroeffnet"]), _konto_link(r), esc(geld.art_name(r)), mark(r["saldo"])) for r in neu]
-    faelle = con.execute("SELECT * FROM rp_faelle WHERE status='offen' ORDER BY id DESC LIMIT 6").fetchall()
-    fz = [(f'<a href="{PFAD}fall/{f["id"]}/">{esc(f["titel"])}</a>', amt._zeit(f["erstellt"]), esc(f["autor_name"])) for f in faelle]
+    nz = [(amt._zeit(r["eroeffnet"]), _konto_link(r), mark(r["saldo"])) for r in neu]
+    faelle_ = con.execute("SELECT * FROM rp_faelle WHERE status='offen' ORDER BY id DESC LIMIT 8").fetchall()
+    fz = [(f'<a href="{PFAD}fall/{f["id"]}/">{esc(f["titel"])}</a>', ", ".join(esc(b["name"]) for b in beteiligte(con, f["id"])[:3]) or "–", amt._zeit(f["erstellt"]))
+          for f in faelle_]
     inhalt = (_kopf(request, "RP-Leitung · Lagebild", "layout-dashboard",
                     '<p class="az">Eingriffe der Server- und RP-Leitung in das Geldsystem. Alles wird doppelt gebucht und protokolliert.</p>')
               + f'<div class="kennzahlen rp-kzl">{kacheln}</div>'
-              + f'<div class="aktionen"><a class="btn" href="{PFAD}faelle/#neu">{amt.ic("folder-open")}Neuen Fall eröffnen</a>'
-                f'<a class="btn zweit" href="{PFAD}konten/">{amt.ic("search")}Konto suchen</a></div>'
-              + '<h2>Offene Fälle</h2>' + amt.tabelle(["Fall", "Eröffnet", "Von"], fz, "Keine offenen Fälle.")
-              + '<h2>Größte Überweisungen der letzten 7 Tage</h2>'
-              + amt.tabelle(["Zeit", "Nr.", "Von", "An", "Zweck", "Betrag", ""], gz, "Keine Überweisungen.")
-              + '<h2>Neue Konten (7 Tage)</h2>' + amt.tabelle(["Eröffnet", "Konto", "Art", "Saldo"], nz, "Keine neuen Konten.")
-              + '<h2>Letzte Aktionen</h2>' + amt.tabelle(["Zeit", "Fall", "Aktion", "Einzelheiten", "Von"], _aktionsliste(con, None, 8), "Noch keine Aktionen.")
-              + f'<p class="az"><a href="{PFAD}protokoll/">Vollständiges Protokoll</a></p>')
+              + f'<div class="aktionen"><a class="btn" href="{PFAD}faelle/?neu=1">{amt.ic("plus")}Neuer Fall</a>'
+                f'<a class="btn zweit" href="{PFAD}konten/">{amt.ic("search")}Konto suchen</a><a class="btn zweit" href="{PFAD}protokoll/">{amt.ic("scroll-text")}Protokoll</a></div>'
+              + '<h2>Teilstaaten</h2><p class="az">Auffällige zuerst. Ein Klick öffnet den Teilstaat beim passenden Reiter.</p>' + staaten_raster(con)
+              + '<div class="rp-spalten"><section><h2>Handlungsbedarf · offene Fälle</h2>'
+              + amt.tabelle(["Fall", "Beteiligte", "Eröffnet"], fz, "Keine offenen Fälle.")
+              + '</section><section><h2>Bewegungen · größte Überweisungen (7 Tage)</h2>'
+              + amt.tabelle(["Nr.", "Von → An", "Betrag", ""], gz, "Keine Überweisungen.")
+              + '<h2>Neue Konten (7 Tage)</h2>' + amt.tabelle(["Eröffnet", "Konto", "Saldo"], nz, "Keine neuen Konten.") + '</section></div>')
     return sa.ant(request, k, "RP-Leitung", "sa-rp", inhalt)
+
+
+def _sheet(id_, titel, inhalt, symbol="plus", auf=False):
+    """Dialog („Sheet“): am Handy von unten, am Desktop mittig."""
+    return (f'<dialog class="rp-sheet" id="{id_}"{" data-auf" if auf else ""} aria-label="{esc(titel)}"><div class="rp-sheet-kopf"><b class="rp-sheet-titel">{amt.ic(symbol)}{esc(titel)}</b>'
+            f'<button class="knopf-rund" type="button" data-zu aria-label="Schließen">{amt.ic("x")}</button></div><div class="rp-sheet-inhalt">{inhalt}</div></dialog>')
+
+
+def neuer_fall_sheet(request, auf=False):
+    form = (f'<form class="sa-formular" method="post" action="{PFAD}fall/neu">{amt.csrf_feld(request)}'
+            '<div><label for="t">Titel</label><input type="text" id="t" name="titel" required maxlength="120" placeholder="z. B. Überfall auf die Reichsbank"></div>'
+            '<div><label for="b">Beschreibung</label><textarea id="b" name="beschreibung" rows="4" maxlength="2000"></textarea></div>'
+            f'{konto_feld("nb", "konto", "Beteiligtes Konto (optional)", pflicht=False)}'
+            f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Fall eröffnen</button></div></form>')
+    return _sheet("rp-neu", "Neuen Fall eröffnen", form, "folder-open", auf)
 
 
 @sa.seite("rp")
 async def faelle(request, k):
+    import handel
     con = request.app["db"]
-    alle = request.query.get("alle")
-    rows = con.execute("SELECT * FROM rp_faelle " + ("" if alle else "WHERE status='offen' ") + "ORDER BY id DESC LIMIT 200").fetchall()
+    q = request.query
+    stand = q.get("stand", "offen") if q.get("stand") in ("offen", "erledigt", "alle") else ("alle" if q.get("alle") else "offen")
+    such = " ".join(q.get("q", "").split())[:80]
+    staat = q.get("staat", "")
+    mein = q.get("mein") == "1"
+    staaten = {s_: n for s_, n in handel.halter(con).items() if s_ != "reich"}
+    wo, arg = [], []
+    if stand != "alle":
+        wo.append("status=?"); arg.append(stand)
+    if such:
+        wo.append("(lower(titel) LIKE lower(?) OR lower(beschreibung) LIKE lower(?) OR id IN (SELECT b.fall_id FROM rp_beteiligte b JOIN gk_konten g ON g.id=b.konto_id WHERE lower(g.name) LIKE lower(?)))")
+        arg += [f"%{such}%"] * 3
+    if staat in staaten:
+        wo.append("id IN (SELECT b.fall_id FROM rp_beteiligte b JOIN gk_konten g ON g.id=b.konto_id WHERE g.stelle IN (?,?))"); arg += [staat, "vt-" + staat[3:]]
+    if mein:
+        wo.append("autor_id=?"); arg.append(k["id"])
+    rows = con.execute("SELECT * FROM rp_faelle" + (" WHERE " + " AND ".join(wo) if wo else "") + " ORDER BY id DESC LIMIT 200", arg).fetchall()
     zeilen = [(f'<a href="{PFAD}fall/{f["id"]}/">{esc(f["titel"])}</a>', amt.status_marke("offen" if f["status"] == "offen" else "ok",
                                                                                            "Offen" if f["status"] == "offen" else "Abgeschlossen"),
                ", ".join(esc(b["name"]) for b in beteiligte(con, f["id"])[:4]) or "–",
                amt._zeit(f["erstellt"]), esc(f["autor_name"])) for f in rows]
+    sel = lambda name, opts, wert: (f'<select name="{name}" onchange="this.form.submit()">'
+                                    + "".join(f'<option value="{esc(v)}"{" selected" if v == wert else ""}>{esc(t)}</option>' for v, t in opts) + "</select>")
+    filt = (f'<form class="rp-filter" method="get" action="{PFAD}faelle/">'
+            f'<div><label>Stand</label>{sel("stand", [("offen", "Offen"), ("erledigt", "Abgeschlossen"), ("alle", "Alle")], stand)}</div>'
+            f'<div><label>Teilstaat</label>{sel("staat", [("", "Alle")] + list(staaten.items()), staat)}</div>'
+            f'<div><label>Eröffnet von</label>{sel("mein", [("", "allen"), ("1", "mir")], "1" if mein else "")}</div>'
+            f'<div><label for="fq">Suche (Titel, Beschreibung, Beteiligte)</label><input type="search" id="fq" name="q" value="{esc(such)}"></div>'
+            f'<button class="btn zweit" type="submit">{amt.ic("search")}Filtern</button></form>')
     inhalt = (_kopf(request, "Fälle", "folder-open")
-              + amt.tabelle(["Fall", "Stand", "Beteiligte", "Eröffnet", "Von"], zeilen, "Keine Fälle.")
-              + f'<p class="az"><a href="{PFAD}faelle/{"" if alle else "?alle=1"}">{"Nur offene Fälle" if alle else "Auch abgeschlossene Fälle anzeigen"}</a></p>'
-              + f'<h2 id="neu">Neuen Fall eröffnen</h2><form class="sa-formular" method="post" action="{PFAD}fall/neu">{amt.csrf_feld(request)}'
-                '<div><label for="t">Titel</label><input type="text" id="t" name="titel" required maxlength="120" placeholder="z. B. Überfall auf die Reichsbank"></div>'
-                '<div><label for="b">Beschreibung</label><textarea id="b" name="beschreibung" rows="4" maxlength="2000"></textarea></div>'
-                f'{konto_liste(con)}{konto_feld("nb", "konto", "Beteiligtes Konto (optional)", pflicht=False)}'
-                f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Fall eröffnen</button></div></form>')
+              + f'<div class="aktionen"><button class="btn" type="button" data-sheet="rp-neu">{amt.ic("plus")}Neuer Fall</button></div>'
+              + filt + amt.tabelle(["Fall", "Stand", "Beteiligte", "Eröffnet", "Von"], zeilen, "Keine Fälle zu diesem Filter.")
+              + '<span id="neu"></span>' + neuer_fall_sheet(request, auf=q.get("neu") == "1") + FUELL_JS
+              + '<script>if(location.hash==="#neu"){var d=document.getElementById("rp-neu");if(d&&d.showModal)d.showModal()}</script>')
     return sa.ant(request, k, "Fälle", "sa-rp-faelle", inhalt)
 
 
@@ -470,10 +614,19 @@ async def fall_neu(request):
 
 # Hauptfeld jeder Maßnahme (wird aus ?konto= vorausgefüllt)
 HAUPTFELD = {"raub": "r1", "einziehen": "e1", "rueckgabe": "g1", "strafe": "s1", "sperren": "k1", "freigeben": "f1"}
+# (Art, Titel, Kurzbeschreibung, Icon, gefährlich)
+MASSNAHMEN = [("raub", "Raub / Diebstahl", "Geld gegen den Willen des Opfers bewegen", "hand-coins", True),
+              ("einziehen", "Beschlagnahme", "Geld einziehen, z. B. an die Reichskasse", "gavel", True),
+              ("strafe", "Geldstrafe", "Bußgeld an die Reichskasse", "scale", True),
+              ("rueckgabe", "Rückgabe / Entschädigung", "Geld auszahlen", "undo-2", False),
+              ("sperren", "Konto sperren", "Keine Ausgaben mehr, Karte mitsperren", "lock", True),
+              ("freigeben", "Konto freigeben", "Sperre aufheben", "lock-open", False),
+              ("storno", "Buchung stornieren", "Eine Buchung vollständig zurückbuchen", "rotate-ccw", True),
+              ("notiz", "Notiz", "Im Verlauf festhalten", "sticky-note", False)]
 
 
 def _formulare(request, con, fid, abgeschlossen, vor=None, bet=()):
-    """Maßnahmen des Falls; vor = {"konto": Kennung, "aktion": art, "buchung": Nr.}: Hauptfeld vorausfüllen, passende Maßnahme aufklappen."""
+    """Maßnahmen des Falls als Kacheln; jede öffnet ein Sheet mit dem Formular. vor = {"konto", "aktion", "buchung"}: Hauptfeld vorausfüllen, Sheet öffnen."""
     vor = vor or {}
     c = amt.csrf_feld(request)
     act = f'{PFAD}fall/{fid}/aktion'
@@ -485,44 +638,48 @@ def _formulare(request, con, fid, abgeschlossen, vor=None, bet=()):
         wert = vor.get("konto", "") if HAUPTFELD.get(art) == fid_ else ""
         return konto_feld(fid_, name, bez, wert, pflicht, vs)
 
-    def box(titel, hilfe, felder, knopf, art, gefahr=False, symbol="check"):
-        auf = " open" if vor.get("aktion") == art else ""
-        return (f'<details class="sa-auf" id="m-{art}"{auf}><summary>{amt.ic(symbol)}{esc(titel)}</summary><form class="sa-formular" method="post" action="{act}">{c}'
-                f'<input type="hidden" name="aktion" value="{art}"><p class="sa-hinweis">{esc(hilfe)}</p>{felder}{mit if art != "notiz" else ""}'
-                f'<div class="aktionen"><button class="btn{" zweit gefahr" if gefahr else ""}" type="submit">{esc(knopf)}</button></div></form></details>')
     betrag = '<div><label>Betrag in Kronen</label><input type="text" name="betrag" inputmode="decimal"></div>'
     alles = '<label class="sa-haken"><input type="checkbox" name="alles" value="1"> gesamtes Guthaben</label>'
     grund = lambda v: f'<div><label>Grund / Verwendungszweck</label><input type="text" name="grund" maxlength="160" placeholder="{esc(v)}"></div>'
     minus = '<label class="sa-haken"><input type="checkbox" name="minus" value="1"> Konto darf dabei ins Minus gehen</label>'
-    out = [
-        box("Raub / Diebstahl buchen", "Geld wechselt gegen den Willen des Opfers den Besitzer. Ohne Täterkonto verlässt die Beute den Umlauf (Zentralbank).",
-            kf("r1", "opfer", "Opfer (Konto der Bank, Kasse, Person …)", art="raub") + kf("r2", "ziel", "Täter (Konto, leer = Beute außer Landes)", pflicht=False)
-            + betrag + alles, "Raub buchen", "raub", True, "hand-coins"),
-        box("Beschlagnahme", "Zieht Geld ein – standardmäßig an die Reichskasse, sonst an ein Konto (z. B. Rückgabe an das Opfer).",
-            kf("e1", "konto", "Konto, von dem eingezogen wird", art="einziehen") + kf("e2", "ziel_konto", "Empfänger (leer = Reichskasse)", pflicht=False)
-            + betrag + alles + grund("Beschlagnahme") + minus, "Einziehen", "einziehen", True, "gavel"),
-        box("Rückgabe / Entschädigung", "Zahlt Geld auf ein Konto – aus der Reichskasse, per Geldschöpfung oder von einem anderen Konto.",
-            kf("g1", "konto", "Empfänger", art="rueckgabe") + betrag
-            + '<div><label>Quelle</label><select name="quelle"><option value="reichskasse">Reichskasse</option>'
-              '<option value="zentralbank">Zentralbank (Geldschöpfung)</option><option value="konto">Anderes Konto …</option></select></div>'
-            + kf("g2", "quelle_konto", "Quellkonto (nur bei „Anderes Konto“)", pflicht=False) + grund("Entschädigung"), "Auszahlen", "rueckgabe", symbol="undo-2"),
-        box("Geldstrafe", "Bußgeld zugunsten der Reichskasse (oder eines Kontos).",
-            kf("s1", "konto", "Konto des Schuldigen", art="strafe") + kf("s2", "ziel_konto", "Empfänger (leer = Reichskasse)", pflicht=False)
-            + betrag + alles + grund("Geldstrafe") + minus, "Strafe buchen", "strafe", True, "scale"),
-        box("Konto sperren", "Gesperrte Konten können keine Überweisungen, Steuern oder Gebühren auslösen; Gutschriften sind weiter möglich.",
-            kf("k1", "konto", "Konto", art="sperren") + grund("Ermittlungen der RP-Leitung")
-            + '<label class="sa-haken"><input type="checkbox" name="person" value="1" checked> alle Konten der Person (Privat und Gewerbe)</label>'
-            + '<label class="sa-haken"><input type="checkbox" name="karte" value="1" checked> Bankkarte mitsperren</label>', "Sperren", "sperren", True, "lock"),
-        box("Konto freigeben", "Hebt die Sperre auf (auf Wunsch samt Bankkarte).", kf("f1", "konto", "Konto", art="freigeben")
-            + '<label class="sa-haken"><input type="checkbox" name="person" value="1" checked> alle Konten der Person</label>'
-            + '<label class="sa-haken"><input type="checkbox" name="karte" value="1" checked> Bankkarte freigeben</label>', "Freigeben", "freigeben", symbol="lock-open"),
-        box("Buchung stornieren", "Bucht eine einzelne Buchung vollständig zurück. Jede Buchung nur einmal. Schneller: auf der Kontoseite „Storno“ in der Umsatzzeile.",
-            f'<div><label>Nummer der Buchung</label><input type="text" name="buchung" required inputmode="numeric" placeholder="z. B. 1234" value="{esc(vor.get("buchung", ""))}"></div>'
-            + grund("Storno"), "Stornieren", "storno", True, "rotate-ccw"),
-        box("Notiz", "Hält etwas im Verlauf des Falls fest.", '<div><label>Text</label><textarea name="text" rows="3" maxlength="500" required></textarea></div>',
-            "Speichern", "notiz", symbol="sticky-note"),
-    ]
-    return "".join(out)
+    felder = {
+        "raub": ("Ohne Täterkonto verlässt die Beute den Umlauf (Zentralbank).",
+                 kf("r1", "opfer", "Opfer (Konto der Bank, Kasse, Person …)", art="raub") + kf("r2", "ziel", "Täter (Konto, leer = Beute außer Landes)", pflicht=False) + betrag + alles),
+        "einziehen": ("Standardmäßig an die Reichskasse, sonst an ein Konto (z. B. Rückgabe an das Opfer).",
+                      kf("e1", "konto", "Konto, von dem eingezogen wird", art="einziehen") + kf("e2", "ziel_konto", "Empfänger (leer = Reichskasse)", pflicht=False)
+                      + betrag + alles + grund("Beschlagnahme") + minus),
+        "rueckgabe": ("Aus der Reichskasse, per Geldschöpfung oder von einem anderen Konto.",
+                      kf("g1", "konto", "Empfänger", art="rueckgabe") + betrag
+                      + '<div><label>Quelle</label><select name="quelle"><option value="reichskasse">Reichskasse</option>'
+                        '<option value="zentralbank">Zentralbank (Geldschöpfung)</option><option value="konto">Anderes Konto …</option></select></div>'
+                      + kf("g2", "quelle_konto", "Quellkonto (nur bei „Anderes Konto“)", pflicht=False) + grund("Entschädigung")),
+        "strafe": ("Bußgeld zugunsten der Reichskasse (oder eines Kontos).",
+                   kf("s1", "konto", "Konto des Schuldigen", art="strafe") + kf("s2", "ziel_konto", "Empfänger (leer = Reichskasse)", pflicht=False)
+                   + betrag + alles + grund("Geldstrafe") + minus),
+        "sperren": ("Gesperrte Konten können keine Überweisungen, Steuern oder Gebühren auslösen; Gutschriften sind weiter möglich.",
+                    kf("k1", "konto", "Konto", art="sperren") + grund("Ermittlungen der RP-Leitung")
+                    + '<label class="sa-haken"><input type="checkbox" name="person" value="1" checked> alle Konten der Person (Privat und Gewerbe)</label>'
+                    + '<label class="sa-haken"><input type="checkbox" name="karte" value="1" checked> Bankkarte mitsperren</label>'),
+        "freigeben": ("Hebt die Sperre auf (auf Wunsch samt Bankkarte).", kf("f1", "konto", "Konto", art="freigeben")
+                      + '<label class="sa-haken"><input type="checkbox" name="person" value="1" checked> alle Konten der Person</label>'
+                      + '<label class="sa-haken"><input type="checkbox" name="karte" value="1" checked> Bankkarte freigeben</label>'),
+        "storno": ("Jede Buchung nur einmal. Schneller: auf der Kontoseite „Storno“ in der Umsatzzeile.",
+                   f'<div><label>Nummer der Buchung</label><input type="text" name="buchung" required inputmode="numeric" placeholder="z. B. 1234" value="{esc(vor.get("buchung", ""))}"></div>'
+                   + grund("Storno")),
+        "notiz": ("Hält etwas im Verlauf des Falls fest.", '<div><label>Text</label><textarea name="text" rows="3" maxlength="500" required></textarea></div>'),
+    }
+    kacheln, sheets = [], []
+    for art, titel, kurz_, symbol, gefahr in MASSNAHMEN:
+        hilfe, f = felder[art]
+        knopf = "Speichern" if art == "notiz" else "Prüfen"
+        kacheln.append(f'<button type="button" class="rp-kachel{" gefahr" if gefahr else ""}" data-sheet="m-{art}">{amt.ic(symbol)}<b>{esc(titel)}</b><small>{esc(kurz_)}</small></button>')
+        sheets.append(_sheet(f"m-{art}", titel, f'<form class="sa-formular" method="post" action="{act}">{c}<input type="hidden" name="aktion" value="{art}">'
+                                                 f'<p class="sa-hinweis">{esc(hilfe)}</p>{f}{mit if art != "notiz" else ""}'
+                                                 f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}{knopf}</button>'
+                                                 f'<button class="btn zweit" type="button" data-zu>Abbrechen</button></div></form>', symbol, auf=vor.get("aktion") == art))
+    hinweis = ('<p class="az">Gebucht wird erst nach einer Vorschau mit den neuen Salden.</p>' if not abgeschlossen else
+               '<p class="hinweis">Der Fall ist abgeschlossen. Maßnahmen sind trotzdem möglich; besser den Fall wieder öffnen.</p>')
+    return hinweis + f'<div class="rp-raster">{"".join(kacheln)}</div>' + "".join(sheets)
 
 
 def _beteiligte_html(request, con, f, bet):
@@ -531,11 +688,34 @@ def _beteiligte_html(request, con, f, bet):
     chips = "".join(f'<span class="rp-chip"><a href="{PFAD}konto/{b["id"]}/">{konto_symbol(b)}{esc(b["name"])}</a>'
                     f'<form method="post" action="{act}">{c}<input type="hidden" name="weg" value="{b["id"]}">'
                     f'<button class="rp-weg" type="submit" title="Aus dem Fall entfernen" aria-label="{esc(b["name"])} aus dem Fall entfernen">×</button></form></span>' for b in bet)
-    neu = (f'<details class="sa-auf"><summary>{amt.ic("plus")}Beteiligtes Konto hinzufügen</summary><form class="sa-leiste" method="post" action="{act}">{c}'
-           f'{konto_feld("bt", "konto", "Konto")}<button class="btn zweit" type="submit">Hinzufügen</button></form></details>')
-    return ('<h2>Beteiligte</h2><p class="az">Konten dieses Falls. Sie stehen in jeder Maßnahme als Vorschlag zum Einsetzen bereit; '
-            'jede Maßnahme fügt die betroffenen Konten selbst hinzu.</p>'
-            + (f'<div class="rp-chips">{chips}</div>' if bet else '<p class="leer">Noch keine Beteiligten.</p>') + neu)
+    chips += f'<button type="button" class="rp-chip" data-sheet="rp-bet">{amt.ic("plus")}Konto hinzufügen</button>'
+    neu = _sheet("rp-bet", "Beteiligtes Konto hinzufügen", f'<form class="sa-formular" method="post" action="{act}">{c}'
+                 f'{konto_feld("bt", "konto", "Konto")}<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Hinzufügen</button></div></form>')
+    return ('<h2>Beteiligte</h2><p class="az">Sie stehen in jeder Maßnahme als Vorschlag bereit; jede Maßnahme fügt die betroffenen Konten selbst hinzu.</p>'
+            + f'<div class="rp-chips">{chips}</div>' + neu)
+
+
+def _fall_seite(request, k, con, f, extra=""):
+    offen = f["status"] == "offen"
+    bet = beteiligte(con, f["id"])
+    q = request.query
+    vor = {"aktion": q.get("aktion", ""), "buchung": q.get("buchung", "") if q.get("buchung", "").isdigit() else ""}
+    r = geld.konto(con, int(q["konto"])) if q.get("konto", "").isdigit() else (bet[0] if len(bet) == 1 else None)
+    if r:
+        vor["konto"] = kennung(con, r)
+    if extra:
+        vor["aktion"] = ""   # Vorschau offen: kein zweites Sheet
+    inhalt = (_kopf(request, f["titel"], "folder-open")
+              + amt.daten_tabelle([("Stand", amt.status_marke("offen" if offen else "ok", "Offen" if offen else "Abgeschlossen")),
+                                   ("Eröffnet", f'{amt._zeit(f["erstellt"])} von {esc(f["autor_name"])}'),
+                                   ("Beschreibung", esc(f["beschreibung"]).replace("\n", "<br>") or "–")])
+              + _beteiligte_html(request, con, f, bet)
+              + f'<h2>Maßnahmen</h2>{_formulare(request, con, f["id"], not offen, vor, bet)}'
+              + f'<form method="post" action="{PFAD}fall/{f["id"]}/status" style="margin-top:14px">{amt.csrf_feld(request)}'
+                f'<button class="btn zweit" type="submit">{amt.ic("check")}{"Fall abschließen" if offen else "Fall wieder öffnen"}</button></form>'
+              + '<h2>Verlauf</h2>' + amt.tabelle(["Zeit", "Aktion", "Einzelheiten", "Von"], _aktionsliste(con, f["id"]), "Noch kein Verlauf.")
+              + extra + FUELL_JS)
+    return sa.ant(request, k, f["titel"], "sa-rp-faelle", inhalt)
 
 
 @sa.seite("rp")
@@ -545,24 +725,7 @@ async def fall(request, k):
     f = con.execute("SELECT * FROM rp_faelle WHERE id=?", (int(i),)).fetchone() if i.isdigit() else None
     if not f:
         raise web.HTTPNotFound(text="Fall nicht gefunden.")
-    offen = f["status"] == "offen"
-    bet = beteiligte(con, f["id"])
-    q = request.query
-    vor = {"aktion": q.get("aktion", ""), "buchung": q.get("buchung", "") if q.get("buchung", "").isdigit() else ""}
-    r = geld.konto(con, int(q["konto"])) if q.get("konto", "").isdigit() else (bet[0] if len(bet) == 1 else None)
-    if r:
-        vor["konto"] = kennung(con, r)
-    inhalt = (_kopf(request, f["titel"], "folder-open")
-              + amt.daten_tabelle([("Stand", amt.status_marke("offen" if offen else "ok", "Offen" if offen else "Abgeschlossen")),
-                                   ("Eröffnet", f'{amt._zeit(f["erstellt"])} von {esc(f["autor_name"])}'),
-                                   ("Beschreibung", esc(f["beschreibung"]).replace("\n", "<br>") or "–")])
-              + _beteiligte_html(request, con, f, bet)
-              + f'<h2>Maßnahmen</h2>{konto_liste(con)}{_formulare(request, con, f["id"], not offen, vor, bet)}'
-              + f'<form method="post" action="{PFAD}fall/{f["id"]}/status" style="margin-top:14px">{amt.csrf_feld(request)}'
-                f'<button class="btn zweit" type="submit">{amt.ic("check")}{"Fall abschließen" if offen else "Fall wieder öffnen"}</button></form>'
-              + '<h2>Verlauf</h2>' + amt.tabelle(["Zeit", "Aktion", "Einzelheiten", "Von"], _aktionsliste(con, f["id"]), "Noch kein Verlauf.")
-              + FUELL_JS)
-    return sa.ant(request, k, f["titel"], "sa-rp-faelle", inhalt)
+    return _fall_seite(request, k, con, f)
 
 
 async def _post(request):
@@ -578,9 +741,49 @@ async def _post(request):
     return k, form, con, f
 
 
+def _vorschau(request, con, k, f, form):
+    """Führt die Maßnahme probehalber aus (ohne DM) und macht alles rückgängig. Gibt (Text, [(Konto, vorher, Änderung, nachher)]) zurück; wirft geld.Fehler."""
+    con.commit()
+    max_b = con.execute("SELECT COALESCE(MAX(id),0) FROM gk_buchungen").fetchone()[0]
+    request["rp_vorschau"] = True
+    try:
+        text = ausfuehren(request, con, k, f, form)
+        delta = {}
+        for b in con.execute("SELECT * FROM gk_buchungen WHERE id>?", (max_b,)):
+            if b["von"]:
+                delta[b["von"]] = delta.get(b["von"], 0) - b["betrag"]
+            if b["an"]:
+                delta[b["an"]] = delta.get(b["an"], 0) + b["betrag"]
+        zeilen = []
+        for i, d in delta.items():
+            r = geld.konto(con, i)
+            if r and r["stelle"] not in ("zentralbank", "volkswirtschaft"):
+                zeilen.append((r, r["saldo"] - d, d, r["saldo"]))
+        return text, zeilen
+    finally:
+        con.rollback()
+        request["rp_vorschau"] = False
+
+
 async def fall_aktion(request):
     k, form, con, f = await _post(request)
     pfad = f"{PFAD}fall/{f['id']}/"
+    art = str(form.get("aktion", ""))
+    if art != "notiz" and form.get("bestaetigt") != "1":
+        try:
+            text, zeilen = _vorschau(request, con, k, f, form)
+        except geld.Fehler as e:
+            sa.weiter(pfad, str(e), True)
+        tz = [(_konto_link(r), sa.betrag_html(v, False), sa.betrag_html(d), sa.betrag_html(n, False)) for r, v, d, n in zeilen]
+        versteckt = "".join(f'<input type="hidden" name="{esc(n)}" value="{esc(str(w))}">' for n, w in form.items() if n not in ("csrf", "bestaetigt"))
+        titel = dict((a, t) for a, t, *_ in MASSNAHMEN).get(art, "Maßnahme")
+        inhalt = (f'<p class="az">So würde gebucht. Noch ist nichts geschehen.</p><div class="rp-vorschau">{esc(text)}</div>'
+                  + (amt.tabelle(["Konto", "Saldo vorher", "Änderung", "Saldo nachher"], tz) if tz else "")
+                  + (f'<p class="az">Mitteilung per DM: „{esc(str(form.get("mitteilung")))}“</p>' if str(form.get("mitteilung", "")).strip() else "")
+                  + f'<form method="post" action="{pfad}aktion">{amt.csrf_feld(request)}{versteckt}<input type="hidden" name="bestaetigt" value="1">'
+                    f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Bestätigen und ausführen</button>'
+                    f'<a class="btn zweit" href="{pfad}">Abbrechen</a></div></form>')
+        return _fall_seite(request, k, con, f, _sheet("rp-vorschau", "Vorschau: " + titel, inhalt, "circle-alert", auf=True))
     try:
         text = ausfuehren(request, con, k, f, form)
         con.commit()
@@ -618,6 +821,24 @@ async def fall_status(request):
     sa.weiter(f"{PFAD}fall/{f['id']}/", "Fall abgeschlossen." if neu == "erledigt" else "Fall wieder geöffnet.")
 
 
+def _suche_konten(con, q, limit=60):
+    n = geld.nummer_gueltig(q)
+    return con.execute("SELECT * FROM gk_konten WHERE nummer=? OR inhaber_id=? OR lower(name) LIKE lower(?) OR lower(stelle)=lower(?) "
+                       "ORDER BY (lower(name) LIKE lower(?)) DESC, art, name LIMIT ?", (n or "", q, f"%{q}%", q, f"{q}%", limit)).fetchall()
+
+
+async def konten_json(request):
+    """Vorschläge für die Kontofelder: [{w: Eingabe, n: Name, a: Art, nr: Nummer, s: Symbol-HTML}]."""
+    k = await anmeldung.konto(request)
+    if not ist_rp(k):
+        raise web.HTTPForbidden()
+    con = request.app["db"]
+    q = " ".join(request.query.get("q", "").split())[:80]
+    rows = [r for r in _suche_konten(con, q, 12) if r["stelle"] not in ("zentralbank", "volkswirtschaft")] if len(q) >= 2 else []
+    return web.json_response([{"w": kennung(con, r), "n": r["name"], "a": geld.art_name(r), "nr": nummer_anzeige(r["nummer"]), "s": konto_symbol(r, 18)} for r in rows],
+                             headers={"Cache-Control": "no-store"})
+
+
 @sa.seite("rp")
 async def konten(request, k):
     con = request.app["db"]
@@ -635,14 +856,17 @@ async def konten(request, k):
         zeilen = [zeile(r, z) for r, z in _filter_konten(con, filt)]
         ergebnis = f'<h2>{esc(FILTER[filt])}</h2>' + amt.tabelle(["Konto", "Art", "Nummer", "Saldo", "Stand"], zeilen, "Keine Einträge.")
     elif q:
-        n = geld.nummer_gueltig(q)
-        rows = con.execute("SELECT * FROM gk_konten WHERE nummer=? OR inhaber_id=? OR lower(name) LIKE lower(?) OR lower(stelle)=lower(?) ORDER BY art, name LIMIT 60",
-                           (n or "", q, f"%{q}%", q)).fetchall()
-        ergebnis = amt.tabelle(["Konto", "Art", "Nummer", "Saldo", "Stand"], [zeile(r) for r in rows], "Kein Konto gefunden.")
+        ergebnis = amt.tabelle(["Konto", "Art", "Nummer", "Saldo", "Stand"], [zeile(r) for r in _suche_konten(con, q)], "Kein Konto gefunden.")
+    if request.query.get("nur"):   # Live-Suche: nur das Ergebnis
+        return web.Response(text=ergebnis, content_type="text/html", headers={"Cache-Control": "no-store"})
+    live = ('<script>(function(){var i=document.getElementById("q"),e=document.getElementById("rp-ergebnis"),t;if(!i||!e)return;'
+            'i.addEventListener("input",function(){clearTimeout(t);var v=i.value.trim();t=setTimeout(function(){if(v.length<2)return;'
+            f'fetch("{PFAD}konten/?nur=1&q="+encodeURIComponent(v),{{credentials:"same-origin"}}).then(function(r){{return r.text()}}).then(function(h){{e.innerHTML=h;'
+            f'try{{history.replaceState(null,"","{PFAD}konten/?q="+encodeURIComponent(v))}}catch(x){{}}}})}},200)}})}})();</script>')
     inhalt = (_kopf(request, "Konten & Personen", "search")
-              + f'<form class="sa-leiste" method="get" action="{PFAD}konten/"><div><label for="q">Name, Kontonummer oder Discord-ID</label>'
-                f'<input type="text" id="q" name="q" value="{esc(q)}"{"" if filt else " autofocus"}></div><button class="btn" type="submit">{amt.ic("search")}Suchen</button></form>'
-              + chips + ergebnis)
+              + f'<form class="sa-leiste" method="get" action="{PFAD}konten/"><div><label for="q">Name, Kontonummer oder Discord-ID – Treffer erscheinen beim Tippen</label>'
+                f'<input type="search" id="q" name="q" value="{esc(q)}" autocomplete="off"{"" if filt else " autofocus"}></div><button class="btn" type="submit">{amt.ic("search")}Suchen</button></form>'
+              + chips + f'<div id="rp-ergebnis">{ergebnis}</div>' + live)
     return sa.ant(request, k, "Konten & Personen", "sa-rp-konten", inhalt)
 
 
@@ -679,13 +903,24 @@ async def konto(request, k):
         andere = [x for x in konten_der_person(con, r) if x["id"] != r["id"]]
         if andere:
             info.append(("Weitere Konten", " · ".join(_konto_link(x) for x in andere)))
+        akte = con.execute("SELECT id FROM amt_akten WHERE konto_id=?", (r["inhaber_id"],)).fetchone()
+        if akte:
+            info.append(("Bürgerakte", f'<a href="{amt.BASIS}buerger/{akte["id"]}/">{esc(amt.az_akte(akte["id"]))}</a>'))
+        try:
+            besitz = con.execute("SELECT k.name FROM pb_besitz b JOIN pb_katalog k ON k.id=b.katalog_id WHERE b.inhaber_id=? AND b.status='aktiv' ORDER BY k.kategorie",
+                                 (r["inhaber_id"],)).fetchall()
+        except Exception:
+            besitz = []
+        if besitz:
+            info.append(("Privatbesitz", esc(", ".join(b["name"] for b in besitz))))
     fl = con.execute("SELECT f.* FROM rp_beteiligte b JOIN rp_faelle f ON f.id=b.fall_id WHERE b.konto_id=? ORDER BY f.id DESC", (r["id"],)).fetchall()
     if fl:
         info.append(("Fälle", " · ".join(f'<a href="{PFAD}fall/{f["id"]}/">{esc(f["titel"])}</a>' + ("" if f["status"] == "offen" else " (abgeschlossen)") for f in fl)))
     sperr = ("freigeben", "lock-open", "Freigeben") if r["gesperrt"] else ("sperren", "lock", "Sperren")
     kn = [("einziehen", "gavel", "Beschlagnahme"), ("strafe", "scale", "Geldstrafe"), ("raub", "hand-coins", "Raub (als Opfer)"),
           ("rueckgabe", "undo-2", "Rückgabe / Entschädigung"), sperr, ("notiz", "sticky-note", "Nur in den Fall aufnehmen")]
-    knoepfe = "".join(f'<button class="btn zweit" type="submit" name="aktion" value="{a}">{amt.ic(s)}{esc(t)}</button>' for a, s, t in kn)
+    knoepfe = "".join(f'<button class="rp-kachel{" gefahr" if a in ("einziehen", "strafe", "raub", "sperren") else ""}" type="submit" name="aktion" value="{a}">'
+                      f'{amt.ic(s)}<b>{esc(t)}</b></button>' for a, s, t in kn)
     massnahme = '<h2>Maßnahme</h2>' + _massnahme_form(request, con, r, knoepfe)
     bs = sa.umsaetze(con, r["id"], 100)
     storniert = stornierte(con)
@@ -852,6 +1087,7 @@ def registrieren(app):
     r.add_post(PFAD + "fall/{id}/status", fall_status)
     r.add_post(PFAD + "fall/{id}/beteiligte", fall_beteiligte)
     r.add_get(PFAD + "konten/", konten)
+    r.add_get(PFAD + "konten.json", konten_json)
     r.add_get(PFAD + "konto/{id}/", konto)
     r.add_get(PFAD + "konto/{id}/fall", konto_zu_fall)
     r.add_post(PFAD + "konto/{id}/fall", konto_massnahme)
