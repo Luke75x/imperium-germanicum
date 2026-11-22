@@ -170,9 +170,7 @@ def hat_kassen(con, k):
     if not k or not k["mitglied"]:
         return False
     if "_sa_kassen" not in k:
-        import befugnisse
-        k["_sa_kassen"] = (geld.ist_beamter(k) or any(r["art"] not in PRIVATARTEN for r in geld.verfuegbare_konten(con, k))
-                           or bool(befugnisse.sids(con, k)))   # eingestellte Person mit Befugnissen eines Regenten
+        k["_sa_kassen"] = geld.ist_beamter(k) or any(r["art"] not in PRIVATARTEN for r in geld.verfuegbare_konten(con, k))
     return k["_sa_kassen"]
 
 
@@ -182,9 +180,15 @@ def hat_verteidigung(con, k):
     return bool(k) and k["mitglied"] and verteidigung.sicht(con, k)["irgendwas"]
 
 
+def hat_ts_ansicht(con, k):
+    """Eingestellte Person im Schatz- und Währungsamt: sieht „Mein Teilstaat“ ihres Teilstaats (und der Teilstaaten mit Befugnis eines Regenten), ohne Kassenzugang."""
+    import befugnisse
+    return bool(befugnisse.zugang_sids(con, k))
+
+
 def hat_staat(con, k):
     """Staatlicher Zugriff irgendeiner Art – nur dann gibt es den Umschalter Staatl./Privat."""
-    return hat_kassen(con, k) or hat_verteidigung(con, k)
+    return hat_kassen(con, k) or hat_verteidigung(con, k) or hat_ts_ansicht(con, k)
 
 
 def ist_rp(k):
@@ -249,7 +253,7 @@ def _regierte(con, k):
         import befugnisse
         rs = list(geld.regierte_staatskassen(con, k))
         vorhanden = {r["stelle"] for r in rs}
-        for sid_ in sorted(befugnisse.sids(con, k)):   # Teilstaaten, in denen ein Regent der Person Befugnisse gegeben hat
+        for sid_ in sorted(befugnisse.zugang_sids(con, k)):   # eigener Teilstaat und Teilstaaten mit Befugnis eines Regenten (eingestellte Personen)
             r = geld.stellenkonto(con, "ts-" + sid_)
             if r and r["stelle"] not in vorhanden:
                 rs.append(r)
@@ -312,7 +316,9 @@ def _teilstaat_tabs(con, k, sid):
     import verteidigung
     import krisen
     n_kr = krisen.offene_anzahl(con, "ts-" + sid)
-    tabs = [("start", "Überblick"), ("etat", "Etat"), ("land", f"Land ({n_kr} Krise{'n' if n_kr != 1 else ''})" if n_kr else "Land"), ("fin", "Finanzen")]
+    tabs = [("start", "Überblick"), ("etat", "Etat"), ("land", f"Land ({n_kr} Krise{'n' if n_kr != 1 else ''})" if n_kr else "Land")]
+    if hat_kassen(con, k):
+        tabs.append(("fin", "Finanzen"))   # Kassen und Umsätze sehen eingestellte Personen ohne Kassenzugang nicht
     if verteidigung.darf_sehen(con, k, sid):
         tabs.append(("vt", "Verteidigung"))
     if ist_regent(con, k, sid):
@@ -531,11 +537,14 @@ def seite(recht=None):
             ok = {"mitglied": k["mitglied"], "beamter": geld.ist_beamter(k), "leitung": geld.ist_leitung(k), "rp": ist_rp(k)}.get(recht, True)
             if recht == "staat":
                 ok = hat_kassen(request.app["db"], k)
+            elif recht == "ts":   # Mein Teilstaat: auch eingestellte Personen des Schatzamts (nur ansehen)
+                ok = hat_kassen(request.app["db"], k) or hat_ts_ansicht(request.app["db"], k)
             elif recht == "verteidigung":
                 ok = hat_verteidigung(request.app["db"], k)
             if not ok:
                 text = {"mitglied": "Diese Funktion steht nur Mitgliedern unseres Discord-Servers zur Verfügung.",
                         "staat": "Dieser Bereich ist staatlich und nur für Amtsträger mit Verfügung über eine staatliche Kasse einsehbar.",
+                        "ts": "Dieser Bereich ist für Regenten und im Schatz- und Währungsamt eingestellte Personen.",
                         "verteidigung": "Der Bereich Verteidigung ist dem Militär (für den eigenen Teilstaat), den Landesherren, dem Führungsstab, "
                                         "dem Kronkanzler und dem Kaiser vorbehalten.",
                         "rp": "Dieser Bereich ist der Server- und RP-Leitung vorbehalten.",

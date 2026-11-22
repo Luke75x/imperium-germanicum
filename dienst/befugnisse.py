@@ -48,6 +48,17 @@ def sids(con, k, recht=None):
     return set().union(*k["_bef"].values()) if k["_bef"] else set()
 
 
+def zugang_sids(con, k):
+    """Teilstaaten, in denen eine eingestellte Person „Mein Teilstaat“ sehen darf: der eigene (Fraktionsrolle) sowie alle mit einer Befugnis eines Regenten.
+    Ansehen ist das Grundrecht jeder Schatzamts-Angehörigen; ändern darf sie nur, was der Regent ihr per Befugnis gibt."""
+    if not k or not k["mitglied"] or not ist_schatzamt(k):
+        return set()
+    if "_bef_zugang" not in k:
+        import verteidigung
+        k["_bef_zugang"] = set(verteidigung.staaten_von(con, k["rollen"])) | sids(con, k)
+    return k["_bef_zugang"]
+
+
 def liste(con, sid):
     """{konto_id: {recht,…}} der Befugnisse eines Teilstaats."""
     out = {}

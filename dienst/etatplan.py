@@ -1374,7 +1374,7 @@ async def _seite(request, k, planung):
     return sa.ant(request, k, titel, "sa-etatplanung" if planung else "sa-etatverteilung", inhalt)
 
 
-@sa.seite("staat")
+@sa.seite("ts")
 async def seite(request, k):
     return await _seite(request, k, False)
 

@@ -532,7 +532,7 @@ def _fall_html(con, k, f, darf, request, lage):
     return "".join(html)
 
 
-@sa.seite("staat")
+@sa.seite("ts")
 async def seite(request, k):
     import etatplan
     con = request.app["db"]

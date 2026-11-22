@@ -934,7 +934,7 @@ def _ziel(request, k, con):
     return "ts-" + next(iter(regiert)) if regiert else "reich"
 
 
-@sa.seite("staat")
+@sa.seite("ts")
 async def seite(request, k):
     con = request.app["db"]
     ziel = _ziel(request, k, con)

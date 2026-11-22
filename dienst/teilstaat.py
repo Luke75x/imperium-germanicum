@@ -149,7 +149,7 @@ async def ueberblick(request, k, con, sid, kasse, kopf=True):
     return inhalt
 
 
-@sa.seite("staat")
+@sa.seite("ts")
 async def seite(request, k):
     import aufkommen
     import etatplan
@@ -203,7 +203,7 @@ def land_teile(request, k, con, sid, schl):
     return teile
 
 
-@sa.seite("staat")
+@sa.seite("ts")
 async def land(request, k):
     """Reiter „Land“: Entwicklung, Energie und Krisen eines Teilstaats auf einer Seite."""
     import aufkommen

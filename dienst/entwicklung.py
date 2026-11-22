@@ -658,7 +658,7 @@ def _gewaehlt(request, k, con, liste):
     return ziel, ziele
 
 
-@sa.seite("staat")
+@sa.seite("ts")
 async def seite(request, k):
     import aufkommen
     import etatplan
