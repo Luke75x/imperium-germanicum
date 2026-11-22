@@ -280,8 +280,8 @@ def _regent_kopf(request, k):
 
 def gehoert_zu(con, m, sid, vorhanden=None):
     """Erscheint die Schatzamts-Angehörige m unter den eingestellten Personen dieses Teilstaats?
-    Ja, wenn sie dessen Fraktionsrolle trägt (vom Regenten für diesen Teilstaat eingestellt, z. B. Privatsekretärin der Hand des Kaisers als Regent von
-    Pfalz-Bayern), wenn sie hier schon Befugnisse hat (damit man sie entziehen kann), oder – nur in Teilstaaten ohne eigene Fraktion, die der Kronkanzler
+    Ja, wenn sie dessen Fraktionsrolle trägt (vom Regenten für diesen Teilstaat eingestellt, z. B. Privatsekretärin Hauer: von der Hand des Kaisers in
+    seiner Funktion als Regent von Pfalz-Bayern als Landesinspektorin eingestellt), wenn sie hier schon Befugnisse hat (damit man sie entziehen kann), oder – nur in Teilstaaten ohne eigene Fraktion, die der Kronkanzler
     verwaltet – wenn sie keinem Teilstaat angehört (vom Reich eingestellt). Personen eines anderen Teilstaats erscheinen nicht."""
     import befugnisse
     import karte
