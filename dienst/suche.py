@@ -201,7 +201,10 @@ def index(con, k):
         add("RP-Lagebild", "RP-Leitung", PFAD + "rp/", "rp leitung lagebild")
         add("RP-Fälle", "RP-Leitung", PFAD + "rp/faelle/", "faelle untersuchungen")
         add("RP: Konten & Personen", "RP-Leitung", PFAD + "rp/konten/", "konten personen suche")
-        add("RP-Protokoll", "RP-Leitung", PFAD + "rp/protokoll/", "log")
+        add("RP-Protokoll", "RP-Leitung", PFAD + "rp/protokoll/", "log protokoll zeitleiste konfiguration aenderungen")
+        add("Gerätekatalog (Preise, Instandhaltung)", "RP-Konfiguration", PFAD + "verteidigung/katalog/", "geraetekatalog militaer ruestung preise instandhaltung waffen", 1)
+        for f, t in (("gesperrt", "Gesperrte Konten"), ("minus", "Kassen im Minus"), ("karten", "Gesperrte Bankkarten"), ("notlage", "Haushaltsnotlagen")):
+            add(t, "RP-Leitung", PFAD + "rp/konten/?filter=" + f, "rp liste " + t.lower())
     return E
 
 

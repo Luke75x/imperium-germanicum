@@ -662,11 +662,12 @@ async def katalog_seite(request, k):
                       '<script>(function(){var s=document.getElementById("kt");if(!s)return;function u(){var o=s.options[s.selectedIndex].dataset;'
                       'document.getElementById("kp").value=o.preis;document.getElementById("ki").value=o.ih;document.getElementById("ka").checked=o.aktiv==="1"}'
                       's.onchange=u;u()})()</script>')
-    inhalt = (f'<p class="zurueck"><a href="{PFAD}">{amt.ic("arrow-left")}Verteidigung</a></p>'
-              f'<h1>{amt.ic("wrench")} Gerätekatalog</h1>{amt.meldung(request)}'
+    rp = sa.modus(request, k) == "rp"   # RP-Leitung: Seite gehört zur Konfiguration der RP-Ansicht
+    inhalt = (("" if rp else f'<p class="zurueck"><a href="{PFAD}">{amt.ic("arrow-left")}Verteidigung</a></p>')
+              + f'<h1>{amt.ic("wrench")} Gerätekatalog</h1>{amt.meldung(request)}'
               '<p class="az">Richtpreise in der Größenordnung vergleichbarer Systeme (Stand 2024/25), umgerechnet in Kronen. '
               'Die Instandhaltung wird monatlich aus der Verteidigungskasse des Teilstaats bezahlt.</p>' + bearbeiten + tabellen)
-    return sa.ant(request, k, "Gerätekatalog", "sa-verteidigung", inhalt)
+    return sa.ant(request, k, "Gerätekatalog", "sa-rp-katalog" if rp else "sa-verteidigung", inhalt)
 
 
 async def _post(request):

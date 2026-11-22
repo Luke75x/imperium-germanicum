@@ -421,6 +421,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
                    ("Konfiguration", [("sa-rp-foerder", "package", "Förderstätten", "rp/foerderstaetten/"), ("sa-rp-handel", "percent", "Handel: Waren & Regeln", "rp/handel/"),
                                       ("sa-rp-energie", "zap", "Energie: Sätze & Anlagen", "rp/energie/"),
                                       ("sa-rp-besitz", "car", "Besitzkatalog & Kosten", "rp/besitz/"),
+                                      ("sa-rp-katalog", "wrench", "Gerätekatalog", "verteidigung/katalog/"),
                                       ("sa-rp-stell", "pencil", "Stellschrauben", "rp/stellschrauben/")]),
                    ("Hilfsmittel", [("sa-amt-bankkarten", "credit-card", "Bankkarten", "amt/bankkarten/"),
                                                           ("sa-amt-geld", "coins", "Geldpolitik", "amt/geldpolitik/"),
