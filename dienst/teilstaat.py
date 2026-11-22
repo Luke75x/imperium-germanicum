@@ -278,6 +278,25 @@ def _regent_kopf(request, k):
     return con, sid, regent[sid], regent
 
 
+def gehoert_zu(con, m, sid, vorhanden=None):
+    """Erscheint die Schatzamts-Angehörige m unter den eingestellten Personen dieses Teilstaats?
+    Ja, wenn sie dessen Fraktionsrolle trägt (vom Regenten für diesen Teilstaat eingestellt, z. B. Privatsekretärin der Hand des Kaisers als Regent von
+    Pfalz-Bayern), wenn sie hier schon Befugnisse hat (damit man sie entziehen kann), oder – nur in Teilstaaten ohne eigene Fraktion, die der Kronkanzler
+    verwaltet – wenn sie keinem Teilstaat angehört (vom Reich eingestellt). Personen eines anderen Teilstaats erscheinen nicht."""
+    import befugnisse
+    import karte
+    import verteidigung
+    if vorhanden is None:
+        vorhanden = befugnisse.liste(con, sid)
+    if m["id"] in vorhanden:
+        return True
+    eigene = verteidigung.staaten_von(con, m["rollen"])
+    if sid in eigene:
+        return True
+    st = next((x for x in karte.aktuell(con)["stand"]["staaten"] if x["id"] == sid), None)
+    return not eigene and bool(st) and not st.get("fraktion")
+
+
 @sa.seite("staat")
 async def einstellungen(request, k):
     """Mein Teilstaat → Einstellungen: der Regent gibt eingestellten Personen (Schatzamt) einzelne Befugnisse für diesen Teilstaat."""
@@ -289,7 +308,8 @@ async def einstellungen(request, k):
     schl = "ts-" + sid
     name = esc(kasse["name"].replace("Staatskasse ", ""))
     vorhanden = befugnisse.liste(con, sid)
-    personen = sorted((m for m in await request.app["discord"].mitglieder() if befugnisse.SCHATZAMT_ROLLE in m["rollen"]), key=lambda m: m["name"].lower())
+    personen = sorted((m for m in await request.app["discord"].mitglieder() if befugnisse.SCHATZAMT_ROLLE in m["rollen"] and gehoert_zu(con, m, sid, vorhanden)),
+                      key=lambda m: m["name"].lower())
     wahl = ""
     if len(regent) > 1:
         opt = "".join(f'<option value="{sa.PFAD}teilstaat/einstellungen/?ziel=ts-{esc(s_)}"{" selected" if s_ == sid else ""}>{esc(r["name"].replace("Staatskasse ", ""))}</option>' for s_, r in regent.items())
@@ -302,8 +322,8 @@ async def einstellungen(request, k):
         zeilen.append((esc(m["name"]),
                        f'<form method="post" action="{sa.PFAD}teilstaat/einstellungen/speichern">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(schl)}">'
                        f'<input type="hidden" name="person" value="{esc(m["id"])}">{haken}<button class="btn zweit" type="submit">{amt.ic("check")}Speichern</button></form>'))
-    tab = (amt.tabelle(["Eingestellte Person", "Befugnisse in diesem Teilstaat"], zeilen, "Noch niemand im Schatz- und Währungsamt eingestellt.") if zeilen
-           else '<p class="az">Noch niemand ist im Kaiserlichen Schatz- und Währungsamt eingestellt. Mit <code>/einstellen</code> in Discord stellen Sie Personen ein; hier geben Sie ihnen dann Befugnisse.</p>')
+    tab = (amt.tabelle(["Eingestellte Person", "Befugnisse in diesem Teilstaat"], zeilen, "Noch niemand für diesen Teilstaat im Schatz- und Währungsamt eingestellt.") if zeilen
+           else '<p class="az">Für diesen Teilstaat ist noch niemand im Kaiserlichen Schatz- und Währungsamt eingestellt. Mit <code>/einstellen</code> in Discord stellen Sie Personen ein; hier geben Sie ihnen dann Befugnisse.</p>')
     inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("settings")} Einstellungen · {name}</h1>', sid, name) + amt.meldung(request) +
               '<p class="az">Hier legen Sie fest, was bei den im Schatz- und Währungsamt eingestellten Personen in Ihrem Teilstaat erlaubt ist. Die Befugnisse gelten nur für diesen Teilstaat; '
               'Sie können sie jederzeit ändern oder entziehen. Ohne Befugnis sehen die Personen nichts von Ihrem Teilstaat.</p>' + wahl + tab)
@@ -324,6 +344,8 @@ async def einstellungen_speichern(request, k):
     if not m or befugnisse.SCHATZAMT_ROLLE not in m["rollen"]:
         sa.weiter(f"{sa.PFAD}teilstaat/einstellungen/?ziel={ziel}", "Diese Person ist nicht im Schatz- und Währungsamt eingestellt.", True)
     rechte = [r for r in form.getall("recht", []) if r in befugnisse.RECHTE]
+    if rechte and not gehoert_zu(con, m, ziel[3:]):
+        sa.weiter(f"{sa.PFAD}teilstaat/einstellungen/?ziel={ziel}", f'{m["name"]} ist für einen anderen Teilstaat eingestellt.', True)
     befugnisse.setzen(con, ziel[3:], person, rechte, k["name"])
     geld.protokoll(con, k, "Befugnisse", f'{ziel}: {m["name"]} → ' + (", ".join(befugnisse.RECHTE[r][0] for r in rechte) or "keine Befugnisse"))
     con.commit()
