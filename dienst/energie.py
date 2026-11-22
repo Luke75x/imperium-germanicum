@@ -56,8 +56,6 @@ geld.VORGABEN.setdefault("energie", {
     "bau_faktor": 100,            # % der Baukosten
     "instand_faktor": 100,        # % der Instandhaltungssätze (Kr je erzeugter GWh, siehe INSTAND)
     "kauf_unter": 60,             # Versorgung in %, unter der am Energiemarkt gekauft werden darf
-    "speicher_pz": 30,            # Batterie: Kapazität in % des Monatsbedarfs (22.11.2026)
-    "speicher_wirkung": 90,       # Batterie: Ladewirkungsgrad in % (der Rest geht beim Laden verloren)
     "richt_treibstoff": 100000, "richt_aluminium": 100000, "richt_stahl": 100000,   # Tonnen im Lager für 100 % Bonus (und Verbrauch je Monatswechsel)
 })
 SAETZE = [("haushalt_kwh", "Verbrauch je Einwohner (kWh/Monat)"), ("industrie_gwh_je_mio", "Industrie (GWh je Mio. € BIP)"), ("mil_mwh_je_geraet", "Militärgerät (MWh/Monat je Gerät)"),
@@ -65,7 +63,6 @@ SAETZE = [("haushalt_kwh", "Verbrauch je Einwohner (kWh/Monat)"), ("industrie_gw
           ("ver_treibstoff", "Veredelung Treibstoff (MWh/t)"), ("zuf_max", "Höchstabzug Zufriedenheit (Punkte)"), ("infra_max", "Höchstabzug Infrastruktur (Punkte)"),
           ("ind_max", "Höchstabzug Industrie (Punkte)"), ("leistung_faktor", "Leistung aller Kraftwerke (% der Tabelle)"), ("bau_faktor", "Baukosten (% der Tabelle)"), ("instand_faktor", "Instandhaltung (% der Tabelle)"),
           ("kauf_unter", "Zukauf am Markt erlaubt unter Versorgung (%)"),
-          ("speicher_pz", "Batterie: Kapazität (% des Monatsbedarfs)"), ("speicher_wirkung", "Batterie: Ladewirkungsgrad (%)"),
           ("richt_treibstoff", "Treibstoff für 100 % Bonus (t)"), ("richt_aluminium", "Aluminium für 100 % Bonus (t)"), ("richt_stahl", "Stahl für 100 % Bonus (t)")]
 BONUSWAREN = [("treibstoff", "Treibstoff"), ("aluminium", "Aluminium"), ("stahl", "Stahl")]
 BONUS_MAX = {"treibstoff": 100.0, "aluminium": 100.0, "stahl": 10.0}   # % bei vollem Bonus: Energieerzeugung +, Effizienz der Industrie +, Preise für Militärgerät −
@@ -326,13 +323,12 @@ def bilanz(con, schl, periode=None, frisch=False):
     S0 = erz + zukauf - verkauf
     ver = veredelung_verbrauch(con, schl, periode)
     bedarf = hh + ind + mil + ver
-    # Batterie: Überschuss lädt sie (mit Verlust, bis zur Kapazität), ein Defizit entlädt sie – der Füllstand wandert von Monat zu Monat
+    # Überschuss = Batterieinhalt: Was in einem Monat nicht gebraucht oder verkauft wird, bleibt erhalten und wird zum Inhalt der Batterie gerechnet (keine Grenze, kein Verlust);
+    # ein Defizit wird zuerst aus dem Inhalt gedeckt. Der Inhalt wandert von Monat zu Monat.
     anf = speicher_anfang(con, schl, periode)
-    kap = float(s["speicher_pz"]) / 100 * bedarf
     entl = min(anf, max(0.0, bedarf - S0))
-    wirk = float(s["speicher_wirkung"]) / 100
     uebrig = anf - entl
-    ladung = min(max(0.0, S0 - bedarf) * wirk, max(0.0, kap - uebrig))   # gespeicherte Energie (netto)
+    ladung = max(0.0, S0 - bedarf)
     S = S0 + entl
     rest = S
     g_hh = min(rest, hh); rest -= g_hh
@@ -342,12 +338,12 @@ def bilanz(con, schl, periode=None, frisch=False):
     fossil = sum(mix.get(t, 0) for t in FOSSIL)
     klima = sum(mix.get(t, 0) * TYP[t][4] for t in mix) / erz_roh if erz_roh else 0.0
     b = {"periode": periode, "schl": schl, "ew": ew, "bip": bip, "hh": hh, "ind": ind, "mil": mil, "ver": ver, "bedarf": bedarf, "angebot": S, "mix": mix,
-         "v_hh": v(g_hh, hh), "v_mil": v(g_mil, mil), "v_ind": v(g_ind, ind + ver), "v_ges": min(1.0, v(S, bedarf)), "frei": S - bedarf, "n_mil": n_mil,
-         "erzeugung": erz, "erzeugung_roh": erz_roh, "boni": boni, "zukauf": zukauf, "verkauf": verkauf, "reserviert": reserviert, "frei_ver": S - bedarf - reserviert,
-         "markt_frei": max(0.0, erz - verkauf - bedarf - reserviert),   # verkaufen lässt sich nur der Überschuss der eigenen Erzeugung, nicht die Batterie
+         "v_hh": v(g_hh, hh), "v_mil": v(g_mil, mil), "v_ind": v(g_ind, ind + ver), "v_ges": min(1.0, v(S, bedarf)), "frei": S - bedarf, "inhalt": uebrig + ladung, "n_mil": n_mil,
+         "erzeugung": erz, "erzeugung_roh": erz_roh, "boni": boni, "zukauf": zukauf, "verkauf": verkauf, "reserviert": reserviert, "frei_ver": anf + S0 - bedarf - reserviert,
+         "markt_frei": max(0.0, anf + erz - verkauf - bedarf - reserviert),   # verkaufen lässt sich der Überschuss = Batterieinhalt (ohne Zugekauftes)
          "fossil": fossil / erz_roh * 100 if erz_roh else 0.0, "erneuerbar": sum(mix.get(t, 0) for t in ("wasser", "wind", "solar", "biomasse")) / erz_roh * 100 if erz_roh else 0.0,
          "klima": klima, "einstellung": s,
-         "speicher": {"anfang": anf, "entladung": entl, "ladung": ladung, "ende": uebrig + ladung, "kapazitaet": kap, "wirkung": wirk * 100}}
+         "speicher": {"anfang": anf, "entladung": entl, "ladung": ladung, "ende": uebrig + ladung}}
     _CACHE[(schl, periode)] = (time.time(), b)
     return b
 
@@ -831,7 +827,7 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
     darf = etatplan.darf_aendern(con, k, ziel, "energie")
     kz = lambda xs: f'<div class="kennzahlen">{"".join(f"<div><b>{v if isinstance(v, Roh) else esc(v)}</b>{esc(t)}</div>" for t, v in xs)}</div>'
     kennz = [("Versorgung", Roh(f'{_de(b["v_ges"] * 100, 0)} %{ueberschuss_pz(b)}')), ("Erzeugung", gwh_text(b["erzeugung"])), ("Bedarf", gwh_text(b["bedarf"])),
-             ("Überschuss" if b["frei"] >= 0 else "Fehlbetrag", Roh(esc(gwh_text(abs(b["frei"]))) + verkauf_klein(b))), ("Erneuerbare", f'{_de(b["erneuerbar"], 0)} %')]
+             ("Überschuss" if b["frei"] >= -1e-9 else "Fehlbetrag", Roh(esc(gwh_text(b["speicher"]["ende"] if b["frei"] >= -1e-9 else -b["frei"])) + verkauf_klein(b))), ("Erneuerbare", f'{_de(b["erneuerbar"], 0)} %')]
     if b["boni"]["treibstoff"]["anteil"] > 0:
         kennz.append(("Treibstoff-Bonus", f'+{_de(b["boni"]["treibstoff"]["anteil"] * BONUS_MAX["treibstoff"], 0)} %'))
     if b["zukauf"] > 0:
@@ -850,19 +846,17 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
     verbr = [("Bevölkerung", b["hh"], b["v_hh"], "#2a78d6"), ("Militär", b["mil"], b["v_mil"], "#6250d6"), ("Industrie", b["ind"], b["v_ind"], "#eb6834"), ("Veredelung", b["ver"], b["v_ind"], "#eda100")]
     zeilen = [(esc(n), gwh_text(w), f'{_de(v * 100, 0)} %') for n, w, v, _ in verbr if w > 0]
     sp = b["speicher"]
-    fuell = (sp["ende"] / sp["kapazitaet"] * 100) if sp["kapazitaet"] > 0 else 0.0
     if sp["entladung"] > 0.0005:
-        sp_text = f'Die Batterie gleicht das Defizit aus: Entnahme {_gwh(sp["entladung"])} in diesem Monat.'
+        sp_text = f'Das Defizit dieses Monats wird aus dem Überschuss gedeckt: Entnahme {_gwh(sp["entladung"])}.'
     elif sp["ladung"] > 0.0005:
-        sp_text = f'Überschuss lädt die Batterie: voraussichtlich +{_gwh(sp["ladung"])} (Wirkungsgrad {_de(sp["wirkung"], 0)} %).'
+        sp_text = f'Der Überschuss dieses Monats ({_gwh(sp["ladung"])}) wird zum Inhalt gerechnet, sofern er nicht verkauft oder verbraucht wird.'
     else:
-        sp_text = "Weder Überschuss noch Defizit – die Batterie bleibt unverändert."
-    speicher_html = ('<h2>Batterie</h2><p class="az">Überschüssige Energie wird gespeichert und deckt in späteren Monaten Defizite. Verkaufte Energie lädt die Batterie nicht.</p>'
+        sp_text = "Weder Überschuss noch Defizit in diesem Monat – der Inhalt bleibt unverändert."
+    speicher_html = ('<h2>Überschuss (Batterie)</h2><p class="az">Jeder Überschuss ist zugleich der Inhalt der Batterie: Was in einem Monat nicht gebraucht oder verkauft wird, bleibt erhalten und wird dazugerechnet. '
+                     'Ein Defizit deckt zuerst der Inhalt, verkaufen lässt sich nur der Inhalt.</p>'
                      '<div class="kennzahlen">'
-                     f'<div><b>{_gwh(sp["anfang"])}</b>Füllstand zu Monatsbeginn</div><div><b>{_gwh(sp["ende"])}</b>voraussichtlich zum Monatsende</div>'
-                     f'<div><b>{_gwh(sp["kapazitaet"])}</b>Kapazität ({_de(float(b["einstellung"]["speicher_pz"]), 0)} % des Monatsbedarfs)</div></div>'
-                     f'<div style="height:12px;border:1px solid var(--linie);border-radius:999px;overflow:hidden;margin:6px 0 4px" role="img" aria-label="Füllstand {_de(fuell, 0)} %">'
-                     f'<div style="height:100%;width:{max(0.0, min(100.0, fuell)):.1f}%;background:var(--ink)"></div></div><p class="az">{esc(sp_text)} Füllstand zum Monatsende: {_de(fuell, 0)} %.</p>')
+                     f'<div><b>{_gwh(sp["anfang"])}</b>Inhalt zu Monatsbeginn</div><div><b>{_gwh(sp["ende"])}</b>Inhalt zum Monatsende (voraussichtlich)</div></div>'
+                     f'<p class="az">{esc(sp_text)}</p>')
     bedarf_html = _balken([(n, w, c) for n, w, _, c in verbr]) + amt.tabelle(["Verbraucher", "Bedarf", "Versorgt"], zeilen, klasse="ee-tab")
     # Erzeugung
     mix_teile = [(TYP[t][1], b["mix"].get(t, 0), FARBEN[i]) for i, (t, *_r) in enumerate(TYPEN)]
