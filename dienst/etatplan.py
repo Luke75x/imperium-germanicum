@@ -556,7 +556,8 @@ def darf_aendern(con, k, schl):
     if not k or not k["mitglied"]:
         return False
     if schl == "reich":
-        return geld.ist_leitung(k)
+        # Serveradministratoren (ohne Kaiser-/Kronkanzleramt) sehen den Reichshaushalt nur OOC und geben nichts aus (Bau, Etat, Handel).
+        return geld.ist_leitung(k) and not (amt.ist_ooc_admin(k) and not (set(geld._behoerde()["leitung"]) & set(k["rollen"])))
     return any(r["stelle"] == schl for r in geld.regierte_staatskassen(con, k))
 
 
