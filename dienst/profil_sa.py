@@ -50,7 +50,7 @@ def vars_css(t, blur):
 
 RUHIG_CSS = "html:root *,html:root *::before,html:root *::after{animation:none!important;transition:none!important}"
 KOMPAKT_CSS = ("html:root main{padding-top:18px}html:root th,html:root td{padding-top:6px!important;padding-bottom:6px!important}"
-               "html:root .kennzahlen div{padding:8px 12px}html:root .kennzahlen b{font-size:20px!important}html:root h2{margin-top:22px!important}"
+               "html:root .kennzahlen div{padding:8px 12px}html:root .kennzahlen b{font-size:min(20px,13cqi)!important}html:root h2{margin-top:22px!important}"
                "html:root .seite a.ein{padding-top:6px;padding-bottom:6px}html:root .rp-kachel,html:root .st-karte,html:root .pf-karte{padding:10px 12px}"
                "html:root .pf-zeile{padding:7px 0}")
 

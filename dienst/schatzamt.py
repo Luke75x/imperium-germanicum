@@ -46,9 +46,10 @@ amt.ICONS.update({
 })
 
 CSS = """<style>
-.kennzahlen{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
-.kennzahlen b{white-space:nowrap;font-size:22px;overflow:hidden;text-overflow:ellipsis}
-@media (max-width:520px){.kennzahlen{grid-template-columns:repeat(2,minmax(0,1fr))}html .kennzahlen b{font-size:19px!important;letter-spacing:-.01em}}
+.kennzahlen{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.kennzahlen>div{container-type:inline-size;min-width:0}
+.kennzahlen b{white-space:nowrap;font-size:min(22px,13cqi);overflow:visible}
+@media (max-width:520px){.kennzahlen{grid-template-columns:repeat(2,minmax(0,1fr))}html .kennzahlen b{font-size:min(19px,13cqi)!important;letter-spacing:-.01em}}
 .sa-saldo{font-size:34px;font-weight:700;letter-spacing:-.01em;line-height:1.1;margin:4px 0}
 .anker:target{background:#fff3b0;box-shadow:0 0 0 4px #fff3b0;border-radius:3px;scroll-margin-top:90px}
 .sa-plus{color:var(--ok)}.sa-minus{color:var(--rot)}
