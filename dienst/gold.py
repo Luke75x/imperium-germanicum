@@ -35,6 +35,11 @@ ARTEN = {"erstausstattung": "Erstausstattung", "verkauf": "Verkauf an die Zentra
 def handelbar(con, k):
     """Kassen, für die das Konto Gold handeln darf: regierte Staatskassen; Leitung: alle Staatskassen und die Reichskasse."""
     out = {r["stelle"]: r for r in geld.regierte_staatskassen(con, k)}
+    import befugnisse
+    for sid in befugnisse.sids(con, k, "finanzen"):   # eingestellte Personen mit Befugnis „Finanzen bearbeiten“ (Mein Teilstaat → Einstellungen)
+        r = geld.stellenkonto(con, "ts-" + sid)
+        if r and not __import__("notlage").verfuegung_gesperrt(con, k, r["stelle"]):
+            out[r["stelle"]] = r
     if geld.ist_leitung(k):
         out.update({r["stelle"]: r for r in con.execute("SELECT * FROM gk_konten WHERE art='teilstaat'")})
         out["reichskasse"] = geld.sonder(con, "reichskasse")

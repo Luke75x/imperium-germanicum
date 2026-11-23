@@ -553,7 +553,8 @@ def _rl_text(pz, betrag, kassen_name, gedeckelt=False):
 
 
 def darf_aendern(con, k, schl, recht="etat"):
-    """Etat/Energie/Handel eines Haushalts ändern. recht: Befugnis eines eingestellten Schatzamts-Angehörigen (befugnisse.py: „etat“, „energie“; None = nur Regent)."""
+    """Etat/Energie/Handel/Krisen eines Haushalts ändern. recht: Befugnis „Bearbeiten“ eines eingestellten Schatzamts-Angehörigen
+    (befugnisse.py: „etat“, „energie“, „handel“, „krisen“; None = nur Regent)."""
     if not k or not k["mitglied"]:
         return False
     if schl == "reich":
@@ -562,7 +563,9 @@ def darf_aendern(con, k, schl, recht="etat"):
     if any(r["stelle"] == schl for r in geld.regierte_staatskassen(con, k)):
         return True
     import befugnisse
-    return bool(recht) and schl.startswith("ts-") and befugnisse.befugt(con, k, schl[3:], recht)
+    import notlage
+    return (bool(recht) and schl.startswith("ts-") and befugnisse.befugt(con, k, schl[3:], recht)
+            and not notlage.zwang(con, schl))   # Zwangsverwaltung: wie beim Regenten keine Befugnis mehr
 
 
 def ziele(con, liste):
@@ -1217,6 +1220,9 @@ async def _seite(request, k, planung):
     ziel_liste = sa.bereich_ziele(con, k, ziel_liste, ziel)   # Reichshaushalt nur Reich, Mein Teilstaat nur die eigenen Teilstaaten
     if ziel not in dict(ziel_liste):
         ziel = ziel_liste[0][0]
+    nein = sa.ts_bereich(request, k, con, ziel, "etat")   # eingestellte Personen: Befugnis „Etat ansehen“ des Regenten
+    if nein is not None:
+        return nein
     name = dict(ziel_liste)[ziel]
     ent = entwurf(con, ziel) if planung else None
     eing = eingereicht(con, ziel) if planung else None
@@ -1440,7 +1446,7 @@ async def seite(request, k):
     return await _seite(request, k, False)
 
 
-@sa.seite("staat")
+@sa.seite("ts")
 async def planung_seite(request, k):
     return await _seite(request, k, True)
 

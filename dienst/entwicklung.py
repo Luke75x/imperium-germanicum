@@ -666,6 +666,9 @@ async def seite(request, k):
     periode = etatplan.monat_heute()
     liste = aufkommen.berechnen(con, periode=periode)
     ziel, ziele = _gewaehlt(request, k, con, liste)
+    nein = sa.ts_bereich(request, k, con, ziel, "entwicklung")
+    if nein is not None:
+        return nein
     sa.zur_land_seite(request, k, con, ziel, "entwicklung")
     return sa.ant(request, k, "Entwicklung", "sa-entwicklung", rumpf(request, k, con, liste, ziel, ziele))
 

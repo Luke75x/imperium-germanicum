@@ -426,5 +426,18 @@ def regierte_staatskassen(con, k, mit_zwang=False):
     return out
 
 
+def lese_kassen(con, k):
+    """Staats- und Verteidigungskassen, die eine eingestellte Person per Befugnis „Finanzen ansehen“ (befugnisse.py) einsehen darf – ohne Verfügung."""
+    import befugnisse
+    out = []
+    for sid in sorted(befugnisse.sids(con, k, "finanzen:lesen")):
+        for st in ("ts-" + sid, "vt-" + sid):
+            r = stellenkonto(con, st)
+            if r:
+                out.append(r)
+    return out
+
+
 def darf_einsehen(con, k, r):
-    return ist_beamter(k) or any(x["id"] == r["id"] for x in verfuegbare_konten(con, k))
+    return (ist_beamter(k) or any(x["id"] == r["id"] for x in verfuegbare_konten(con, k))
+            or any(x["id"] == r["id"] for x in lese_kassen(con, k)))

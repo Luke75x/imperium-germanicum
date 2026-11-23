@@ -222,7 +222,7 @@ def sicht(con, k):
         mil = ist_stab(con, k)   # nur General- und Offiziersstab; Unteroffiziere und Mannschaften sehen den Etat nicht
         eigene = staaten_von(con, k["rollen"]) if mil else set()
         import befugnisse
-        sids = {r["stelle"][3:] for r in geld.regierte_staatskassen(con, k, mit_zwang=True)} | eigene | befugnisse.sids(con, k, "verteidigung")
+        sids = {r["stelle"][3:] for r in geld.regierte_staatskassen(con, k, mit_zwang=True)} | eigene | befugnisse.sids(con, k, "verteidigung:lesen")
         reich = alle or (mil and not eigene)
         k["_vt_sicht"] = {"alle": alle, "sids": sids, "reich": reich, "irgendwas": alle or bool(sids) or reich}
     return k["_vt_sicht"]

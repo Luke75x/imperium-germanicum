@@ -541,6 +541,9 @@ async def seite(request, k):
     alle = ziel == "reich" or (not ziel and not regiert)
     if not alle and not (ziel.startswith("ts-") and ziel[3:]):
         ziel = "ts-" + next(iter(regiert))
+    nein = sa.ts_bereich(request, k, con, "reich" if alle else ziel, "krisen")   # alle Teilstaaten: nur mit Kassenzugriff; eingestellte Personen nur mit Befugnis
+    if nein is not None:
+        return nein
     if alle:
         faelle = con.execute("SELECT * FROM kr_faelle ORDER BY CASE status WHEN 'offen' THEN 0 ELSE 1 END, beginn DESC LIMIT 80").fetchall()
         zeilen = []
@@ -563,7 +566,7 @@ def rumpf(request, k, con, ziel, eingebettet=False):
     """Krisenseite eines Teilstaats; eingebettet=True: Abschnitt der Seite „Land“ (ohne Überschrift und Meldung)."""
     import etatplan
     faelle = con.execute("SELECT * FROM kr_faelle WHERE schl=? ORDER BY CASE status WHEN 'offen' THEN 0 ELSE 1 END, beginn DESC LIMIT 40", (ziel,)).fetchall()
-    darf = etatplan.darf_aendern(con, k, ziel, None)
+    darf = etatplan.darf_aendern(con, k, ziel, "krisen")
     lage = lage_aktuell(con, ziel)
     name = _teilstaat_name(con, ziel)
     offene_html = "".join(_fall_html(con, k, f, darf, request, lage) for f in faelle if f["status"] == "offen")
@@ -576,7 +579,7 @@ def rumpf(request, k, con, ziel, eingebettet=False):
               + '<p class="az">Wenn die Lage kippt, muss der Landesherr handeln. Jede Maßnahme kostet Geld, '
               'hat eine Erfolgsaussicht und prägt die Entwicklung der nächsten Monate. Wer nicht reagiert, dem eskaliert die Krise.</p>'
               + (offene_html or f'<p class="sa-status ok">{amt.ic("check")}Keine offene Krise.</p>')
-              + ("" if darf else '<p class="sa-hinweis">Nur Ansicht – reagieren darf der Landesherr dieses Teilstaats.</p>')
+              + ("" if darf else '<p class="sa-hinweis">Nur Ansicht – reagieren darf der Landesherr dieses Teilstaats oder wem er es erlaubt.</p>')
               + f'<h2>Laufende Wirkungen</h2>{wirk_html}'
               + f'<details class="sa-auf"><summary>{amt.ic("clock")}Frühere Krisen ({len(hist)})</summary>' + "".join(_fall_html(con, k, f, darf, request, lage) for f in hist) + '</details>'
               + '<div class="sa-erkl"><b>Wann bricht eine Krise aus?</b><ul>'
@@ -601,7 +604,7 @@ async def reagieren_post(request):
     f = con.execute("SELECT * FROM kr_faelle WHERE id=?", (fall,)).fetchone()
     if not f:
         raise web.HTTPNotFound()
-    if not etatplan.darf_aendern(con, k, f["schl"], None):
+    if not etatplan.darf_aendern(con, k, f["schl"], "krisen"):
         raise web.HTTPForbidden(text="Auf diese Krise darf nur der Landesherr des Teilstaats reagieren.")
     try:
         text = reagieren(con, k, fall, str(form.get("option", "")), etatplan.monat_heute())

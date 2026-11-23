@@ -181,6 +181,25 @@ def hat_verteidigung(con, k):
     return bool(k) and k["mitglied"] and verteidigung.sicht(con, k)["irgendwas"]
 
 
+def hat_handel(con, k):
+    """Sieht den Handel: staatlicher Kassenzugriff oder eingestellte Person mit Befugnis „Handel ansehen“."""
+    import befugnisse
+    return hat_kassen(con, k) or bool(befugnisse.sids(con, k, "handel:lesen"))
+
+
+def ts_bereich(request, k, con, ziel, bereich):
+    """Prüft, ob die Seite eines Bereichs (ziel = ts-… oder reich) gezeigt werden darf; sonst fertige 403-Seite, sonst None."""
+    import befugnisse
+    if ziel.startswith("ts-"):
+        ok = befugnisse.darf_sehen(con, k, ziel[3:], bereich)
+    else:
+        ok = hat_kassen(con, k)
+    if ok:
+        return None
+    return ant(request, k, "Kein Zugang", "", f'<h1>Kein Zugang</h1><div class="warnung">Für diesen Bereich ({esc(befugnisse.BEREICHE.get(bereich, (bereich,))[0])}) '
+               'haben Sie in diesem Haushalt keine Befugnis. Befugnisse vergibt der Regent unter Mein Teilstaat → Einstellungen.</div>', 403)
+
+
 def hat_ts_ansicht(con, k):
     """Eingestellte Person im Schatz- und Währungsamt: sieht „Mein Teilstaat“ ihres Teilstaats (und der Teilstaaten mit Befugnis eines Regenten), ohne Kassenzugang."""
     import befugnisse
@@ -320,10 +339,16 @@ def _teilstaat_tabs(con, k, sid):
     """Fünf Reiter: Überblick (Lage und Handlungsbedarf), Etat (geltend und planen), Land (Entwicklung, Energie, Krisen), Finanzen (Kassen, Gold, Notlage), Verteidigung."""
     import verteidigung
     import krisen
-    n_kr = krisen.offene_anzahl(con, "ts-" + sid)
-    tabs = [("start", "Überblick"), ("etat", "Etat"), ("land", f"Land ({n_kr} Krise{'n' if n_kr != 1 else ''})" if n_kr else "Land")]
-    if hat_kassen(con, k):
-        tabs.append(("fin", "Finanzen"))   # Kassen und Umsätze sehen eingestellte Personen ohne Kassenzugang nicht
+    import befugnisse
+    sieht = lambda b: befugnisse.darf_sehen(con, k, sid, b)   # Regent alles; eingestellte Personen je Befugnis (Mein Teilstaat → Einstellungen)
+    n_kr = krisen.offene_anzahl(con, "ts-" + sid) if sieht("krisen") else 0
+    tabs = [("start", "Überblick")]
+    if sieht("etat"):
+        tabs.append(("etat", "Etat"))
+    if sieht("entwicklung") or sieht("energie") or sieht("krisen"):
+        tabs.append(("land", f"Land ({n_kr} Krise{'n' if n_kr != 1 else ''})" if n_kr else "Land"))
+    if sieht("finanzen"):
+        tabs.append(("fin", "Finanzen"))   # Kassen und Umsätze: Regent, oder eingestellte Person mit Befugnis „Finanzen ansehen“
     if verteidigung.darf_sehen(con, k, sid):
         tabs.append(("vt", "Verteidigung"))
     if ist_regent(con, k, sid):
@@ -442,7 +467,7 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
         # Alles zu einem Haushalt liegt hinter einem Eintrag (Reiter oben auf der Seite): Mein Teilstaat, Reichshaushalt; Verteidigung nur für das Militär ohne Kasse
         haushalt = [e for e, ok in ((("sa-teilstaat", "flag", "Mein Teilstaat", "teilstaat/"), regiert),
                                     (("sa-reich", "landmark", "Reichshaushalt", "haushalt/"), kassen),
-                                    (("sa-handel", "package", "Handel", "handel/"), kassen),
+                                    (("sa-handel", "package", "Handel", "handel/"), con is None or hat_handel(con, k)),
                                     (("sa-verteidigung", "shield", "Verteidigung", "verteidigung/"), vt and not kassen)) if ok]
         if NEUE_NAVIGATION:   # Handel ist kein Haushalt: eigene Gruppe „Markt“
             markt = [e for e in haushalt if e[0] == "sa-handel"]
@@ -563,12 +588,15 @@ def seite(recht=None):
                 ok = hat_kassen(request.app["db"], k)
             elif recht == "ts":   # Mein Teilstaat: auch eingestellte Personen des Schatzamts (nur ansehen)
                 ok = hat_kassen(request.app["db"], k) or hat_ts_ansicht(request.app["db"], k)
+            elif recht == "handel":   # Handel: Kassenzugriff oder eingestellte Person mit Befugnis „Handel ansehen“
+                ok = hat_handel(request.app["db"], k)
             elif recht == "verteidigung":
                 ok = hat_verteidigung(request.app["db"], k)
             if not ok:
                 text = {"mitglied": "Diese Funktion steht nur Mitgliedern unseres Discord-Servers zur Verfügung.",
                         "staat": "Dieser Bereich ist staatlich und nur für Amtsträger mit Verfügung über eine staatliche Kasse einsehbar.",
                         "ts": "Dieser Bereich ist für Regenten und im Schatz- und Währungsamt eingestellte Personen.",
+                        "handel": "Der Handel ist Regenten, der Schatzamt-Leitung und eingestellten Personen mit Befugnis vorbehalten.",
                         "verteidigung": "Der Bereich Verteidigung ist dem Militär (für den eigenen Teilstaat), den Landesherren, dem Führungsstab, "
                                         "dem Kronkanzler und dem Kaiser vorbehalten.",
                         "rp": "Dieser Bereich ist der Server- und RP-Leitung vorbehalten.",
@@ -685,6 +713,9 @@ def _monatsname(m):
 def _konto_waehlen(con, k, request):
     """Gewähltes eigenes Konto (?konto=ID) aus den verfügbaren Konten des Modus (Staatl./Privat), sonst das erste davon."""
     konten = konten_im_modus(con, k, modus(request, k))
+    if modus(request, k) == "staat":   # eingestellte Personen mit Befugnis „Finanzen ansehen“: Kassen ihres Teilstaats nur zum Ansehen
+        da = {x["id"] for x in konten}
+        konten = konten + [x for x in geld.lese_kassen(con, k) if x["id"] not in da]
     i = request.query.get("konto", "")
     r = next((x for x in konten if str(x["id"]) == i), None) or (konten[0] if konten else None)
     return r, konten

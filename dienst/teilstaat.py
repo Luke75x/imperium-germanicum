@@ -65,18 +65,19 @@ async def ueberblick(request, k, con, sid, kasse, kopf=True):
     q = x["quote"]
     abgabe = f'{etatplan._de(q)} %'
     rk = entwicklung.rueckhalt_fuer(con, liste, schl)
-    kz = [("Staatskasse", mark(kasse["saldo"])), ("Etat im Monat", mark(x["summe"])), ("Abgabe an das Reich", abgabe),
-          ]
+    import befugnisse
+    sieht = {b: befugnisse.darf_sehen(con, k, sid, b) for b in befugnisse.BEREICHE}   # eingestellte Personen: nur Bereiche mit Befugnis
+    kz = ([("Staatskasse", mark(kasse["saldo"]))] if sieht["finanzen"] else []) + ([("Etat im Monat", mark(x["summe"]))] if sieht["etat"] else []) + [("Abgabe an das Reich", abgabe)]
 
     # Handlungsbedarf
     z = []
     import krisen
-    for f in krisen.offene(con, schl):   # offene Krisen zuerst: Handlungszwang
+    for f in (krisen.offene(con, schl) if sieht["krisen"] else []):   # offene Krisen zuerst: Handlungszwang
         kd = krisen.KRISEN[f["art"]]
         frist, knapp = krisen._frist_text(f["frist"])
         z.append(_zeile("warn", "triangle-alert", f'<b>{esc(kd["name"])}</b> ({esc(f["ausloeser"])}) – der Landesherr muss bis {esc(amt._zeit(f["frist"]))} reagieren ({esc(frist)}).',
                         f["text"], (sa.PFAD + f"krisen/?ziel={schl}", "Jetzt reagieren")))
-    if rk:
+    if rk and sieht["entwicklung"]:
         pf = {"steigend": "steigt", "fallend": "sinkt", "stabil": "bleibt stabil"}[rk["trend"]]
         z.append(_zeile("warn" if rk["wert"] < 55 else "", "users", f'<b>{esc(rk["text"])}</b> Bevölkerungszufriedenheit {etatplan._de(rk["wert"], 0)} / 100, in 3 Monaten voraussichtlich {etatplan._de(rk["prognose3"], 0)}; '
                         f'auf Dauer {pf} (bei gleichem Etat {etatplan._de(rk["langfristig"], 0)}).',
@@ -85,7 +86,9 @@ async def ueberblick(request, k, con, sid, kasse, kopf=True):
     von, bis = etatplan.aenderungsperiode()
     ab = etatplan.monat_folgend()
     plan_link = (sa.PFAD + f"etatplanung/?ziel={schl}", "Etat planen") if etatplan.darf_aendern(con, k, schl) else None
-    if eing:
+    if not sieht["etat"]:
+        pass
+    elif eing:
         z.append(_zeile("ok", "check", f"<b>Etat für {esc(sa._monatsname(ab))} eingereicht</b>", f"Er gilt ab {esc(sa._monatsname(ab))}; die nächste Änderung ist in der nächsten Änderungsperiode möglich."))
     elif etatplan.in_aenderungsperiode():
         z.append(_zeile("warn", "triangle-alert", f"<b>Änderungsperiode läuft bis {esc(etatplan._tag(bis))}</b> – der Etat für {esc(sa._monatsname(ab))} ist noch nicht eingereicht.",
@@ -95,13 +98,13 @@ async def ueberblick(request, k, con, sid, kasse, kopf=True):
                         ("Ein Entwurf ist gespeichert." if ent else "Bis dahin lässt sich ein Entwurf vorbereiten."), plan_link))
     vtk = geld.stellenkonto(con, "vt-" + sid)
     in_not = False
-    for r in [kasse] + ([vtk] if vtk else []):
+    for r in ([kasse] + ([vtk] if vtk else [])) if sieht["finanzen"] else []:
         f = notlage.offener_fall(con, r["id"])
         if f:
             in_not = True
             z.append(_zeile("warn", "triangle-alert", f'<b>{esc(r["name"])} in der Haushaltsnotlage</b> (Stufe {f["stufe"]})', f'Kontostand {esc(mark(r["saldo"]))}',
-                            (sa.PFAD + f"notlagen/?bereich={schl}", "Details")))
-    if not in_not:
+                            (sa.PFAD + f"teilstaat/finanzen/?ziel={schl}#notlage", "Details")))
+    if not in_not and sieht["finanzen"]:
         z.append(_zeile("ok", "check", "Keine Kasse im Minus."))
     if verteidigung.darf_sehen(con, k, sid) and vtk:
         kzv = verteidigung.kennzahlen(con, "vt-" + sid)
@@ -131,6 +134,7 @@ async def ueberblick(request, k, con, sid, kasse, kopf=True):
                     [f"Staatskasse: <strong>{esc(mark(kasse['saldo']))}</strong>"] + ([f"Verteidigungskasse: <strong>{esc(mark(vtk['saldo']))}</strong>"] if vtk else [])
                     + [f"Gold: <strong>{kg / 1000:,.1f} t</strong>".replace(",", "X").replace(".", ",").replace("X", ".")],
                     "Haushaltsnotlage" + (" – offen" if in_not else ": keine") + " →")]
+    karten = [c for c, b in zip(karten, (sieht["etat"], sieht["entwicklung"] or sieht["energie"] or sieht["krisen"], sieht["finanzen"])) if b]
     if verteidigung.darf_sehen(con, k, sid) and vtk:
         karten.append(karte("shield", "Verteidigung", sa.PFAD + f"verteidigung/{sid}/",
                             [f"Einsatzbereitschaft: <strong>{'–' if b is None else etatplan._de(b, 0) + ' %'}</strong>", f"{kzv['einheiten']:,} Einheiten".replace(",", ".")], "Bestand und Beschaffung →"))
@@ -140,12 +144,15 @@ async def ueberblick(request, k, con, sid, kasse, kopf=True):
                  f'{etatplan.zuf_balken(gw)}<div class="zf-skala"><span style="left:0%">0</span><span style="left:40%">40</span><span style="left:55%">55</span>'
                  f'<span style="left:70%">70</span><span style="left:85%">85</span><span style="left:100%">100</span></div>'
                  f'<div class="zf-meta"><a href="{sa.PFAD}etatverteilung/?ziel={schl}">Woraus sie besteht: Etat → Wirkung</a></div></div></div>')
+    if not sieht["entwicklung"]:
+        zuf_block = ""
     inhalt = ((kopf_mit_wappen(f'<h1>{amt.ic("flag")} {esc(x["name"])}</h1>', sid, x["name"]) + amt.meldung(request) if kopf else "") +
               f'<p class="az">Die Lage Ihres Teilstaats auf einen Blick. Die Reiter oben führen zu Etat, Land (Entwicklung, Energie, Krisen), Finanzen und Verteidigung.</p>'
               f'<div class="kennzahlen">{"".join(f"<div><b>{esc(v)}</b>{esc(t)}</div>" for t, v in kz)}</div>'
               + etatplan.ZUF_CSS + zuf_block +
-              f'<h2>Auf einen Blick</h2><div class="sa-todo">{"".join(z)}</div>'
-              f'<h2>Bereiche</h2><div class="ts-karten">{"".join(karten)}</div>')
+              (f'<h2>Auf einen Blick</h2><div class="sa-todo">{"".join(z)}</div>' if z else "") +
+              (f'<h2>Bereiche</h2><div class="ts-karten">{"".join(karten)}</div>' if karten else
+               '<p class="sa-hinweis">Für weitere Bereiche dieses Teilstaats haben Sie keine Befugnis. Befugnisse vergibt der Regent.</p>'))
     return inhalt
 
 
@@ -195,10 +202,12 @@ def land_teile(request, k, con, sid, schl):
     liste = aufkommen.berechnen(con, periode=etatplan.monat_heute())
     ziele = etatplan.ziele(con, liste)
     n_kr = krisen.offene_anzahl(con, schl)
-    teile = [("entwicklung", "users", "Entwicklung", entwicklung.rumpf(request, k, con, liste, schl, ziele, True), False),
-             ("energie", "zap", "Energie", energie._seitenhtml(request, k, con, schl, True), False),
-             ("krisen", "triangle-alert", f"Krisen ({n_kr})" if n_kr else "Krisen", krisen.rumpf(request, k, con, schl, True), bool(n_kr))]
-    if n_kr:
+    import befugnisse
+    sieht = lambda b: befugnisse.darf_sehen(con, k, sid, b)   # eingestellte Personen: nur Abschnitte mit Befugnis
+    teile = ([("entwicklung", "users", "Entwicklung", entwicklung.rumpf(request, k, con, liste, schl, ziele, True), False)] if sieht("entwicklung") else []) + \
+            ([("energie", "zap", "Energie", energie._seitenhtml(request, k, con, schl, True), False)] if sieht("energie") else []) + \
+            ([("krisen", "triangle-alert", f"Krisen ({n_kr})" if n_kr else "Krisen", krisen.rumpf(request, k, con, schl, True), bool(n_kr))] if sieht("krisen") else [])
+    if n_kr and teile and teile[-1][0] == "krisen":
         teile.insert(0, teile.pop())   # offene Krisen zuerst: Handlungszwang
     return teile
 
@@ -216,6 +225,8 @@ async def land(request, k):
         raise web.HTTPFound(PFAD)
     con, regiert, sid, schl, kasse = kp
     teile = land_teile(request, k, con, sid, schl)
+    if not teile:
+        return sa.ts_bereich(request, k, con, schl, "entwicklung")
     name = esc(kasse["name"].replace("Staatskasse ", ""))
     inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("users")} Land · {name}</h1>', sid, name) + amt.meldung(request) +
               '<p class="az">Wie sich der Teilstaat langfristig entwickelt: Bevölkerung und Wirtschaft (Entwicklung), die Energieversorgung und Krisen, auf die der Landesherr reagieren muss. '
@@ -249,7 +260,7 @@ def fin_teile(request, k, con, sid, kasse):
     return teile
 
 
-@sa.seite("staat")
+@sa.seite("ts")
 async def finanzen(request, k):
     """Reiter „Finanzen“: Kassen, Reichsabgabe, Goldreserven, Haushaltsnotlage und letzte Umsätze eines Teilstaats."""
     import aufkommen
@@ -260,6 +271,9 @@ async def finanzen(request, k):
     if not kp:
         raise web.HTTPFound(PFAD)
     con, regiert, sid, schl, kasse = kp
+    nein = sa.ts_bereich(request, k, con, schl, "finanzen")
+    if nein is not None:
+        return nein
     teile = fin_teile(request, k, con, sid, kasse)
     name = esc(kasse["name"].replace("Staatskasse ", ""))
     inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("wallet")} Finanzen · {name}</h1>', sid, name) + amt.meldung(request) +
@@ -314,19 +328,38 @@ async def einstellungen(request, k):
     if len(regent) > 1:
         opt = "".join(f'<option value="{sa.PFAD}teilstaat/einstellungen/?ziel=ts-{esc(s_)}"{" selected" if s_ == sid else ""}>{esc(r["name"].replace("Staatskasse ", ""))}</option>' for s_, r in regent.items())
         wahl = f'<p><select aria-label="Teilstaat wählen" onchange="location.href=this.value">{opt}</select></p>'
-    zeilen = []
+    import verteidigung
+    bloecke = []
     for m in personen:
-        mein = vorhanden.get(m["id"], set())
-        haken = "".join(f'<label class="sa-haken" style="margin:2px 0"><input type="checkbox" name="recht" value="{r}"{" checked" if r in mein else ""}>'
-                        f'<span><b>{esc(t)}</b><br><span class="az" style="margin:0">{esc(b)}</span></span></label>' for r, (t, b) in befugnisse.RECHTE.items())
-        zeilen.append((esc(m["name"]),
+        roh = vorhanden.get(m["id"], set())
+        eigen = sid in verteidigung.staaten_von(con, m["rollen"])
+        mein = befugnisse.wirksam(roh, eigen)
+        zeilen = []
+        for b, (t, le, be) in befugnisse.BEREICHE.items():
+            def haken(recht, text, art):
+                if not text:
+                    return '<span class="az" style="margin:0">–</span>'
+                return (f'<label class="sa-haken" style="margin:0"><input type="checkbox" name="recht" value="{recht}" data-b="{b}" data-art="{art}"'
+                        f'{" checked" if recht in mein else ""}><span>{esc(text)}</span></label>')
+            zeilen.append((f'<b>{esc(t)}</b>', haken(b + ":lesen", le, "l"), haken(b, be, "b")))
+        stand = ("" if befugnisse.GESETZT in roh else
+                 '<p class="sa-hinweis">Noch nicht festgelegt: es gilt der Grundzugang (Etat, Entwicklung, Energie und Krisen ansehen). Mit „Speichern“ gilt nur noch, was angehakt ist.</p>'
+                 if eigen else "")
+        bloecke.append(f'<section class="ts-bef"><h3>{amt.ic("user")} {esc(m["name"])}</h3>{stand}'
                        f'<form method="post" action="{sa.PFAD}teilstaat/einstellungen/speichern">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(schl)}">'
-                       f'<input type="hidden" name="person" value="{esc(m["id"])}">{haken}<button class="btn zweit" type="submit">{amt.ic("check")}Speichern</button></form>'))
-    tab = (amt.tabelle(["Eingestellte Person", "Befugnisse in diesem Teilstaat"], zeilen, "Noch niemand für diesen Teilstaat im Schatz- und Währungsamt eingestellt.") if zeilen
+                       f'<input type="hidden" name="person" value="{esc(m["id"])}">'
+                       + amt.tabelle(["Bereich", "Ansehen", "Bearbeiten"], zeilen)
+                       + f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button>'
+                       f'<button class="btn zweit" type="submit" name="alle_entziehen" value="1" onclick="return confirm(\'Alle Befugnisse von {esc(m["name"])} in diesem Teilstaat entziehen?\')">{amt.ic("x")}Alles entziehen</button></div></form></section>')
+    js = ("<script>document.querySelectorAll('.ts-bef input[data-b]').forEach(function(i){i.addEventListener('change',function(){"
+          "var f=i.form,b=i.getAttribute('data-b');if(i.getAttribute('data-art')==='b'&&i.checked){var l=f.querySelector('input[data-b=\"'+b+'\"][data-art=l]');if(l)l.checked=true}"
+          "if(i.getAttribute('data-art')==='l'&&!i.checked){var x=f.querySelector('input[data-b=\"'+b+'\"][data-art=b]');if(x)x.checked=false}})})</script>")
+    tab = ("".join(bloecke) + js if bloecke
            else '<p class="az">Für diesen Teilstaat ist noch niemand im Kaiserlichen Schatz- und Währungsamt eingestellt. Mit <code>/einstellen</code> in Discord stellen Sie Personen ein; hier geben Sie ihnen dann Befugnisse.</p>')
     inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("settings")} Einstellungen · {name}</h1>', sid, name) + amt.meldung(request) +
-              '<p class="az">Hier legen Sie fest, was bei den im Schatz- und Währungsamt eingestellten Personen in Ihrem Teilstaat erlaubt ist. Die Befugnisse gelten nur für diesen Teilstaat; '
-              'Sie können sie jederzeit ändern oder entziehen. Ohne Befugnis sehen die Personen nichts von Ihrem Teilstaat.</p>' + wahl + tab)
+              '<p class="az">Hier legen Sie für jede im Schatz- und Währungsamt eingestellte Person einzeln fest, welche Bereiche Ihres Teilstaats sie ansehen und bearbeiten darf. '
+              'Bearbeiten schließt Ansehen ein. Die Befugnisse gelten nur für diesen Teilstaat; Sie können sie jederzeit ändern oder entziehen. '
+              'Ohne Befugnis sieht die Person den Bereich nicht. Über die Kassen selbst (Überweisungen) verfügt weiterhin nur der Regent.</p>' + wahl + tab)
     return sa.ant(request, k, "Einstellungen", "sa-ts-einst", inhalt)
 
 
@@ -343,11 +376,12 @@ async def einstellungen_speichern(request, k):
     m = next((x for x in await request.app["discord"].mitglieder() if x["id"] == person), None)
     if not m or befugnisse.SCHATZAMT_ROLLE not in m["rollen"]:
         sa.weiter(f"{sa.PFAD}teilstaat/einstellungen/?ziel={ziel}", "Diese Person ist nicht im Schatz- und Währungsamt eingestellt.", True)
-    rechte = [r for r in form.getall("recht", []) if r in befugnisse.RECHTE]
+    rechte = [] if form.get("alle_entziehen") else [r for r in form.getall("recht", []) if r in befugnisse.GUELTIG]
+    rechte += [r + ":lesen" for r in rechte if ":" not in r and befugnisse.BEREICHE[r][1] and r + ":lesen" not in rechte]   # Bearbeiten schließt Ansehen ein
     if rechte and not gehoert_zu(con, m, ziel[3:]):
         sa.weiter(f"{sa.PFAD}teilstaat/einstellungen/?ziel={ziel}", f'{m["name"]} ist für einen anderen Teilstaat eingestellt.', True)
     befugnisse.setzen(con, ziel[3:], person, rechte, k["name"])
-    geld.protokoll(con, k, "Befugnisse", f'{ziel}: {m["name"]} → ' + (", ".join(befugnisse.RECHTE[r][0] for r in rechte) or "keine Befugnisse"))
+    geld.protokoll(con, k, "Befugnisse", f'{ziel}: {m["name"]} → ' + (", ".join(befugnisse.recht_name(r) for r in sorted(rechte)) or "keine Befugnisse"))
     con.commit()
     sa.weiter(f"{sa.PFAD}teilstaat/einstellungen/?ziel={ziel}", f'Befugnisse von {m["name"]} gespeichert.')
 

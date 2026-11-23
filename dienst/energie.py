@@ -913,11 +913,14 @@ def _seitenhtml(request, k, con, ziel, eingebettet=False):
                             ("en-stat", "Statistik", produktion_html(b["mix"], name, verlauf_stat_html(con, ziel, b)))]))
 
 
-@sa.seite("staat")
+@sa.seite("ts")
 async def markt(request, k):
     import etatplan
     con = request.app["db"]
     ziel = _ziel(request, k, con)
+    nein = sa.ts_bereich(request, k, con, ziel, "energie")
+    if nein is not None:
+        return nein
     b = bilanz(con, ziel, frisch=True)
     darf = etatplan.darf_aendern(con, k, ziel, "energie")
     namen = dict(_ziele(con))
@@ -971,6 +974,9 @@ def _ziel(request, k, con):
 async def seite(request, k):
     con = request.app["db"]
     ziel = _ziel(request, k, con)
+    nein = sa.ts_bereich(request, k, con, ziel, "energie")
+    if nein is not None:
+        return nein
     sa.zur_land_seite(request, k, con, ziel, "energie")
     return sa.ant(request, k, "Energie", "sa-energie", _seitenhtml(request, k, con, ziel))
 

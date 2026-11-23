@@ -161,12 +161,20 @@ def halter(con):
 
 
 def darf(con, k, schl):
+    """Handeln (kaufen, anbieten, zurückziehen, veredeln): Landesherr, Schatzamt-Leitung (Reich) und eingestellte Personen mit Befugnis „Handel bearbeiten“."""
     import etatplan
-    return etatplan.darf_aendern(con, k, schl, "energie")
+    return etatplan.darf_aendern(con, k, schl, "handel")
 
 
 def meine_halter(con, k):
     return [s for s in halter(con) if darf(con, k, s)]
+
+
+def lese_halter(con, k):
+    """Halter, deren Lager, Veredelung und Angebote das Konto sehen darf: wer handeln darf und eingestellte Personen mit Befugnis „Handel ansehen“."""
+    import befugnisse
+    les = {"ts-" + s for s in befugnisse.sids(con, k, "handel:lesen")}
+    return [s for s in halter(con) if s in les or darf(con, k, s)]
 
 
 def kasse(con, schl):
@@ -605,7 +613,7 @@ def _seite(request, k, titel, tab, inhalt, ziel=""):
 
 def _ziel(con, k, request):
     """(Liste meiner Halter, gewählter Halter oder None)."""
-    mine = meine_halter(con, k)
+    mine = lese_halter(con, k)
     z = request.query.get("ziel", "")
     return mine, (z if z in mine else (mine[0] if mine else None))
 
@@ -621,7 +629,7 @@ def _pk(p):
     return mark(p)
 
 
-@sa.seite("staat")
+@sa.seite("handel")
 async def markt(request, k):
     con = request.app["db"]
     namen = halter(con)
@@ -641,7 +649,7 @@ async def markt(request, k):
         kauf = "–"
         if ziel and a["anbieter"] == ziel:
             kauf = '<span class="az">eigenes Angebot</span>'
-        elif ziel:
+        elif ziel and darf(con, k, ziel):
             feld = "" if a["unbegrenzt"] else f'<input type="number" name="menge" min="1" max="{a["menge"]}" value="1" aria-label="Menge" style="width:90px"> '
             kauf = (f'<form class="sa-inline" method="post" action="{PFAD}kaufen" onsubmit="return confirm(\'Verbindlich kaufen?\')">{c}'
                     f'<input type="hidden" name="ziel" value="{esc(ziel)}"><input type="hidden" name="angebot" value="{a["id"]}">{feld}'
@@ -675,10 +683,13 @@ def _kontext(request, k, titel, tab):
     kopf = _wahl(request, mine, ziel, PFAD + {"lager": "mein/", "veredelung": "veredelung/", "verkaufen": "verkaufen/"}[tab], namen)
     if sp:
         kopf += f'<div class="warnung">Handelssperre{": " + esc(sp["grund"]) if sp["grund"] else ""} – Sie können weder kaufen noch verkaufen.</div>'
+    if not darf(con, k, ziel):   # nur Befugnis „Handel ansehen“: keine Formulare
+        kopf += '<p class="sa-hinweis">Nur Ansicht – handeln darf der Regent oder wem er es unter Mein Teilstaat → Einstellungen erlaubt.</p>'
+        sp = sp or {"grund": "Nur Ansicht"}
     return (con, namen, ziel, sp, kopf), None
 
 
-@sa.seite("staat")
+@sa.seite("handel")
 async def mein(request, k):
     """Reiter „Lager“: Bestand, Vorkommen und erworbene Baupläne."""
     ctx, fertig = _kontext(request, k, "Handel – Lager", "lager")
@@ -713,7 +724,7 @@ async def mein(request, k):
     return _seite(request, k, "Handel – Lager", "lager", out, ziel)
 
 
-@sa.seite("staat")
+@sa.seite("handel")
 async def veredelung(request, k):
     """Reiter „Veredelung“: Erzeugnisse herstellen und die Boni des Monats."""
     ctx, fertig = _kontext(request, k, "Handel – Veredelung", "veredelung")
@@ -744,7 +755,7 @@ async def veredelung(request, k):
     return _seite(request, k, "Handel – Veredelung", "veredelung", out, ziel)
 
 
-@sa.seite("staat")
+@sa.seite("handel")
 async def verkaufen(request, k):
     """Reiter „Verkaufen“: Waren, Militärgerät oder Baupläne anbieten; eigene Angebote."""
     ctx, fertig = _kontext(request, k, "Handel – Verkaufen", "verkaufen")
@@ -797,13 +808,14 @@ async def verkaufen(request, k):
     for a in con.execute("SELECT * FROM hd_angebote WHERE anbieter=? AND status='offen' ORDER BY id DESC", (ziel,)):
         n, e_, _ = info(con, a["ware"], ws, kat)
         eig.append((esc(n), "Lizenz" if a["unbegrenzt"] else f'{zahl(a["menge"])} {esc(e_)}', _pk(a["preis"]),
+                    "–" if not darf(con, k, ziel) else
                     f'<form class="sa-inline" method="post" action="{PFAD}zurueck">{c}<input type="hidden" name="ziel" value="{esc(ziel)}">'
                     f'<input type="hidden" name="angebot" value="{a["id"]}"><button class="btn zweit klein" type="submit">Zurückziehen</button></form>'))
     out += "<h2>Meine Angebote</h2>" + amt.tabelle(["Ware", "Menge", "Preis", ""], eig, "Keine offenen Angebote.")
     return _seite(request, k, "Handel – Verkaufen", "verkaufen", out, ziel)
 
 
-@sa.seite("staat")
+@sa.seite("handel")
 async def ressourcen(request, k):
     con = request.app["db"]
     namen = halter(con)
@@ -839,7 +851,7 @@ async def ressourcen(request, k):
     return _seite(request, k, "Handel – Ressourcen", "ressourcen", out)
 
 
-@sa.seite("staat")
+@sa.seite("handel")
 async def buch(request, k):
     con = request.app["db"]
     namen = halter(con)
@@ -851,7 +863,7 @@ async def buch(request, k):
                   "<p class='az'>Alle abgeschlossenen Geschäfte, neueste zuerst.</p>" + amt.tabelle(["Zeit", "Ware", "Menge", "Preis", "Summe", "Verkäufer", "Käufer"], z, "Noch keine Geschäfte."))
 
 
-@sa.seite("staat")
+@sa.seite("handel")
 async def regeln(request, k):
     con = request.app["db"]
     c = amt.csrf_feld(request)
