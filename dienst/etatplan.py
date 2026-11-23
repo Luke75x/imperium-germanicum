@@ -572,6 +572,14 @@ def ziele(con, liste):
 
 # ---------------------------------------------------------------- Seite
 
+# Icons der Politikfelder und festen Posten (Lucide, ISC-Lizenz) – in Tabelle, Tooltip und Diagramm
+EP_LUCIDE = {"shield-half": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/><path d=\"M12 22V2\"/>", "flask-conical": "<path d=\"M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2\"/><path d=\"M8.5 2h7\"/><path d=\"M7 16h10\"/>", "heart-pulse": "<path d=\"M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z\"/><path d=\"M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27\"/>", "factory": "<path d=\"M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z\"/><path d=\"M17 18h1\"/><path d=\"M12 18h1\"/><path d=\"M7 18h1\"/>", "drama": "<path d=\"M10 11h.01\"/><path d=\"M14 6h.01\"/><path d=\"M18 6h.01\"/><path d=\"M6.5 13.1h.01\"/><path d=\"M22 5c0 9-4 12-6 12s-6-3-6-12c0-2 2-3 6-3s6 1 6 3\"/><path d=\"M17.4 9.9c-.8.8-2 .8-2.8 0\"/><path d=\"M10.1 7.1C9 7.2 7.7 7.7 6 8.6c-3.5 2-4.7 3.9-3.7 5.6 4.5 7.8 9.5 8.4 11.2 7.4.9-.5 1.9-2.1 1.9-4.7\"/><path d=\"M9.1 16.5c.3-1.1 1.4-1.7 2.4-1.4\"/>", "swords": "<polyline points=\"14.5 17.5 3 6 3 3 6 3 17.5 14.5\"/><line x1=\"13\" x2=\"19\" y1=\"19\" y2=\"13\"/><line x1=\"16\" x2=\"20\" y1=\"16\" y2=\"20\"/><line x1=\"19\" x2=\"21\" y1=\"21\" y2=\"19\"/><polyline points=\"14.5 6.5 18 3 21 3 21 6 17.5 9.5\"/><line x1=\"5\" x2=\"9\" y1=\"14\" y2=\"18\"/><line x1=\"7\" x2=\"4\" y1=\"17\" y2=\"20\"/><line x1=\"3\" x2=\"5\" y1=\"19\" y2=\"21\"/>", "hand-heart": "<path d=\"M11 14h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 16\"/><path d=\"m7 20 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9\"/><path d=\"m2 15 6 6\"/><path d=\"M19.5 8.5c.7-.7 1.5-1.6 1.5-2.7A2.73 2.73 0 0 0 16 4a2.78 2.78 0 0 0-5 1.8c0 1.2.8 2 1.5 2.8L16 12Z\"/>", "leaf": "<path d=\"M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z\"/><path d=\"M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12\"/>", "train-front": "<path d=\"M8 3.1V7a4 4 0 0 0 8 0V3.1\"/><path d=\"m9 15-1-1\"/><path d=\"m15 15 1-1\"/><path d=\"M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z\"/><path d=\"m8 19-2 3\"/><path d=\"m16 19 2 3\"/>", "graduation-cap": "<path d=\"M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z\"/><path d=\"M22 10v6\"/><path d=\"M6 12.5V16a6 3 0 0 0 12 0v-3.5\"/>", "wheat": "<path d=\"M2 22 16 8\"/><path d=\"M3.47 12.53 5 11l1.53 1.53a3.5 3.5 0 0 1 0 4.94L5 19l-1.53-1.53a3.5 3.5 0 0 1 0-4.94Z\"/><path d=\"M7.47 8.53 9 7l1.53 1.53a3.5 3.5 0 0 1 0 4.94L9 15l-1.53-1.53a3.5 3.5 0 0 1 0-4.94Z\"/><path d=\"M11.47 4.53 13 3l1.53 1.53a3.5 3.5 0 0 1 0 4.94L13 11l-1.53-1.53a3.5 3.5 0 0 1 0-4.94Z\"/><path d=\"M20 2h2v2a4 4 0 0 1-4 4h-2V6a4 4 0 0 1 4-4Z\"/><path d=\"M11.47 17.47 13 19l-1.53 1.53a3.5 3.5 0 0 1-4.94 0L5 19l1.53-1.53a3.5 3.5 0 0 1 4.94 0Z\"/><path d=\"M15.47 13.47 17 15l-1.53 1.53a3.5 3.5 0 0 1-4.94 0L9 15l1.53-1.53a3.5 3.5 0 0 1 4.94 0Z\"/><path d=\"M19.47 9.47 21 11l-1.53 1.53a3.5 3.5 0 0 1-4.94 0L13 11l1.53-1.53a3.5 3.5 0 0 1 4.94 0Z\"/>", "construction": "<rect x=\"2\" y=\"6\" width=\"20\" height=\"8\" rx=\"1\"/><path d=\"M17 14v7\"/><path d=\"M7 14v7\"/><path d=\"M17 3v3\"/><path d=\"M7 3v3\"/><path d=\"M10 14 2.3 6.3\"/><path d=\"m14 6 7.7 7.7\"/><path d=\"m8 6 8 8\"/>", "piggy-bank": "<path d=\"M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2V5z\"/><path d=\"M2 9v1c0 1.1.9 2 2 2h1\"/><path d=\"M16 11h.01\"/>"}
+for _n, _v in EP_LUCIDE.items():
+    amt.ICONS.setdefault(_n, _v)
+EP_ICONS = {"innere_sicherheit": "shield-half", "forschung": "flask-conical", "gesundheit": "heart-pulse", "industrie": "factory", "kultur": "drama",
+            "verteidigung": "swords", "soziales": "hand-heart", "umwelt": "leaf", "transport": "train-front", "bildung": "graduation-cap",
+            "landwirtschaft": "wheat", "infrastruktur": "construction", "abgabe": "landmark", "ruecklage": "piggy-bank"}
+
 PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]   # validierte Kategorienfolge (Slots 1–8)
 CSS = """<style>
 .ep-raster{display:grid;grid-template-columns:minmax(260px,380px) 1fr;gap:28px;align-items:start;margin:14px 0}
@@ -584,6 +592,16 @@ CSS = """<style>
 .ep-tipp{position:absolute;pointer-events:none;background:var(--ink);color:#fff;border-radius:8px;padding:7px 10px;font-size:13px;line-height:1.35;
  white-space:nowrap;z-index:5;opacity:0;transition:opacity .1s;transform:translate(-50%,-110%)}
 .ep-tipp.an{opacity:1}
+.ep-tipp-kopf{display:flex;align-items:center;gap:6px}.ep-tipp .icon{width:15px;height:15px;stroke:#fff}
+.ep-arten{display:flex;gap:3px;padding:3px;margin:0 auto 12px;width:max-content;max-width:100%;border-radius:999px;background:rgba(22,23,26,.06);overflow-x:auto;scrollbar-width:none}
+.ep-arten button{border:0;background:transparent;border-radius:999px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:600;color:var(--grau);cursor:pointer;white-space:nowrap;transition:background .2s,color .2s}
+.ep-arten button:hover{color:var(--ink)}
+.ep-arten button[aria-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(16,24,40,.12)}
+.ep-torte svg[data-art=torte3d] path{stroke:rgba(255,255,255,.55);stroke-width:.8;transition:opacity .15s,transform .25s cubic-bezier(.2,.9,.25,1.12)}
+.ep-torte svg[data-art=balken] rect{stroke:none}
+.ep-torte .ep-bl{font-size:7px;fill:var(--ink)}.ep-torte .ep-bw{font-size:7px;fill:var(--grau);font-variant-numeric:tabular-nums}
+.ep-torte .ep-mitte-t{font-size:9px;fill:var(--grau)}.ep-torte .ep-mitte-w{font-size:15px;font-weight:700;fill:var(--ink)}
+.ep-ic{width:15px;height:15px;margin:0 7px 0 -2px;vertical-align:-3px;color:var(--grau)}
 .ep-tab{width:100%;border-collapse:collapse;font-size:14px}
 .ep-tab th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--grau);font-weight:600;text-align:left;padding:6px 8px;border-bottom:1px solid var(--linie)}
 .ep-tab td{padding:6px 8px;border-bottom:1px solid #eef0f2;vertical-align:middle}
@@ -669,42 +687,84 @@ function rlRechnen(){var e=document.getElementById("ep-rl");if(!e||!D.rl)return;
  var z=document.getElementById("ep-entnahme-zeile");if(z)z.hidden=rl>=0;t("ep-entnahme-betrag",kurz(Math.max(0,-rl)));t("ep-entnahme-pz",pz(D.gesamt?Math.max(0,-rl)/D.gesamt*100:0));t("ep-entnahme-mobil",pz(D.gesamt?Math.max(0,-rl)/D.gesamt*100:0)+" vom ganzen Etat");
  var i=document.getElementById("ep-rl-info");if(i)i.innerHTML=(p>0.05?"Rücklage: <b>"+pz(p)+"</b> ("+de(rl)+") bleiben im Monat in der "+R.kasse+".":
   p<-0.05?"Entnahme: <b>"+pz(-p)+"</b> ("+de(-rl)+") kommen im Monat zusätzlich aus der "+R.kasse+" – den Politikfeldern zugeordnet."+(ged?" Begrenzt auf die freien Mittel der Kasse.":""):"Ausgeglichen: der ganze Steueranteil wird ausgegeben.")}
+var IC=__EP_ICONS__, VB={torte3d:[200,150],torte:[200,200],ring:[200,200],balken:[200,0]};
+var ART=(function(){try{return localStorage.getItem("epDiagramm")||"torte3d"}catch(e){return "torte3d"}})();if(!VB[ART])ART="torte3d";
+function ikon(id,kl){return IC[id]?'<svg class="icon '+(kl||"")+'" viewBox="0 0 24 24" aria-hidden="true">'+IC[id]+'</svg>':""}
+(function(){/* Umschalter der Diagramm-Arten und Icons in der Tabelle */
+ var w=document.createElement("div");w.className="ep-arten";w.setAttribute("role","group");w.setAttribute("aria-label","Diagramm-Art");
+ [["torte3d","3D-Torte"],["torte","Torte"],["ring","Ring"],["balken","Balken"]].forEach(function(a){var b=document.createElement("button");b.type="button";b.textContent=a[1];b.dataset.art=a[0];
+  b.setAttribute("aria-pressed",String(a[0]===ART));b.addEventListener("click",function(){ART=a[0];try{localStorage.setItem("epDiagramm",ART)}catch(e){}
+  [].forEach.call(w.children,function(c){c.setAttribute("aria-pressed",String(c.dataset.art===ART))});zeichnen()});w.appendChild(b)});
+ torte.insertBefore(w,svg);
+ [].forEach.call(document.querySelectorAll("[data-zeile]"),function(z){var f=z.querySelector(".ep-farbe");if(f&&IC[z.dataset.zeile]&&!z.querySelector(".ep-ic"))f.insertAdjacentHTML("afterend",ikon(z.dataset.zeile,"ep-ic"))})})();
+function dunkel(h,f){var m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(h||"");if(!m)return h;
+ return "rgb("+[1,2,3].map(function(i){return Math.round(parseInt(m[i],16)*f)}).join(",")+")"}
+function el(t,a){var e=document.createElementNS(svgNS,t);for(var k in a)e.setAttribute(k,a[k]);return e}
+function binden(e,x){e.setAttribute("tabindex","0");e.dataset.id=x.id;var gesamt=D.gesamt||1;
+ e.setAttribute("aria-label",x.name+": "+pz(x.betrag/gesamt*100)+" des Etats"+(D.nur_prozent?"":", "+de(x.betrag)));
+ e.addEventListener("mousemove",function(ev){zeigen(x,ev)});e.addEventListener("mouseleave",weg);
+ e.addEventListener("focus",function(){fokus(x.id,true);var r=e.getBoundingClientRect(),t=torte.getBoundingClientRect();zeigenAn(x,r.left+r.width/2-t.left,r.top+r.height/2-t.top)});
+ e.addEventListener("blur",weg)}
+function fuell(x,i){return x.schraffur?"url(#hs"+i+")":x.farbe}
 function zeichnen(){
  rlRechnen();
  var s=scheiben(), gesamt=D.gesamt||1, w=0;
  while(svg.firstChild)svg.removeChild(svg.firstChild);
- var defs=document.createElementNS(svgNS,"defs");
- s.forEach(function(x,i){if(x.schraffur){var p=document.createElementNS(svgNS,"pattern");p.setAttribute("id","hs"+i);p.setAttribute("width","7");p.setAttribute("height","7");
-  p.setAttribute("patternUnits","userSpaceOnUse");p.setAttribute("patternTransform","rotate(45)");
-  var r=document.createElementNS(svgNS,"rect");r.setAttribute("width","7");r.setAttribute("height","7");r.setAttribute("fill",x.farbe);p.appendChild(r);
-  var l=document.createElementNS(svgNS,"rect");l.setAttribute("width","2.6");l.setAttribute("height","7");l.setAttribute("fill","#fff");l.setAttribute("opacity",".75");p.appendChild(l);defs.appendChild(p)}});
+ var defs=el("defs",{});
+ s.forEach(function(x,i){if(x.schraffur){var p=el("pattern",{id:"hs"+i,width:"7",height:"7",patternUnits:"userSpaceOnUse",patternTransform:"rotate(45)"});
+  p.appendChild(el("rect",{width:"7",height:"7",fill:x.farbe}));p.appendChild(el("rect",{width:"2.6",height:"7",fill:"#fff",opacity:".75"}));defs.appendChild(p)}});
+ var lg=el("radialGradient",{id:"ep-glanz",cx:"35%",cy:"25%",r:"75%"});lg.appendChild(el("stop",{offset:"0","stop-color":"#fff","stop-opacity":".45"}));
+ lg.appendChild(el("stop",{offset:"1","stop-color":"#fff","stop-opacity":"0"}));defs.appendChild(lg);
+ var fb=el("filter",{id:"ep-schatten",x:"-20%",y:"-20%",width:"140%",height:"140%"});fb.appendChild(el("feGaussianBlur",{stdDeviation:"4"}));defs.appendChild(fb);
  svg.appendChild(defs);
- var ges=s.reduce(function(a,x){return a+x.betrag},0)||1;
- s.forEach(function(x,i){
-  var a0=w/ges*2*Math.PI;w+=x.betrag;var a1=w/ges*2*Math.PI;
-  if(x.betrag<=0)return;
-  var el=document.createElementNS(svgNS,"path");
-  if(a1-a0>=2*Math.PI-1e-6){el=document.createElementNS(svgNS,"circle");el.setAttribute("cx","100");el.setAttribute("cy","100");el.setAttribute("r","96");
-   el.setAttribute("style","stroke:#fff;stroke-width:2;cursor:pointer")}
-  else el.setAttribute("d",pfad(a0,a1,96));
-  el.setAttribute("fill",x.schraffur?"url(#hs"+i+")":x.farbe);
-  el.setAttribute("tabindex","0");el.dataset.id=x.id;
-  el.setAttribute("aria-label",x.name+": "+pz(x.betrag/gesamt*100)+" des Etats"+(D.nur_prozent?"":", "+de(x.betrag)));
-  el.addEventListener("mousemove",function(e){zeigen(x,e)});el.addEventListener("mouseleave",weg);
-  el.addEventListener("focus",function(){fokus(x.id,true);var b=el.getBBox();zeigenAn(x,b.x+b.width/2,b.y+b.height/2)});el.addEventListener("blur",weg);
-  svg.appendChild(el)});
+ var ges=s.reduce(function(a,x){return a+Math.max(0,x.betrag)},0)||1, sicht=s.filter(function(x){return x.betrag>0});
+ var vb=VB[ART].slice();if(ART==="balken")vb[1]=sicht.length*18+6;svg.setAttribute("viewBox","0 0 "+vb[0]+" "+vb[1]);svg.dataset.art=ART;
+ var winkel=[];s.forEach(function(x){var a0=w/ges*2*Math.PI;w+=Math.max(0,x.betrag);winkel.push([a0,w/ges*2*Math.PI])});
+ if(ART==="torte"||ART==="ring"){
+  var R=96,ri=ART==="ring"?58:0;
+  s.forEach(function(x,i){var a0=winkel[i][0],a1=winkel[i][1];if(x.betrag<=0)return;var e;
+   if(a1-a0>=2*Math.PI-1e-6){e=ri?el("path",{d:"M4,100 A96,96 0 1 1 196,100 A96,96 0 1 1 4,100 Z M42,100 A58,58 0 1 0 158,100 A58,58 0 1 0 42,100 Z","fill-rule":"evenodd"}):el("circle",{cx:"100",cy:"100",r:"96"})}
+   else{var P=function(a,r){return [100+r*Math.sin(a),100-r*Math.cos(a)]},o0=P(a0,R),o1=P(a1,R),g=(a1-a0)>Math.PI?1:0;
+    var d="M"+(ri?P(a0,ri):[100,100])+" L"+o0+" A"+R+","+R+" 0 "+g+" 1 "+o1;
+    d+=ri?" L"+P(a1,ri)+" A"+ri+","+ri+" 0 "+g+" 0 "+P(a0,ri)+" Z":" Z";e=el("path",{d:d})}
+   e.setAttribute("fill",fuell(x,i));binden(e,x);svg.appendChild(e)});
+  if(ri){var t1=el("text",{x:"100",y:"96","text-anchor":"middle",class:"ep-mitte-t"}),t2=el("text",{x:"100",y:"114","text-anchor":"middle",class:"ep-mitte-w"});
+   t1.textContent=D.nur_prozent?"Etat":"Etat im Monat";t2.textContent=D.nur_prozent?"100 %":kurz(D.gesamt);svg.appendChild(t1);svg.appendChild(t2)}}
+ else if(ART==="torte3d"){
+  var cx=100,cy=66,rx=96,ry=50,tief=22,Q=function(a,dy){return [cx+rx*Math.sin(a),cy-ry*Math.cos(a)+(dy||0)]};
+  svg.appendChild(el("ellipse",{cx:cx,cy:cy+tief+8,rx:rx*.92,ry:ry*.7,fill:"#0a0f27",opacity:".16",filter:"url(#ep-schatten)"}));
+  var wand=[],deckel=[];
+  s.forEach(function(x,i){var a0=winkel[i][0],a1=winkel[i][1];if(x.betrag<=0)return;
+   var b0=Math.max(a0,Math.PI/2),b1=Math.min(a1,3*Math.PI/2);
+   if(b1>b0){var p0=Q(b0),p1=Q(b1),q1=Q(b1,tief),q0=Q(b0,tief);
+    var e=el("path",{d:"M"+p0+" A"+rx+","+ry+" 0 0 1 "+p1+" L"+q1+" A"+rx+","+ry+" 0 0 0 "+q0+" Z",fill:dunkel(x.farbe,.72),class:"ep-wand"});binden(e,x);wand.push(e)}
+   var d;if(a1-a0>=2*Math.PI-1e-6)d="M"+(cx-rx)+","+cy+" A"+rx+","+ry+" 0 1 1 "+(cx+rx)+","+cy+" A"+rx+","+ry+" 0 1 1 "+(cx-rx)+","+cy+" Z";
+   else{var g=(a1-a0)>Math.PI?1:0;d="M"+cx+","+cy+" L"+Q(a0)+" A"+rx+","+ry+" 0 "+g+" 1 "+Q(a1)+" Z"}
+   var t=el("path",{d:d,fill:fuell(x,i)});t.dataset.mitte=(a0+a1)/2;binden(t,x);deckel.push(t)});
+  wand.forEach(function(e){svg.appendChild(e)});deckel.forEach(function(e){svg.appendChild(e)});
+  svg.appendChild(el("ellipse",{cx:cx,cy:cy,rx:rx,ry:ry,fill:"url(#ep-glanz)","pointer-events":"none"}))}
+ else{/* Balken: absteigend, mit Anteil */
+  var max=Math.max.apply(null,sicht.map(function(x){return x.betrag}).concat([1]));
+  sicht.slice().sort(function(a,b){return b.betrag-a.betrag}).forEach(function(x,j){var i=s.indexOf(x),y=j*18+4;
+   var l=el("text",{x:"0",y:y+9.5,class:"ep-bl"});l.textContent=x.name.length>20?x.name.slice(0,19)+"…":x.name;svg.appendChild(l);
+   svg.appendChild(el("rect",{x:"74",y:y+2,width:"98",height:"10",rx:"3",fill:"#eef0f3"}));
+   var r=el("rect",{x:"74",y:y+2,width:Math.max(1.5,x.betrag/max*98),height:"10",rx:"3",fill:fuell(x,i)});binden(r,x);svg.appendChild(r);
+   var v=el("text",{x:"200",y:y+9.5,"text-anchor":"end",class:"ep-bw"});v.textContent=pz(x.betrag/gesamt*100);svg.appendChild(v)})}
  s.forEach(function(x){var z=document.querySelector('[data-zeile="'+x.id+'"]');if(!z)return;
   var b=z.querySelector(".ep-betrag"),a=z.querySelector(".ep-anteil-gesamt");if(b)b.textContent=kurz(x.betrag);b&&b.setAttribute("title",de(x.betrag));
   if(a)a.textContent=pz(x.betrag/gesamt*100);var m=z.querySelector(".ep-mobil");if(m)m.textContent=pz(x.betrag/gesamt*100)+" vom ganzen Etat"});
  summe()}
-function zeigen(x,e){var r=torte.getBoundingClientRect();zeigenAn(x,(e.clientX-r.left)/r.width*200,(e.clientY-r.top)/r.height*200);fokus(x.id,true)}
-function zeigenAn(x,px,py){var gesamt=D.gesamt||1,bd=D.bindung&&D.bindung[x.id],h="<b>"+x.name+"</b><br>"+pz(x.betrag/gesamt*100)+" des Etats";
+function zeigen(x,e){var t=torte.getBoundingClientRect();zeigenAn(x,e.clientX-t.left,e.clientY-t.top);fokus(x.id,true)}
+function zeigenAn(x,px,py){var gesamt=D.gesamt||1,bd=D.bindung&&D.bindung[x.id],h='<span class="ep-tipp-kopf">'+ikon(x.id)+"<b>"+x.name+"</b></span>"+pz(x.betrag/gesamt*100)+" des Etats";
  if(!D.nur_prozent&&x.id==="ruecklage"&&D.rl){h+="<br>Gesamtwert der "+D.rl.kasse+": <b>"+kurz(D.rl.saldo)+"</b><br><small>frei verfügbar "+kurz(D.rl.frei)+" · diesen Monat "+(x.betrag>0?"+":"")+kurz(x.betrag)+"</small>"}
  else if(!D.nur_prozent){var frei=Math.max(0,x.betrag-(bd?bd.betrag:0));h+="<br>Verfügbar: <b>"+kurz(frei)+"</b> im Monat";if(bd&&bd.betrag>0)h+="<br><small>"+kurz(bd.betrag)+" gebunden: "+bd.text+"</small>"}
- tipp.innerHTML=h;
- tipp.style.left=(px/200*100)+"%";tipp.style.top=(py/200*100)+"%";tipp.classList.add("an")}
-function weg(){tipp.classList.remove("an");fokus(null,false)}
-function fokus(id,an){torte.classList.toggle("hat-fokus",!!an);[].forEach.call(svg.querySelectorAll("[data-id]"),function(p){p.classList.toggle("fokus",an&&p.dataset.id===id)});
+ tipp.innerHTML=h;tipp.style.left=px+"px";tipp.style.top=py+"px";tipp.classList.add("an");
+ if(ART==="ring"){var t=svg.querySelector(".ep-mitte-t"),v=svg.querySelector(".ep-mitte-w");if(t){t.textContent=x.name.length>18?x.name.slice(0,17)+"…":x.name;v.textContent=pz(x.betrag/gesamt*100)}}}
+function weg(){tipp.classList.remove("an");fokus(null,false);
+ if(ART==="ring"){var t=svg.querySelector(".ep-mitte-t"),v=svg.querySelector(".ep-mitte-w");if(t){t.textContent=D.nur_prozent?"Etat":"Etat im Monat";v.textContent=D.nur_prozent?"100 %":kurz(D.gesamt)}}}
+function fokus(id,an){torte.classList.toggle("hat-fokus",!!an);[].forEach.call(svg.querySelectorAll("[data-id]"),function(p){var on=an&&p.dataset.id===id;p.classList.toggle("fokus",on);
+  if(ART==="torte3d"){var m=parseFloat((svg.querySelector('path[data-mitte][data-id="'+p.dataset.id+'"]')||{dataset:{}}).dataset.mitte);
+   p.style.transform=on&&!isNaN(m)?"translate("+(Math.sin(m)*7).toFixed(1)+"px,"+(-Math.cos(m)*4).toFixed(1)+"px)":""}else p.style.transform=""});
  [].forEach.call(document.querySelectorAll("[data-zeile]"),function(z){z.classList.toggle("fokus",an&&z.dataset.zeile===id)})}
 function summe(){var o=document.getElementById("ep-summe");if(!o||!felder.length)return;
  var re=document.getElementById("ep-rl"),s=sv()+(re?num(re.value):0), rest=Math.round((100-s)*10)/10;
@@ -728,6 +788,7 @@ if(norm)norm.addEventListener("click",function(){var n=felder,s=n.reduce(functio
  n.forEach(function(f,i){f.value=neu[i];var r=document.getElementById("ep-r-"+f.dataset.kat);if(r)r.value=neu[i]});zeichnen()});
 zeichnen()})();
 """
+JS = JS.replace("__EP_ICONS__", json.dumps({_k: amt.ICONS[_v] for _k, _v in EP_ICONS.items() if _v in amt.ICONS}, ensure_ascii=False))
 
 
 def _bindungen(con, ziel):
