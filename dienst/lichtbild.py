@@ -20,7 +20,8 @@ import anmeldung
 esc = amt.esc
 BASIS = amt.BASIS
 BREITE, HOEHE = 700, 900   # 35:45
-MAX_BYTES = 1_800_000
+MAX_BYTES = 20_000_000   # Rohdatei (Handyfotos); gespeichert wird nur das verkleinerte JPEG
+MAX_ANFRAGE = MAX_BYTES + 512_000   # gilt nur für diese Route (sonst 2 MB in app.py)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS mw_lichtbilder (
@@ -85,6 +86,7 @@ def _aufbereiten(roh):
 
 async def hochladen(request):
     import meldewesen
+    request._client_max_size = MAX_ANFRAGE   # nur hier große Uploads zulassen
     k, form = await amt._post(request)
     con = request.app["db"]
     z = meldewesen._akte(con, k, request.match_info["id"])
@@ -100,7 +102,7 @@ async def hochladen(request):
         amt._umleiten(ziel, "Bitte eine Bilddatei auswählen.", True)
     roh = datei.file.read(MAX_BYTES + 1)
     if len(roh) > MAX_BYTES:
-        amt._umleiten(ziel, "Das Bild ist zu groß (höchstens 1,8 MB).", True)
+        amt._umleiten(ziel, "Das Bild ist zu groß (höchstens 20 MB).", True)
     bild = _aufbereiten(roh)
     if not bild:
         amt._umleiten(ziel, "Die Datei ist kein lesbares Bild (JPEG, PNG oder WebP, mindestens 80 × 80 Pixel).", True)
