@@ -196,7 +196,8 @@ async def _form(request):
 
 
 def _reiter(aktiv):
-    punkte = [("eingang", "Eingang", "postfach/"), ("gesendet", "Gesendet", "postfach/gesendet/"), ("neu", "Neue Nachricht", "postfach/neu/")]
+    punkte = [("eingang", "Eingang", "postfach/"), ("gesendet", "Gesendet", "postfach/gesendet/"), ("neu", "Neue Nachricht", "postfach/neu/"),
+              ("einstellungen", "Einstellungen", "einstellungen/")]
     return '<p class="reiter">' + " ".join(f'<a href="{BASIS}{p}" class="{"aktiv" if s == aktiv else ""}">{esc(t)}</a>' for s, t, p in punkte) + "</p>"
 
 
@@ -359,31 +360,25 @@ async def einstellungen(request):
     konto = amt.daten_tabelle([("Discord-Name", esc(k["name"])), ("Name (IC)", esc(ic_name or "– (noch keine Bürgerakte)")),
                                ("Institution", esc(inst)), ("E-Mail-Adresse", f"<b>{esc(adr or '–')}</b>"),
                                ("Frühere Adressen (weiter zustellbar)", esc(", ".join(alias) or "–"))])
-    inhalt = (f'<h1>{amt.ic("sliders-horizontal")} Einstellungen</h1><p class="az">Persönliche Einstellungen</p>{amt.meldung(request)}'
-              f'<h2>Konto</h2>{konto}'
+    # Darstellung (Glas, Bewegung, Dichte) und Discord-Benachrichtigungen (auch für neue Post) stehen zentral in „Mein Profil“ (/schatzamt/profil/);
+    # hier bleibt, was nur das Postfach betrifft: Adresse und Signatur.
+    an = einstellung(con, k["id"], "dm") == "1"
+    inhalt = (f'<h1>{amt.ic("mail")} Postfach</h1>{_reiter("einstellungen")}{amt.meldung(request)}'
+              f'<h2>Adresse</h2>{konto}'
               f'<p class="az">Die Adresse folgt deinem IC-Namen (sonst dem Discord-Namen) und deiner Institution: Initial des Vornamens, Nachname, @Institution.ig.</p>'
-              f'<h2>Darstellung</h2><div id="design"><style>#design label{{font-size:15px;color:inherit;margin:6px 0}}</style><label><input type="radio" name="modus" value="auto"> Automatisch (Minimalistisch)</label>'
-              f'<label><input type="radio" name="modus" value="std"> Standard</label>'
-              f'<label><input type="radio" name="modus" value="min"> Minimalistisch</label></div>'
-              f'<p class="az">Gilt für diesen Browser.</p>'
-              f'<form method="post" action="{BASIS}einstellungen/speichern">{amt.csrf_feld(request)}<h2>Postfach</h2>'
+              f'<form method="post" action="{BASIS}einstellungen/speichern">{amt.csrf_feld(request)}'
               f'<div><label for="sig">Signatur (wird unter neue Nachrichten gesetzt)</label>'
               f'<textarea id="sig" name="signatur" maxlength="300" style="min-height:70px">{esc(einstellung(con, k["id"], "signatur"))}</textarea></div>'
-              f'<p><label style="display:inline"><input type="checkbox" name="dm" value="1"{" checked" if einstellung(con, k["id"], "dm") == "1" else ""}> '
-              f'Bei neuen Nachrichten per Discord-Direktnachricht benachrichtigen</label></p>'
-              f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button></div></form>'
-              '<script>(function(){var m;try{m=localStorage.getItem("amtModus")}catch(e){}if(m!=="min"&&m!=="std")m="auto";'
-              'document.querySelectorAll("#design input").forEach(function(i){i.checked=i.value===m;i.addEventListener("change",function(){'
-              'var v=i.value;try{if(v==="auto")localStorage.removeItem("amtModus");else localStorage.setItem("amtModus",v)}catch(e){}'
-              'document.documentElement.className=v==="std"?"std":"min"})})})()</script>')
-    return _ant(request, "Einstellungen", "einstellungen", inhalt)
+              f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Signatur speichern</button></div></form>'
+              f'<div class="hinweis" style="margin-top:20px">Discord-Nachricht bei neuer Post: <b>{"an" if an else "aus"}</b>. Das und die Darstellung (Glas, Bewegung, Dichte) '
+              f'stellst du zentral in <a href="/schatzamt/profil/#benachrichtigungen">Mein Profil</a> ein.</div>')
+    return _ant(request, "Postfach · Einstellungen", "post", inhalt)
 
 
 async def einstellungen_speichern(request):
     k, form = await _form(request)
     con = request.app["db"]
     einstellung_setzen(con, k["id"], "signatur", str(form.get("signatur", "")).replace("\r\n", "\n").strip()[:300])
-    einstellung_setzen(con, k["id"], "dm", "1" if form.get("dm") == "1" else "0")
     con.commit()
     amt._umleiten(BASIS + "einstellungen/", "Einstellungen gespeichert.")
 

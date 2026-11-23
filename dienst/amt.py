@@ -510,10 +510,11 @@ NAV = [("uebersicht", "layout-dashboard", "Übersicht", ""), ("buerger", "book-u
 NAV_EXTRA = []    # [(Gruppentitel, fn(konto) -> [(schl, icon, text, pfad)])], von anderen Modulen gefüllt
 AKTE_ZUSATZ = []  # [fn(request, con, akte, schreiben) -> HTML], unter den Stammdaten der Bürgerakte
 
-NAV_ALLE = [("post", "mail", "Postfach", "postfach/"), ("einstellungen", "sliders-horizontal", "Einstellungen", "einstellungen/")]
+# Persönliches: Postfach und das zentrale Profil im Schatzamt (Darstellung, Benachrichtigungen); die Postfach-Einstellungen liegen im Postfach selbst
+NAV_ALLE = [("post", "mail", "Postfach", "postfach/"), ("profil", "user", "Mein Profil", "/schatzamt/profil/")]
 
 # Kurze Beschriftungen für die Tab-Leiste am Handy
-TAB_KURZ = {"uebersicht": "Übersicht", "buerger": "Bürger", "verfahren": "Verfahren", "post": "Postfach", "einstellungen": "Einstellungen"}
+TAB_KURZ = {"uebersicht": "Übersicht", "buerger": "Bürger", "verfahren": "Verfahren", "post": "Postfach", "profil": "Profil"}
 
 
 def nav_gruppen(k):
@@ -541,7 +542,8 @@ def nav_gruppen(k):
     pers = next((g for g in gruppen if g[0] == "Persönlich"), None)   # Module können „Persönlich“ ergänzen (z. B. Mein Pass)
     if pers:
         gruppen.remove(pers)
-    gruppen.append(("Persönlich", (pers[1] if pers else []) + list(NAV_ALLE)))
+    extra = [("geld", "wallet", "Konto & Geld", "/schatzamt/")] if k and k["mitglied"] else []   # Querverweis ins Schatzamt (dort steht „Amtsseite“)
+    gruppen.append(("Persönlich", (pers[1] if pers else []) + list(NAV_ALLE) + extra))
     return gruppen
 
 
@@ -625,10 +627,20 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
              f'<input type="search" name="q" value="{esc(q)}" placeholder="Suchen: Name, Aktenzeichen, ID" aria-label="Akten suchen"></form>'
              f'<button class="knopf-rund such-auf" type="button" aria-label="Suche öffnen" aria-expanded="false">{ic("search")}</button>') if leser else "")
     js = JS % json.dumps(basis)
+    ooc_html = (portal.get("ooc", OOC_HINWEIS) if portal else OOC_HINWEIS) if ist_ooc_admin(k) else ""
+    if not portal:   # Amtsseite: dasselbe Glas-Design wie das Schatzamt (rp_glas.py) samt persönlicher Darstellung aus „Mein Profil“
+        import rp_glas
+        if rp_glas.GLAS:
+            import post as _post
+            import profil_sa
+            inhalt = rp_glas.CSS + (profil_sa.darstellung_css(_post.CON, k) if _post.CON is not None else "") + inhalt + rp_glas.JS + (rp_glas.sheets_js() if rp_glas.SHEETS else "")
+            if ooc_html:
+                ooc_html = ""
+                suche = rp_glas.ooc_pille() + suche
     return f"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ffffff"><meta name="robots" content="noindex,nofollow"><title>{esc(titel)} – {esc(logo_name)}, {esc(seitenname)}</title><style>{CSS}</style>
-<script>(function(){{var m;try{{m=localStorage.getItem("amtModus")}}catch(e){{}}document.documentElement.className=m==="std"?"std":"min"}})()</script></head>
+<script>document.documentElement.className="min"</script></head>
 <body><div class="ladebalken" aria-hidden="true"></div>
 <div class="app">
 <aside class="seite" id="menue" aria-label="Navigation">
@@ -642,7 +654,7 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
 </aside>
 <div class="spalte">
 <header class="kopf"><a class="logo" href="{basis}" title="{esc(logo_name)} – {esc(seitenname)}"><img src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a>{portal.get("kopf_zusatz", "") if portal else ""}<span class="raum"></span>{suche}</header>
-<main id="inhalt">{(portal.get("ooc", OOC_HINWEIS) if portal else OOC_HINWEIS) if ist_ooc_admin(k) else ""}{inhalt}</main>
+<main id="inhalt">{ooc_html}{inhalt}</main>
 </div></div>
 <div class="schleier" id="schleier"></div>
 <nav class="tableiste" aria-label="Schnellzugriff">{tabs}</nav>
@@ -911,7 +923,9 @@ async def _uebersicht(request):
           ("Einwanderer", n("SELECT COUNT(*) FROM amt_akten WHERE status='einwanderer'")),
           ("Offene Verfahren", n("SELECT COUNT(*) FROM amt_verfahren WHERE ergebnis='offen'")),
           ("Eingebürgert", n("SELECT COUNT(*) FROM amt_verfahren WHERE ergebnis='eingebuergert'"))]
-    zahlen = "".join(f"<div><b>{z}</b>{esc(t)}</div>" for t, z in kz)
+    ziele = {"Bürgerakten": "buerger/", "Staatsbürger": "buerger/?status=staatsbuerger", "Einwanderer": "buerger/?status=einwanderer",
+             "Offene Verfahren": "verfahren/?status=offen", "Eingebürgert": "verfahren/?status=eingebuergert"}
+    zahlen = "".join(f'<div><b>{z}</b><a href="{BASIS}{ziele[t]}">{esc(t)}{ic("chevron-right")}</a></div>' for t, z in kz)
     offen = con.execute("SELECT * FROM amt_verfahren WHERE ergebnis='offen' ORDER BY (phase=3) DESC, (phase=1) DESC, aktualisiert").fetchall()
     sa, sk = sperren(con, request["konto"])
     zeilen = [_verfahren_zeile(v, sk) for v in offen]
@@ -923,8 +937,8 @@ async def _uebersicht(request):
     letzte = [_letzte(e) for e in con.execute("SELECT * FROM amt_eintraege ORDER BY id DESC LIMIT 12")]
     link = lambda e: (f'{BASIS}{"buerger" if e["ziel"] == "akte" else "verfahren"}/{e["ziel_id"]}/',
                       az_akte(e["ziel_id"]) if e["ziel"] == "akte" else "Verfahren " + str(e["ziel_id"]))
-    inhalt = (f'<h1>{ic("layout-dashboard")} Übersicht</h1><p class="az">Reichsbehörden · Kaiserliche Zollverwaltung</p>{meldung(request)}'
-              f'<div class="kennzahlen">{zahlen}</div>'
+    inhalt = (f'<h1>{ic("layout-dashboard")} Übersicht</h1><p class="az">Reichsbehörden · Akten der Reichsverwaltung</p>{meldung(request)}'
+              f'<div class="kennzahlen kz-links">{zahlen}</div>'
               f'<h2>Zur Bearbeitung</h2>{tabelle(["Aktenzeichen", "Name", "Stand", "Zuletzt"], zeilen, "Keine offenen Verfahren.")}'
               f'<h2>Letzte Vorgänge</h2>{verlauf_html(letzte, link=link)}'
               '<p class="az">Phase II einleiten und einbürgern erfolgt im Ticket auf dem Discord-Server (Kanal Einwanderungsbehörde, Befehl /einbürgern).</p>')

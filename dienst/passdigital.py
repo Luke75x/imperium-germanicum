@@ -306,7 +306,7 @@ def nav(k):
     if _CON is None or not k:
         return []
     hat = _CON.execute("SELECT 1 FROM pw_paesse WHERE konto_id=? LIMIT 1", (k["id"],)).fetchone()
-    return [("mein-pass", "id-card", "Mein Pass", "mein-pass/")] if hat else []
+    return [("mein-pass", "id-card", "Meine Dokumente", "/profil/dokumente/")] if hat else []   # direkt ins Profil der Website (…/mein-pass/ leitet ohnehin dorthin)
 
 
 def knopf(p, con=None):

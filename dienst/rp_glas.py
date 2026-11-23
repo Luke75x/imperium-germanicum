@@ -39,6 +39,12 @@ dialog.rp-sheet:focus,dialog.rp-sheet:focus-visible{outline:none}
 @media (max-width:800px){dialog.rp-sheet{margin:auto 0 0;width:100%;max-width:100%;border-radius:18px 18px 0 0;max-height:88vh}
  .rp-sheet-inhalt{max-height:calc(88vh - 60px);padding-bottom:calc(18px + env(safe-area-inset-bottom))}}
 .sa-sheet-raster{margin:12px 0 18px}
+/* Kennzahl-Kacheln mit Link (ganze Kachel klickbar) */
+.kz-links>div{position:relative}
+.kz-links>div:has(a):hover{background:#fff}
+.kz-links a{color:inherit;text-decoration:none}
+.kz-links a::after{content:"";position:absolute;inset:0;border-radius:inherit}
+.kz-links a .icon{width:14px;height:14px;vertical-align:-2px;margin-left:4px;opacity:.55}
 html:root{--glas:rgba(255,255,255,.62);--glas-kopf:rgba(255,255,255,.55);--glas-leiste:rgba(255,255,255,.6);--glas-blatt:rgba(255,255,255,.78);--glas-sheet:rgba(255,255,255,.9);--glas-dicht:rgba(255,255,255,.8);--glas-rand:rgba(255,255,255,.75);--glas-linie:rgba(22,23,26,.07);
  --glas-schatten:0 10px 34px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.05);--glas-licht:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.25);
  --glas-blur:saturate(180%) blur(22px);--feder:cubic-bezier(.2,.9,.25,1.12);--weich:cubic-bezier(.2,.8,.2,1)}
@@ -102,10 +108,10 @@ html:root .sa-todo>div.warn{border-color:rgba(22,23,26,.4);box-shadow:inset 3px 
 html:root .ts-karte,html:root .sa-schnell a{transition:transform .25s var(--feder),box-shadow .25s var(--weich),background .2s}
 html:root a.ts-karte:hover,html:root .sa-schnell a:hover{background:#fff;box-shadow:0 14px 40px rgba(16,24,40,.12),var(--glas-licht);transform:translateY(-1px)}
 html:root a.ts-karte:active,html:root .sa-schnell a:active{transform:scale(.98)}
-html:root .sa-bereich .reiter{border-bottom:0;gap:4px;padding:4px;background:rgba(22,23,26,.05);border-radius:999px;display:inline-flex;flex-wrap:nowrap;max-width:100%;overflow-x:auto;scrollbar-width:none}
-html:root .sa-bereich .reiter a{border:0;margin:0;padding:7px 15px;border-radius:999px;white-space:nowrap;transition:background .2s,color .2s}
-html:root .sa-bereich .reiter a:hover{background:rgba(255,255,255,.6);color:var(--ink)}
-html:root .sa-bereich .reiter a.aktiv{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(16,24,40,.12),inset 0 1px 0 #fff}
+html:root .reiter{border-bottom:0;gap:4px;padding:4px;background:rgba(22,23,26,.05);border-radius:999px;display:inline-flex;flex-wrap:nowrap;max-width:100%;overflow-x:auto;scrollbar-width:none}
+html:root .reiter a{border:0;margin:0;padding:7px 15px;border-radius:999px;white-space:nowrap;transition:background .2s,color .2s}
+html:root .reiter a:hover{background:rgba(255,255,255,.6);color:var(--ink)}
+html:root .reiter a.aktiv{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(16,24,40,.12),inset 0 1px 0 #fff}
 html:root .kennzahlen div{border-radius:20px}
 html:root .rp-staat,html:root .rp-kachel,html:root .rp-massnahme{border-radius:20px}
 html:root .rp-kzl>div:has(a):hover,html:root .rp-staat:hover,html:root .rp-kachel:hover,html:root .rp-chip:hover{border-color:var(--glas-rand);background:#fff;box-shadow:0 14px 40px rgba(16,24,40,.12),var(--glas-licht);transform:translateY(-1px)}
@@ -155,7 +161,7 @@ html:root .rp-sheet-kopf{border-bottom-color:var(--glas-linie)}
 </style>"""
 
 # Gleitende Pille im Segment-Umschalter (je Umschalter; folgt dem aktiven Eintrag, auch beim Antippen vor dem Seitenwechsel)
-JS = """<script>(function(){document.querySelectorAll(".sa-modus").forEach(function(n){if(n.querySelector(".pille"))return;var p=document.createElement("span");p.className="pille";n.insertBefore(p,n.firstChild);
+JS = """<script>document.querySelectorAll(".reiter a.aktiv").forEach(function(a){var n=a.parentNode;if(n.scrollWidth>n.clientWidth)n.scrollLeft=a.offsetLeft-n.clientWidth/2+a.offsetWidth/2});</script><script>(function(){document.querySelectorAll(".sa-modus").forEach(function(n){if(n.querySelector(".pille"))return;var p=document.createElement("span");p.className="pille";n.insertBefore(p,n.firstChild);
 function setze(a,ohne){if(!a){p.style.width="0";return}if(ohne)p.style.transition="none";p.style.left=a.offsetLeft+"px";p.style.width=a.offsetWidth+"px";if(ohne){p.offsetWidth;p.style.transition=""}}
 setze(n.querySelector("a.aktiv"),true);n.querySelectorAll("a").forEach(function(a){a.addEventListener("click",function(){n.querySelectorAll("a").forEach(function(x){x.classList.remove("aktiv")});a.classList.add("aktiv");setze(a)})});
 addEventListener("resize",function(){setze(n.querySelector("a.aktiv"),true)})})})();</script>"""
@@ -178,7 +184,7 @@ STICHWORTE = [("entsperr", "lock-open"), ("freigeb", "lock-open"), ("sperr", "lo
               ("beschaff", "shield"), ("gerät", "shield"), ("ausmuster", "shield"), ("zuführ", "arrow-right-left"), ("überweis", "arrow-right-left"),
               ("kauf", "package"), ("erwerb", "package"), ("anbiet", "package"), ("ware", "package"), ("energie", "zap"), ("kraftwerk", "zap"),
               ("ausbau", "zap"), ("steuer", "receipt"), ("bescheid", "receipt"), ("gehalt", "users"), ("besoldung", "users"), ("reaktion", "flag"),
-              ("befugnis", "users"), ("etat", "landmark"), ("gold", "coins"), ("konto", "wallet"), ("post", "mail")]
+              ("befugnis", "users"), ("etat", "landmark"), ("gold", "coins"), ("konto", "wallet"), ("post", "mail"), ("vermerk", "pencil"), ("notiz", "pencil"), ("mitteilung", "mail")]
 
 
 def sheets_js():
