@@ -40,6 +40,9 @@ dialog.rp-sheet:focus,dialog.rp-sheet:focus-visible{outline:none}
  .rp-sheet-inhalt{max-height:calc(88vh - 60px);padding-bottom:calc(18px + env(safe-area-inset-bottom))}}
 .sa-sheet-raster{margin:12px 0 18px}
 /* Kennzahl-Kacheln mit Link (ganze Kachel klickbar) */
+.kennzahlen b{display:block;max-width:100%;overflow:hidden;white-space:nowrap}
+html:root .kennzahlen>div{container-type:inline-size;min-width:0}
+html:root .kennzahlen b{font-size:26px}
 .kz-links>div{position:relative}
 .kz-links>div:has(a):hover{background:#fff}
 .kz-links a{color:inherit;text-decoration:none}
@@ -161,7 +164,12 @@ html:root .rp-sheet-kopf{border-bottom-color:var(--glas-linie)}
 </style>"""
 
 # Gleitende Pille im Segment-Umschalter (je Umschalter; folgt dem aktiven Eintrag, auch beim Antippen vor dem Seitenwechsel)
-JS = """<script>document.querySelectorAll(".reiter a.aktiv").forEach(function(a){var n=a.parentNode;if(n.scrollWidth>n.clientWidth)n.scrollLeft=a.offsetLeft-n.clientWidth/2+a.offsetWidth/2});</script><script>(function(){document.querySelectorAll(".sa-modus").forEach(function(n){if(n.querySelector(".pille"))return;var p=document.createElement("span");p.className="pille";n.insertBefore(p,n.firstChild);
+JS = """<script>(function(){/* Kennzahlen: Schrift so weit verkleinern, dass der Wert in die Kachel passt – nie über den Rand (auch nach Live-Aktualisierung) */
+function fit(b){b.style.removeProperty("font-size");var g=parseFloat(getComputedStyle(b).fontSize),n=0;while(b.scrollWidth>b.clientWidth+1&&g>11&&n<40){g-=1;b.style.setProperty("font-size",g+"px","important");n++}b.style.whiteSpace=b.scrollWidth>b.clientWidth+1?"normal":"";b.style.overflowWrap=b.style.whiteSpace?"anywhere":""}
+function alle(){document.querySelectorAll(".kennzahlen b").forEach(fit)}
+alle();addEventListener("resize",alle);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(alle);
+var mo=window.MutationObserver&&new MutationObserver(function(l){l.forEach(function(m){var b=m.target.nodeType===1?m.target.closest(".kennzahlen b"):m.target.parentElement&&m.target.parentElement.closest(".kennzahlen b");if(b)fit(b)})});
+document.querySelectorAll(".kennzahlen").forEach(function(k){mo&&mo.observe(k,{childList:true,characterData:true,subtree:true})})})();</script><script>document.querySelectorAll(".reiter a.aktiv").forEach(function(a){var n=a.parentNode;if(n.scrollWidth>n.clientWidth)n.scrollLeft=a.offsetLeft-n.clientWidth/2+a.offsetWidth/2});</script><script>(function(){document.querySelectorAll(".sa-modus").forEach(function(n){if(n.querySelector(".pille"))return;var p=document.createElement("span");p.className="pille";n.insertBefore(p,n.firstChild);
 function setze(a,ohne){if(!a){p.style.width="0";return}if(ohne)p.style.transition="none";p.style.left=a.offsetLeft+"px";p.style.width=a.offsetWidth+"px";if(ohne){p.offsetWidth;p.style.transition=""}}
 setze(n.querySelector("a.aktiv"),true);n.querySelectorAll("a").forEach(function(a){a.addEventListener("click",function(){n.querySelectorAll("a").forEach(function(x){x.classList.remove("aktiv")});a.classList.add("aktiv");setze(a)})});
 addEventListener("resize",function(){setze(n.querySelector("a.aktiv"),true)})})})();</script>"""

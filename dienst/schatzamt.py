@@ -484,14 +484,14 @@ def nav(k, m="privat", schalter=False, aktiv="", con=None):
     return out
 
 
-_KZ = re.compile(r'<div><b>(−?)([\d.]+),(\d\d) Kr</b>')
+_KZ = re.compile(r'<div><b((?: id=[^ >]+)?)>(−?)([\d.]+),(\d\d) Kr</b>')   # auch Kacheln mit id (live aktualisiert, z. B. Etatplanung)
 
 
 def _kennzahlen_kurz(html_):
     """Beträge in Kennzahl-Kacheln kürzen (sonst ragen große Summen über den Rand); voller Betrag als Tooltip."""
     def ersetzen(m):
-        pf = int(m.group(2).replace(".", "") + m.group(3)) * (-1 if m.group(1) else 1)
-        return f'<div title="{mark(pf)}"><b>{geld.mark_kurz(pf)}</b>'
+        pf = int(m.group(3).replace(".", "") + m.group(4)) * (-1 if m.group(2) else 1)
+        return f'<div title="{mark(pf)}"><b{m.group(1)}>{geld.mark_kurz(pf)}</b>'
     return _KZ.sub(ersetzen, html_)
 
 
