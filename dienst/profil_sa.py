@@ -8,6 +8,7 @@ Reiter:
 * Konto & Sicherheit: Bankkarte & PIN, Sitzungen (auf allen anderen Geräten abmelden), Abmelden.
 Speicher: nutzer_einstellungen (post.einstellung/einstellung_setzen), Schlüssel sa_* und dm_*.
 """
+import json
 import time
 
 from aiohttp import web
@@ -47,6 +48,13 @@ def vars_css(t, blur):
     return f"html:root{{{v}}}"
 
 
+RUHIG_CSS = "html:root *,html:root *::before,html:root *::after{animation:none!important;transition:none!important}"
+KOMPAKT_CSS = ("html:root main{padding-top:18px}html:root th,html:root td{padding-top:6px!important;padding-bottom:6px!important}"
+               "html:root .kennzahlen div{padding:8px 12px}html:root .kennzahlen b{font-size:20px!important}html:root h2{margin-top:22px!important}"
+               "html:root .seite a.ein{padding-top:6px;padding-bottom:6px}html:root .rp-kachel,html:root .st-karte,html:root .pf-karte{padding:10px 12px}"
+               "html:root .pf-zeile{padding:7px 0}")
+
+
 def darstellung_css(con, k):
     """<style> mit den persönlichen Einstellungen (leer, wenn alles Standard ist)."""
     if not k:
@@ -58,11 +66,9 @@ def darstellung_css(con, k):
     if t != 50 or blur != "normal":
         css.append(vars_css(t, blur))
     if bew == "ruhig":
-        css.append("html:root *,html:root *::before,html:root *::after{animation:none!important;transition:none!important}")
+        css.append(RUHIG_CSS)
     if dichte == "kompakt":
-        css.append("html:root main{padding-top:18px}html:root th,html:root td{padding-top:6px!important;padding-bottom:6px!important}"
-                   "html:root .kennzahlen div{padding:8px 12px}html:root .kennzahlen b{font-size:20px!important}html:root h2{margin-top:22px!important}"
-                   "html:root .seite a.ein{padding-top:6px;padding-bottom:6px}html:root .rp-kachel,html:root .st-karte{padding:10px 12px}")
+        css.append(KOMPAKT_CSS)
     return f'<style id="sa-persoenlich">{"".join(css)}</style>' if css else ""
 
 
@@ -183,12 +189,17 @@ def _darstellung(request, k, con):
         zeilen.append(_zeile("Startansicht", "Welche Ansicht beim Öffnen des Schatzamts erscheint.",
                              _select("sa_start", [("zuletzt", "Zuletzt benutzte"), ("staat", "Staatl."), ("privat", "Privat")], w("sa_start"))))
     vorschau = ('<div class="pf-hinter"><div class="pf-vorschau"><div class="v1">Seitenleiste &amp; Kopf</div><div class="v2">Karte</div></div></div>')
-    js = ("<script>(function(){var r=document.getElementById('pf-glas'),o=document.getElementById('pf-glas-wert'),f=r&&r.form,s=document.getElementById('pf-live');"
-          "if(!r)return;if(!s){s=document.createElement('style');s.id='pf-live';document.head.appendChild(s)}"
-          "var M={glas:.62,'glas-kopf':.55,'glas-leiste':.6,'glas-blatt':.78,'glas-sheet':.9,'glas-dicht':.8},B={stark:34,normal:22,leicht:10,aus:0};"
+    # Live-Vorschau: jede Änderung (Regler, Unschärfe, Bewegung, Dichte) baut dasselbe CSS wie darstellung_css() und ersetzt die gespeicherte Fassung
+    # auf der ganzen Seite (Seitenleiste, Kopf, Leiste am Handy, Karten, Fenster). Gespeichert wird erst mit „Speichern“.
+    js = ("<script>(function(){var r=document.getElementById('pf-glas'),o=document.getElementById('pf-glas-wert'),f=r&&r.form;if(!r)return;"
+          "var M={glas:.62,'glas-kopf':.55,'glas-leiste':.6,'glas-blatt':.78,'glas-sheet':.9,'glas-dicht':.8},B=" + json.dumps(BLUR) + ","
+          "RU=" + json.dumps(RUHIG_CSS) + ",KO=" + json.dumps(KOMPAKT_CSS) + ",s=null;"
           "function u(){var t=r.value/100,v=[];o.textContent=r.value;for(var n in M){v.push('--'+n+':rgba(255,255,255,'+Math.max(.12,1-(1-M[n])*t*2).toFixed(3)+')')}"
-          "var b=B[f.sa_blur.value];v.push('--glas-blur:'+(b?'saturate(180%) blur('+b+'px)':'none'));s.textContent='html:root{'+v.join(';')+'}'}"
-          "r.addEventListener('input',u);f.sa_blur.addEventListener('change',u)})();</script>")
+          "var b=B[f.sa_blur.value];v.push('--glas-blur:'+(b?'saturate(180%) blur('+b+'px)':'none'));"
+          "var c='html:root{'+v.join(';')+'}'+(f.sa_bewegung.value==='ruhig'?RU:'')+(f.sa_dichte.value==='kompakt'?KO:'');"
+          "var alt=document.getElementById('sa-persoenlich');if(alt)alt.remove();"
+          "if(!s){s=document.createElement('style');s.id='sa-persoenlich-live';document.body.appendChild(s)}s.textContent=c}"
+          "r.addEventListener('input',u);['sa_blur','sa_bewegung','sa_dichte'].forEach(function(n){if(f[n])f[n].addEventListener('change',u)})})();</script>")
     return (f'<form class="pf-karte" method="post" action="{PFAD}speichern">{amt.csrf_feld(request)}<input type="hidden" name="teil" value="darstellung">'
             f'<h3>{amt.ic("sliders-horizontal")}Darstellung</h3>{vorschau}{"".join(zeilen)}'
             f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button>'
