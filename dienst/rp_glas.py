@@ -186,8 +186,10 @@ def ooc_pille():
 # Ohne JavaScript bleibt die Seite wie zuvor. Abschalten: SHEETS = False.
 SHEETS = True
 ICON_NAMEN = ["lock", "lock-open", "pencil", "coins", "trash-2", "percent", "store", "credit-card", "package", "shield", "arrow-right-left", "zap",
-              "receipt", "users", "file-text", "arrow-right", "x", "check", "scale", "flag", "landmark", "wallet", "mail"]
-STICHWORTE = [("entsperr", "lock-open"), ("freigeb", "lock-open"), ("sperr", "lock"), ("pin", "lock"), ("korrektur", "pencil"), ("schöpf", "coins"),
+              "receipt", "users", "file-text", "arrow-right", "x", "check", "scale", "flag", "landmark", "wallet", "mail",
+              "pin", "camera", "home", "id-card", "file-x", "handshake"]
+STICHWORTE = [("pinnwand", "pin"), ("lichtbild", "camera"), ("wohnsitz", "home"), ("pass aus", "id-card"), ("abschluss", "file-x"), ("ersuchen", "handshake"),
+              ("entsperr", "lock-open"), ("freigeb", "lock-open"), ("sperr", "lock"), ("pin", "lock"), ("korrektur", "pencil"), ("schöpf", "coins"),
               ("vernicht", "trash-2"), ("zins", "percent"), ("satz", "percent"), ("tarif", "percent"), ("gewerbe", "store"), ("karte", "credit-card"),
               ("beschaff", "shield"), ("gerät", "shield"), ("ausmuster", "shield"), ("zuführ", "arrow-right-left"), ("überweis", "arrow-right-left"),
               ("kauf", "package"), ("erwerb", "package"), ("anbiet", "package"), ("ware", "package"), ("energie", "zap"), ("kraftwerk", "zap"),

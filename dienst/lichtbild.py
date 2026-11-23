@@ -151,7 +151,7 @@ CSS = """<style>.lb{display:flex;gap:16px;align-items:flex-start;margin:6px 0 18
 .lb-leer{width:105px;height:135px;border:1px dashed var(--linie);border-radius:6px;display:grid;place-items:center;text-align:center;font-size:12px;color:#888;flex:none;padding:6px}
 .lb-text{flex:1;min-width:220px}.lb-text p{margin:0 0 8px}
 #lb-vorschau{width:70px;height:90px;object-fit:cover;border-radius:4px;border:1px solid var(--linie);margin-top:8px}
-.lb form{margin:0}.lb .aktionen{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}</style>"""
+.lb-auf>summary{list-style:none;display:inline-flex;margin-top:4px}.lb-auf>summary::-webkit-details-marker{display:none}.lb-auf[open]>summary{margin-bottom:8px}.lb form{margin:0}.lb .aktionen{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}</style>"""
 
 
 def abschnitt(request, con, z, schreiben):
@@ -171,11 +171,12 @@ def abschnitt(request, con, z, schreiben):
     h = f'{CSS}<div class="lb">{bild}<div class="lb-text"><p><b>Lichtbild</b><br><span class="az">{stand}</span></p>'
     if schreiben:
         p = f'{BASIS}buerger/{z["id"]}/lichtbild'
-        h += (f'<form id="lb-form" method="post" action="{p}" enctype="multipart/form-data">{amt.csrf_feld(request)}'
+        h += (f'<details class="lb-auf"><summary class="btn zweit">{amt.ic("camera")}{"Lichtbild ersetzen" if r else "Lichtbild hochladen"}</summary>'   # im Glas-Design als Kachel + Sheet
+              f'<form id="lb-form" method="post" action="{p}" enctype="multipart/form-data">{amt.csrf_feld(request)}'
               '<input type="file" name="bild" accept="image/jpeg,image/png,image/webp" required>'
               '<img id="lb-vorschau" alt="" hidden>'
               f'<div class="aktionen"><button class="btn zweit" type="submit">{amt.ic("camera")}{"Lichtbild ersetzen" if r else "Lichtbild hochladen"}</button></div>'
-              '<p class="az" style="margin-top:6px">Wird automatisch auf Passbildformat (35 × 45) zugeschnitten. Das Gesicht sollte mittig sein.</p></form>')
+              '<p class="az" style="margin-top:6px">Wird automatisch auf Passbildformat (35 × 45) zugeschnitten. Das Gesicht sollte mittig sein.</p></form></details>')
         if r:
             h += (f'<form method="post" action="{p}">{amt.csrf_feld(request)}<input type="hidden" name="loeschen" value="1">'
                   f'<div class="aktionen"><button class="btn zweit" type="submit">{amt.ic("x")}Lichtbild entfernen</button></div></form>')

@@ -185,9 +185,11 @@ async def register(request):
     n_paesse = con.execute("SELECT COUNT(*) FROM pw_paesse WHERE status='gueltig' AND gueltig_bis>=?", (date.today().isoformat(),)).fetchone()[0]
     n_fahndung = con.execute("SELECT COUNT(*) FROM pw_paesse WHERE status!='gueltig' AND grund LIKE 'Diebstahl%'").fetchone()[0]
     ohne = [r for r in rows if not r["m_art"] and r["status"] == "staatsbuerger"]
-    zahlen = "".join(f"<div><b>{n}</b>{esc(t)}</div>" for t, n in [
-        ("Gemeldete Einwohner", len(gemeldet)), ("Staatsbürger ohne Wohnsitz", len(ohne)),
-        ("Im Ausland gemeldet", sum(1 for r in rows if r["m_art"] == "abmeldung")), ("Gültige Pässe", n_paesse), ("Pässe in Fahndung", n_fahndung)])
+    pfeil = amt.ic("chevron-right")
+    zahlen = "".join(f'<div><b>{n}</b><a href="{u}">{esc(t)}{pfeil}</a></div>' if u else f"<div><b>{n}</b>{esc(t)}</div>" for t, n, u in [
+        ("Gemeldete Einwohner", len(gemeldet), ""), ("Staatsbürger ohne Wohnsitz", len(ohne), "?staat=ohne"),
+        ("Im Ausland gemeldet", sum(1 for r in rows if r["m_art"] == "abmeldung"), "?staat=ausland"),
+        ("Gültige Pässe", n_paesse, PFAD + "paesse/?status=gueltig"), ("Pässe in Fahndung", n_fahndung, PFAD + "paesse/?status=fahndung")])
     wahl = request.query.get("staat", "")
     if wahl:
         if wahl == "ohne":
@@ -206,17 +208,31 @@ async def register(request):
     je = {}
     for r in gemeldet:
         je[r["staat"]] = je.get(r["staat"], 0) + 1
-    zeilen = [(f'<a href="?staat={esc(s["id"])}">{esc(s["name"])}</a>', str(je.get(s["id"], 0))) for s in st]
-    zeilen += [(f'<a href="?staat=ausland"><i>Ausland</i></a>', str(sum(1 for r in rows if r["m_art"] == "abmeldung"))),
-               (f'<a href="?staat=ohne"><i>Staatsbürger ohne Wohnsitz</i></a>', str(len(ohne)))]
+    import wappen
+
+    def kachel(ziel, bild, name, n):   # Teilstaat als Wappen-Kachel (wie der Leitstand der RP-Leitung), leere Teilstaaten blass
+        return (f'<a class="mw-staat{"" if n else " leer"}" href="?staat={esc(ziel)}">{bild}<span><b>{esc(name)}</b>'
+                f'<small>{n} Einwohner</small></span></a>')
+    kacheln = "".join(kachel(s["id"], wappen.klein(s["id"], s["name"], 34) or amt.ic("flag"), s["name"], je.get(s["id"], 0))
+                      for s in sorted(st, key=lambda s: (-je.get(s["id"], 0), s["name"].lower())))
     letzte = con.execute("SELECT m.*, a.ic_name, a.name FROM mw_meldungen m JOIN amt_akten a ON a.id=m.akte_id ORDER BY m.id DESC LIMIT 10").fetchall()
     lz = [(amt._zeit(m["zeit"]), *_akte_link({"id": m["akte_id"], "ic_name": m["ic_name"], "name": m["name"]}, m["akte_id"] in sa),
            esc(MELDEARTEN.get(m["art"], m["art"])), "–" if m["akte_id"] in sa else esc(m["staat_name"]), esc(m["autor_name"])) for m in letzte]
-    inhalt = (f'<div class="kennzahlen">{zahlen}</div>'
+    inhalt = (f'<div class="kennzahlen kz-links">{zahlen}</div>'
               '<p class="az">Wohnsitze werden in der Bürgerakte gemeldet (Abschnitt „Melde- und Passwesen“). Ein Umzug in einen anderen Teilstaat ist eine Ummeldung.</p>'
-              '<h2>Einwohner je Teilstaat</h2>' + amt.tabelle(["Teilstaat", "Gemeldete Einwohner"], zeilen)
+              '<h2>Einwohner je Teilstaat</h2>' + MW_RASTER_CSS + f'<div class="mw-staaten">{kacheln}</div>'
               + '<h2>Letzte Meldungen</h2>' + amt.tabelle(["Zeit", "Bürgerakte", "Name", "Meldung", "Teilstaat", "Beamter"], lz, "Noch keine Meldungen."))
     return _seite(request, "Melderegister", "register", inhalt)
+
+
+MW_RASTER_CSS = """<style>.mw-staaten{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin:10px 0 22px}
+.mw-staat{display:flex;gap:10px;align-items:center;border:1px solid var(--linie);border-radius:16px;padding:10px 12px;color:var(--ink);text-decoration:none;background:#fff;min-width:0}
+.mw-staat:hover{border-color:var(--ink)}.mw-staat img{height:34px;width:28px;object-fit:contain;flex:none;margin:0!important}
+.mw-staat>.icon{width:28px;height:24px;flex:none;color:var(--grau)}.mw-staat span{min-width:0}
+.mw-staat b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:13.5px;line-height:1.25;overflow:hidden;hyphens:auto;overflow-wrap:anywhere}
+.mw-staat small{color:var(--grau);font-size:12px}.mw-staat.leer{opacity:.55}.mw-staat.leer:hover{opacity:1}
+html:root .mw-staat{background:var(--glas-blatt,#fff);border-color:var(--glas-rand,var(--linie));border-radius:20px;box-shadow:var(--glas-schatten,none),var(--glas-licht,0 0 #0000)}
+@media (max-width:520px){.mw-staaten{grid-template-columns:1fr 1fr}}</style>"""
 
 
 # ---------------------------------------------------------------- Abschnitt in der Bürgerakte

@@ -304,7 +304,7 @@ async def zoll_zusatz(request, k):
             + f'<form class="zeile" method="get" action="{ZOLL}grenze"><div><label for="zv-nr">Passnummer</label>'
             '<input type="search" id="zv-nr" name="nr" maxlength="12" autocomplete="off" autocapitalize="characters" class="mw-nr" required></div>'
             f'<button class="btn" type="submit">{amt.ic("search")}Pass aufrufen</button></form>'
-            '<h3>Zuletzt gestempelt</h3>'
+            '<h2>Zuletzt gestempelt</h2>'
             + amt.tabelle(["Zeit", "Pass", "Inhaber", "Vermerk", "Datum (IC)", "Grenzübergang", "Beamter"], zeilen, "Noch keine Stempel gesetzt."))
 
 

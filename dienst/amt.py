@@ -495,6 +495,8 @@ ICONS["flag"] = '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4
 ICONS["file-plus"] = ('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>'
                       '<path d="M9 15h6"/><path d="M12 18v-6"/>')
 ICONS["arrow-right"] = '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>'
+ICONS["pin"] = ('<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79'
+                'l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>')
 ICONS["paperclip"] = ('<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>')
 
 
@@ -592,6 +594,43 @@ blatt.addEventListener("touchend",function(e){if(blatt.scrollTop<=0&&e.changedTo
 })();"""
 
 
+def krumen(gruppen, aktiv, titel):
+    """Pfad „Amtsseite › Gruppe › Seite [› Detail]“ für die Kopfzeile der Amtsseite (wie die Brotkrumen im Schatzamt).
+    Ein Detail (z. B. „Bürgerakte BA-00068“) erscheint nur, wenn der Seitentitel nicht schon den Namen des Eintrags enthält."""
+    for gname, eintraege in gruppen:
+        for e in eintraege:
+            if e[0] != aktiv:
+                continue
+            if e[0] == "uebersicht":
+                return f'<nav class="kopf-krumen" aria-label="Pfad"><a href="{BASIS}">Amtsseite</a> › <span aria-current="page">Übersicht</span></nav>'
+            teile = [f'<a href="{BASIS}">Amtsseite</a>', esc(gname)]
+            t, n = (titel or "").lower(), e[2].lower()
+            if titel and n not in t and t not in n:
+                ziel = e[3] if e[3].startswith("/") else BASIS + e[3]
+                teile += [f'<a href="{ziel}">{esc(e[2])}</a>', f'<span aria-current="page">{esc(titel)}</span>']
+            else:
+                teile.append(f'<span aria-current="page">{esc(e[2])}</span>')
+            return '<nav class="kopf-krumen" aria-label="Pfad">' + " › ".join(teile) + '</nav>'
+    return f'<nav class="kopf-krumen" aria-label="Pfad"><a href="{BASIS}">Amtsseite</a> › <span aria-current="page">{esc(titel)}</span></nav>' if titel else ""
+
+
+# Amtsseite im Glas-Design: Kennzahlen füllen die Zeile (wie im Schatzamt), Pfad in der Kopfzeile, Filter mit Auswahllisten laden sofort
+AMT_GLAS_CSS = """<style>
+html:root .kennzahlen{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.kennzahlen>div{container-type:inline-size;min-width:0}
+.kennzahlen b{white-space:nowrap;font-size:min(22px,13cqi);overflow:visible}
+.kennzahlen a{display:flex;align-items:flex-start;gap:2px}.kennzahlen a .icon{flex:none;margin-top:1px}
+@media (max-width:520px){html:root .kennzahlen{grid-template-columns:repeat(2,minmax(0,1fr))}html .kennzahlen b{font-size:min(19px,13cqi)!important}
+ .kennzahlen>div:last-child:nth-child(odd){grid-column:1/-1}}
+.kopf-krumen{font-size:13px;color:var(--grau);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:8px}
+.kopf-krumen a{color:var(--grau);text-decoration:none}.kopf-krumen a:hover{color:var(--ink);text-decoration:underline}
+.kopf-krumen [aria-current]{color:var(--ink);font-weight:600}
+@media (max-width:800px){.kopf-krumen{display:none}}
+</style>"""
+AMT_GLAS_JS = """<script>(function(){document.querySelectorAll('#inhalt form[method=get]').forEach(function(f){if(f.closest('dialog'))return;
+ f.querySelectorAll('select').forEach(function(s){s.addEventListener('change',function(){if(f.requestSubmit)f.requestSubmit();else f.submit()})})})})()</script>"""
+
+
 def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
     """Seitenrahmen der Amtsseite. portal = {"basis", "gruppen", "haupt", "logo": (schl, name), "name"} für eigene Portale im selben
     Stil (z. B. schatzamt.py): eigene Navigation, eigenes Logo, eigener Basispfad, keine Aktensuche. Optional "unter_logo" (HTML unter
@@ -623,9 +662,13 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
                    f'{ic(sym)}{zahl(schl)}<span>{esc(TAB_KURZ.get(schl, text))}</span></a>' for schl, sym, text, pfad in haupt)
     tabs += (f'<button type="button" id="menue-auf" class="{"aktiv" if im_menue else ""}" aria-controls="menue" aria-expanded="false">'
              f'{ic("layout-grid")}<span>Menü</span></button>')
-    suche = portal["suche"] if portal and portal.get("suche") else ((f'<form class="suche" action="{BASIS}buerger/" method="get" role="search">{ic("search")}'
-             f'<input type="search" name="q" value="{esc(q)}" placeholder="Suchen: Name, Aktenzeichen, ID" aria-label="Akten suchen"></form>'
-             f'<button class="knopf-rund such-auf" type="button" aria-label="Suche öffnen" aria-expanded="false">{ic("search")}</button>') if leser else "")
+    suche = portal["suche"] if portal and portal.get("suche") else ""
+    if not portal and leser:   # Aktensuche mit Vorschlägen beim Tippen (Akten, Einbürgerungsakten, Pässe, Seiten); Strg/⌘+K oder / springt hinein
+        import suche as _suche
+        suche = (_suche.LEISTE_CSS + f'<form class="suche" data-sv action="{BASIS}suche/" method="get" role="search">{ic("search")}'
+                 f'<input type="search" name="q" value="{esc(q)}" placeholder="Name, Aktenzeichen, Passnummer …" aria-label="Akten suchen" autocomplete="off">'
+                 '<div class="sv" role="listbox" hidden></div></form>'
+                 f'<button class="knopf-rund such-auf" type="button" aria-label="Suche öffnen" aria-expanded="false">{ic("search")}</button>' + _suche.LEISTE_JS)
     js = JS % json.dumps(basis)
     ooc_html = (portal.get("ooc", OOC_HINWEIS) if portal else OOC_HINWEIS) if ist_ooc_admin(k) else ""
     if not portal:   # Amtsseite: dasselbe Glas-Design wie das Schatzamt (rp_glas.py) samt persönlicher Darstellung aus „Mein Profil“
@@ -633,7 +676,8 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
         if rp_glas.GLAS:
             import post as _post
             import profil_sa
-            inhalt = rp_glas.CSS + (profil_sa.darstellung_css(_post.CON, k) if _post.CON is not None else "") + inhalt + rp_glas.JS + (rp_glas.sheets_js() if rp_glas.SHEETS else "")
+            inhalt = (rp_glas.CSS + AMT_GLAS_CSS + (profil_sa.darstellung_css(_post.CON, k) if _post.CON is not None else "") + inhalt
+                      + rp_glas.JS + (rp_glas.sheets_js() if rp_glas.SHEETS else "") + AMT_GLAS_JS)
             if ooc_html:
                 ooc_html = ""
                 suche = rp_glas.ooc_pille() + suche
@@ -653,7 +697,7 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
 <button class="knopf-rund" type="submit" title="Abmelden" aria-label="Abmelden">{ic("log-out")}</button></form></div></div>
 </aside>
 <div class="spalte">
-<header class="kopf"><a class="logo" href="{basis}" title="{esc(logo_name)} – {esc(seitenname)}"><img src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a>{portal.get("kopf_zusatz", "") if portal else ""}<span class="raum"></span>{suche}</header>
+<header class="kopf"><a class="logo" href="{basis}" title="{esc(logo_name)} – {esc(seitenname)}"><img src="{BASIS}logo/{logo}-kurz.png" alt="{esc(logo_name)}"></a>{portal.get("kopf_zusatz", "") if portal else krumen(gruppen, aktiv, titel)}<span class="raum"></span>{suche}</header>
 <main id="inhalt">{ooc_html}{inhalt}</main>
 </div></div>
 <div class="schleier" id="schleier"></div>
@@ -1125,8 +1169,55 @@ async def verfahren_akte(request):
               f'<h2>Akte</h2>{kopf}<h2>Phase I – außerhalb des Charakters</h2>{_felder(v["phase1"], PHASE1_FELDER)}'
               f'<h2>Phase II – im Charakter</h2>{_felder(v["phase2"], PHASE2_FELDER)}{schliessen}'
               f'<h2>Vorgänge</h2>{eintraege_html(con, "verfahren", v["id"])}' + (f'<h2>Vermerk</h2>{vermerk_formular(request, pfad)}' if w else ""))
-    return _ant(request, "Einbürgerungsakte", "verfahren", inhalt)
+    return _ant(request, f"Einbürgerungsakte {az_verfahren(v['id'], v['erstellt'])}", "verfahren", inhalt)
 
+
+
+# ---------------------------------------------------------------- Suche (Kopfzeile)
+
+def suche_treffer(con, k, q, n=8):
+    """[(Titel, Bereich, URL)] für die Aktensuche: Seiten der Navigation, Bürgerakten (Name, IC-Name, BA-Nummer, Discord-ID),
+    Einbürgerungsakten (EB-Nummer, Name) und Pässe (Passnummer). Akten unter Verschluss nur mit Aktenzeichen."""
+    import meldewesen
+    q = q.strip()[:80]
+    if len(q) < 2:
+        return []
+    like, ql, aus = f"%{q}%", q.lower(), []
+    for gname, es in nav_gruppen(k):
+        for e in es:
+            if ql in e[2].lower():
+                aus.append((e[2], "Seite · " + gname, e[3] if e[3].startswith("/") else BASIS + e[3]))
+    sa, sk = sperren(con, k)
+    ziffern = "".join(c for c in q if c.isdigit())
+    for r in con.execute("SELECT * FROM amt_akten WHERE name LIKE ? OR ic_name LIKE ? OR konto_id=? OR ('BA-' || printf('%05d', id)) LIKE ? "
+                         "OR (? <> '' AND id=?) ORDER BY (ic_name LIKE ?) DESC, ic_name COLLATE NOCASE LIMIT ?",
+                         (like, like, q, like, ziffern if q.upper().startswith("BA") else "", int(ziffern or 0), q + "%", n)):
+        if r["id"] in sa:
+            aus.append((az_akte(r["id"]), "Bürgerakte · unter Verschluss", f"{BASIS}buerger/{r['id']}/"))
+        else:
+            aus.append((r["ic_name"] or r["name"], f"Bürgerakte {az_akte(r['id'])} · {STATUS_AKTE.get(r['status'], '')}", f"{BASIS}buerger/{r['id']}/"))
+    for v in con.execute("SELECT * FROM amt_verfahren WHERE name LIKE ? OR (? <> '' AND id=?) ORDER BY id DESC LIMIT ?",
+                         (like, ziffern if q.upper().startswith("EB") else "", int(ziffern[-4:] or 0) if ziffern else 0, n)):
+        az = az_verfahren(v["id"], v["erstellt"])
+        aus.append((az if v["konto_id"] in sk else v["name"], f"Einbürgerungsakte {az} · {ERGEBNIS.get(v['ergebnis'], '')}", f"{BASIS}verfahren/{v['id']}/"))
+    if len(q) >= 3:
+        for x in con.execute("SELECT * FROM pw_paesse WHERE nummer LIKE ? ORDER BY id DESC LIMIT ?", (q.upper() + "%", n)):
+            gesperrt = x["akte_id"] in sa
+            aus.append((x["nummer"], ("Pass · unter Verschluss" if gesperrt else f"Pass · {meldewesen.PASSARTEN.get(x['art'], (x['art'],))[0]} · {x['inhaber']}"),
+                        f"{meldewesen.PFAD}paesse/{x['id']}/"))
+    return aus[:n]
+
+
+@_beamter
+async def suche(request):
+    con, k = request.app["db"], request["konto"]
+    q = request.query.get("q", "").strip()[:80]
+    res = suche_treffer(con, k, q, 8 if request.query.get("json") else 2)
+    if request.query.get("json"):
+        return web.json_response([{"t": t, "o": o, "u": u} for t, o, u in res], headers={"Cache-Control": "no-store"})
+    if len(res) == 1:
+        raise web.HTTPFound(res[0][2])
+    raise web.HTTPFound(f"{BASIS}buerger/?q=" + __import__("urllib.parse").parse.quote(q))
 
 
 # ---------------------------------------------------------------- Statistiken
@@ -1663,6 +1754,7 @@ def registrieren(app):
     app.on_cleanup.append(_stop)
     app.router.add_get(BASIS, uebersicht)
     app.router.add_get(BASIS + "logo/{name}", logo_datei)
+    app.router.add_get(BASIS + "suche/", suche)
     app.router.add_get(BASIS + "buerger/", buerger_liste)
     app.router.add_get(BASIS + "buerger/{id}/", buerger_akte)
     app.router.add_get(BASIS + "verfahren/", verfahren_liste)
