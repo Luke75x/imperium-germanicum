@@ -156,7 +156,7 @@ html:root main .rg-leit h2.rg-leit-titel{border:0;padding:0;margin:0 0 26px;text
 .rg-leit-links a{display:inline-flex;gap:8px;align-items:center;color:var(--ink);text-decoration:none;font-weight:650;font-size:15.5px}
 .rg-leit-links a .icon{color:var(--grau);transition:transform .2s}.rg-leit-links a:hover{color:var(--akzent)}.rg-leit-links a:hover .icon{transform:translateX(3px);color:var(--akzent)}
 .rg-leit-paar-raster{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin:46px 0}
-.rg-leit-paar{margin:0}
+.rg-leit-paar{margin:0;display:flex;flex-direction:column}.rg-leit-paar .rg-leit-buehne{flex:1}
 .rg-leit-paar .rg-leit-buehne{grid-template-columns:minmax(0,46%) minmax(0,1fr);min-height:260px}
 .rg-leit-paar .rg-leit-bild img{max-height:360px}
 .rg-leit-paar .rg-leit-links{grid-template-columns:max-content;gap:9px;padding:20px 20px}
