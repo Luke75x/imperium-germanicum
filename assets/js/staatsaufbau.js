@@ -308,10 +308,18 @@
 
   // ---------- Ausschnitt ----------
   function aspect() { return surface.clientHeight / Math.max(1, surface.clientWidth); }
-  function clampW(w) { return Math.min(Math.max(w, 260), Math.max(full.w, full.h / aspect(), 600) * 3); }
+  // Ansicht: höchstens 50 % größer als das Organigramm (je 25 % Rand); im Editor bleibt mehr Spielraum zum Verschieben
+  var RAND = EDIT ? 1 : 0.25;
+  function clampW(w) { return Math.min(Math.max(w, 260), Math.max(full.w, full.h / aspect(), 600) * (EDIT ? 3 : 1 + 2 * RAND)); }
+  function grenze(c, halb, von, bis) { return bis - von <= 2 * halb ? (von + bis) / 2 : Math.min(Math.max(c, von + halb), bis - halb); }
   function setView(cx, cy, w) {
     w = clampW(w);
     var h = w * aspect();
+    if (!EDIT) {
+      var rx = full.w * RAND, ry = full.h * RAND;
+      cx = grenze(cx, w / 2, full.x - rx, full.x + full.w + rx);
+      cy = grenze(cy, h / 2, full.y - ry, full.y + full.h + ry);
+    }
     view = { x: cx - w / 2, y: cy - h / 2, w: w, h: h };
     if (!raf) raf = requestAnimationFrame(function () { raf = 0; applyView(); });
   }

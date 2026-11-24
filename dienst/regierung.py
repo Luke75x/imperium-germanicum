@@ -36,7 +36,7 @@ esc = html.escape
 PFAD = "/regierung/"
 LOGO_ORDNER = os.path.join(config.HIER, "amt_logos")
 LOGO_SCHLUESSEL = {"kanzlei": "kanzler"}
-RUNDE_LOGOS = {"crownestates"}   # quadratische/runde Logos ohne Schriftzug daneben: im Kopf mit Namen, in Karten größer   # Ministerium → Logodatei, wenn der Name abweicht
+RUNDE_LOGOS = {"crownestates", "kronstatthalterschaft"}   # quadratische/runde Logos ohne Schriftzug daneben: im Kopf mit Namen, in Karten größer   # Ministerium → Logodatei, wenn der Name abweicht
 
 
 def logo_von(schl):
@@ -299,7 +299,7 @@ html:root body{padding-bottom:0}
 .rw-logo{line-height:0;flex:none}.rw-logo img{height:58px;width:auto;max-width:min(62vw,340px);object-fit:contain;object-position:left}
 .rw-name{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink)}.rw-name img{height:58px;width:auto}
 .rw-name b{font-size:19px;line-height:1.2;font-weight:600;max-width:340px}
-.rw-rund img{height:72px;width:72px;border-radius:50%}
+.rw-rund img{height:72px;width:auto;max-width:72px;object-fit:contain}
 .rw-kopf .rw-raum{flex:1}
 .rw-suche{display:flex;align-items:center;position:relative;margin:0}.rw-suche .icon{position:absolute;left:12px;color:#8b8f96;pointer-events:none}
 .rw-suche input{width:260px;border:1px solid var(--linie);border-radius:999px;padding:9px 14px 9px 38px;font:inherit;font-size:14px;background:rgba(255,255,255,.7)}
