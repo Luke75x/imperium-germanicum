@@ -50,6 +50,8 @@ LEITUNG_ROLLEN = {"kanzlei": [amt.ROLLE_KANZLER], "generalkonsulat": ["152270261
 for _b in amt.BEHOERDEN:
     if _b["leitung"]:
         LEITUNG_ROLLEN.setdefault(_b["schl"], _b["leitung"])
+LEITUNG_BILDER = os.path.join(config.HIER, "leitung_bilder")   # Porträts: <schl>.(png|webp|jpg) – souveraen, kanzlei, generalkonsulat, polizei …
+BILD_ENDUNGEN = (".png", ".webp", ".jpg", ".jpeg")
 QUELLEN = []    # fn(con) -> [{titel, kurz, art, zeit, url, quelle}]
 HINWEISE = []   # fn(con) -> HTML für die Startseite
 SUCHE = []      # fn(con, q) -> [(Art, Titel, URL)]
@@ -138,6 +140,32 @@ a.rg-karte:hover{border-color:#c6ccd6;box-shadow:0 8px 22px -14px rgba(16,24,40,
 .rg-ok.fehler{border-left-color:var(--rot)}
 .rg-gruppe{font-size:13px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--grau);margin:22px 0 10px}
 .rg-knoepfe .btn.zweit{color:var(--ink)}
+.rg-leit{margin:46px 0}
+html:root main .rg-leit h2.rg-leit-titel{border:0;padding:0;margin:0 0 26px;text-align:center;font-size:clamp(22px,2.6vw,30px);font-weight:500;letter-spacing:-.01em;
+ text-transform:none;color:var(--ink);display:block}
+.rg-leit-buehne{position:relative;display:grid;grid-template-columns:minmax(0,430px) minmax(0,1fr);align-items:end;min-height:300px}
+.rg-leit-buehne::before{content:"";position:absolute;left:0;right:0;bottom:0;height:56%;background:rgba(22,23,26,.06);border-radius:var(--r);
+ border:1px solid var(--glas-rand,var(--linie))}
+.rg-leit-bild{position:relative;z-index:1;display:flex;justify-content:center;align-items:flex-end;line-height:0;padding:0 10px}
+.rg-leit-bild img{max-height:470px;max-width:100%;width:auto;display:block;object-fit:contain;filter:drop-shadow(0 10px 18px rgba(16,24,40,.18))}
+.rg-silhouette{width:72%;max-width:300px;height:auto;fill:#c9ced6}
+.rg-leit-links{position:relative;z-index:1;display:grid;grid-template-columns:repeat(2,max-content);gap:18px 46px;align-content:center;align-self:end;
+ min-height:56%;padding:34px clamp(18px,4vw,60px)}
+.rg-leit-links a{display:inline-flex;gap:8px;align-items:center;color:var(--ink);text-decoration:none;font-weight:650;font-size:15.5px}
+.rg-leit-links a .icon{color:var(--grau);transition:transform .2s}.rg-leit-links a:hover{color:var(--akzent)}.rg-leit-links a:hover .icon{transform:translateX(3px);color:var(--akzent)}
+.rg-leit-paar-raster{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin:46px 0}
+.rg-leit-paar{margin:0}
+.rg-leit-paar .rg-leit-buehne{grid-template-columns:minmax(0,46%) minmax(0,1fr);min-height:260px}
+.rg-leit-paar .rg-leit-bild img{max-height:360px}
+.rg-leit-paar .rg-leit-links{grid-template-columns:max-content;gap:12px;padding:24px 20px}
+html:root main .rg-leit-paar h2.rg-leit-titel{font-size:clamp(19px,1.9vw,24px);margin-bottom:18px}
+@media(max-width:900px){.rg-leit-paar-raster{grid-template-columns:1fr;gap:40px}}
+@media(max-width:700px){
+ .rg-leit-buehne,.rg-leit-paar .rg-leit-buehne{grid-template-columns:1fr;min-height:0}
+ .rg-leit-buehne::before{height:auto;top:42%}
+ .rg-leit-bild img{max-height:300px}.rg-silhouette{width:55%}
+ .rg-leit-links,.rg-leit-paar .rg-leit-links{grid-template-columns:1fr;gap:12px;padding:20px 22px 24px;min-height:0}
+}
 .rg-fuss{margin-top:48px;padding-top:16px;border-top:1px solid var(--linie);display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--grau)}
 .rg-fuss a{color:var(--grau);text-decoration:none}.rg-fuss a:hover{color:var(--ink)}
 @media(max-width:800px){.rg-fuss{margin-bottom:calc(var(--tab) + 28px)}}
@@ -152,6 +180,7 @@ def ist_redaktion(k):
 
 
 def einrichten(con):
+    os.makedirs(LEITUNG_BILDER, exist_ok=True)
     con.executescript(SCHEMA)
     if "ressort" not in [r[1] for r in con.execute("PRAGMA table_info(regierung_meldungen)")]:
         con.execute("ALTER TABLE regierung_meldungen ADD COLUMN ressort TEXT NOT NULL DEFAULT ''")
@@ -372,6 +401,52 @@ def rahmen(request, k, titel, aktiv, inhalt, portal=None, krumen=None, q="", sta
     return web.Response(status=status, text=seite, content_type="text/html", headers={"Cache-Control": cache})
 
 
+# ---------------------------------------------------------------- Leitung: Porträt-Block (nach dem Vorbild „Außenminister …“ des Auswärtigen Amts)
+
+SILHOUETTE = ('<svg class="rg-silhouette" viewBox="0 0 300 380" aria-hidden="true"><circle cx="150" cy="118" r="70"/>'
+              '<path d="M18 380c0-92 58-152 132-152s132 60 132 152Z"/></svg>')
+
+
+def bild_datei(name):
+    for e in BILD_ENDUNGEN:
+        p = os.path.join(LEITUNG_BILDER, name + e)
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def bild_url(name):
+    p = bild_datei(name)
+    return f"{PFAD}bild/{name}?v={int(os.path.getmtime(p))}" if p else None
+
+
+async def bild(request):
+    name = request.match_info["name"]
+    p = bild_datei(name) if re.fullmatch(r"[a-z]+", name) else None
+    if not p:
+        raise web.HTTPNotFound()
+    return web.FileResponse(p, headers={"Cache-Control": "no-cache"})
+
+
+def ohne_artikel(t):
+    return re.sub(r"^(Der|Die|Das)\s+", "", t or "")
+
+
+def leitung_titel(amt_, namen):
+    """„Generalkonsul Max Mustermann“ bzw. „Generalkonsul – zurzeit unbesetzt“."""
+    a = ohne_artikel(amt_)
+    return f"{a} {', '.join(namen)}" if namen else f"{a} – zurzeit unbesetzt"
+
+
+def leitung_block(titel, bildname, links, paar=False):
+    """Überschrift, Porträt (freigestellt, ragt über ein graues Band) und Links im Band. links = [(Text, URL)]."""
+    url = bild_url(bildname)
+    bild_html = f'<img src="{url}" alt="">' if url else SILHOUETTE
+    li = "".join(f'<a href="{esc(u)}">{esc(t)}{ic("arrow-right")}</a>' for t, u in links)
+    return (f'<section class="rg-leit{" rg-leit-paar" if paar else ""}"><h2 class="rg-leit-titel">{esc(titel)}</h2>'
+            f'<div class="rg-leit-buehne"><div class="rg-leit-bild">{bild_html}</div><nav class="rg-leit-links">{li}</nav></div></section>')
+
+
 # ---------------------------------------------------------------- Meldungen (eigene + Ministerien mit eigenem Webauftritt)
 
 def _eigene(con):
@@ -463,10 +538,15 @@ async def start(request):
                 + (f'<div class="rg-karten">{"".join(_karte(m) for m in ms)}</div>' if ms else '<p class="leer">Noch keine Meldungen.</p>') + "</section>")
     souv = await namen_mit_rollen(request, [ROLLE_SOUVERAEN])
     kanzler = await namen_mit_rollen(request, [amt.ROLLE_KANZLER])
-    personen = "".join(_person(n, "Der Souverän – Imperator Rex") for n in souv) + "".join(_person(n, "Der Kronkanzler") for n in kanzler)
-    regierung = (f'<section class="rg-abschnitt"><h2>Die Reichsregierung <a href="{PFAD}reichsregierung/">Zum Kabinett</a></h2>'
-                 f'<div class="rg-karten">{personen or "<p class=leer>Keine Angaben.</p>"}</div></section>')
-    return rahmen(request, k, "Startseite", "r-start", held + hinweise + ministerien + newsroom + regierung, cache="private, no-cache")
+    regierung = ('<div class="rg-leit-paar-raster">'
+                 + leitung_block(leitung_titel("Der Souverän", souv), "souveraen",
+                                 [("Der Souverän", "/der-souveraen/"), ("Die Reichsregierung", PFAD + "reichsregierung/"),
+                                  ("Kabinettsbeschlüsse", PFAD + "aktuelles/?art=kabinett")], paar=True)
+                 + leitung_block(leitung_titel("Kronkanzler", kanzler), "kanzlei",
+                                 [("Das Kronkanzleramt", PFAD + "kanzlei/"), ("Pressemitteilungen", PFAD + "aktuelles/?art=pressemitteilung"),
+                                  ("Reden", PFAD + "aktuelles/?art=rede")], paar=True)
+                 + "</div>")
+    return rahmen(request, k, "Startseite", "r-start", held + hinweise + regierung + ministerien + newsroom, cache="private, no-cache")
 
 
 def _person(n, amt_):
@@ -623,16 +703,18 @@ async def ministerium_start(request):
         knopf = f'<div class="rg-knoepfe"><a class="btn" href="{WEBAUFTRITTE[b["schl"]]}">{ic("arrow-right")}Zum Portal: {esc(b.get("kurz") or b["name"])}</a></div>'
     held = (f'<div class="rg-held"><div class="rg-held-text"><span class="rg-art">{esc(gruppen.get(b["gruppe"], ""))}</span><h2>{esc(b["name"])}</h2>'
             f'<p>{esc(b.get("lead", ""))}</p>{knopf}</div><div class="rg-held-bild">{bild}</div></div>')
-    leitung = (f'<section class="rg-abschnitt"><h2>Leitung</h2><div class="rg-karten">'
-               + ("".join(_person(n, b.get("leitung", "")) for n in namen) or f'<div class="rg-person"><span><b>{esc(b.get("leitung", "–"))}</b>'
-                  f'<small>{"zurzeit unbesetzt" if rollen else "Amtsinhaber nicht hinterlegt"}</small></span></div>') + "</div></section>")
+    kurz = b.get("kurz") or b["name"]
+    basis = f'{PFAD}{b["schl"]}/'
+    leitung = leitung_block(leitung_titel(b.get("leitung", "Leitung"), namen), b["schl"],
+                            [(f"Die Leitung des Amtes", basis + "aufgaben/#leitung"), ("Reden", basis + "meldungen/?art=rede"),
+                             ("Pressemitteilungen", basis + "meldungen/?art=pressemitteilung"), ("Aufgaben und Organisation", basis + "aufgaben/")])
     ms = _meldungen_von(con, b["schl"])[:3]
     meld = (f'<section class="rg-abschnitt"><h2>Meldungen <a href="{PFAD}{b["schl"]}/meldungen/">Alle Meldungen</a></h2>'
             + (f'<div class="rg-karten">{"".join(_mkarte(b, m) for m in ms)}</div>' if ms else '<p class="leer">Noch keine Meldungen.</p>') + "</section>")
     auf = b.get("aufgaben", [])
     aufgaben = (f'<section class="rg-abschnitt"><h2>Aufgaben <a href="{PFAD}{b["schl"]}/aufgaben/">Mehr erfahren</a></h2><ul class="rg-text">'
                 + "".join(f"<li>{esc(a)}</li>" for a in auf[:4]) + "</ul></section>") if auf else ""
-    return rahmen(request, k, b["name"], "m-start", held + aufgaben + leitung + meld, portal=portal_ministerium(b, k), krumen=[])
+    return rahmen(request, k, b["name"], "m-start", held + leitung + aufgaben + meld, portal=portal_ministerium(b, k), krumen=[])
 
 
 async def ministerium_aufgaben(request):
@@ -650,7 +732,7 @@ async def ministerium_aufgaben(request):
         daten.append(("Nachgeordnet", ", ".join(b["nachgeordnet"])))
     if b.get("zusammen"):
         daten.append(("Zusammenarbeit", ", ".join(b["zusammen"])))
-    dl = '<dl class="rg-daten">' + "".join(f"<dt>{esc(a)}</dt><dd>{esc(w)}</dd>" for a, w in daten) + "</dl>"
+    dl = '<dl class="rg-daten" id="leitung">' + "".join(f"<dt>{esc(a)}</dt><dd>{esc(w)}</dd>" for a, w in daten) + "</dl>"
     aufgaben = ("<h2>Aufgaben</h2><ul class='rg-text'>" + "".join(f"<li>{esc(a)}</li>" for a in b.get("aufgaben", [])) + "</ul>") if b.get("aufgaben") else ""
     web_link = f'<p><a class="btn zweit" href="/{b["seite"].lstrip("/")}">{ic("external-link")}Auch auf imperiumgermanicum.de</a></p>' if b.get("seite") else ""
     return rahmen(request, k, "Aufgaben", "m-aufgaben", kopf("Aufgaben und Organisation", esc(b.get("lead", "")), b.get("kurz") or b["name"]) + dl + aufgaben + web_link,
@@ -661,7 +743,12 @@ async def ministerium_meldungen(request):
     k = await anmeldung.konto(request)
     b, _ = _ministerium(request)
     ms = _meldungen_von(request.app["db"], b["schl"])
-    inhalt = (f'<div class="rg-karten">{"".join(_mkarte(b, m) for m in ms)}</div>' if ms else '<p class="leer">Noch keine Meldungen.</p>')
+    art = request.query.get("art", "")
+    if art in MELDUNGSARTEN:
+        ms = [m for m in ms if m["art"] == art]
+    filt = ('<div class="rg-schnell">' + f'<a href="?" class="{"" if art else "aktiv"}">Alle</a>'
+            + "".join(f'<a href="?art={a}" class="{"aktiv" if a == art else ""}">{t}</a>' for a, t in MELDUNGSARTEN.items()) + "</div>")
+    inhalt = filt + (f'<div class="rg-karten">{"".join(_mkarte(b, m) for m in ms)}</div>' if ms else '<p class="leer">Keine Meldungen.</p>')
     return rahmen(request, k, "Meldungen", "m-meldungen", kopf("Meldungen", "", b.get("kurz") or b["name"]) + inhalt, portal=portal_ministerium(b, k))
 
 
@@ -829,6 +916,7 @@ def registrieren(app):
     r.add_get("/regierung", ohne_schraegstrich)
     r.add_get(PFAD, start)
     r.add_get(PFAD + "logo/{name}.png", logo)
+    r.add_get(PFAD + "bild/{name}", bild)
     r.add_get(PFAD + "aktuelles/", aktuelles)
     r.add_get(PFAD + "aktuelles/{id:\\d+}/", meldung)
     r.add_get(PFAD + "reichsregierung/", reichsregierung)

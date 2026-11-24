@@ -385,14 +385,11 @@ async def start(request):
         f'<li><a href="{PFAD}service/antrag/?art=anfrage">Diplomatische Anfrage</a></li></ul></div></div>')
 
     gk = await _namen_mit_rolle(request, ROLLE_GENERALKONSUL)
-    leitung = _abschnitt(
-        '<div class="gk-reisen"><div><h2>Leitung</h2><div class="gk-personen" style="margin-bottom:12px">' + ("".join(
-            f'<div class="gk-person"><span class="avatar">{esc(_ini(n))}</span><span><b>{esc(n)}</b><small>Generalkonsul</small></span></div>' for n in gk)
-            or '<p class="leer">Das Amt des Generalkonsuls ist zurzeit unbesetzt.</p>') + '</div><p>Der Generalkonsul leitet das Kaiserliche Generalkonsulat; ihm unterstehen die Konsuln des Reiches. Der Souverän ernennt und entlässt '
-        'die Konsuln, der Kronkanzler verwaltet sie in seinem Namen.</p>'
-        f'<p><a class="gk-mehr" href="{PFAD}das-generalkonsulat/">Das Generalkonsulat und seine Konsuln</a></p></div>'
-        + _vertraege_kurz(con, laender) + '</div>')
-    return _antwort(request, k, "start", "Startseite", held + meldungen + reisen + leitung)
+    leitung = regierung.leitung_block(regierung.leitung_titel("Generalkonsul", gk), "generalkonsulat",
+                                      [("Das Generalkonsulat und seine Konsuln", PFAD + "das-generalkonsulat/"), ("Reisen und Länder", PFAD + "laender/"),
+                                       ("Pressemitteilungen und Reden", PFAD + "meldungen/"), ("Verträge und Abkommen", PFAD + "vertraege/")])
+    vertraege = _abschnitt(_vertraege_kurz(con, laender))
+    return _antwort(request, k, "start", "Startseite", held + leitung + meldungen + reisen + vertraege)
 
 
 def _vertraege_kurz(con, laender):
