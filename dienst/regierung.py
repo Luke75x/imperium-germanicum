@@ -181,6 +181,7 @@ def ist_redaktion(k):
 
 def einrichten(con):
     os.makedirs(LEITUNG_BILDER, exist_ok=True)
+    _fz_einrichten(con)
     con.executescript(SCHEMA)
     if "ressort" not in [r[1] for r in con.execute("PRAGMA table_info(regierung_meldungen)")]:
         con.execute("ALTER TABLE regierung_meldungen ADD COLUMN ressort TEXT NOT NULL DEFAULT ''")
@@ -328,7 +329,8 @@ try{if(!localStorage.getItem('rg-heil-1')){fetch('/regierung/',{cache:'reload',c
 
 
 def _nav_regierung(k):
-    nav = [("Startseite", "", [("r-start", "Startseite", "")]), ("Aktuelles", "aktuelles/", [("r-aktuelles", "Aktuelles", "aktuelles/")]),
+    nav = [("Startseite", "", [("r-start", "Startseite", "")]), ("Regierungsfahrzeuge", "fahrzeuge/", [("r-fahrzeuge", "Regierungsfahrzeuge", "fahrzeuge/")]),
+           ("Aktuelles", "aktuelles/", [("r-aktuelles", "Aktuelles", "aktuelles/")]),
            ("Die Reichsregierung", "reichsregierung/", [("r-regierung", "Die Reichsregierung", "reichsregierung/")]),
            ("Ministerien", "ministerien/", [("r-ministerien", "Ministerien", "ministerien/")])]
     if ist_redaktion(k):
@@ -525,6 +527,7 @@ async def start(request):
             '<p>Der Kronkanzler und die Reichsbehörden: Hier finden Sie alle Ministerien des Reiches mit ihren eigenen Seiten, '
             'dazu Pressemitteilungen, Kabinettsbeschlüsse und Reden.</p>'
             f'<div class="rg-knoepfe"><a class="btn" href="#ministerien">{ic("landmark")}Alle Ministerien</a>'
+            f'<a class="btn zweit" href="{PFAD}fahrzeuge/">{ic("flag")}Regierungsfahrzeuge</a>'
             f'<a class="btn zweit" href="{PFAD}aktuelles/">{ic("newspaper")}Aktuelles</a></div></div>'
             f'<div class="rg-held-bild"><img src="{PFAD}logo/regierung-kurz.png" alt=""></div></div>')
     hinweise = ""
@@ -916,6 +919,209 @@ async def alt_ressort(request):
     umleiten(f'{PFAD}{request.match_info["schl"]}/')
 
 
+# ---------------------------------------------------------------- Regierungsfahrzeuge (Flugbereitschaft, Fahrbereitschaft) in 3D
+
+DREI_D = os.path.join(config.HIER, "statisch", "three")
+DREI_D_DATEIEN = {"three.module.min.js", "OrbitControls.js", "RoomEnvironment.js", "fahrzeug.js", "LICENSE-three.txt"}
+# Typ → (Bezeichnung, Gruppe, Einsatz, Beschreibung, Datenblatt, Kennungsvorsilbe). Angelehnt an Flugbereitschaft der Luftwaffe und Fahrbereitschaft der Bundesregierung.
+KATALOG = {
+    "a350": ("Airbus A350-900 ACJ", "Flugbereitschaft", "Langstrecke · Staatsbesuche",
+             "Das Flaggschiff der Flugbereitschaft für Staatsbesuche und Langstreckenreisen: Besprechungsraum, Ruhebereich, gesicherte Kommunikation und Platz für Delegation und Presse.",
+             [("Länge", "66,8 m"), ("Spannweite", "64,75 m"), ("Reichweite", "ca. 15.000 km"), ("Triebwerke", "2 × Rolls-Royce Trent XWB"), ("Kabine", "VIP-Ausstattung, rund 140 Plätze")], "10+0"),
+    "a330": ("Airbus A330-200 (VIP)", "Flugbereitschaft", "Langstrecke · große Delegationen",
+             "Bewährter Großraumjet für lange Reisen mit großer Delegation.",
+             [("Länge", "58,8 m"), ("Spannweite", "60,3 m"), ("Reichweite", "ca. 13.400 km"), ("Triebwerke", "2 Mantelstromtriebwerke"), ("Kabine", "VIP-Ausstattung")], "11+0"),
+    "a321": ("Airbus A321LR", "Flugbereitschaft", "Mittelstrecke",
+             "Schmalrumpfjet mit großer Reichweite für Reisen innerhalb Europas und zu benachbarten Kontinenten.",
+             [("Länge", "44,5 m"), ("Spannweite", "35,8 m"), ("Reichweite", "ca. 7.400 km"), ("Triebwerke", "2 Mantelstromtriebwerke"), ("Kabine", "VIP- und Delegationsbereich")], "15+0"),
+    "a319": ("Airbus A319CJ", "Flugbereitschaft", "Kurz- und Mittelstrecke",
+             "Kompakter Regierungsjet für kleinere Delegationen auf kurzen und mittleren Strecken.",
+             [("Länge", "33,8 m"), ("Spannweite", "35,8 m"), ("Reichweite", "ca. 11.000 km"), ("Triebwerke", "2 × CFM56"), ("Kabine", "VIP-Ausstattung")], "16+0"),
+    "global": ("Bombardier Global 6000", "Flugbereitschaft", "Kurzstrecke · kleine Delegationen",
+               "Langstrecken-Geschäftsreiseflugzeug für Leitungsreisen mit kleiner Begleitung.",
+               [("Länge", "30,3 m"), ("Spannweite", "28,7 m"), ("Reichweite", "ca. 11.000 km"), ("Triebwerke", "2 × Rolls-Royce BR710 (Heck)"), ("Kabine", "rund 13 Plätze")], "14+0"),
+    "h225": ("Airbus H225M", "Flugbereitschaft", "Hubschrauber · Pendelflüge",
+             "Zweimotoriger Transporthubschrauber für Pendelflüge zwischen den Dienstsitzen und für kurzfristige Einsätze.",
+             [("Länge", "19,5 m (mit Rotor)"), ("Rotordurchmesser", "16,2 m"), ("Reichweite", "ca. 850 km"), ("Triebwerke", "2 Wellenturbinen"), ("Kabine", "VIP-Ausstattung, bis 12 Plätze")], "82+"),
+    "sklasse": ("Mercedes-Benz S 680 Guard", "Fahrbereitschaft", "Geschützte Limousine",
+                "Gepanzerte Staatslimousine der höchsten zivilen Schutzklasse für die Leitung, mit Standarten auf den Kotflügeln.",
+                [("Länge", "5,47 m"), ("Schutzklasse", "VR10"), ("Antrieb", "V12, Allrad"), ("Gewicht", "ca. 4,2 t"), ("Sitze", "4")], "IG-R 1"),
+    "a8": ("Audi A8 L Security", "Fahrbereitschaft", "Geschützte Limousine",
+           "Gepanzerte Langversion für Leitung und Staatsgäste.",
+           [("Länge", "5,45 m"), ("Schutzklasse", "VR10"), ("Antrieb", "V8, Allrad"), ("Gewicht", "ca. 4 t"), ("Sitze", "4")], "IG-R 2"),
+    "bmw7": ("BMW 7er Protection", "Fahrbereitschaft", "Geschützte Limousine",
+             "Sonderschutz-Limousine für Leitung und Staatssekretäre.",
+             [("Länge", "5,39 m"), ("Schutzklasse", "VR9"), ("Antrieb", "V8, Allrad"), ("Gewicht", "ca. 3,5 t"), ("Sitze", "4")], "IG-R 3"),
+    "vklasse": ("Mercedes-Benz V-Klasse", "Fahrbereitschaft", "Delegation · Begleitung",
+                "Großraumlimousine für Delegationen, Gäste und Begleitpersonal.",
+                [("Länge", "5,14 m"), ("Sitze", "7–8"), ("Antrieb", "Diesel, Automatik"), ("Einsatz", "Delegationsfahrten")], "IG-R 5"),
+    "sprinter": ("Mercedes-Benz Sprinter", "Fahrbereitschaft", "Begleitfahrzeug · Technik",
+                 "Begleit- und Technikfahrzeug für Kolonnen, Gepäck und Funktechnik.",
+                 [("Länge", "5,93 m"), ("Höhe", "2,6 m"), ("Sitze", "bis 9"), ("Einsatz", "Kolonne, Technik, Gepäck")], "IG-R 7"),
+}
+FLUG_TYPEN = {"a350", "a330", "a321", "a319", "global", "h225"}
+# Hausfarbe je Ministerium (Bauch, Leitwerk, Winglets der Flugzeuge)
+AKZENTE = {"kanzlei": "#1f2f45", "crownestates": "#3b2a4d", "krs": "#2b2f36", "polizei": "#1d4f91", "zoll": "#2e6b45",
+           "katastrophenschutz": "#b85a00", "inquisition": "#6b1f24", "generalkonsulat": "#1f3a6e", "schatzamt": "#7a5a12", "heroldsamt": "#5a2a2a"}
+# Behördenlackierung der Straßenfahrzeuge (sonst Schwarz mit Standarten)
+SONDER = {"polizei": {"grund": "#eef0f3", "streifen": "#1d4f91", "zweit": "#9cc3f0", "text": "POLIZEI", "licht": "#1e5bff"},
+          "zoll": {"grund": "#eef0f3", "streifen": "#2e6b45", "zweit": "#9fd1b1", "text": "ZOLL", "licht": "#1e5bff"},
+          "katastrophenschutz": {"grund": "#f4f5f7", "streifen": "#e07000", "zweit": "#1f3a8a", "text": "KATASTROPHENSCHUTZ", "licht": "#1e5bff"}}
+
+FZ_CSS = """<style>
+.fz-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr));gap:14px;margin:0 0 30px}
+.fz-kachel{display:flex;flex-direction:column;align-items:flex-start;gap:10px;min-height:132px;border:1px solid var(--linie);border-radius:var(--r);padding:16px 18px;
+ background:#fff;color:var(--ink);text-decoration:none;position:relative;transition:transform .2s,box-shadow .2s,border-color .2s}
+a.fz-kachel:hover{transform:translateY(-2px);box-shadow:0 14px 30px -18px rgba(16,24,40,.45);border-color:#c6ccd6}
+.fz-kachel img{height:46px;width:auto;max-width:calc(100% - 34px);object-fit:contain;object-position:left}
+.fz-kachel b{font-size:14.5px;line-height:1.3}.fz-kachel small{color:var(--grau);font-size:12.5px;margin-top:auto}
+.fz-kachel.leer{opacity:.45;filter:grayscale(1);background:transparent}
+.fz-kachel .fz-zahl{position:absolute;top:12px;right:12px;background:var(--kopf);color:#fff;border-radius:999px;font-size:11.5px;font-weight:700;padding:2px 9px}
+.fz-buehne{position:relative;height:min(62vh,560px);min-height:340px;border-radius:calc(var(--r) + 6px);overflow:hidden;
+ background:radial-gradient(120% 90% at 50% 15%,#ffffff 0%,#e9edf2 55%,#d7dde5 100%);border:1px solid var(--glas-rand,var(--linie))}
+.fz-buehne canvas{display:block;width:100%!important;height:100%!important;touch-action:none;cursor:grab}
+.fz-buehne:not(.fertig)::after{content:"Modell wird gebaut …";position:absolute;inset:0;display:grid;place-items:center;color:var(--grau);font-size:14px}
+.fz-leiste{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
+.fz-leiste button{all:unset;cursor:pointer;padding:7px 14px;border-radius:999px;font-size:13.5px;background:rgba(22,23,26,.05);color:#3a3e45}
+.fz-leiste button:hover{background:rgba(22,23,26,.1)}.fz-leiste button[aria-pressed=true]{background:var(--kopf);color:#fff}
+.fz-wahl{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.fz-wahl a{border:1px solid var(--linie);border-radius:999px;padding:6px 14px;font-size:13.5px;color:var(--ink);text-decoration:none;background:#fff}
+.fz-wahl a.aktiv{background:var(--kopf);border-color:var(--kopf);color:#fff}
+.fz-raster2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,340px);gap:28px;margin-top:24px}
+@media(max-width:900px){.fz-raster2{grid-template-columns:1fr}.fz-buehne{height:52vh}}
+.fz-hinweis{font-size:12px;color:var(--grau);margin-top:8px}
+</style>"""
+
+
+def _fz_einrichten(con):
+    con.executescript("""CREATE TABLE IF NOT EXISTS regierung_fahrzeuge (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, ressort TEXT NOT NULL, typ TEXT NOT NULL, name TEXT NOT NULL DEFAULT '', kennung TEXT NOT NULL DEFAULT '',
+        erstellt INTEGER NOT NULL, autor_id TEXT, autor_name TEXT NOT NULL DEFAULT '');""")
+    con.commit()
+
+
+def _fz_kennung(con, typ):
+    vor = KATALOG[typ][5]
+    n = con.execute("SELECT COUNT(*) FROM regierung_fahrzeuge WHERE typ=?", (typ,)).fetchone()[0] + 1
+    return f"{vor}{n}" if typ in FLUG_TYPEN else f"{vor}{n:02d}"
+
+
+async def drei_d(request):
+    name = request.match_info["datei"]
+    if name not in DREI_D_DATEIEN:
+        raise web.HTTPNotFound()
+    return web.FileResponse(os.path.join(DREI_D, name), headers={"Cache-Control": "no-cache"})
+
+
+def _fz_typ_optionen():
+    teile = []
+    for gruppe in ("Flugbereitschaft", "Fahrbereitschaft"):
+        teile.append(f'<optgroup label="{gruppe}">' + "".join(f'<option value="{t}">{esc(v[0])} – {esc(v[2])}</option>'
+                                                              for t, v in KATALOG.items() if v[1] == gruppe) + "</optgroup>")
+    return "".join(teile)
+
+
+async def fahrzeuge(request):
+    k = await anmeldung.konto(request)
+    con = request.app["db"]
+    alle, gruppen = ressorts()
+    anzahl = dict(con.execute("SELECT ressort, COUNT(*) FROM regierung_fahrzeuge GROUP BY ressort").fetchall())
+    teile = []
+    for g, gname in gruppen.items():
+        bs = [b for b in alle if b["gruppe"] == g]
+        if not bs:
+            continue
+        kacheln = ""
+        for b in bs:
+            lg, n = logo_von(b["schl"]), anzahl.get(b["schl"], 0)
+            bild = f'<img src="{PFAD}logo/{lg}-kopf.png" alt="">' if lg else f'<img src="{PFAD}logo/regierung-kurz.png" alt="">'
+            if n:
+                kacheln += (f'<a class="fz-kachel" href="{PFAD}fahrzeuge/{b["schl"]}/">{bild}<b>{esc(b["name"])}</b>'
+                            f'<span class="fz-zahl">{n}</span><small>{"1 Fahrzeug" if n == 1 else f"{n} Fahrzeuge"} · in 3D ansehen</small></a>')
+            else:
+                kacheln += f'<div class="fz-kachel leer">{bild}<b>{esc(b["name"])}</b><small>Kein Fahrzeug festgelegt</small></div>'
+        teile.append(f'<h3 class="rg-gruppe">{esc(gname)}</h3><div class="fz-raster">{kacheln}</div>')
+    verwaltung = ""
+    if ist_redaktion(k):
+        liste = con.execute("SELECT * FROM regierung_fahrzeuge ORDER BY ressort, erstellt").fetchall()
+        namen = {b["schl"]: b["name"] for b in alle}
+        zeilen = "".join(
+            f'<tr><td>{esc(namen.get(f["ressort"], f["ressort"]))}</td><td>{esc(KATALOG.get(f["typ"], ("?",))[0])}</td><td>{esc(f["kennung"])}</td><td>{esc(f["name"] or "–")}</td>'
+            f'<td><form method="post" action="{PFAD}fahrzeuge/{f["id"]}/entfernen" onsubmit="return confirm(\'Fahrzeug entfernen?\')">{csrf_feld(request)}'
+            f'<button class="btn gefahr" type="submit">{ic("trash-2")}Entfernen</button></form></td></tr>' for f in liste)
+        verwaltung = (f'<section class="rg-abschnitt" id="festlegen"><h2>Fahrzeug festlegen (Kronkanzler)</h2>'
+                      f'<form class="rg-form" method="post" action="{PFAD}fahrzeuge/festlegen">{csrf_feld(request)}'
+                      f'<div class="rg-zwei"><label>Ministerium<select name="ressort" required>{opt([(b["schl"], b["name"]) for b in alle], request.query.get("ressort", ""))}</select></label>'
+                      f'<label>Fahrzeug<select name="typ" required>{_fz_typ_optionen()}</select></label></div>'
+                      '<div class="rg-zwei"><label>Taufname (optional, z. B. für Flugzeuge)<input name="name" maxlength="60" placeholder="z. B. Otto von Bismarck"></label>'
+                      '<label>Kennung (leer = automatisch)<input name="kennung" maxlength="20" placeholder="z. B. 10+01 oder IG-R 101"></label></div>'
+                      f'<div class="rg-knoepfe"><button class="btn" type="submit">{ic("check")}Festlegen</button></div></form>'
+                      + (f'<table class="rg-tab"><thead><tr><th>Ministerium</th><th>Fahrzeug</th><th>Kennung</th><th>Taufname</th><th></th></tr></thead><tbody>{zeilen}</tbody></table>' if liste else "")
+                      + "</section>")
+    inhalt = (FZ_CSS + kopf("Regierungsfahrzeuge", "Flugbereitschaft und Fahrbereitschaft der Reichsregierung. Wählen Sie ein Ministerium, um seine Fahrzeuge in 3D anzusehen – "
+                                                   "angeklickt werden können alle Ministerien, denen der Kronkanzler ein Fahrzeug zugewiesen hat.", "Flug- und Fahrbereitschaft")
+              + "".join(teile) + verwaltung)
+    return rahmen(request, k, "Regierungsfahrzeuge", "r-fahrzeuge", inhalt)
+
+
+async def fahrzeug_ansicht(request):
+    k = await anmeldung.konto(request)
+    con = request.app["db"]
+    alle, _ = ressorts()
+    b = next((x for x in alle if x["schl"] == request.match_info["schl"]), None)
+    fz = con.execute("SELECT * FROM regierung_fahrzeuge WHERE ressort=? ORDER BY erstellt", (b["schl"],)).fetchall() if b else []
+    if not b or not fz:
+        raise web.HTTPNotFound(text="Für dieses Ministerium ist kein Regierungsfahrzeug festgelegt.")
+    wahl = request.query.get("f", "")
+    f = next((x for x in fz if str(x["id"]) == wahl), fz[0])
+    typ = KATALOG.get(f["typ"], KATALOG["sklasse"])
+    wahlleiste = ('<div class="fz-wahl">' + "".join(f'<a href="?f={x["id"]}" class="{"aktiv" if x["id"] == f["id"] else ""}">{esc(KATALOG.get(x["typ"], ("?",))[0])}'
+                                                    f'{" · " + esc(x["kennung"]) if x["kennung"] else ""}</a>' for x in fz) + "</div>") if len(fz) > 1 else ""
+    daten = {"typ": f["typ"], "kennung": f["kennung"], "name": f["name"], "behoerde": b["name"], "akzent": AKZENTE.get(b["schl"], "#1f2f45"),
+             "sonder": SONDER.get(b["schl"]) if f["typ"] not in FLUG_TYPEN else None, "adler": f"{PFAD}logo/regierung-kurz.png"}
+    v = int(os.path.getmtime(os.path.join(DREI_D, "fahrzeug.js")))
+    buehne = (f'<div class="fz-buehne" id="fz-buehne" aria-label="3D-Ansicht: {esc(typ[0])}"></div>'
+              '<div class="fz-leiste"><button type="button" data-ansicht="schraeg">Schräg</button><button type="button" data-ansicht="seite">Seite</button>'
+              '<button type="button" data-ansicht="vorne">Vorne</button><button type="button" data-ansicht="oben">Oben</button>'
+              '<button type="button" id="fz-dreh" aria-pressed="true">Drehen</button></div>'
+              '<p class="fz-hinweis">Ziehen zum Drehen, Mausrad oder zwei Finger zum Zoomen. Eigenes 3D-Modell mit der Lackierung des Ministeriums.</p>'
+              f'<script type="application/json" id="fz-daten">{json.dumps(daten).replace("</", "<\\/")}</script>'
+              f'<script type="importmap">{{"imports":{{"three":"{PFAD}3d/three.module.min.js"}}}}</script>'
+              f'<script type="module" src="{PFAD}3d/fahrzeug.js?v={v}"></script>')
+    blatt = ([("Ministerium", b["name"]), ("Fahrzeug", typ[0]), ("Bereich", f"{typ[1]} · {typ[2]}")] + ([("Kennung", f["kennung"])] if f["kennung"] else [])
+             + ([("Taufname", f["name"])] if f["name"] else []) + list(typ[4]) + [("Festgelegt", f"{datum(f['erstellt'])} durch {f['autor_name']}")])
+    dl = '<dl class="rg-daten">' + "".join(f"<dt>{esc(a)}</dt><dd>{esc(w)}</dd>" for a, w in blatt) + "</dl>"
+    inhalt = (FZ_CSS + kopf(typ[0], esc(typ[3]), b.get("kurz") or b["name"]) + wahlleiste
+              + f'<div class="fz-raster2"><div>{buehne}</div><div><h2 style="margin-top:0">Datenblatt</h2>{dl}'
+              + (f'<p><a class="btn zweit" href="{PFAD}fahrzeuge/?ressort={b["schl"]}#festlegen">{ic("pencil")}Fahrzeuge verwalten</a></p>' if ist_redaktion(k) else "")
+              + f'<p><a class="btn zweit" href="{ministerium_url(b)}">{ic("landmark")}Zum Ministerium</a></p></div></div>')
+    return rahmen(request, k, typ[0], "r-fahrzeuge", inhalt, krumen=[("Regierungsfahrzeuge", PFAD + "fahrzeuge/"), (b.get("kurz") or b["name"], None)])
+
+
+async def fahrzeug_festlegen(request):
+    k, form = await post_pruefen(request, ist_redaktion)
+    con = request.app["db"]
+    alle, _ = ressorts()
+    ressort, typ = form.get("ressort", ""), form.get("typ", "")
+    if ressort not in {b["schl"] for b in alle} or typ not in KATALOG:
+        weiter(PFAD + "fahrzeuge/#festlegen", f="Bitte Ministerium und Fahrzeug wählen.")
+    if con.execute("SELECT COUNT(*) FROM regierung_fahrzeuge WHERE ressort=?", (ressort,)).fetchone()[0] >= 12:
+        weiter(PFAD + "fahrzeuge/#festlegen", f="Höchstens 12 Fahrzeuge je Ministerium.")
+    kennung = (form.get("kennung") or "").strip()[:20] or _fz_kennung(con, typ)
+    con.execute("INSERT INTO regierung_fahrzeuge (ressort, typ, name, kennung, erstellt, autor_id, autor_name) VALUES (?,?,?,?,?,?,?)",
+                (ressort, typ, (form.get("name") or "").strip()[:60], kennung, int(time.time()), k["id"], k["name"]))
+    con.commit()
+    weiter(f"{PFAD}fahrzeuge/{ressort}/", f"{KATALOG[typ][0]} festgelegt.")
+
+
+async def fahrzeug_entfernen(request):
+    k, _ = await post_pruefen(request, ist_redaktion)
+    con = request.app["db"]
+    con.execute("DELETE FROM regierung_fahrzeuge WHERE id=?", (request.match_info["id"],))
+    con.commit()
+    weiter(PFAD + "fahrzeuge/#festlegen", "Fahrzeug entfernt.")
+
+
 def registrieren(app):
     einrichten(app["db"])
     r = app.router
@@ -923,6 +1129,11 @@ def registrieren(app):
     r.add_get(PFAD, start)
     r.add_get(PFAD + "logo/{name}.png", logo)
     r.add_get(PFAD + "bild/{name}", bild)
+    r.add_get(PFAD + "3d/{datei}", drei_d)
+    r.add_get(PFAD + "fahrzeuge/", fahrzeuge)
+    r.add_post(PFAD + "fahrzeuge/festlegen", fahrzeug_festlegen)
+    r.add_post(PFAD + "fahrzeuge/{id:\\d+}/entfernen", fahrzeug_entfernen)
+    r.add_get(PFAD + "fahrzeuge/{schl:[a-z]+}/", fahrzeug_ansicht)
     r.add_get(PFAD + "aktuelles/", aktuelles)
     r.add_get(PFAD + "aktuelles/{id:\\d+}/", meldung)
     r.add_get(PFAD + "reichsregierung/", reichsregierung)
