@@ -317,7 +317,8 @@ def _csrf(request):
 def _weiter(url, m=None, f=None):
     from urllib.parse import quote
     zus = (f"m={quote(m)}" if m else "") + (f"f={quote(f)}" if f else "")
-    raise web.HTTPSeeOther(url + (("&" if "?" in url else "?") + zus if zus else ""))
+    url, anker = (url.split("#", 1) + [""])[:2]          # Meldung vor den Anker, sonst kommt sie nie an
+    raise web.HTTPSeeOther(url + (("&" if "?" in url else "?") + zus if zus else "") + (f"#{anker}" if anker else ""))
 
 
 async def _konto_oder_login(request):
@@ -356,7 +357,7 @@ async def start(request):
             '<h2>Willkommen auf den Seiten des Kaiserlichen Generalkonsulats</h2>'
             '<p>Das Generalkonsulat vertritt das Reich und seine Untertanen in der Fremde, pflegt die Verbindungen zu befreundeten Staaten '
             'und Gemeinschaften und steht Reisenden mit Rat und Beistand zur Seite.</p></div>'
-            f'<div class="rg-held-bild"><img src="/regierung/logo/generalkonsulat-kurz.png" alt=""></div></a>')
+            f'<div class="rg-held-bild"><img src="/regierung/logo/kanzler-kurz.png" alt=""></div></a>')
     if ms:
         neu = '<div class="gk-teaser">' + "".join(_meldung_karte(m, laender) for m in ms[:3]) + "</div>"
         if ms[3:]:
@@ -464,7 +465,7 @@ async def land_seite(request):
                 f'<h3>Sicherheit</h3><div class="gk-text">{_absatz(l["hinweise"]) or "<p>Keine besonderen Hinweise.</p>"}</div>'
                 f'<h3>Einreise und Zoll</h3><div class="gk-text">{_absatz(l["einreise"]) or "<p>Keine besonderen Bestimmungen bekannt.</p>"}</div>'
                 f'<div class="gk-warnbox{kl if l["stufe"] else ""}">Sie reisen nach {esc(l["name"])}? Tragen Sie sich in die '
-                f'<a href="{PFAD}krisenvorsorge/?land={l["id"]}">Krisenvorsorgeliste</a> ein, damit das Generalkonsulat Sie in einer Krise erreichen kann.</div>')
+                f'<a href="{PFAD}krisenvorsorge/?land={l["id"]}&modal=kv-modal">Krisenvorsorgeliste</a> ein, damit das Generalkonsulat Sie in einer Krise erreichen kann.</div>')
     bearb = f'<p><a class="btn zweit" href="{PFAD}intern/laender/{l["id"]}/">Intern bearbeiten</a></p>' if ist_konsul(k) else ""
     kopf = _kopf(l["name"], [("Länder & Reisen", PFAD + "laender/"), (l["name"], None)], "", "Länderinformation")
     return _antwort(request, k, "laender", l["name"], kopf + _abschnitt(leiste + teil + bearb))
@@ -703,9 +704,12 @@ async def mein_antrag(request):
         raise web.HTTPNotFound(text="Antrag nicht gefunden.")
     nachreichen = ""
     if r["status"] in OFFEN:
-        nachreichen = (f'<form class="gk-form" method="post" action="{PFAD}service/meine-antraege/{r["id"]}/nachricht">{_csrf(request)}'
-                       '<label>Nachricht an das Generalkonsulat<textarea name="text" maxlength="3000" required></textarea></label>'
-                       '<div class="gk-knoepfe"><button class="btn zweit" type="submit">Senden</button></div></form>')
+        nachreichen = ('<p style="margin-top:14px">' + regierung.modal_knopf("nachricht-modal", "Nachricht an das Generalkonsulat", "inbox", "btn") + "</p>"
+                       + regierung.modal("nachricht-modal", "Nachricht an das Generalkonsulat",
+                                         f'<form class="gk-form" method="post" action="{PFAD}service/meine-antraege/{r["id"]}/nachricht">{_csrf(request)}'
+                                         '<label>Ihre Nachricht<textarea name="text" maxlength="3000" required style="min-height:180px"></textarea></label>'
+                                         '<div class="gk-knoepfe"><button class="btn" type="submit">Senden</button>'
+                                         '<button class="btn zweit" type="button" data-modal-zu>Abbrechen</button></div></form>'))
     kopf = _kopf(r["az"], [("Service", PFAD + "service/"), ("Meine Anträge", PFAD + "service/meine-antraege/"), (r["az"], None)], "", "Antrag")
     return _antwort(request, k, "service", r["az"], kopf + _abschnitt(_antrag_daten(con, r) + "<h3>Verlauf</h3>" + _verlauf(con, r["id"], False) + nachreichen))
 
@@ -739,12 +743,16 @@ async def krisenvorsorge(request):
         f'<td><form class="gk-inline" method="post" action="{PFAD}krisenvorsorge/{e["id"]}/loeschen">{_csrf(request)}<button>Austragen</button></form></td></tr>'
         for e in es) + "</tbody></table>") if es else '<p class="gk-hinweis">Sie sind derzeit für kein Land eingetragen.</p>'
     if laender:
-        form = (f'<h3>Aufenthalt eintragen</h3><form class="gk-form" method="post" action="{PFAD}krisenvorsorge/">{_csrf(request)}'
+        form = ('<p style="margin-top:14px">' + regierung.modal_knopf("kv-modal", "Aufenthalt eintragen", "file-plus", "btn") + "</p>"
+                + '<dialog class="rw-modal" id="kv-modal" data-bei-fehler aria-labelledby="kv-modal-t"><div class="rw-modal-kopf"><h2 id="kv-modal-t">Aufenthalt eintragen</h2>'
+                + '<button class="knopf-rund" type="button" data-modal-zu aria-label="Schließen">' + regierung.ic("x") + '</button></div><div class="rw-modal-inhalt">'
+                f'<form class="gk-form" method="post" action="{PFAD}krisenvorsorge/">{_csrf(request)}'
                 f'<label>Land<select name="land" required>{_opt([(l["id"], l["name"]) for l in laender.values()], request.query.get("land", ""))}</select></label>'
                 '<div class="gk-zwei"><label>Von (IC-Datum)<input name="von" maxlength="20" placeholder="TT.MM.JJJJ"></label>'
                 '<label>Bis (IC-Datum)<input name="bis" maxlength="20" placeholder="TT.MM.JJJJ"></label></div>'
                 '<label>Hinweis (Aufenthaltsort, Mitreisende)<input name="notiz" maxlength="200"></label>'
-                '<div class="gk-knoepfe"><button class="btn" type="submit">Eintragen</button></div></form>')
+                '<div class="gk-knoepfe"><button class="btn" type="submit">Eintragen</button><button class="btn zweit" type="button" data-modal-zu>Abbrechen</button></div>'
+                '</form></div></dialog>')
     else:
         form = ""
     kopf = _kopf("Krisenvorsorgeliste", [("Service", PFAD + "service/"), ("Krisenvorsorgeliste", None)],
@@ -848,17 +856,19 @@ async def intern_antrag(request):
     if not r:
         raise web.HTTPNotFound(text="Antrag nicht gefunden.")
     aktion = f"{PFAD}intern/antraege/{r['id']}/"
-    form = (f'<h3>Vermerk / Antwort</h3><form class="gk-form" method="post" action="{aktion}eintrag">{_csrf(request)}'
-            '<label>Text<textarea name="text" maxlength="3000" required></textarea></label>')
+    form = (f'<form class="gk-form" method="post" action="{aktion}eintrag">{_csrf(request)}'
+            '<label>Text<textarea name="text" maxlength="3000" required style="min-height:180px"></textarea></label>')
     if ist_konsul(k):
         form += (f'<div class="gk-zwei"><label>Neuer Stand<select name="status">{_opt([("", "– unverändert –")] + list(ANTRAGSSTATUS.items()), "")}</select></label>'
                  '<label class="gk-check" style="align-self:end"><input type="checkbox" name="intern" value="1"> Nur interner Vermerk (Antragsteller sieht ihn nicht)</label></div>')
     else:
         form += '<input type="hidden" name="intern" value="1"><p class="gk-datum" style="margin:0">Mitarbeiter schreiben interne Vermerke.</p>'
-    form += '<div class="gk-knoepfe"><button class="btn" type="submit">Speichern</button></div></form>'
-    if ist_konsul(k) and r["bearbeiter_id"] != k["id"]:
-        form = (f'<form method="post" action="{aktion}uebernehmen" style="margin:0 0 18px">{_csrf(request)}'
-                '<button class="btn zweit" type="submit">Antrag übernehmen</button></form>') + form
+    form += '<div class="gk-knoepfe"><button class="btn" type="submit">Speichern</button><button class="btn zweit" type="button" data-modal-zu>Abbrechen</button></div></form>'
+    titel_m = "Vermerk oder Antwort" if ist_konsul(k) else "Interner Vermerk"
+    form = ('<div class="gk-knoepfe" style="margin:18px 0">' + regierung.modal_knopf("vermerk-modal", titel_m + " schreiben", "notebook-pen", "btn")
+            + (f'<form method="post" action="{aktion}uebernehmen" style="margin:0">{_csrf(request)}<button class="btn zweit" type="submit">Antrag übernehmen</button></form>'
+               if ist_konsul(k) and r["bearbeiter_id"] != k["id"] else "") + "</div>"
+            + regierung.modal("vermerk-modal", titel_m, form))
     if ist_leitung(k):
         form += (f'<form method="post" action="{aktion}loeschen" onsubmit="return confirm(\'Antrag endgültig löschen?\')">{_csrf(request)}'
                  '<button class="btn zweit"  type="submit">Antrag löschen</button></form>')

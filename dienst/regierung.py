@@ -93,11 +93,11 @@ CSS = """<style>
 main .rg-held h2,main .rg-held .rg-held-text h2{border:0!important;color:#fff!important;font-size:clamp(22px,3vw,30px)!important;line-height:1.2!important;margin:10px 0 12px!important;padding:0!important;text-transform:none!important;letter-spacing:-.01em!important;font-weight:650!important;display:block!important}
 .rg-held p{color:rgba(255,255,255,.82);margin:0 0 16px;font-size:15.5px}.rg-held .rg-datum{color:rgba(255,255,255,.65)}
 .rg-held .rg-held-bild{display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.14),transparent 65%);padding:24px}
-.rg-held .rg-held-bild img{width:min(100%,220px);height:auto;filter:brightness(0) invert(1);opacity:.92}
+.rg-held .rg-held-bild img{width:min(100%,210px);height:auto;background:#f7f8fa;padding:20px 24px;border-radius:18px;box-shadow:0 14px 34px -14px rgba(0,0,0,.55),inset 0 1px 0 #fff;box-sizing:content-box}
 .rg-held .rg-knoepfe{margin-top:6px}
 html:root .rg-held .btn{background:#fff;color:var(--kopf);border-color:#fff}
 html:root .rg-held .btn.zweit{background:transparent;color:#fff;border-color:rgba(255,255,255,.45);box-shadow:none}
-.rg-held .rg-held-bild img{clip-path:inset(0 26% 0 0);transform:translateX(13%)}
+
 @media(max-width:800px){.rg-held{grid-template-columns:1fr}.rg-held .rg-held-bild{display:none}}
 .rg-abschnitt{margin:0 0 34px}
 .rg-abschnitt>h2{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
@@ -247,7 +247,8 @@ async def post_pruefen(request, pruefung=None):
 def weiter(url, m=None, f=None):
     from urllib.parse import quote
     zus = (f"m={quote(m)}" if m else "") + (f"f={quote(f)}" if f else "")
-    raise web.HTTPSeeOther(url + (("&" if "?" in url else "?") + zus if zus else ""))
+    url, anker = (url.split("#", 1) + [""])[:2]          # Meldung vor den Anker, sonst kommt sie nie an
+    raise web.HTTPSeeOther(url + (("&" if "?" in url else "?") + zus if zus else "") + (f"#{anker}" if anker else ""))
 
 
 async def konto_oder_login(request):
@@ -329,7 +330,40 @@ main.rw-main{max-width:1180px;margin:0 auto;padding:22px clamp(16px,3vw,32px) 56
 }
 </style>"""
 
-RAHMEN_JS = """<script>(function(){var b=document.querySelector('.rw-menue'),k=document.querySelector('.rw-kopf');if(b&&k)b.addEventListener('click',function(){
+MODAL_CSS = """<style>
+dialog.rw-modal{border:1px solid var(--glas-rand,var(--linie));border-radius:22px;padding:0;width:min(640px,calc(100vw - 24px));max-height:calc(100vh - 40px);
+ background:var(--glas-sheet,#fff);-webkit-backdrop-filter:var(--glas-blur,none);backdrop-filter:var(--glas-blur,none);box-shadow:0 30px 80px -20px rgba(16,24,40,.45);color:var(--ink)}
+dialog.rw-modal::backdrop{background:rgba(15,17,21,.32);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+dialog.rw-modal[open]{animation:rw-auf .28s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes rw-auf{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+.rw-modal-kopf{display:flex;align-items:center;gap:12px;padding:16px 18px 12px 22px;border-bottom:1px solid var(--glas-linie,var(--linie))}
+.rw-modal-kopf h2{margin:0;padding:0;border:0;font-size:18px;flex:1;text-transform:none;letter-spacing:0;color:var(--ink)}
+.rw-modal-inhalt{padding:18px 22px 22px;overflow:auto;max-height:calc(100vh - 140px)}
+.rw-modal-inhalt .rg-form,.rw-modal-inhalt .gk-form{margin:0}
+@media(max-width:640px){dialog.rw-modal{margin:auto auto 0;width:100vw;max-width:100vw;border-radius:22px 22px 0 0;max-height:92vh}}
+@media(prefers-reduced-motion:reduce){dialog.rw-modal[open]{animation:none}}
+</style>"""
+
+
+def modal(mid, titel, inhalt):
+    """Dialogfenster (statt Aufklappen). Öffnen mit modal_knopf(mid, …); schließt per ×, Esc oder Klick daneben."""
+    return (f'<dialog class="rw-modal" id="{esc(mid)}" aria-labelledby="{esc(mid)}-t"><div class="rw-modal-kopf"><h2 id="{esc(mid)}-t">{esc(titel)}</h2>'
+            f'<button class="knopf-rund" type="button" data-modal-zu aria-label="Schließen">{ic("x")}</button></div>'
+            f'<div class="rw-modal-inhalt">{inhalt}</div></dialog>')
+
+
+def modal_knopf(mid, text, symbol="pencil", klasse="btn zweit"):
+    return f'<button type="button" class="{klasse}" data-modal-auf="{esc(mid)}">{ic(symbol)}{esc(text)}</button>'
+
+
+RAHMEN_JS = """<script>(function(){
+document.addEventListener('click',function(e){var a=e.target.closest('[data-modal-auf]');if(a){var d=document.getElementById(a.dataset.modalAuf);
+if(d&&d.showModal){d.showModal();var f=d.querySelector('input:not([type=hidden]),textarea,select');if(f)f.focus()}return}
+var z=e.target.closest('[data-modal-zu]');if(z){z.closest('dialog').close();return}
+if(e.target.tagName==='DIALOG'&&e.target.classList.contains('rw-modal')){var r=e.target.getBoundingClientRect();
+if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close()}});
+var mq=/[?&]modal=([a-z-]+)/.exec(location.search);if(mq){var md=document.getElementById(mq[1]);if(md&&md.showModal)md.showModal()}
+if(/[?&]f=/.test(location.search)){var o=document.querySelector('dialog.rw-modal[data-bei-fehler]');if(o&&o.showModal)o.showModal()}var b=document.querySelector('.rw-menue'),k=document.querySelector('.rw-kopf');if(b&&k)b.addEventListener('click',function(){
 k.classList.toggle('offen');var i=k.querySelector('.rw-suche input');if(i&&k.classList.contains('offen'))i.focus()});
 var a=document.querySelector('.rw-nav a.aktiv');if(a&&a.scrollIntoView)a.scrollIntoView({block:'nearest',inline:'center'});
 addEventListener('pageshow',function(e){if(e.persisted)location.reload()});
@@ -406,7 +440,7 @@ def rahmen(request, k, titel, aktiv, inhalt, portal=None, krumen=None, q="", sta
         glas += profil_sa.darstellung_css(request.app["db"], k)
     seite = f"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1f2f45"><title>{esc(titel)} – {esc(p["name"])}</title><style>{amt.CSS}</style>{glas}{CSS}{RAHMEN_CSS}</head>
+<meta name="theme-color" content="#1f2f45"><title>{esc(titel)} – {esc(p["name"])}</title><style>{amt.CSS}</style>{glas}{CSS}{RAHMEN_CSS}{MODAL_CSS}</head>
 <body>{meta}{kopf_html}{nav}{unter}{krumen_html}
 <main class="rw-main" id="inhalt">{note}{inhalt}</main>{fuss}{RAHMEN_JS}</body></html>"""
     return web.Response(status=status, text=seite, content_type="text/html", headers={"Cache-Control": cache})
@@ -538,7 +572,7 @@ async def start(request):
             f'<div class="rg-knoepfe"><a class="btn" href="#ministerien">{ic("landmark")}Alle Ministerien</a>'
             f'<a class="btn zweit" href="{PFAD}fahrzeuge/">{ic("flag")}Regierungsfahrzeuge</a>'
             f'<a class="btn zweit" href="{PFAD}aktuelles/">{ic("newspaper")}Aktuelles</a></div></div>'
-            f'<div class="rg-held-bild"><img src="{PFAD}logo/regierung-kurz.png" alt=""></div></div>')
+            f'<div class="rg-held-bild"><img src="{PFAD}logo/kanzler-kurz.png" alt=""></div></div>')
     hinweise = ""
     for h in HINWEISE:
         try:
@@ -719,10 +753,12 @@ async def kabinett_person(request):
     aemter_html = "".join(f'<li><a href="{ministerium_url(b)}">{esc(b["name"])}</a><span class="rg-datum">{esc(a)}</span></li>' for _, a, b in aemter)
     bearb = ""
     if _darf_lebenslauf(k, kid):
-        bearb = (f'<details class="rg-abschnitt"><summary class="btn zweit">{ic("pencil")}Lebenslauf bearbeiten</summary>'
-                 f'<form class="rg-form" method="post" action="{PFAD}reichsregierung/{kid}/lebenslauf" style="margin-top:14px">{csrf_feld(request)}'
-                 f'<label>Lebenslauf (Absätze mit Leerzeile trennen)<textarea name="text" style="min-height:260px" maxlength="12000">{esc(lv["text"] if lv else "")}</textarea></label>'
-                 f'<div class="rg-knoepfe"><button class="btn" type="submit">{ic("check")}Speichern</button></div></form></details>')
+        bearb = ('<p style="margin-top:18px">' + modal_knopf("lv-modal", "Lebenslauf bearbeiten") + "</p>"
+                 + modal("lv-modal", "Lebenslauf bearbeiten",
+                         f'<form class="rg-form" method="post" action="{PFAD}reichsregierung/{kid}/lebenslauf">{csrf_feld(request)}'
+                         f'<label>Lebenslauf (Absätze mit Leerzeile trennen)<textarea name="text" style="min-height:300px" maxlength="12000">{esc(lv["text"] if lv else "")}</textarea></label>'
+                         f'<div class="rg-knoepfe"><button class="btn" type="submit">{ic("check")}Speichern</button>'
+                         '<button class="btn zweit" type="button" data-modal-zu>Abbrechen</button></div></form>'))
     stand = f'<p class="rg-datum">Stand: {datum(lv["aktualisiert"])}</p>' if lv and lv["text"].strip() else ""
     inhalt = (KAB_CSS + f'<div class="kb-person"><div class="kb-bild">{_kb_bild(b0)}</div><div>'
               + kopf(name, " · ".join(esc(a) for _, a, _ in aemter), "Reichskabinett")
@@ -817,7 +853,7 @@ async def ministerium_start(request):
     con = request.app["db"]
     rollen = LEITUNG_ROLLEN.get(b["schl"])
     namen = await namen_mit_rollen(request, rollen) if rollen else []
-    bild = f'<img src="{PFAD}logo/{logo_von(b["schl"]) or "regierung"}-kurz.png" alt="">'
+    bild = f'<img src="{PFAD}logo/kanzler-kurz.png" alt="">'
     knopf = ""
     if b["schl"] in WEBAUFTRITTE and not WEBAUFTRITTE[b["schl"]].startswith(PFAD):
         knopf = f'<div class="rg-knoepfe"><a class="btn" href="{WEBAUFTRITTE[b["schl"]]}">{ic("arrow-right")}Zum Portal: {esc(b.get("kurz") or b["name"])}</a></div>'
@@ -1191,13 +1227,17 @@ async def fahrzeuge(request):
             f'<tr><td>{esc(namen.get(f["ressort"], f["ressort"]))}</td><td>{esc(KATALOG.get(f["typ"], ("?",))[0])}</td><td>{esc(f["kennung"])}</td><td>{esc(f["name"] or "–")}</td>'
             f'<td><form method="post" action="{PFAD}fahrzeuge/{f["id"]}/entfernen" onsubmit="return confirm(\'Fahrzeug entfernen?\')">{csrf_feld(request)}'
             f'<button class="btn gefahr" type="submit">{ic("trash-2")}Entfernen</button></form></td></tr>' for f in liste)
-        verwaltung = (f'<section class="rg-abschnitt" id="festlegen"><h2>Fahrzeug festlegen (Kronkanzler)</h2>'
+        verwaltung = (f'<section class="rg-abschnitt" id="festlegen"><h2>Fahrzeuge verwalten (Kronkanzler)</h2>'
+                      + f'<p>{modal_knopf("fz-modal", "Fahrzeug festlegen", "file-plus", "btn")}</p>'
+                      + '<dialog class="rw-modal" id="fz-modal" data-bei-fehler aria-labelledby="fz-modal-t"><div class="rw-modal-kopf"><h2 id="fz-modal-t">Fahrzeug festlegen</h2>'
+                      + f'<button class="knopf-rund" type="button" data-modal-zu aria-label="Schließen">{ic("x")}</button></div><div class="rw-modal-inhalt">'
                       f'<form class="rg-form" method="post" action="{PFAD}fahrzeuge/festlegen">{csrf_feld(request)}'
                       f'<div class="rg-zwei"><label>Ministerium<select name="ressort" required>{opt([(b["schl"], b["name"]) for b in alle], request.query.get("ressort", ""))}</select></label>'
                       f'<label>Fahrzeug<select name="typ" required>{_fz_typ_optionen()}</select></label></div>'
                       '<div class="rg-zwei"><label>Taufname (optional, z. B. für Flugzeuge)<input name="name" maxlength="60" placeholder="z. B. Otto von Bismarck"></label>'
                       '<label>Kennung (leer = automatisch)<input name="kennung" maxlength="20" placeholder="z. B. 10+01 oder IG-R 101"></label></div>'
-                      f'<div class="rg-knoepfe"><button class="btn" type="submit">{ic("check")}Festlegen</button></div></form>'
+                      f'<div class="rg-knoepfe"><button class="btn" type="submit">{ic("check")}Festlegen</button>'
+                      '<button class="btn zweit" type="button" data-modal-zu>Abbrechen</button></div></form></div></dialog>'
                       + (f'<table class="rg-tab"><thead><tr><th>Ministerium</th><th>Fahrzeug</th><th>Kennung</th><th>Taufname</th><th></th></tr></thead><tbody>{zeilen}</tbody></table>' if liste else "")
                       + "</section>")
     inhalt = (FZ_CSS + kopf("Regierungsfahrzeuge", "Flugbereitschaft und Fahrbereitschaft der Reichsregierung. Wählen Sie ein Ministerium, um seine Fahrzeuge in 3D anzusehen – "
@@ -1220,7 +1260,7 @@ async def fahrzeug_ansicht(request):
     wahlleiste = ('<div class="fz-wahl">' + "".join(f'<a href="?fz={x["id"]}" class="{"aktiv" if x["id"] == f["id"] else ""}">{esc(KATALOG.get(x["typ"], ("?",))[0])}'
                                                     f'{" · " + esc(x["kennung"]) if x["kennung"] else ""}</a>' for x in fz) + "</div>") if len(fz) > 1 else ""
     daten = {"typ": f["typ"], "kennung": f["kennung"], "name": f["name"], "behoerde": b["name"], "akzent": AKZENTE.get(b["schl"], "#1f2f45"),
-             "sonder": SONDER.get(b["schl"]) if f["typ"] not in FLUG_TYPEN else None, "adler": f"{PFAD}logo/regierung-kurz.png",
+             "sonder": SONDER.get(b["schl"]) if f["typ"] not in FLUG_TYPEN else None, "adler": f"{PFAD}logo/kanzler-kurz.png",
              "basis": f"{PFAD}3d/", "v": _modell_version(f["typ"]), "standarte": STANDARTEN.get(b["schl"], "")}
     v = int(os.path.getmtime(os.path.join(DREI_D, "fahrzeug.js")))
     buehne = (f'<div class="fz-buehne" id="fz-buehne" aria-label="3D-Ansicht: {esc(typ[0])}"></div>'
@@ -1237,7 +1277,7 @@ async def fahrzeug_ansicht(request):
     dl = '<dl class="rg-daten">' + "".join(f"<dt>{esc(a)}</dt><dd>{esc(w)}</dd>" for a, w in blatt) + "</dl>"
     inhalt = (FZ_CSS + kopf(typ[0], esc(typ[3]), b.get("kurz") or b["name"]) + wahlleiste
               + f'<div class="fz-raster2"><div>{buehne}</div><div><h2 style="margin-top:0">Datenblatt</h2>{dl}'
-              + (f'<p><a class="btn zweit" href="{PFAD}fahrzeuge/?ressort={b["schl"]}#festlegen">{ic("pencil")}Fahrzeuge verwalten</a></p>' if ist_redaktion(k) else "")
+              + (f'<p><a class="btn zweit" href="{PFAD}fahrzeuge/?ressort={b["schl"]}&modal=fz-modal#festlegen">{ic("pencil")}Fahrzeuge verwalten</a></p>' if ist_redaktion(k) else "")
               + f'<p><a class="btn zweit" href="{ministerium_url(b)}">{ic("landmark")}Zum Ministerium</a></p></div></div>')
     return rahmen(request, k, typ[0], "r-fahrzeuge", inhalt, krumen=[("Regierungsfahrzeuge", PFAD + "fahrzeuge/"), (b.get("kurz") or b["name"], None)])
 
@@ -1248,9 +1288,9 @@ async def fahrzeug_festlegen(request):
     alle, _ = ressorts()
     ressort, typ = form.get("ressort", ""), form.get("typ", "")
     if ressort not in {b["schl"] for b in alle} or typ not in KATALOG:
-        weiter(PFAD + "fahrzeuge/#festlegen", f="Bitte Ministerium und Fahrzeug wählen.")
+        weiter(PFAD + "fahrzeuge/?modal=fz-modal", f="Bitte Ministerium und Fahrzeug wählen.")
     if con.execute("SELECT COUNT(*) FROM regierung_fahrzeuge WHERE ressort=?", (ressort,)).fetchone()[0] >= 12:
-        weiter(PFAD + "fahrzeuge/#festlegen", f="Höchstens 12 Fahrzeuge je Ministerium.")
+        weiter(PFAD + "fahrzeuge/?modal=fz-modal", f="Höchstens 12 Fahrzeuge je Ministerium.")
     kennung = (form.get("kennung") or "").strip()[:20] or _fz_kennung(con, typ)
     con.execute("INSERT INTO regierung_fahrzeuge (ressort, typ, name, kennung, erstellt, autor_id, autor_name) VALUES (?,?,?,?,?,?,?)",
                 (ressort, typ, (form.get("name") or "").strip()[:60], kennung, int(time.time()), k["id"], k["name"]))
@@ -1263,7 +1303,7 @@ async def fahrzeug_entfernen(request):
     con = request.app["db"]
     con.execute("DELETE FROM regierung_fahrzeuge WHERE id=?", (request.match_info["id"],))
     con.commit()
-    weiter(PFAD + "fahrzeuge/#festlegen", "Fahrzeug entfernt.")
+    weiter(PFAD + "fahrzeuge/", "Fahrzeug entfernt.")
 
 
 def registrieren(app):
