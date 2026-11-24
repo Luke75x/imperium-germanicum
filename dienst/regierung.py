@@ -667,9 +667,8 @@ KAB_CSS = """<style>
 .kb-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:18px;margin:8px 0 30px}
 .kb-karte{display:flex;flex-direction:column;border:1px solid var(--linie);border-radius:var(--r);background:#fff;overflow:hidden;transition:box-shadow .2s,transform .2s}
 .kb-karte:hover{box-shadow:0 14px 30px -18px rgba(16,24,40,.45);transform:translateY(-2px)}
-.kb-bild{display:block;aspect-ratio:16/10;background:linear-gradient(180deg,#e9edf2,#d5dce5);overflow:hidden;position:relative}
-.kb-bild img{position:absolute;left:50%;top:6%;transform:translateX(-50%);height:118%;width:auto;max-width:none;object-fit:contain;object-position:top}
-.kb-person .kb-bild img{top:auto;bottom:0}
+.kb-bild{display:block;aspect-ratio:1/1;background:transparent;overflow:hidden;position:relative;border-bottom:1px solid var(--linie)}
+.kb-bild img{display:block;width:100%;height:100%;object-fit:cover;object-position:center top}
 .kb-bild .rg-silhouette{position:absolute;left:50%;bottom:-8%;transform:translateX(-50%);width:52%}
 .kb-text{padding:14px 16px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
 .kb-text h3{margin:0;font-size:17px;line-height:1.3}.kb-text h3 a{color:var(--ink);text-decoration:none}.kb-text h3 a:hover{color:var(--akzent)}
@@ -677,7 +676,7 @@ KAB_CSS = """<style>
 .kb-text a.kb-link .icon{width:15px;height:15px}.kb-text a.kb-link:hover{text-decoration:underline}
 .kb-amt{color:#3d4148;font-size:14px}
 .kb-person{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:clamp(20px,4vw,48px);align-items:start}
-.kb-person .kb-bild{aspect-ratio:4/5;border-radius:var(--r);border:1px solid var(--linie)}.kb-person .kb-bild img{height:100%}
+.kb-person .kb-bild{aspect-ratio:4/5;border-radius:var(--r);border:0}.kb-person .kb-bild img{object-position:center top}
 @media(max-width:760px){.kb-person{grid-template-columns:1fr}.kb-person .kb-bild{max-width:340px}}
 </style>"""
 
