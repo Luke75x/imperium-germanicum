@@ -188,6 +188,8 @@ def ist_mitarbeiter(k):
 
 def einrichten(con):
     con.executescript(SCHEMA)
+    if "aufrufe" not in [r[1] for r in con.execute("PRAGMA table_info(konsulat_laender)")]:
+        con.execute("ALTER TABLE konsulat_laender ADD COLUMN aufrufe INTEGER NOT NULL DEFAULT 0")
     con.commit()
 
 
@@ -236,7 +238,7 @@ def _protokoll(con, k, text):
 _AKTIV = [("intern/antraege/", "gi-antraege"), ("intern/meldungen/", "gi-meldungen"), ("intern/laender/", "gi-laender"),
           ("intern/vertraege/", "gi-vertraege"), ("intern/krisenvorsorge/", "gi-vorsorge"), ("intern/protokoll/", "gi-protokoll"),
           ("intern/", "gi-start"), ("service/meine-antraege/", "g-antraege"), ("service/", "g-service"), ("krisenvorsorge/", "g-vorsorge"),
-          ("reisewarnungen/", "g-warn"), ("laender/", "g-laender"), ("meldungen/", "g-meldungen"), ("vertraege/", "g-vertraege"),
+          ("reisewarnungen/", "g-warn"), ("aenderungen/", "g-warn"), ("laender/", "g-laender"), ("meldungen/", "g-meldungen"), ("vertraege/", "g-vertraege"),
           ("das-generalkonsulat/", "g-ueber"), ("suche/", "g-suche")]
 
 
@@ -368,18 +370,8 @@ async def start(request):
         neu = '<p class="leer">Noch keine Meldungen veröffentlicht.</p>'
     meldungen = _abschnitt(f'<h2>Aktuelles aus dem Generalkonsulat <a class="gk-mehr" href="{PFAD}meldungen/">Alle Meldungen</a></h2>' + neu)
 
-    warn = [l for l in laender.values() if l["stufe"] >= 2]
-    warn.sort(key=lambda l: (-l["stufe"], l["name"]))
-    sel = _opt([("", "Land auswählen …")] + [(l["schl"], l["name"]) for l in laender.values()], "")
-    warnliste = ('<ul class="gk-liste">' + "".join(f'<li><a href="{PFAD}laender/{esc(l["schl"])}/">{esc(l["name"])}</a>{_stufe_html(l["stufe"])}</li>'
-                                                    for l in warn[:8]) + "</ul>") if warn else '<p class="gk-hinweis">Zurzeit bestehen keine Reisewarnungen.</p>'
     reisen = _abschnitt(
-        '<div class="gk-reisen"><div><h2>Sicher reisen</h2>'
-        '<p>Informieren Sie sich vor jeder Reise über die Lage in Ihrem Reiseland, die Einreisebestimmungen und die Vertretung des Reiches vor Ort.</p>'
-        f'<form class="gk-wahl" onsubmit="if(this.l.value)location.href=\'{PFAD}laender/\'+this.l.value+\'/\';return false">'
-        f'<select name="l" aria-label="Reiseland">{sel}</select><button class="btn" type="submit">Suchen</button></form>'
-        f'<p><a class="gk-mehr" href="{PFAD}laender/">Alle Länder A–Z</a></p></div>'
-        f'<div><h2>Aktuelle Reisewarnungen</h2>{warnliste}<p style="margin-top:14px"><a class="btn zweit" href="{PFAD}reisewarnungen/">Alle Reisewarnungen</a></p></div></div>'
+        '<h2>Reise- und Sicherheitshinweise</h2>' + reise_suche(con) +
         '<div class="gk-kacheln">'
         f'<div class="gk-kachel"><h3>Sie sind in der Fremde?</h3><ul><li><a href="{PFAD}service/antrag/?art=hilfe">Konsularische Hilfe</a></li>'
         f'<li><a href="{PFAD}krisenvorsorge/">Krisenvorsorgeliste</a></li></ul></div>'
@@ -406,9 +398,84 @@ def _vertraege_kurz(con, laender):
             + f'</ul><p style="margin-top:14px"><a class="gk-mehr" href="{PFAD}vertraege/">Alle Verträge</a></p></div>')
 
 
+# ---------------------------------------------------------------- Reise-Suche (Aufbau wie auswaertiges-amt.de: Karte, Suchfeld, Häufig aufgerufen)
+
+REISE_CSS = """<style>
+.rs-frage{font-size:17px;line-height:1.55;max-width:860px;margin:0 0 18px;color:var(--ink)}
+.rs-feld{position:relative;border-radius:calc(var(--r) + 6px);overflow:hidden;background:#eef1f5;padding:clamp(38px,7vw,96px) clamp(16px,5vw,64px) clamp(24px,4vw,40px);
+ border:1px solid var(--linie)}
+.rs-feld::before{content:"";position:absolute;inset:0;background:url(/regierung/logo/weltkarte.png) center/cover no-repeat;opacity:.55;pointer-events:none}
+.rs-feld>*{position:relative}
+.rs-suche{display:flex;max-width:760px;margin:0 auto;background:#fff;box-shadow:0 10px 28px -12px rgba(16,24,40,.35);border-radius:4px}
+.rs-suche input{flex:1;border:0;background:transparent;font:italic 400 19px/1.2 Georgia,"Times New Roman",serif;padding:20px 24px;min-width:0;color:var(--ink);border-radius:4px}
+.rs-suche input:focus{outline:2px solid var(--akzent);outline-offset:-2px}
+.rs-suche button{all:unset;cursor:pointer;padding:0 22px;display:grid;place-items:center;color:#5d6270}.rs-suche button .icon{width:22px;height:22px}
+.rs-haeufig{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:clamp(40px,7vw,90px) 0 18px}
+.rs-haeufig em{font:italic 500 14px Georgia,"Times New Roman",serif;letter-spacing:.14em;color:#4a4f57;margin-right:12px}
+.rs-chip{display:inline-flex;gap:5px;align-items:center;background:#111;color:#fff;text-decoration:none;font:700 12px/1 var(--schrift);letter-spacing:.06em;
+ text-transform:uppercase;padding:5px 7px;border-radius:2px}
+.rs-chip:hover{background:var(--akzent);color:#fff}.rs-chip.warn{background:#b0124c}.rs-chip.warn:hover{background:#8e0d3c}
+.rs-zeichen{display:inline-grid;place-items:center;width:15px;height:15px;font:800 10px/1 var(--schrift);color:#fff;border-radius:1px}
+.rs-zeichen.w3{background:#b0124c}.rs-zeichen.w2{background:#111}
+.rs-links{display:flex;flex-wrap:wrap;gap:12px 46px;align-items:center}
+.rs-links a{color:var(--ink);text-decoration:none;font-weight:650;font-size:15.5px;display:inline-flex;gap:8px;align-items:center}
+.rs-links a:hover{color:var(--akzent)}.rs-links a .icon{color:#6a6f78}
+@media(max-width:640px){.rs-suche input{font-size:17px;padding:16px 16px}.rs-haeufig em{width:100%}}
+</style>"""
+
+
+def _zeichen(stufe):
+    """Kleines Warnzeichen wie beim Auswärtigen Amt: rot = Reisewarnung, schwarz = Teilreisewarnung."""
+    if stufe >= 3:
+        return '<span class="rs-zeichen w3" title="Reisewarnung">!</span>'
+    if stufe == 2:
+        return '<span class="rs-zeichen w2" title="Teilreisewarnung">!</span>'
+    return ""
+
+
+def reise_suche(con, frage=True):
+    ls = _laender(con)
+    oft = sorted([l for l in ls if l["aufrufe"]], key=lambda l: (-l["aufrufe"], l["name"]))[:7] or sorted(ls, key=lambda l: -l["aktualisiert"])[:7]
+    chips = "".join(f'<a class="rs-chip{" warn" if l["stufe"] >= 2 else ""}" href="{PFAD}laender/{esc(l["schl"])}/">{esc(l["name"])}'
+                    f'{" !" if l["stufe"] >= 2 else ""}</a>' for l in oft)
+    liste = "".join(f'<option value="{esc(l["name"])}"></option>' for l in ls)
+    ziele = json.dumps({l["name"].lower(): f'{PFAD}laender/{l["schl"]}/' for l in ls}).replace("</", "<\\/")
+    return (REISE_CSS
+            + ('<p class="rs-frage">Wie sicher ist mein Reiseziel? Welche Risiken muss ich beachten? Wo finde ich eine Vertretung des Reiches? '
+               'Unsere Reise- und Sicherheitshinweise werden laufend aktualisiert:</p>' if frage else "")
+            + f'<div class="rs-feld"><form class="rs-suche" action="{PFAD}laender/" method="get" role="search" id="rs-form">'
+            f'<input type="search" name="q" list="rs-laender" placeholder="Land" aria-label="Land suchen" autocomplete="off">'
+            f'<button type="submit" aria-label="Suchen">{regierung.ic("search")}</button><datalist id="rs-laender">{liste}</datalist></form>'
+            + (f'<div class="rs-haeufig"><em>Häufig aufgerufen:</em>{chips}</div>' if chips else '<div class="rs-haeufig"></div>')
+            + f'<div class="rs-links"><a href="{PFAD}aenderungen/">Letzte Änderungen anzeigen {regierung.ic("arrow-right")}</a>'
+            f'<a href="{PFAD}reisewarnungen/">{_zeichen(3)}{_zeichen(2)} Alle Reisewarnungen {regierung.ic("arrow-right")}</a></div></div>'
+            f'<script>(function(){{var Z={ziele},f=document.getElementById("rs-form"),i=f&&f.q;if(!i)return;'
+            'function los(){var u=Z[i.value.trim().toLowerCase()];if(u){location.href=u;return true}return false}'
+            'i.addEventListener("change",los);f.addEventListener("submit",function(e){if(los())e.preventDefault()})})()</script>')
+
+
+async def aenderungen(request):
+    k = await anmeldung.konto(request)
+    ls = sorted(_laender(request.app["db"]), key=lambda l: -(l["hinweise_zeit"] or l["aktualisiert"]))
+    inhalt = ('<table class="gk-tab"><thead><tr><th>Land</th><th>Stand</th><th>Geändert</th></tr></thead><tbody>' + "".join(
+        f'<tr><td><a href="{PFAD}laender/{esc(l["schl"])}/">{esc(l["name"])}</a></td><td>{_stufe_html(l["stufe"])}</td>'
+        f'<td>{_datum(l["hinweise_zeit"] or l["aktualisiert"], True)}</td></tr>' for l in ls[:60]) + "</tbody></table>") if ls else '<p class="leer">Noch keine Länderinformationen.</p>'
+    kopf = _kopf("Letzte Änderungen", [("Länder & Reisen", PFAD + "laender/"), ("Letzte Änderungen", None)],
+                 "Die zuletzt aktualisierten Reise- und Sicherheitshinweise, neueste zuerst.")
+    return _antwort(request, k, "laender", "Letzte Änderungen", kopf + _abschnitt(inhalt))
+
+
 async def laender_liste(request):
     k = await anmeldung.konto(request)
-    ls = _laender(request.app["db"])
+    con = request.app["db"]
+    ls = _laender(con)
+    q = (request.query.get("q") or "").strip()[:60]
+    if q:
+        treffer = [l for l in ls if q.lower() in l["name"].lower() or q.lower() in (l["hauptstadt"] or "").lower()]
+        genau = [l for l in treffer if l["name"].lower() == q.lower()]
+        if len(genau) == 1 or len(treffer) == 1:
+            regierung.umleiten(f'{PFAD}laender/{(genau or treffer)[0]["schl"]}/')
+        ls = treffer
     if ls:
         teile, buchst = [], None
         for l in ls:
@@ -419,12 +486,14 @@ async def laender_liste(request):
             teile.append(f'<a href="{PFAD}laender/{esc(l["schl"])}/"><span>{esc(l["name"])}</span>{_stufe_html(l["stufe"]) if l["stufe"] else ""}</a>')
         inhalt = '<div class="gk-az">' + "".join(teile) + "</div>"
     else:
-        inhalt = '<p class="gk-hinweis">Das Generalkonsulat hat noch keine Länderinformationen veröffentlicht.</p>'
+        inhalt = (f'<p class="gk-hinweis">Kein Land gefunden für „{esc(q)}“.</p>' if q else
+                  '<p class="gk-hinweis">Das Generalkonsulat hat noch keine Länderinformationen veröffentlicht.</p>')
+    if q:
+        inhalt = f'<p>{len(ls)} Treffer für „{esc(q)}“ · <a href="{PFAD}laender/">alle Länder</a></p>' + inhalt
     kopf = _kopf("Länderinformationen A–Z", [("Länder & Reisen", None)],
                  "Reise- und Sicherheitshinweise, Einreisebestimmungen, Beziehungen zum Reich und die Vertretungen des Reiches – für alle Staaten und Gemeinschaften, mit denen das Reich in Verbindung steht.",
                  "Sicher reisen")
-    return _antwort(request, k, "laender", "Länder", kopf + _abschnitt(
-        f'<p><a class="btn zweit" href="{PFAD}reisewarnungen/">Aktuelle Reisewarnungen</a></p>' + inhalt))
+    return _antwort(request, k, "laender", "Länder", kopf + _abschnitt(reise_suche(con, frage=False)) + _abschnitt(inhalt))
 
 
 async def land_seite(request):
@@ -433,6 +502,8 @@ async def land_seite(request):
     l = con.execute("SELECT * FROM konsulat_laender WHERE schl=?", (request.match_info["schl"],)).fetchone()
     if not l:
         raise web.HTTPNotFound(text="Land nicht gefunden.")
+    if not ist_mitarbeiter(k):   # „Häufig aufgerufen“: nur Aufrufe von außen zählen
+        con.execute("UPDATE konsulat_laender SET aufrufe=aufrufe+1 WHERE id=?", (l["id"],)); con.commit()
     reiter = request.query.get("t", "reise")
     tabs = [("reise", "Reise- und Sicherheitshinweise"), ("beziehungen", "Beziehungen zum Reich"), ("vertretung", "Vertretung")]
     leiste = '<div class="gk-reiter">' + "".join(f'<a href="?t={s}"{" aria-current=\"page\"" if s == reiter else ""}>{t}</a>' for s, t in tabs) + "</div>"
@@ -1330,6 +1401,7 @@ def registrieren(app):
     r.add_get(PFAD + "laender/", laender_liste)
     r.add_get(PFAD + "laender/{schl}/", land_seite)
     r.add_get(PFAD + "reisewarnungen/", reisewarnungen)
+    r.add_get(PFAD + "aenderungen/", aenderungen)
     r.add_get(PFAD + "meldungen/", meldungen_liste)
     r.add_get(PFAD + "meldungen/{id:\\d+}/", meldung_seite)
     r.add_get(PFAD + "vertraege/", vertraege)
