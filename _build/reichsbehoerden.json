@@ -1,6 +1,7 @@
 {
  "gruppen": {
   "kanzlei": "Kronkanzleramt",
+  "vertretung": "Reichsvertretung",
   "sicherheit": "Sicherheit und Ordnung",
   "verwaltung": "Verwaltung und Finanzen",
   "amt": "Nachgeordnete Ämter",
@@ -22,6 +23,13 @@
    "gruppe": "kanzlei",
    "farbe": 0,
    "seite": "/informationen/die-reichsbehoerden/crownestates/"
+  },
+  {
+   "id": "kronstatthalterschaft",
+   "name": "Reichsamt für die Kronstatthalterschaft",
+   "gruppe": "vertretung",
+   "farbe": 7,
+   "seite": "/informationen/die-reichsbehoerden/"
   },
   {
    "id": "krs",

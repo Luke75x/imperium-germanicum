@@ -26,7 +26,7 @@ KANZLEI = {
     "nachgeordnet": ["Crown Estates", "Kaiserliches Reichssicherheitsamt (Nachrichtendienst)"],
 }
 
-# Gliederung nach dem Organigramm der Reichsverwaltung (Stand 13.11.2026): Kronkanzleramt (Crown Estates), darunter die Reichsbehörden; Ämter hängen an ihrer Behörde (nachgeordnet).
+# Gliederung nach dem Organigramm der Reichsverwaltung (Stand 13.11.2026, Reichsvertretung seit 24.11.2026 eigenes Reichsamt unter dem Souverän): Kronkanzleramt (Crown Estates), darunter die Reichsbehörden; Ämter hängen an ihrer Behörde (nachgeordnet).
 BEHOERDEN = [{'schl': 'crownestates',
   'name': 'Crown Estates',
   'kurz': 'Crown Estates',
@@ -36,6 +36,27 @@ BEHOERDEN = [{'schl': 'crownestates',
   'aufgaben': ['Verwaltet den kaiserlichen Kronbesitz und die Liegenschaften der Krone.', 'Berichtet dem Kronkanzler über Bestand und Erträge.'],
   'bestand': 'Kronkanzleramt',
   'zusammen': ['Das Kronkanzleramt']},
+ {'schl': 'kronstatthalterschaft',
+  'name': 'Reichsamt für die Kronstatthalterschaft',
+  'kurz': 'Kronstatthalterschaft',
+  'gruppe': 'vertretung',
+  'leitung': 'Reichskronkommissar',
+  'untersteht': 'Dem Souverän unmittelbar',
+  'lead': 'Das Reichsamt für die Kronstatthalterschaft führt die Reichsvertretung: Es vertritt den Souverän in den Teilstaaten und Städten, die keinen eigenen Regenten haben. '
+          'Geleitet wird es vom Privatsekretär des Souveräns, der hier den Titel Reichskronkommissar führt; über ihm steht allein der Souverän.',
+  'aufgaben': ['Vertritt den Souverän in Teilstaaten und Städten ohne eigenen Regenten und verwaltet diese Gebiete in seinem Namen und Auftrag.',
+               'Führt die Vizekönige, Generalgouverneure, Gouverneure, Magistrate und Bürgermeister und hält die Verbindung zwischen ihnen und dem Souverän.',
+               'Übergibt die Hoheit an den Landesherrn, sobald ein Teilstaat wieder einen Regenten erhält.',
+               'Hält für die Gebiete unter Reichsvertretung die Delegationen im Reichstag vor.'],
+  'aemter': [['Vizekönig', 'Vertritt den Souverän in einem Königreich oder Kurfürstentum, dessen Thron unbesetzt ist. Er ist der ranghöchste Reichsvertreter.', 'Eure Exzellenz'],
+             ['Generalgouverneur', 'Verwaltet einen großen Teilstaat ohne Regenten oder mehrere zusammengefasste Gebiete; ihm können Gouverneure nachgeordnet sein.', 'Eure Exzellenz'],
+             ['Gouverneur', 'Verwaltet ein einzelnes Gebiet ohne Regenten, etwa ein Herzogtum, eine Grafschaft oder eine Provinz eines Generalgouvernements.', 'Eure Exzellenz'],
+             ['Magistrat', 'Führt im Namen des Souveräns die Regierung einer Reichsstadt, die keinem Landesherrn untersteht.', '–'],
+             ['Bürgermeister', 'Steht einer Stadt oder Gemeinde in einem reichsvertretenen Gebiet vor und untersteht dem zuständigen Magistrat oder Gouverneur.', '–']],
+  'seite': 'informationen/die-reichsbehoerden/',
+  'bestand': 'Berliner Schloss',
+  'nachgeordnet': ['Vizekönige', 'Generalgouverneure', 'Gouverneure', 'Magistrate', 'Bürgermeister'],
+  'zusammen': ['Das Kronkanzleramt', 'Reichsbehörde für Innere Angelegenheiten']},
  {'schl': 'krs',
   'name': 'Kaiserliches Reichssicherheitsamt',
   'kurz': 'KRS',
@@ -231,8 +252,8 @@ WEITERE_TYPEN = [
     ("reichstag", "Der Reichstag", "organ"), ("senat", "Der Senat", "organ"), ("reichsgerichtshof", "Der Reichsgerichtshof", "organ"),
     ("krone", "Die Krone (Residenzen)", "krone"), ("sonstiges", "Sonstiges Gebäude", "sonst"),
 ]
-GRUPPEN = {"kanzlei": "Kronkanzleramt", "sicherheit": "Sicherheit und Ordnung", "verwaltung": "Verwaltung und Finanzen", "amt": "Nachgeordnete Ämter", "organ": "Reichsorgane", "krone": "Krone", "sonst": "Sonstiges"}
-FARBEN = {"kanzlei": 0, "sicherheit": 1, "verwaltung": 3, "organ": 2, "krone": 4, "amt": 5, "sonst": 6}   # Farbfeld 0–7 der Karte (siehe wiki.css .bs-geb.t0–t7)
+GRUPPEN = {"kanzlei": "Kronkanzleramt", "vertretung": "Reichsvertretung", "sicherheit": "Sicherheit und Ordnung", "verwaltung": "Verwaltung und Finanzen", "amt": "Nachgeordnete Ämter", "organ": "Reichsorgane", "krone": "Krone", "sonst": "Sonstiges"}
+FARBEN = {"kanzlei": 0, "vertretung": 7, "sicherheit": 1, "verwaltung": 3, "organ": 2, "krone": 4, "amt": 5, "sonst": 6}   # Farbfeld 0–7 der Karte (siehe wiki.css .bs-geb.t0–t7)
 
 # Bisherige Bauwerke der Karte (Name → Typ), werden auf die neuen Gebäudetypen umgestellt
 BESTAND_TYPEN = {
