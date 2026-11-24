@@ -30,6 +30,7 @@ import amt
 import anmeldung
 import bereiche
 import config
+import organigramme
 
 esc = html.escape
 PFAD = "/regierung/"
@@ -664,120 +665,38 @@ async def meldung(request):
                   krumen=[("Aktuelles", PFAD + "aktuelles/"), (m["titel"], None)])
 
 
-# ---------------------------------------------------------------- Organigramm der Reichsverwaltung (übernommen von /informationen/die-reichsbehoerden/)
+# ---------------------------------------------------------------- Organigramm der Reichsverwaltung (wiedergegeben aus organigramme.py, kein Absprung zur Hauptseite)
 
-ORGANIGRAMM_SEITE = "/informationen/die-reichsbehoerden/organigramm/"   # interaktives Organigramm (organigramme.py, Stand in der DB)
 ORG_CSS = """<style>
-.og-bild{display:block;border:1px solid var(--linie);border-radius:var(--r);background:#fff;overflow:hidden;margin:6px 0 14px}
-.og-bild img{display:block;width:100%;height:auto}
-.og-tab-rahmen{overflow-x:auto;margin:6px 0 26px}
-.og-tab{width:100%;border-collapse:collapse;font-size:15px;min-width:560px}
-.og-tab th,.og-tab td{text-align:left;vertical-align:top;padding:11px 14px 11px 0;border-bottom:1px solid var(--linie)}
-.og-tab thead th{font-size:13px;color:var(--grau);font-weight:600;border-bottom:1px solid var(--ink)}
-.og-tab tbody th{font-weight:650;white-space:nowrap}.og-tab a{color:var(--ink)}.og-tab a:hover{color:var(--akzent)}
-.og-baum,.og-baum ul{list-style:none;margin:0;padding:0}
-.og-baum ul{margin-left:18px;padding-left:18px;border-left:1px solid var(--linie)}
-.og-baum li{position:relative;padding:5px 0}
-.og-baum ul>li::before{content:"";position:absolute;left:-18px;top:22px;width:14px;border-top:1px solid var(--linie)}
-.og-knoten{display:inline-flex;flex-direction:column;gap:1px;padding:9px 14px;border:1px solid var(--linie);border-radius:12px;background:#fff;min-width:min(100%,280px)}
-.og-knoten b{font-weight:650;font-size:15px}.og-knoten b a{color:var(--ink);text-decoration:none}.og-knoten b a:hover{color:var(--akzent)}
-.og-knoten small{color:var(--grau);font-size:13px}
-.og-knoten.og-krone{background:var(--ink);border-color:var(--ink)}.og-knoten.og-krone b,.og-knoten.og-krone b a,.og-knoten.og-krone small{color:#fff}
-.og-knoten.og-haupt{border-color:var(--ink);border-width:1.5px}
-.og-gruppe{display:inline-block;font-size:12.5px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--grau);padding:6px 0}
+.rgo-tab-rahmen{overflow-x:auto;margin:6px 0 26px}
+.rgo-tab{width:100%;border-collapse:collapse;font-size:15px;min-width:560px}
+.rgo-tab th,.rgo-tab td{text-align:left;vertical-align:top;padding:11px 14px 11px 0;border:0;border-bottom:1px solid var(--linie)}
+.rgo-tab thead th{font-size:13px;color:var(--grau);font-weight:600;border-bottom:1px solid var(--ink)}
+.rgo-tab tbody th{font-weight:650;white-space:nowrap}
 </style>"""
 
 
 async def organigramm(request):
-    """Organigramm der Reichsverwaltung: Bild (stets aktuell, vom Organigramm-Modul), Aufbau in Säulen und Gliederung aller Ministerien."""
+    """Organigramm der Reichsverwaltung, hier selbst wiedergegeben (interaktiv, Daten aus organigramme.py), dazu der Aufbau in Säulen."""
     k = await anmeldung.konto(request)
-    alle, gruppen = ressorts()
-    nach_name = {b["name"]: b for b in alle}
-    try:
-        mitglieder = await request.app["discord"].mitglieder()
-    except Exception:
-        mitglieder = []
-    con = request.app["db"]
-
-    def inhaber(schl):
-        rollen = set(LEITUNG_ROLLEN.get(schl) or [])
-        if not rollen or not mitglieder:
-            return []
-        return sorted(ic_name(con, m["id"], m["name"]) for m in mitglieder if rollen & set(m["rollen"]))
-
-    def knoten(b, klasse=""):
-        namen = inhaber(b["schl"])
-        leitung = b.get("leitung", "")
-        unter = f'{leitung}: {", ".join(namen)}' if namen else leitung
-        return (f'<span class="og-knoten {klasse}"><b><a href="{ministerium_url(b)}">{esc(b["name"])}</a></b>'
-                f'<small>{esc(unter)}</small></span>')
-
-    gezeigt = set()
-
-    def zweig(b, klasse=""):
-        gezeigt.add(b["schl"])
-        kinder = []
-        for n in b.get("nachgeordnet", []):
-            nb = nach_name.get(n)
-            if nb and nb["schl"] not in gezeigt and nb["gruppe"] in ("amt", "kanzlei"):
-                kinder.append(zweig(nb))
-            elif not nb:
-                kinder.append(f'<li><span class="og-knoten"><b>{esc(n)}</b></span></li>')
-        return f'<li>{knoten(b, klasse)}' + (f'<ul>{"".join(kinder)}</ul>' if kinder else "") + "</li>"
-
-    kanzlei = next((b for b in alle if b["schl"] == "kanzlei"), None)
-    vertretung = [b for b in alle if b["gruppe"] == "vertretung"]
-    for b in vertretung:
-        gezeigt.add(b["schl"])
-    unter_kanzlei = []
-    if kanzlei:
-        gezeigt.add("kanzlei")
-        im_amt = [zweig(b) for b in alle if b["gruppe"] == "kanzlei" and b["schl"] != "kanzlei"]
-        if im_amt:
-            unter_kanzlei.append(f'<li><span class="og-gruppe">Im Kronkanzleramt</span><ul>{"".join(im_amt)}</ul></li>')
-        for g in ("sicherheit", "verwaltung"):
-            zs = [zweig(b) for b in alle if b["gruppe"] == g and b["schl"] not in gezeigt]
-            if zs:
-                unter_kanzlei.append(f'<li><span class="og-gruppe">{esc(gruppen.get(g, g))}</span><ul>{"".join(zs)}</ul></li>')
-        rest = [zweig(b) for b in alle if b["schl"] not in gezeigt and b["gruppe"] not in ("vertretung",)]
-        if rest:
-            unter_kanzlei.append(f'<li><span class="og-gruppe">Weitere Ämter</span><ul>{"".join(rest)}</ul></li>')
-    aeste = []
-    if kanzlei:
-        aeste.append(f'<li>{knoten(kanzlei, "og-haupt")}<ul>{"".join(unter_kanzlei)}</ul></li>')
-    for b in vertretung:
-        aemter = "".join(f'<li><span class="og-knoten"><b>{esc(a)}</b><small>Anrede: {esc(r)}</small></span></li>' if r and r != "–"
-                         else f'<li><span class="og-knoten"><b>{esc(a)}</b></span></li>' for a, _, r in b.get("aemter", []))
-        aeste.append(f'<li>{knoten(b, "og-haupt")}' + (f'<ul>{aemter}</ul>' if aemter else "") + "</li>")
-    souv = await namen_mit_rollen(request, [ROLLE_SOUVERAEN])
-    baum = (f'<ul class="og-baum"><li><span class="og-knoten og-krone"><b><a href="/der-souveraen/">Der Souverän</a></b>'
-            f'<small>{esc(", ".join(souv) or "Seine Majestät")}</small></span><ul>{"".join(aeste)}</ul></li></ul>')
-
-    vt = vertretung[0] if vertretung else None
+    alle, _ = ressorts()
+    vt = next((b for b in alle if b["gruppe"] == "vertretung"), None)
     saeulen = [
-        ("Der Souverän", "/der-souveraen/", "Seine Majestät", "Steht an der Spitze des Reiches. Ihm unterstehen unmittelbar das Kronkanzleramt und das Reichsamt für die Kronstatthalterschaft."),
-        ("Die Kanzlei", f"{PFAD}kanzlei/", "Der Kronkanzler", "Bindeglied zwischen dem Souverän und der Verwaltung; Kronbesitz und Schatzkammer seiner Majestät."),
-        ("Die Reichsbehörden", f"{PFAD}ministerien/", "Generaldirektoren, Staatssekretäre und der Generalkonsul", "Reichsweite Aufgaben in Sicherheit, Ordnung und Verwaltung sowie der auswärtige Dienst. Sie unterstehen dem Kronkanzler."),
+        ("Der Souverän", "Seine Majestät", "Steht an der Spitze des Reiches. Ihm unterstehen unmittelbar das Kronkanzleramt und das Reichsamt für die Kronstatthalterschaft."),
+        ("Die Kanzlei", "Der Kronkanzler", "Bindeglied zwischen dem Souverän und der Verwaltung; Kronbesitz und Schatzkammer seiner Majestät."),
+        ("Die Reichsbehörden", "Generaldirektoren, Staatssekretäre und der Generalkonsul", "Reichsweite Aufgaben in Sicherheit, Ordnung und Verwaltung sowie der auswärtige Dienst. Sie unterstehen dem Kronkanzler."),
     ]
     if vt:
-        saeulen.append(("Die Reichsvertretung", ministerium_url(vt), f'{vt.get("leitung", "")}; Vizekönige, Generalgouverneure, Gouverneure, Magistrate und Bürgermeister',
+        saeulen.append(("Die Reichsvertretung", f'{vt.get("leitung", "")}; Vizekönige, Generalgouverneure, Gouverneure, Magistrate und Bürgermeister',
                         f'{vt["name"]}: Vertretung des Souveräns in Teilstaaten und Städten ohne eigenen Regenten. Untersteht unmittelbar dem Souverän.'))
-    tab = ('<div class="og-tab-rahmen"><table class="og-tab"><thead><tr><th>Säule</th><th>Leitung</th><th>Aufgabe</th></tr></thead><tbody>'
-           + "".join(f'<tr><th scope="row"><a href="{u}">{esc(n)}</a></th><td>{esc(l)}</td><td>{esc(t)}</td></tr>' for n, u, l, t in saeulen) + "</tbody></table></div>")
-
-    bild = (f'<a class="og-bild" href="{ORGANIGRAMM_SEITE}" title="Interaktives Organigramm öffnen">'
-            f'<img src="{ORGANIGRAMM_SEITE}organigramm.png" width="8196" height="3432" loading="lazy" decoding="async" '
-            'alt="Organigramm der Reichsverwaltung: der Souverän an der Spitze, darunter der Kronkanzler mit Crown Estates und den Reichsbehörden '
-            'sowie das Reichsamt für die Kronstatthalterschaft mit der Reichsvertretung"></a>')
+    tab = ('<div class="rgo-tab-rahmen"><table class="rgo-tab"><thead><tr><th>Säule</th><th>Leitung</th><th>Aufgabe</th></tr></thead><tbody>'
+           + "".join(f'<tr><th scope="row">{esc(n)}</th><td>{esc(l)}</td><td>{esc(t)}</td></tr>' for n, l, t in saeulen) + "</tbody></table></div>")
     inhalt = (ORG_CSS + kopf("Organigramm der Reichsverwaltung",
-                             "Das Organigramm zeigt alle Ämter und Behörden der Reichsverwaltung mit ihren gegenwärtigen Amtsträgern. An der Spitze steht der Souverän; "
-                             "ihm unterstehen das Kronkanzleramt mit den Reichsbehörden und das Reichsamt für die Kronstatthalterschaft.")
-              + f'<section class="rg-abschnitt"><h2>Das Organigramm</h2>{bild}'
-              f'<div class="rg-knoepfe"><a class="btn" href="{ORGANIGRAMM_SEITE}">{ic("arrow-right")}Interaktives Organigramm öffnen</a>'
-              f'<a class="btn zweit" href="{ORGANIGRAMM_SEITE}organigramm.png" target="_blank" rel="noopener">{ic("external-link")}Bild in voller Größe</a></div>'
-              '<p class="rg-datum">Das interaktive Organigramm lässt sich zoomen und durchsuchen; ein Klick auf ein Amt nennt Leitung, Amtsträger und Aufgaben.</p></section>'
-              f'<section class="rg-abschnitt"><h2>Aufbau der Reichsverwaltung</h2>{tab}</section>'
-              f'<section class="rg-abschnitt"><h2>Gliederung <a href="{PFAD}ministerien/">Alle Ministerien</a></h2>{baum}</section>')
+                             "Alle Ämter und Behörden der Reichsverwaltung mit ihren gegenwärtigen Amtsträgern. An der Spitze steht der Souverän; "
+                             "ihm unterstehen das Kronkanzleramt mit den Reichsbehörden und das Reichsamt für die Kronstatthalterschaft. "
+                             "Das Organigramm lässt sich zoomen und durchsuchen; ein Klick auf ein Amt nennt Amtsträger, Aufgaben und alle Beziehungen.")
+              + f'<section class="rg-abschnitt">{organigramme.einbettung(request, "verwaltung", k)}</section>'
+              f'<section class="rg-abschnitt"><h2>Aufbau der Reichsverwaltung</h2>{tab}</section>')
     return rahmen(request, k, "Organigramm", "r-organigramm", inhalt)
 
 
@@ -1027,7 +946,7 @@ async def ministerium_aufgaben(request):
     dl = '<dl class="rg-daten" id="leitung">' + "".join(f"<dt>{esc(a)}</dt><dd>{esc(w)}</dd>" for a, w in daten) + "</dl>"
     aufgaben = ("<h2>Aufgaben</h2><ul class='rg-text'>" + "".join(f"<li>{esc(a)}</li>" for a in b.get("aufgaben", [])) + "</ul>") if b.get("aufgaben") else ""
     if b.get("aemter"):
-        aufgaben += (ORG_CSS + '<h2 id="aemter">Die Ämter</h2><div class="og-tab-rahmen"><table class="og-tab"><thead><tr><th>Amt</th><th>Zuständigkeit</th><th>Anrede</th></tr></thead><tbody>'
+        aufgaben += (ORG_CSS + '<h2 id="aemter">Die Ämter</h2><div class="rgo-tab-rahmen"><table class="rgo-tab"><thead><tr><th>Amt</th><th>Zuständigkeit</th><th>Anrede</th></tr></thead><tbody>'
                      + "".join(f'<tr><th scope="row">{esc(a)}</th><td>{esc(z)}</td><td>{esc(r)}</td></tr>' for a, z, r in b["aemter"]) + "</tbody></table></div>")
     web_link = f'<p><a class="btn zweit" href="/{b["seite"].lstrip("/")}">{ic("external-link")}Auch auf imperiumgermanicum.de</a></p>' if b.get("seite") else ""
     return rahmen(request, k, "Aufgaben", "m-aufgaben", kopf("Aufgaben und Organisation", esc(b.get("lead", "")), b.get("kurz") or b["name"]) + dl + aufgaben + web_link,

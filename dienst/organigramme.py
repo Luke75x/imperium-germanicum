@@ -641,3 +641,73 @@ def registrieren(app):
         app.router.add_get(p, info)
     for p in _pfade("speichern"):
         app.router.add_post(p, speichern)
+
+
+# ---------------------------------------------------------------- Einbettung in andere Webauftritte (z. B. /regierung/organigramm/)
+
+EINBETTUNG_CSS = """<style>
+.oge{--navy-950:#0a0f27;--navy-900:#12183c;--navy-800:#1b2352;--navy-700:#2b3570;--navy-100:#e4e6ef;--gold-700:#7a5c12;--gold-600:#9a7618;
+--gold-500:#c9a43a;--gold-300:#e4cb7a;--ivory:#f5f1e8;--paper:#fbf9f4;--white:#fff;--ink:#161a2e;--ink-2:#3a3e52;--muted:#646778;--rule:#ddd5c3;
+--rule-strong:#bfb294;--danger:#a3261b;--success:#2f6b3a;--serif:"EB Garamond",Garamond,"Times New Roman",serif;--sans:inherit;--radius:10px;
+--shadow:0 1px 2px rgba(18,24,60,.06),0 8px 24px -12px rgba(18,24,60,.18)}
+.oge-raster{display:flex;flex-direction:column;gap:14px}
+.oge .og-aside .aside-nav{position:static}
+.oge .karte-legende{display:flex;flex-wrap:wrap;gap:6px 8px;border:0;margin:0 0 10px;padding:0}
+.oge .karte-legende li{margin:0}.oge .karte-legende-item{border-radius:999px;margin:0;padding:6px 12px;width:auto;border-left-width:1px}
+.oge .karte-aktionen{display:inline-flex;gap:8px;margin-right:14px}.oge .karte-feldhinweis{display:inline;color:var(--muted);font-size:13px}
+.oge .karte-flaeche{border-radius:14px}
+.oge .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.oge .karte-suche input{width:100%;padding:10px 14px;border:1px solid var(--linie,#d0d4dc);border-radius:999px;font:inherit;background:#fff}
+.oge .btn-line{background:rgba(255,255,255,.7);color:#16171a;border:1px solid var(--linie,#d0d4dc)}
+.oge .btn-line:hover{background:#16171a;color:#fff;border-color:#16171a}
+.oge .btn-small{padding:7px 12px;font-size:13px}
+.oge .aside-nav h2{font-size:12.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 12px;border:0;padding:0}
+.oge .karte-quelle{color:var(--muted);font-size:13px;margin-top:10px}
+.oge .dialog{width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;padding:clamp(20px,3vw,28px);color:var(--ink-2);
+background:#fff;border:1px solid var(--rule);border-radius:16px;box-shadow:0 24px 48px -20px rgba(10,15,39,.35)}
+.oge .dialog.wide{width:min(780px,calc(100vw - 32px))}.oge .dialog::backdrop{background:rgba(8,11,30,.55)}
+.oge .dialog-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}
+</style>"""
+
+
+def einbettung(request, name, konto=None):
+    """Interaktives Organigramm als Baustein für eine fremde Seite (ohne Kopf, Fuß und Seitenleiste der Hauptseite).
+    Daten, Skript und Amtsträger wie auf der eigenen Seite; Bearbeiten bleibt dort."""
+    o = ORGANIGRAMME[name]
+    p = o["praefix"]
+    version = aktuell(request.app["db"], name)
+    stand_datum = datetime.fromtimestamp(version["zeit"], timezone.utc).strftime("%d.%m.%Y")
+    cfg = {"i18n": texte(name, "de"), "lang": "de", "modus": "anzeigen", "stand": version["stand"], "basis": version["id"],
+           "version": None, "info": o["pfad"] + "info.json", "speichern": "", "csrf": "", "prefix": "", "stand_datum": stand_datum, "rollen": {}}
+    if graph(name):
+        cfg.update(arten=ARTEN, bilder="/assets/img/", sichtbar=SICHTBAR)
+    cfg_json = json.dumps(cfg, ensure_ascii=False).replace("</", "<\\/")
+    titel = o["titel"][0]
+    zoom = ('<div class="karte-zoom"><button type="button" class="btn btn-line" data-zoom="in" aria-label="Vergrößern">+</button>'
+            '<button type="button" class="btn btn-line" data-zoom="out" aria-label="Verkleinern">−</button>'
+            '<button type="button" class="btn btn-line" data-zoom="fit">Ganz zeigen</button></div>')
+    suche = (f'<form class="karte-suche field" role="search"><label class="sr-only" for="{p}-suche">Suchen</label>'
+             f'<input id="{p}-suche" type="search" list="{p}-liste" autocomplete="off" placeholder="Amt oder Amtsträger suchen">'
+             f'<datalist id="{p}-liste"></datalist></form>')
+    bild_knopf = '<button type="button" class="btn btn-line" data-bild>Als Bild herunterladen</button>'
+    wurzel = (f'<div class="og og-cols karte-cols karte" data-{p}><div class="karte-leiste">{zoom}{suche}{bild_knopf}</div>'
+              f'<div class="karte-buehne"><div class="karte-flaeche org-flaeche" tabindex="0" aria-label="{esc(titel)}">'
+              '<p class="karte-laden">Organigramm wird geladen …</p></div><div class="karte-info" aria-live="polite"></div></div>'
+              f'<p class="karte-quelle">Stand {stand_datum}. Amtsträger live aus den Rollen unseres Discord-Servers.</p></div>')
+    t = texte(name, "de")
+    legende = ('<aside class="og-aside karte-aside"><nav class="aside-nav" aria-label="Legende"><h2>Beziehungen</h2><ul class="karte-legende">'
+               + "".join(f'<li><button type="button" class="karte-legende-item" data-art="{a}" aria-pressed="{"true" if a in SICHTBAR else "false"}">{_swatch(a)}'
+                         f'<span class="karte-legende-name">{esc(t["arten"][a]["aktiv"])}</span></button></li>' for a in ARTEN)
+               + '</ul><div class="karte-aktionen"><button type="button" class="btn btn-line btn-small" data-ebene="struktur">Nur Struktur</button>'
+               '<button type="button" class="btn btn-line btn-small" data-ebene="alle">Alle zeigen</button></div>'
+               '<p class="karte-feldhinweis">Ein Klick blendet eine Beziehungsart ein oder aus. Ein Klick auf ein Amt zeigt immer alle seine Beziehungen.</p></nav>'
+               + (f'<p><a class="btn btn-line btn-small" href="{o["pfad"]}bearbeiten/">Organigramm bearbeiten</a></p>' if konto and konto.get("admin") else "")
+               + '</aside>')
+    fenster = (f'<dialog class="dialog wide karte-gebiet org-amt" data-amt aria-labelledby="{p}-amt-titel">'
+               f'<div data-amt-inhalt tabindex="-1"></div><div class="dialog-actions"><span data-amt-link></span>'
+               '<button type="button" class="btn btn-line" data-amt-zu>Schließen</button></div></dialog>')
+    v = int(max(os.path.getmtime(f"{config.WEBROOT}/assets/{d}") for d in ("css/wiki.css", "js/" + o["js"])))
+    return (f'<link rel="stylesheet" href="/assets/css/wiki.css?v={v}">{EINBETTUNG_CSS}'
+            f'<div class="oge og-cols"><div class="oge-raster"><div>{wurzel}</div>{legende}</div>{fenster}'
+            f'<script type="application/json" id="{o["cfg"]}">{cfg_json}</script></div>'
+            f'<script src="/assets/js/{o["js"]}?v={v}" defer></script>')
