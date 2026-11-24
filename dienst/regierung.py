@@ -182,6 +182,7 @@ def ist_redaktion(k):
 
 def einrichten(con):
     os.makedirs(LEITUNG_BILDER, exist_ok=True)
+    con.executescript(LEBENSLAUF_SCHEMA)
     _fz_einrichten(con)
     con.executescript(SCHEMA)
     if "ressort" not in [r[1] for r in con.execute("PRAGMA table_info(regierung_meldungen)")]:
@@ -613,23 +614,122 @@ async def meldung(request):
                   krumen=[("Aktuelles", PFAD + "aktuelles/"), (m["titel"], None)])
 
 
-async def reichsregierung(request):
-    k = await anmeldung.konto(request)
+# ---------------------------------------------------------------- Reichskabinett (Aufbau wie bundesregierung.de/…/bundeskabinett)
+
+KAB_CSS = """<style>
+.kb-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:18px;margin:8px 0 30px}
+.kb-karte{display:flex;flex-direction:column;border:1px solid var(--linie);border-radius:var(--r);background:#fff;overflow:hidden;transition:box-shadow .2s,transform .2s}
+.kb-karte:hover{box-shadow:0 14px 30px -18px rgba(16,24,40,.45);transform:translateY(-2px)}
+.kb-bild{display:block;aspect-ratio:16/10;background:linear-gradient(180deg,#e9edf2,#d5dce5);overflow:hidden;position:relative}
+.kb-bild img{position:absolute;left:50%;top:6%;transform:translateX(-50%);height:118%;width:auto;max-width:none;object-fit:contain;object-position:top}
+.kb-person .kb-bild img{top:auto;bottom:0}
+.kb-bild .rg-silhouette{position:absolute;left:50%;bottom:-8%;transform:translateX(-50%);width:52%}
+.kb-text{padding:14px 16px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
+.kb-text h3{margin:0;font-size:17px;line-height:1.3}.kb-text h3 a{color:var(--ink);text-decoration:none}.kb-text h3 a:hover{color:var(--akzent)}
+.kb-text a.kb-link{color:var(--akzent);text-decoration:none;font-size:14px;font-weight:600;display:inline-flex;gap:6px;align-items:center}
+.kb-text a.kb-link .icon{width:15px;height:15px}.kb-text a.kb-link:hover{text-decoration:underline}
+.kb-amt{color:#3d4148;font-size:14px}
+.kb-person{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:clamp(20px,4vw,48px);align-items:start}
+.kb-person .kb-bild{aspect-ratio:4/5;border-radius:var(--r);border:1px solid var(--linie)}.kb-person .kb-bild img{height:100%}
+@media(max-width:760px){.kb-person{grid-template-columns:1fr}.kb-person .kb-bild{max-width:340px}}
+</style>"""
+
+LEBENSLAUF_SCHEMA = """CREATE TABLE IF NOT EXISTS regierung_lebenslauf (
+    konto_id TEXT PRIMARY KEY, text TEXT NOT NULL DEFAULT '', aktualisiert INTEGER NOT NULL, autor_name TEXT NOT NULL DEFAULT '');"""
+
+
+async def mitglieder_mit_rollen(request, rollen):
+    try:
+        return sorted(((m["id"], m["name"]) for m in await request.app["discord"].mitglieder() if set(rollen) & set(m["rollen"])), key=lambda x: x[1])
+    except Exception:
+        return []
+
+
+async def kabinett_liste(request):
+    """[(konto_id, name, amt, ministerium)] in Ressortfolge: Kronkanzler zuerst, dann die Reichsbehörden wie in reichsbehoerden.py."""
     alle, _ = ressorts()
-    souv = await namen_mit_rollen(request, [ROLLE_SOUVERAEN])
-    zeilen = []
+    out, gesehen = [], set()
     for b in alle:
         rollen = LEITUNG_ROLLEN.get(b["schl"])
-        namen = await namen_mit_rollen(request, rollen) if rollen else []
-        zeilen.append(f'<tr><td><a href="{ministerium_url(b)}">{esc(b["name"])}</a></td><td>{esc(b.get("leitung", ""))}</td>'
-                      f'<td>{esc(", ".join(namen)) if namen else ("<span class=leerwert>unbesetzt</span>" if rollen else "–")}</td></tr>')
-    inhalt = (kopf("Die Reichsregierung", "Der Souverän ernennt den Kronkanzler. Der Kronkanzler leitet die Reichsverwaltung und führt die Reichsbehörden; "
-                   "ihre Leiterinnen und Leiter bilden das Kabinett.", "Staatsaufbau")
-              + '<section class="rg-abschnitt"><h2>Der Souverän</h2><div class="rg-karten">'
-              + ("".join(_person(n, "Imperator Rex") for n in souv) or '<p class="leer">–</p>') + '</div></section>'
-              + '<section class="rg-abschnitt"><h2>Das Kabinett</h2><table class="rg-tab"><thead><tr><th>Ministerium</th><th>Leitung</th><th>Amtsinhaber</th></tr></thead>'
-              f'<tbody>{"".join(zeilen)}</tbody></table></section>')
-    return rahmen(request, k, "Die Reichsregierung", "r-regierung", inhalt)
+        if not rollen:
+            continue
+        for kid, name in await mitglieder_mit_rollen(request, rollen):
+            if (kid, b["schl"]) in gesehen:
+                continue
+            gesehen.add((kid, b["schl"]))
+            amt_ = "Kronkanzler" if b["schl"] == "kanzlei" else ohne_artikel(b.get("leitung", "Leitung"))
+            out.append((kid, name, amt_, b))
+    return out
+
+
+def _kb_bild(b):
+    url = bild_url(b["schl"])
+    return f'<img src="{url}" alt="Porträtbild">' if url else SILHOUETTE
+
+
+async def reichsregierung(request):
+    k = await anmeldung.konto(request)
+    kab = await kabinett_liste(request)
+    kanzler = next((n for _, n, _, b in kab if b["schl"] == "kanzlei"), None)
+    weitere = len([1 for _, _, _, b in kab if b["schl"] != "kanzlei"])
+    einleitung = (f"Die aktuelle Reichsregierung besteht aus {esc(leitung_titel('Kronkanzler', [kanzler])) if kanzler else 'dem Kronkanzler'} sowie {weitere} "
+                  f"{'Leiterin oder Leiter' if weitere == 1 else 'Leiterinnen und Leitern'} der Reichsbehörden. Gemeinsam bilden sie das Reichskabinett. "
+                  "Hier finden Sie ihre Lebensläufe sowie Informationen zu den jeweiligen Ministerien.")
+    karten = "".join(
+        f'<article class="kb-karte"><a class="kb-bild" href="{PFAD}reichsregierung/{kid}/" aria-hidden="true" tabindex="-1">{_kb_bild(b)}</a>'
+        f'<div class="kb-text"><h3><a href="{PFAD}reichsregierung/{kid}/">{esc(name)}</a></h3><span class="kb-amt">{esc(amt_)}</span>'
+        f'<a class="kb-link" href="{PFAD}reichsregierung/{kid}/#lebenslauf">{ic("arrow-right")}Lebenslauf</a>'
+        f'<a class="kb-link" href="{ministerium_url(b)}">{ic("arrow-right")}{esc(b["name"])}</a></div></article>' for kid, name, amt_, b in kab)
+    alle, _ = ressorts()
+    besetzt = {b["schl"] for _, _, _, b in kab}
+    frei = [b for b in alle if LEITUNG_ROLLEN.get(b["schl"]) and b["schl"] not in besetzt]
+    frei_html = ("<h2>Zurzeit unbesetzt</h2><ul class=\"rg-liste\">" + "".join(
+        f'<li><a href="{ministerium_url(b)}">{esc(b["name"])}</a><span class="rg-datum">{esc(b.get("leitung", ""))}</span></li>' for b in frei) + "</ul>") if frei else ""
+    inhalt = (KAB_CSS + kopf("Reichskabinett", einleitung, "Die Reichsregierung")
+              + f'<section class="rg-abschnitt"><h2>Das Reichskabinett</h2><div class="kb-raster">{karten or "<p class=leer>Keine Angaben.</p>"}</div>{frei_html}</section>'
+              + f'<section class="rg-abschnitt"><h2>Mehr zum Reichskabinett</h2><ul class="rg-liste"><li><a href="{PFAD}ministerien/">Alle Ministerien</a></li>'
+              f'<li><a href="{PFAD}aktuelles/?art=kabinett">Kabinettsbeschlüsse</a></li><li><a href="/der-souveraen/">Der Souverän</a></li></ul></section>')
+    return rahmen(request, k, "Reichskabinett", "r-regierung", inhalt)
+
+
+def _darf_lebenslauf(k, kid):
+    return bool(k) and bool(k["mitglied"]) and (k["id"] == kid or ist_redaktion(k))
+
+
+async def kabinett_person(request):
+    k = await anmeldung.konto(request)
+    kid = request.match_info["id"]
+    aemter = [(n, a, b) for i, n, a, b in await kabinett_liste(request) if i == kid]
+    if not aemter:
+        raise web.HTTPNotFound(text="Kein Mitglied des Reichskabinetts.")
+    name, _, b0 = aemter[0]
+    con = request.app["db"]
+    lv = con.execute("SELECT * FROM regierung_lebenslauf WHERE konto_id=?", (kid,)).fetchone()
+    text = absatz(lv["text"]) if lv and lv["text"].strip() else '<p class="leer">Der Lebenslauf wird noch ergänzt.</p>'
+    aemter_html = "".join(f'<li><a href="{ministerium_url(b)}">{esc(b["name"])}</a><span class="rg-datum">{esc(a)}</span></li>' for _, a, b in aemter)
+    bearb = ""
+    if _darf_lebenslauf(k, kid):
+        bearb = (f'<details class="rg-abschnitt"><summary class="btn zweit">{ic("pencil")}Lebenslauf bearbeiten</summary>'
+                 f'<form class="rg-form" method="post" action="{PFAD}reichsregierung/{kid}/lebenslauf" style="margin-top:14px">{csrf_feld(request)}'
+                 f'<label>Lebenslauf (Absätze mit Leerzeile trennen)<textarea name="text" style="min-height:260px" maxlength="12000">{esc(lv["text"] if lv else "")}</textarea></label>'
+                 f'<div class="rg-knoepfe"><button class="btn" type="submit">{ic("check")}Speichern</button></div></form></details>')
+    stand = f'<p class="rg-datum">Stand: {datum(lv["aktualisiert"])}</p>' if lv and lv["text"].strip() else ""
+    inhalt = (KAB_CSS + f'<div class="kb-person"><div class="kb-bild">{_kb_bild(b0)}</div><div>'
+              + kopf(name, " · ".join(esc(a) for _, a, _ in aemter), "Reichskabinett")
+              + f'<h2>Ämter</h2><ul class="rg-liste">{aemter_html}</ul>'
+              + f'<h2 id="lebenslauf">Lebenslauf</h2><div class="rg-text">{text}</div>{stand}{bearb}</div></div>')
+    return rahmen(request, k, name, "r-regierung", inhalt, krumen=[("Reichskabinett", PFAD + "reichsregierung/"), (name, None)])
+
+
+async def kabinett_lebenslauf(request):
+    kid = request.match_info["id"]
+    k, form = await post_pruefen(request, lambda k: _darf_lebenslauf(k, kid))
+    con = request.app["db"]
+    con.execute("INSERT INTO regierung_lebenslauf (konto_id, text, aktualisiert, autor_name) VALUES (?,?,?,?) "
+                "ON CONFLICT(konto_id) DO UPDATE SET text=excluded.text, aktualisiert=excluded.aktualisiert, autor_name=excluded.autor_name",
+                (kid, (form.get("text") or "").strip()[:12000], int(time.time()), k["name"]))
+    con.commit()
+    weiter(f"{PFAD}reichsregierung/{kid}/#lebenslauf", "Lebenslauf gespeichert.")
 
 
 async def suche(request):
@@ -1171,6 +1271,8 @@ def registrieren(app):
     r.add_get(PFAD + "aktuelles/", aktuelles)
     r.add_get(PFAD + "aktuelles/{id:\\d+}/", meldung)
     r.add_get(PFAD + "reichsregierung/", reichsregierung)
+    r.add_get(PFAD + "reichsregierung/{id:[0-9a-z]+}/", kabinett_person)
+    r.add_post(PFAD + "reichsregierung/{id:[0-9a-z]+}/lebenslauf", kabinett_lebenslauf)
     r.add_get(PFAD + "ministerien/", ministerien)
     r.add_get(PFAD + "ressorts/", alt_ressorts)
     r.add_get(PFAD + "ressorts/{schl}/", alt_ressort)
