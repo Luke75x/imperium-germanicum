@@ -157,7 +157,8 @@ html:root main .rg-leit h2.rg-leit-titel{border:0;padding:0;margin:0 0 26px;text
 .rg-leit-paar{margin:0}
 .rg-leit-paar .rg-leit-buehne{grid-template-columns:minmax(0,46%) minmax(0,1fr);min-height:260px}
 .rg-leit-paar .rg-leit-bild img{max-height:360px}
-.rg-leit-paar .rg-leit-links{grid-template-columns:max-content;gap:12px;padding:24px 20px}
+.rg-leit-paar .rg-leit-links{grid-template-columns:max-content;gap:9px;padding:20px 20px}
+@media(min-width:701px){.rg-leit-paar .rg-leit-links{min-height:74%}.rg-leit-paar .rg-leit-buehne::before{height:74%}}
 html:root main .rg-leit-paar h2.rg-leit-titel{font-size:clamp(19px,1.9vw,24px);margin-bottom:18px}
 @media(max-width:900px){.rg-leit-paar-raster{grid-template-columns:1fr;gap:40px}}
 @media(max-width:700px){
@@ -549,10 +550,10 @@ async def start(request):
     kanzler = await namen_mit_rollen(request, [amt.ROLLE_KANZLER])
     regierung = ('<div class="rg-leit-paar-raster">'
                  + leitung_block(leitung_titel("Der Souverän", souv, nur_name=True), "souveraen",
-                                 [("Der Souverän", "/der-souveraen/"), ("Die Reichsregierung", PFAD + "reichsregierung/"),
-                                  ("Kabinettsbeschlüsse", PFAD + "aktuelles/?art=kabinett")], paar=True)
+                                 [("Der Souverän", "/der-souveraen/")], paar=True)
                  + leitung_block(leitung_titel("Kronkanzler", kanzler), "kanzlei",
-                                 [("Das Kronkanzleramt", PFAD + "kanzlei/"), ("Pressemitteilungen", PFAD + "aktuelles/?art=pressemitteilung"),
+                                 [("Das Kronkanzleramt", PFAD + "kanzlei/"), ("Die Reichsregierung", PFAD + "reichsregierung/"),
+                                  ("Kabinettsbeschlüsse", PFAD + "aktuelles/?art=kabinett"), ("Pressemitteilungen", PFAD + "aktuelles/?art=pressemitteilung"),
                                   ("Reden", PFAD + "aktuelles/?art=rede")], paar=True)
                  + "</div>")
     return rahmen(request, k, "Startseite", "r-start", held + hinweise + regierung + ministerien + newsroom, cache="private, no-cache")
