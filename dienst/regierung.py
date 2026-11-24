@@ -257,11 +257,18 @@ async def konto_oder_login(request):
     return k
 
 
-async def namen_mit_rollen(request, rollen):
+def ic_name(con, konto_id, discord_name):
+    """Echter Name im Spiel (IC) aus der Bürgerakte; ohne Eintrag der Discord-Name."""
     try:
-        return sorted(m["name"] for m in await request.app["discord"].mitglieder() if set(rollen) & set(m["rollen"]))
+        r = con.execute("SELECT ic_name FROM amt_akten WHERE konto_id=?", (konto_id,)).fetchone()
     except Exception:
-        return []
+        r = None
+    return (r[0] or "").strip() if r and (r[0] or "").strip() else discord_name
+
+
+async def namen_mit_rollen(request, rollen):
+    """IC-Namen aller Träger der Rollen (Bürgerakte), sonst Discord-Name."""
+    return [n for _, n in await mitglieder_mit_rollen(request, rollen)]
 
 
 def kopf(titel, lead="", art=""):
@@ -550,7 +557,7 @@ async def start(request):
     souv = await namen_mit_rollen(request, [ROLLE_SOUVERAEN])
     kanzler = await namen_mit_rollen(request, [amt.ROLLE_KANZLER])
     regierung = ('<div class="rg-leit-paar-raster">'
-                 + leitung_block(leitung_titel("Der Souverän", souv, nur_name=True), "souveraen",
+                 + leitung_block(leitung_titel("Der Souverän", souv), "souveraen",
                                  [("Der Souverän", "/der-souveraen/")], paar=True)
                  + leitung_block(leitung_titel("Kronkanzler", kanzler), "kanzlei",
                                  [("Das Kronkanzleramt", PFAD + "kanzlei/"), ("Die Reichsregierung", PFAD + "reichsregierung/"),
@@ -639,8 +646,11 @@ LEBENSLAUF_SCHEMA = """CREATE TABLE IF NOT EXISTS regierung_lebenslauf (
 
 
 async def mitglieder_mit_rollen(request, rollen):
+    """[(Konto-ID, IC-Name)] aller Träger der Rollen; IC-Name aus der Bürgerakte, sonst Discord-Name."""
     try:
-        return sorted(((m["id"], m["name"]) for m in await request.app["discord"].mitglieder() if set(rollen) & set(m["rollen"])), key=lambda x: x[1])
+        con = request.app["db"]
+        return sorted(((m["id"], ic_name(con, m["id"], m["name"])) for m in await request.app["discord"].mitglieder() if set(rollen) & set(m["rollen"])),
+                      key=lambda x: x[1])
     except Exception:
         return []
 

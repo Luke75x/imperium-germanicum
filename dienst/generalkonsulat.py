@@ -279,6 +279,11 @@ def _antwort(request, k, aktiv, titel, inhalt, q=""):
     return regierung.rahmen(request, k, titel, schl, CSS + inhalt, portal=_portal(k), krumen=krumen, q=q)
 
 
+def _konsul(con, l):
+    """Name des zuständigen Konsuls: aktueller IC-Name aus der Bürgerakte, sonst der gespeicherte Name."""
+    return regierung.ic_name(con, l["konsul_id"], l["konsul_name"]) if l["konsul_id"] else ""
+
+
 def _ini(n):
     import amt
     return amt._initialen(n)
@@ -289,10 +294,8 @@ def _abschnitt(inhalt, klasse=""):
 
 
 async def _namen_mit_rolle(request, rolle):
-    try:
-        return sorted(m["name"] for m in await request.app["discord"].mitglieder() if rolle in m["rollen"])
-    except Exception:
-        return []
+    """IC-Namen (Bürgerakte), sonst Discord-Name – wie auf allen Regierungsseiten."""
+    return await regierung.namen_mit_rollen(request, [rolle])
 
 
 async def _post(request, pruefung=None):
@@ -446,7 +449,7 @@ async def land_seite(request):
             teil += '<h3>Meldungen</h3><ul class="gk-liste">' + "".join(
                 f'<li><a href="{PFAD}meldungen/{m["id"]}/">{esc(m["titel"])}</a><span class="gk-datum">{_datum(m["veroeffentlicht"])}</span></li>' for m in ms) + "</ul>"
     elif reiter == "vertretung":
-        teil = (f'<dl class="gk-daten"><dt>Zuständiger Konsul</dt><dd>{esc(l["konsul_name"] or "Das Generalkonsulat (unmittelbar)")}</dd></dl>'
+        teil = (f'<dl class="gk-daten"><dt>Zuständiger Konsul</dt><dd>{esc(_konsul(con, l) or "Das Generalkonsulat (unmittelbar)")}</dd></dl>'
                 f'<div class="gk-text">{_absatz(l["vertretung"]) or "<p class=gk-hinweis>Das Reich unterhält hier kein eigenes Konsulat. Zuständig ist das Generalkonsulat.</p>"}</div>'
                 f'<p><a class="btn" href="{PFAD}service/antrag/?art=hilfe&land={l["id"]}">Konsularische Hilfe anfordern</a></p>')
     else:
@@ -539,13 +542,13 @@ async def ueber(request):
     k = await anmeldung.konto(request)
     con = request.app["db"]
     gk = await _namen_mit_rolle(request, ROLLE_GENERALKONSUL)
-    ks = await _namen_mit_rolle(request, ROLLE_KONSUL)
+    ks = await regierung.mitglieder_mit_rollen(request, [ROLLE_KONSUL])
     zust = {}
     for l in _laender(con):
-        if l["konsul_name"]:
-            zust.setdefault(l["konsul_name"], []).append(l["name"])
+        if l["konsul_id"]:
+            zust.setdefault(l["konsul_id"], []).append(l["name"])
     personen = "".join(f'<div class="gk-person"><span class="avatar">{esc(_ini(n))}</span><span><b>{esc(n)}</b><small>Generalkonsul</small></span></div>' for n in gk)
-    personen += "".join(f'<div class="gk-person"><span class="avatar">{esc(_ini(n))}</span><span><b>{esc(n)}</b><small>Konsul{" · " + esc(", ".join(zust[n])) if n in zust else ""}</small></span></div>' for n in ks)
+    personen += "".join(f'<div class="gk-person"><span class="avatar">{esc(_ini(n))}</span><span><b>{esc(n)}</b><small>Konsul{" · " + esc(", ".join(zust[i])) if i in zust else ""}</small></span></div>' for i, n in ks)
     aufgaben = ["Vertritt das Reich und seine Untertanen im Ausland und stellt ihnen Schutz und Beistand.",
                 "Unterhält die Konsulate des Reiches; der Souverän ernennt und entlässt die Konsuln, der Kronkanzler verwaltet sie in seinem Namen.",
                 "Führt den diplomatischen Verkehr der Konsulate und bereitet Verträge und Abkommen vor.",
@@ -1024,7 +1027,7 @@ async def intern_laender(request):
     n_vs = dict(con.execute("SELECT land_id, COUNT(*) FROM konsulat_vorsorge GROUP BY land_id").fetchall())
     tab = ('<table class="gk-tab"><thead><tr><th>Land</th><th>Beziehung</th><th>Reisehinweis</th><th>Konsul</th><th>Reisende</th></tr></thead><tbody>' + "".join(
         f'<tr><td><a href="{PFAD}intern/laender/{l["id"]}/">{esc(l["name"])}</a></td><td>{esc(BEZIEHUNGEN.get(l["beziehung"], ""))}</td>'
-        f'<td>{_stufe_html(l["stufe"])}</td><td>{esc(l["konsul_name"] or "–")}</td><td>{n_vs.get(l["id"], 0)}</td></tr>' for l in ls)
+        f'<td>{_stufe_html(l["stufe"])}</td><td>{esc(_konsul(con, l) or "–")}</td><td>{n_vs.get(l["id"], 0)}</td></tr>' for l in ls)
         + "</tbody></table>") if ls else '<p class="gk-hinweis">Noch keine Länder angelegt.</p>'
     neu = f'<p><a class="btn" href="{PFAD}intern/laender/neu/">Land anlegen</a></p>' if ist_konsul(k) else ""
     return _intern(request, k, "laender/", "Länder", neu + tab)
@@ -1046,15 +1049,15 @@ async def intern_land(request):
     konsuln = []
     if lt:
         try:
-            konsuln = [(m["id"], m["name"]) for m in await request.app["discord"].mitglieder() if ROLLE_KONSUL in m["rollen"]]
+            konsuln = await regierung.mitglieder_mit_rollen(request, [ROLLE_KONSUL])
         except Exception:
             konsuln = []
         if l and l["konsul_id"] and l["konsul_id"] not in dict(konsuln):
-            konsuln.append((l["konsul_id"], l["konsul_name"] + " (ohne Konsul-Rolle)"))
+            konsuln.append((l["konsul_id"], _konsul(con, l) + " (ohne Konsul-Rolle)"))
     bez = (f'<label>Beziehungen zum Reich<select name="beziehung">{_opt(BEZIEHUNGEN.items(), w("beziehung", "neutral"))}</select></label>' if lt else
            f'<label>Beziehungen zum Reich<input value="{esc(BEZIEHUNGEN.get(w("beziehung", "neutral"), ""))}" disabled></label>')
     kon = (f'<label>Zuständiger Konsul<select name="konsul">{_opt([("", "– Generalkonsulat unmittelbar –")] + konsuln, w("konsul_id"))}</select></label>' if lt else
-           f'<label>Zuständiger Konsul<input value="{esc(w("konsul_name") or "–")}" disabled></label>')
+           f'<label>Zuständiger Konsul<input value="{esc((_konsul(con, l) if l else "") or "–")}" disabled></label>')
     form = (f'<form class="gk-form" method="post" action="{PFAD}intern/laender/{i + "/" if i else "neu/"}">{_csrf(request)}'
             f'<div class="gk-zwei"><label>Name<input name="name" maxlength="80" required value="{esc(w("name"))}"{dis}></label>'
             f'<label>Art<select name="art"{dis}>{_opt([(a, a) for a in ARTEN_LAND], w("art", "Staat"))}</select></label></div>'
@@ -1105,7 +1108,7 @@ async def intern_land_speichern(request):
         konsul_name = ""
         if konsul_id:
             m = next((m for m in await request.app["discord"].mitglieder() if m["id"] == konsul_id), None)
-            konsul_name = m["name"] if m else (l["konsul_name"] if l and l["konsul_id"] == konsul_id else "")
+            konsul_name = regierung.ic_name(con, m["id"], m["name"]) if m else (l["konsul_name"] if l and l["konsul_id"] == konsul_id else "")
             if not konsul_name:
                 konsul_id = ""
     art = form.get("art") if form.get("art") in ARTEN_LAND else "Staat"
