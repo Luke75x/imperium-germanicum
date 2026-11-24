@@ -432,10 +432,16 @@ def ohne_artikel(t):
     return re.sub(r"^(Der|Die|Das)\s+", "", t or "")
 
 
-def leitung_titel(amt_, namen):
-    """„Generalkonsul Max Mustermann“ bzw. „Generalkonsul – zurzeit unbesetzt“."""
+def leitung_titel(amt_, namen, nur_name=False):
+    """„Generalkonsul Max Mustermann“ bzw. „Generalkonsul – zurzeit unbesetzt“. Trägt der Discord-Name die Amtsbezeichnung schon
+    („Kronkanzler Falkenheim“) oder ist nur_name gesetzt (Souverän: „SKKM Alexander IX.“), steht nur der Name da."""
     a = ohne_artikel(amt_)
-    return f"{a} {', '.join(namen)}" if namen else f"{a} – zurzeit unbesetzt"
+    if not namen:
+        return f"{a} – zurzeit unbesetzt"
+    erstes = a.split()[0].lower() if a else ""
+    if nur_name or all(erstes and erstes in n.lower() for n in namen):
+        return ", ".join(namen)
+    return f"{a} {', '.join(namen)}"
 
 
 def leitung_block(titel, bildname, links, paar=False):
@@ -539,7 +545,7 @@ async def start(request):
     souv = await namen_mit_rollen(request, [ROLLE_SOUVERAEN])
     kanzler = await namen_mit_rollen(request, [amt.ROLLE_KANZLER])
     regierung = ('<div class="rg-leit-paar-raster">'
-                 + leitung_block(leitung_titel("Der Souverän", souv), "souveraen",
+                 + leitung_block(leitung_titel("Der Souverän", souv, nur_name=True), "souveraen",
                                  [("Der Souverän", "/der-souveraen/"), ("Die Reichsregierung", PFAD + "reichsregierung/"),
                                   ("Kabinettsbeschlüsse", PFAD + "aktuelles/?art=kabinett")], paar=True)
                  + leitung_block(leitung_titel("Kronkanzler", kanzler), "kanzlei",
