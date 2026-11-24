@@ -969,6 +969,8 @@ MODELL_QUELLEN = {
     "bmw7": ("BMW 7-series (F01)", "BlackSnow02", "0806c39847ae42e5996917f50527dda0"), "vklasse": ("Mercedes Benz V Class", "Car2022", "61583f5c172f4e25a963e52e1e67c11a"),
     "sprinter": ("2019 Mercedes-Benz Sprinter", "tonielpro520", "5788a290ddb5483fbbd5831aeef829a1"),
 }
+# Persönliche Standarte der Leitung auf den Kotflügel-Fahnen (sonst allgemeine Adler-Fahne)
+STANDARTEN = {"kanzlei": "/assets/img/i5a9f8040f8005417-640.webp"}   # Standarte des Kronkanzlers
 FLUG_TYPEN = {"a350", "a330", "a321", "a319", "global", "h225"}
 # Hausfarbe je Ministerium (Bauch, Leitwerk, Winglets der Flugzeuge)
 AKZENTE = {"kanzlei": "#1f2f45", "crownestates": "#3b2a4d", "krs": "#2b2f36", "polizei": "#1d4f91", "zoll": "#2e6b45",
@@ -1101,14 +1103,14 @@ async def fahrzeug_ansicht(request):
     fz = con.execute("SELECT * FROM regierung_fahrzeuge WHERE ressort=? ORDER BY erstellt", (b["schl"],)).fetchall() if b else []
     if not b or not fz:
         raise web.HTTPNotFound(text="Für dieses Ministerium ist kein Regierungsfahrzeug festgelegt.")
-    wahl = request.query.get("f", "")
+    wahl = request.query.get("fz", "")   # nicht „f“: das wertet rahmen() als Fehlermeldung aus
     f = next((x for x in fz if str(x["id"]) == wahl), fz[0])
     typ = KATALOG.get(f["typ"], KATALOG["sklasse"])
-    wahlleiste = ('<div class="fz-wahl">' + "".join(f'<a href="?f={x["id"]}" class="{"aktiv" if x["id"] == f["id"] else ""}">{esc(KATALOG.get(x["typ"], ("?",))[0])}'
+    wahlleiste = ('<div class="fz-wahl">' + "".join(f'<a href="?fz={x["id"]}" class="{"aktiv" if x["id"] == f["id"] else ""}">{esc(KATALOG.get(x["typ"], ("?",))[0])}'
                                                     f'{" · " + esc(x["kennung"]) if x["kennung"] else ""}</a>' for x in fz) + "</div>") if len(fz) > 1 else ""
     daten = {"typ": f["typ"], "kennung": f["kennung"], "name": f["name"], "behoerde": b["name"], "akzent": AKZENTE.get(b["schl"], "#1f2f45"),
              "sonder": SONDER.get(b["schl"]) if f["typ"] not in FLUG_TYPEN else None, "adler": f"{PFAD}logo/regierung-kurz.png",
-             "basis": f"{PFAD}3d/", "v": _modell_version(f["typ"])}
+             "basis": f"{PFAD}3d/", "v": _modell_version(f["typ"]), "standarte": STANDARTEN.get(b["schl"], "")}
     v = int(os.path.getmtime(os.path.join(DREI_D, "fahrzeug.js")))
     buehne = (f'<div class="fz-buehne" id="fz-buehne" aria-label="3D-Ansicht: {esc(typ[0])}"></div>'
               '<div class="fz-leiste"><button type="button" data-ansicht="schraeg">Schräg</button><button type="button" data-ansicht="seite">Seite</button>'

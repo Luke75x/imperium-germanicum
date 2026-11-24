@@ -418,6 +418,10 @@ function ausbleichen(tex, art) {
   return t;
 }
 
+function bildLaden(url) {
+  return new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = url; });
+}
+
 // Abziehbild: Leinwand → Textur, auf alle Meshes projiziert, die den Kasten schneiden
 const DECAL_MATS = [];
 function abziehbild(wurzel, canvas, pos, dreh, groesse) {
@@ -562,16 +566,24 @@ async function glbBauen(typ) {
       const balken = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, W2 * 1.1), new THREE.MeshStandardMaterial({ color: S.licht || 0x1e5bff, emissive: S.licht || 0x1e5bff, emissiveIntensity: 1.3 }));
       balken.position.set(nase(0.45), (dachY ? dachY.y : box.max.y) + 0.05, 0); szene.add(balken);
     } else if (typ !== "vklasse" && typ !== "sprinter") {
-      const [fc, fx] = leinwand(256, 160);
-      fx.fillStyle = GOLD; fx.fillRect(0, 0, 256, 160); fx.fillStyle = SCHWARZ; fx.fillRect(0, 0, 256, 18); fx.fillRect(0, 142, 256, 18);
-      adler(fx, 128, 80, 120, SCHWARZ);
-      const ft = textur(fc); ft.flipY = true;
+      // Fahne: persönliche Standarte der Leitung (z. B. Kronkanzler, quadratisch) oder allgemeine Adler-Fahne
+      let ft, fb = 0.26, fh = 0.16;
+      const st = D.standarte ? await bildLaden(D.standarte) : null;
+      if (st) {
+        const [fc, fx] = leinwand(256, 256); fx.drawImage(st, 0, 0, 256, 256);
+        ft = textur(fc); ft.flipY = true; fb = 0.22; fh = 0.22;
+      } else {
+        const [fc, fx] = leinwand(256, 160);
+        fx.fillStyle = GOLD; fx.fillRect(0, 0, 256, 160); fx.fillStyle = SCHWARZ; fx.fillRect(0, 0, 256, 18); fx.fillRect(0, 142, 256, 18);
+        adler(fx, 128, 80, 120, SCHWARZ);
+        ft = textur(fc); ft.flipY = true;
+      }
       for (const seite of [1, -1]) {
         const vx = nase(0.1), oben = treffer(halter, new THREE.Vector3(vx, box.max.y + 3, seite * W2 * 0.72), new THREE.Vector3(0, -1, 0));
         const y0 = oben ? oben.y : box.min.y + Hh * 0.55;
-        const stab = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.32, 8), chrom); stab.position.set(vx, y0 + 0.16, seite * W2 * 0.72);
-        const fahne = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.16), new THREE.MeshStandardMaterial({ map: ft, side: THREE.DoubleSide, roughness: 0.8 }));
-        fahne.position.set(vx + 0.14, y0 + 0.25, seite * W2 * 0.72); szene.add(stab, fahne);
+        const stab = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.2 + fh, 8), chrom); stab.position.set(vx, y0 + (0.2 + fh) / 2, seite * W2 * 0.72);
+        const fahne = new THREE.Mesh(new THREE.PlaneGeometry(fb, fh), new THREE.MeshStandardMaterial({ map: ft, side: THREE.DoubleSide, roughness: 0.8 }));
+        fahne.position.set(vx + fb / 2 + 0.01, y0 + 0.2 + fh / 2 - 0.02, seite * W2 * 0.72); szene.add(stab, fahne);
       }
     }
   }
