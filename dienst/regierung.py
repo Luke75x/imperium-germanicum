@@ -34,7 +34,8 @@ import config
 esc = html.escape
 PFAD = "/regierung/"
 LOGO_ORDNER = os.path.join(config.HIER, "amt_logos")
-LOGO_SCHLUESSEL = {"kanzlei": "kanzler"}   # Ministerium → Logodatei, wenn der Name abweicht
+LOGO_SCHLUESSEL = {"kanzlei": "kanzler"}
+RUNDE_LOGOS = {"crownestates"}   # quadratische/runde Logos ohne Schriftzug daneben: im Kopf mit Namen, in Karten größer   # Ministerium → Logodatei, wenn der Name abweicht
 
 
 def logo_von(schl):
@@ -108,6 +109,7 @@ html:root .rg-held .btn.zweit{background:transparent;color:#fff;border-color:rgb
 a.rg-karte:hover{border-color:#c6ccd6;box-shadow:0 8px 22px -14px rgba(16,24,40,.35);transform:translateY(-1px)}
 .rg-karte h3{margin:0;font-size:16.5px;line-height:1.3}.rg-karte p{margin:0;color:#50555d;font-size:14px;flex:1}
 .rg-karte .rg-logo{height:40px;width:auto;max-width:100%;object-fit:contain;object-position:left;margin-bottom:4px}
+.rg-karte .rg-logo.rund{height:58px}
 .rg-karte .rg-ic{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:var(--hell);color:var(--akzent)}
 .rg-mehr{font-size:13.5px;font-weight:600;color:var(--akzent);text-decoration:none;display:inline-flex;gap:6px;align-items:center}
 .rg-mehr .icon{width:15px;height:15px}
@@ -273,7 +275,7 @@ async def namen_mit_rollen(request, rollen):
 
 
 def kopf(titel, lead="", art=""):
-    return (f'<div class="rg-kopf">{f"<span class=rg-art>{esc(art)}</span>" if art else ""}<h1>{esc(titel)}</h1>'
+    return (f'<div class="rg-kopf"><h1>{esc(titel)}</h1>'
             f'{f"<p class=rg-lead>{lead}</p>" if lead else ""}</div>')
 
 
@@ -294,6 +296,7 @@ html:root body{padding-bottom:0}
 .rw-logo{line-height:0;flex:none}.rw-logo img{height:58px;width:auto;max-width:min(62vw,340px);object-fit:contain;object-position:left}
 .rw-name{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink)}.rw-name img{height:58px;width:auto}
 .rw-name b{font-size:19px;line-height:1.2;font-weight:600;max-width:340px}
+.rw-rund img{height:72px;width:72px;border-radius:50%}
 .rw-kopf .rw-raum{flex:1}
 .rw-suche{display:flex;align-items:center;position:relative;margin:0}.rw-suche .icon{position:absolute;left:12px;color:#8b8f96;pointer-events:none}
 .rw-suche input{width:260px;border:1px solid var(--linie);border-radius:999px;padding:9px 14px 9px 38px;font:inherit;font-size:14px;background:rgba(255,255,255,.7)}
@@ -404,7 +407,9 @@ def rahmen(request, k, titel, aktiv, inhalt, portal=None, krumen=None, q="", sta
     krumen_html = "" if (aktiv.endswith("start") and not krumen and not unterseite) else (
         '<div class="rw-wrap"><nav class="rw-krumen" aria-label="Pfad">' + " › ".join(
             f'<a href="{esc(u)}">{esc(t)}</a>' if u else f'<span aria-current="page">{esc(t)}</span>' for t, u in kr) + "</nav></div>")
-    if p.get("logo"):
+    if p.get("logo") and p["logo"] in RUNDE_LOGOS:
+        marke = f'<a class="rw-name rw-rund" href="{basis}"><img src="{PFAD}logo/{p["logo"]}-kopf.png" alt=""><b>{esc(p["name"])}</b></a>'
+    elif p.get("logo"):
         marke = f'<a class="rw-logo" href="{basis}" title="{esc(p["name"])}"><img src="{PFAD}logo/{p["logo"]}-kopf.png" alt="{esc(p["name"])}"></a>'
     else:
         marke = f'<a class="rw-name" href="{basis}"><img src="{PFAD}logo/regierung-kurz.png" alt=""><b>{esc(p["name"])}</b></a>'
@@ -523,7 +528,7 @@ def alle_meldungen(con):
 
 
 def _karte(m):
-    return (f'<a class="rg-karte" href="{esc(m["url"])}"><span class="rg-art">{esc(m["art"])} · {esc(m["quelle"])}</span><h3>{esc(m["titel"])}</h3>'
+    return (f'<a class="rg-karte" href="{esc(m["url"])}"><h3>{esc(m["titel"])}</h3>'
             f'<p>{esc(m["kurz"])}</p><span class="rg-datum">{datum(m["zeit"])}</span></a>')
 
 
@@ -555,7 +560,8 @@ def ministerium_url(b):
 
 def _ministerium_karte(b, klein=False):
     lg = logo_von(b["schl"])
-    bild = f'<img class="rg-logo" src="{PFAD}logo/{lg}-kopf.png" alt="">' if lg else f'<span class="rg-ic">{ic("landmark")}</span>'
+    bild = (f'<img class="rg-logo{" rund" if lg in RUNDE_LOGOS else ""}" src="{PFAD}logo/{lg}-kopf.png" alt="">' if lg
+            else f'<span class="rg-ic">{ic("landmark")}</span>')
     lead = "" if klein else f'<p>{esc(b.get("lead", ""))}</p>'
     return (f'<a class="rg-karte" href="{ministerium_url(b)}">{bild}<h3>{esc(b["name"])}</h3>{lead}'
             f'<span class="rg-mehr">Zum Ministerium {ic("arrow-right")}</span></a>')
@@ -566,7 +572,7 @@ async def start(request):
     k = await anmeldung.konto(request)
     con = request.app["db"]
     alle, gruppen = ressorts()
-    held = ('<div class="rg-held"><div class="rg-held-text"><span class="rg-art">Imperium Germanicum</span><h2>Die Reichsregierung</h2>'
+    held = ('<div class="rg-held"><div class="rg-held-text"><h2>Die Reichsregierung</h2>'
             '<p>Der Kronkanzler und die Reichsbehörden: Hier finden Sie alle Ministerien des Reiches mit ihren eigenen Seiten, '
             'dazu Pressemitteilungen, Kabinettsbeschlüsse und Reden.</p>'
             f'<div class="rg-knoepfe"><a class="btn" href="#ministerien">{ic("landmark")}Alle Ministerien</a>'
@@ -805,7 +811,7 @@ async def suche(request):
         erg = ""
     elif treffer:
         erg = f'<p>{len(treffer)} Treffer für „{esc(q)}“</p><ul class="rg-liste">' + "".join(
-            f'<li><a href="{esc(u)}">{esc(t)}</a><span class="rg-art">{esc(a)}</span></li>' for a, t, u in treffer) + "</ul>"
+            f'<li><a href="{esc(u)}">{esc(t)}</a></li>' for a, t, u in treffer) + "</ul>"
     else:
         erg = f'<p class="leer">Keine Treffer für „{esc(q)}“.</p>'
     return rahmen(request, k, "Suche", "r-suche", kopf("Suche") + form + erg, q=q)
@@ -843,7 +849,7 @@ def _meldungen_von(con, s, alle=False):
 
 
 def _mkarte(b, m):
-    return (f'<a class="rg-karte" href="{PFAD}{b["schl"]}/meldungen/{m["id"]}/"><span class="rg-art">{esc(MELDUNGSARTEN.get(m["art"], "Meldung"))}</span>'
+    return (f'<a class="rg-karte" href="{PFAD}{b["schl"]}/meldungen/{m["id"]}/">'
             f'<h3>{esc(m["titel"])}</h3><p>{esc(m["kurz"])}</p><span class="rg-datum">{datum(m["veroeffentlicht"])}</span></a>')
 
 
@@ -857,7 +863,7 @@ async def ministerium_start(request):
     knopf = ""
     if b["schl"] in WEBAUFTRITTE and not WEBAUFTRITTE[b["schl"]].startswith(PFAD):
         knopf = f'<div class="rg-knoepfe"><a class="btn" href="{WEBAUFTRITTE[b["schl"]]}">{ic("arrow-right")}Zum Portal: {esc(b.get("kurz") or b["name"])}</a></div>'
-    held = (f'<div class="rg-held"><div class="rg-held-text"><span class="rg-art">{esc(gruppen.get(b["gruppe"], ""))}</span><h2>{esc(b["name"])}</h2>'
+    held = (f'<div class="rg-held"><div class="rg-held-text"><h2>{esc(b["name"])}</h2>'
             f'<p>{esc(b.get("lead", ""))}</p>{knopf}</div><div class="rg-held-bild">{bild}</div></div>')
     kurz = b.get("kurz") or b["name"]
     basis = f'{PFAD}{b["schl"]}/'

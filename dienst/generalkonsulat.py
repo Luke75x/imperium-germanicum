@@ -353,7 +353,7 @@ async def start(request):
     con = request.app["db"]
     laender = {l["id"]: l for l in _laender(con)}
     ms = con.execute("SELECT * FROM konsulat_meldungen WHERE status='veroeffentlicht' ORDER BY veroeffentlicht DESC LIMIT 9").fetchall()
-    held = (f'<a class="rg-held" href="{PFAD}das-generalkonsulat/" style="text-decoration:none"><div class="rg-held-text"><span class="rg-art">Kaiserliches Generalkonsulat</span>'
+    held = (f'<a class="rg-held" href="{PFAD}das-generalkonsulat/" style="text-decoration:none"><div class="rg-held-text">'
             '<h2>Willkommen auf den Seiten des Kaiserlichen Generalkonsulats</h2>'
             '<p>Das Generalkonsulat vertritt das Reich und seine Untertanen in der Fremde, pflegt die Verbindungen zu befreundeten Staaten '
             'und Gemeinschaften und steht Reisenden mit Rat und Beistand zur Seite.</p></div>'
