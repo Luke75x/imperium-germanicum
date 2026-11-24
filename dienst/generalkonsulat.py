@@ -1,6 +1,6 @@
 """Kaiserliches Generalkonsulat: eigener Webauftritt unter /regierung/generalkonsulat/ (nginx: /regierung/ → Dienst).
 
-Aufbau nach dem Vorbild der Seite des Auswärtigen Amts (auswaertiges-amt.de), im Design der Website (webseite.seite):
+Aufbau nach dem Vorbild der Seite des Auswärtigen Amts (auswaertiges-amt.de), im Rahmen der Reichsregierung (regierung.rahmen, Stil Amtsseite/Schatzamt):
 eigene Bereichsleiste (Das Generalkonsulat · Länder & Reisen · Service · Meldungen · Verträge · Intern) mit Suche;
 Startseite: Willkommen + Meldungen, „Sicher reisen“ (Länderauswahl, aktuelle Reisewarnungen, drei Lebenslagen-Kacheln),
 Leitung, Verträge.
@@ -21,6 +21,7 @@ Reisewarnung (Stufe 3) → alle in der Krisenvorsorgeliste für dieses Land Eing
 Tabellen konsulat_* (NICHT gk_*: das ist das Geldsystem); jede Änderung im Protokoll konsulat_protokoll.
 """
 import html
+import json
 import os
 import re
 import secrets
@@ -32,7 +33,7 @@ from aiohttp import web
 import anmeldung
 import bereiche
 import config
-import webseite
+import regierung
 
 esc = html.escape
 PFAD = "/regierung/generalkonsulat/"
@@ -94,85 +95,67 @@ CREATE INDEX IF NOT EXISTS konsulat_vorsorge_land ON konsulat_vorsorge (land_id)
 """
 
 CSS = """<style>
-.gk-leiste{background:var(--navy-950);color:#fff;position:relative;z-index:5}
-.gk-leiste .wrap{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-height:58px}
-.gk-marke{display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none;margin-right:14px;padding:8px 0}
-.gk-marke img{height:34px;width:auto;filter:brightness(0) invert(1)}
-@media(max-width:860px){.gk-suche input{width:100px}.gk-marke span{font-size:.95rem}}
-.gk-marke span{font:500 1.05rem/1.1 var(--serif);letter-spacing:.02em}
-.gk-marke small{display:block;font:500 .66rem/1.2 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--gold-300)}
-.gk-nav{display:flex;flex-wrap:wrap;gap:2px;flex:1}
-.gk-nav a{color:rgba(255,255,255,.82);text-decoration:none;padding:9px 12px;font:500 .9rem var(--sans);border-bottom:2px solid transparent}
-.gk-nav a:hover{color:#fff}.gk-nav a[aria-current]{color:#fff;border-bottom-color:var(--gold-500)}
-.gk-suche{display:flex;gap:0}.gk-suche input{width:170px;min-height:38px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;padding:6px 10px;font:inherit;font-size:.9rem}
-.gk-suche input::placeholder{color:rgba(255,255,255,.6)}
-.gk-suche button{min-height:38px;border:0;background:var(--gold-500);color:var(--navy-950);padding:0 12px;font:600 .85rem var(--sans);cursor:pointer}
-@media(max-width:860px){.gk-nav{order:3;flex-basis:100%;overflow-x:auto;flex-wrap:nowrap}.gk-nav a{white-space:nowrap}.gk-suche{margin-left:auto}.gk-suche input{width:120px}}
-.gk-held{background:var(--navy-900);color:rgba(255,255,255,.85);padding:clamp(36px,6vw,72px) 0}
-.gk-held h1{color:#fff;margin:6px 0 10px}.gk-held .eyebrow{color:var(--gold-300)}
-.gk-held .wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:32px;align-items:center}
-.gk-held img{height:clamp(90px,14vw,160px);width:auto;filter:brightness(0) invert(1);opacity:.9}
-@media(max-width:700px){.gk-held .wrap{grid-template-columns:1fr}.gk-held img{display:none}}
-.gk-teaser{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:22px}
-.gk-tkarte{display:flex;flex-direction:column;border:1px solid var(--rule);background:var(--white);padding:20px 22px;color:var(--ink);text-decoration:none;border-radius:var(--radius);transition:border-color .2s}
-.gk-tkarte:hover{border-color:var(--rule-strong)}
-.gk-tkarte h3{font-size:1.25rem;margin:6px 0 8px}.gk-tkarte p{color:var(--ink-2);margin:0 0 10px;flex:1}
-.gk-art{font:600 .7rem/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--gold-600)}
-.gk-datum{font-size:.85rem;color:var(--muted)}
-.gk-liste{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
-.gk-liste li{border-bottom:1px solid var(--rule);padding:12px 0;display:flex;gap:16px;justify-content:space-between;align-items:baseline;flex-wrap:wrap}
-.gk-liste a{color:var(--ink);text-decoration:none;font-weight:500}.gk-liste a:hover{color:var(--gold-600)}
-.gk-reisen{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:clamp(24px,4vw,48px)}
-@media(max-width:860px){.gk-reisen{grid-template-columns:1fr}}
-.gk-wahl{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 18px}.gk-wahl select{min-height:46px;font-size:16px;padding:8px 12px;min-width:min(100%,300px);flex:1}
-.gk-kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:18px;margin-top:28px}
-.gk-kachel{border:1px solid var(--rule);background:var(--white);padding:18px 20px;border-radius:var(--radius)}
-.gk-kachel h3{font-size:1.15rem;margin:0 0 10px}.gk-kachel ul{margin:0;padding:0;list-style:none}.gk-kachel li{padding:4px 0}
-.gk-kachel a{color:var(--navy-800)}
-.gk-stufe{display:inline-block;font:600 .72rem/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;padding:5px 8px;border-radius:2px;white-space:nowrap}
-.gk-s0{background:var(--success-bg);color:var(--success)}.gk-s1{background:#eef1f8;color:var(--navy-800)}
-.gk-s2{background:#fbf1dc;color:#8a5a00}.gk-s3{background:var(--danger-bg);color:var(--danger)}
-.gk-warnbox{border:1px solid var(--rule);border-left:4px solid var(--flag);background:var(--paper);padding:14px 18px;margin:0 0 22px}
-.gk-warnbox.gk-w3{border-left-color:var(--danger);background:var(--danger-bg)}.gk-warnbox.gk-w2{border-left-color:#c98a00;background:#fbf1dc}
-.gk-az{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:4px 28px}
-.gk-az h3{grid-column:1/-1;margin:22px 0 6px;font-size:1.3rem;border-bottom:1px solid var(--rule);padding-bottom:4px}
-.gk-az a{display:flex;justify-content:space-between;gap:8px;padding:7px 0;color:var(--ink);text-decoration:none}.gk-az a:hover{color:var(--gold-600)}
-.gk-text{max-width:760px}.gk-text p{margin:0 0 1em;white-space:pre-line}
-.gk-daten{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);border-top:1px solid var(--rule);margin:0 0 28px}
-.gk-daten dt,.gk-daten dd{margin:0;padding:10px 0;border-bottom:1px solid var(--rule)}.gk-daten dt{color:var(--muted);padding-right:14px}
-@media(max-width:520px){.gk-daten{grid-template-columns:1fr}.gk-daten dt{border:0;padding-bottom:0}}
-.gk-reiter{display:flex;gap:2px;border-bottom:1px solid var(--rule);margin:0 0 26px;overflow-x:auto}
-.gk-reiter a{padding:10px 14px;color:var(--muted);text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap;font:500 .95rem var(--sans)}
-.gk-reiter a[aria-current]{color:var(--ink);border-bottom-color:var(--gold-500)}
-.gk-tab{width:100%;border-collapse:collapse;font:.95rem var(--sans);margin:0 0 24px}
-.gk-tab th,.gk-tab td{text-align:left;padding:9px 10px 9px 0;border-bottom:1px solid var(--rule);vertical-align:top}
-.gk-tab th{font-weight:600;color:var(--muted);font-size:.82rem;text-transform:uppercase;letter-spacing:.06em}
-@media(max-width:700px){.gk-tab thead{display:none}.gk-tab tr{display:block;border-bottom:1px solid var(--rule);padding:8px 0}.gk-tab td{display:block;border:0;padding:2px 0}}
-.gk-form{display:grid;gap:14px;max-width:760px;margin:0 0 30px}
-.gk-form label{display:grid;gap:5px;font:600 .88rem var(--sans);color:var(--ink-2)}
-.gk-form input,.gk-form select,.gk-form textarea{font:inherit;font-weight:400;font-size:16px;padding:9px 11px;border:1px solid var(--rule-strong);background:var(--white);color:var(--ink);border-radius:2px;width:100%;box-sizing:border-box}
+.gk-art{font:600 11.5px/1.2 var(--schrift);letter-spacing:.08em;text-transform:uppercase;color:var(--akzent)}
+.gk-datum{font-size:13px;color:var(--grau)}
+.gk-lead{font-size:16px;color:#454a52;max-width:760px;margin:8px 0 0}
+.gk-kopf{margin:0 0 20px}.gk-kopf .gk-art{display:block;margin-bottom:6px}
+.gk-ab{margin:0 0 30px}
+.gk-teaser{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:14px}
+.gk-tkarte{display:flex;flex-direction:column;gap:6px;border:1px solid var(--linie);border-radius:var(--r);padding:16px 18px;background:#fff;color:var(--ink);text-decoration:none;
+ transition:border-color .15s,box-shadow .15s,transform .15s}
+.gk-tkarte:hover{border-color:#c6ccd6;box-shadow:0 8px 22px -14px rgba(16,24,40,.35);transform:translateY(-1px)}
+.gk-tkarte h3{font-size:16.5px;line-height:1.3;margin:0}.gk-tkarte p{color:#50555d;margin:0;flex:1;font-size:14px}
+.gk-liste{list-style:none;margin:0;padding:0;border-top:1px solid var(--linie)}
+.gk-liste li{border-bottom:1px solid var(--linie);padding:11px 0;display:flex;gap:14px;justify-content:space-between;align-items:baseline;flex-wrap:wrap}
+.gk-liste a{color:var(--ink);text-decoration:none;font-weight:500}.gk-liste a:hover{color:var(--akzent)}
+.gk-reisen{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px}
+@media(max-width:900px){.gk-reisen{grid-template-columns:1fr}}
+.gk-reisen h2,.gk-ab>h2{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}.gk-ab>h2 .gk-mehr{white-space:nowrap;margin-left:auto}
+.gk-wahl{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 14px}
+.gk-wahl select{min-height:40px;font:inherit;font-size:15px;padding:7px 10px;border:1px solid var(--linie);border-radius:8px;background:#fff;min-width:min(100%,260px);flex:1}
+.gk-kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:14px;margin-top:18px}
+.gk-kachel{border:1px solid var(--linie);background:#fff;padding:16px 18px;border-radius:var(--r)}
+.gk-kachel h3{font-size:15.5px;margin:0 0 8px}.gk-kachel ul{margin:0;padding:0;list-style:none}.gk-kachel li{padding:3px 0}
+.gk-stufe{display:inline-block;font:600 11px/1 var(--schrift);letter-spacing:.06em;text-transform:uppercase;padding:5px 8px;border-radius:999px;white-space:nowrap;border:1px solid currentColor}
+.gk-s0{color:var(--ok)}.gk-s1{color:var(--akzent)}.gk-s2{color:var(--warn)}.gk-s3{color:var(--rot);background:#fbecec}
+.gk-warnbox{border:1px solid var(--linie);border-left:4px solid var(--akzent);background:var(--hell);padding:12px 16px;margin:0 0 18px;border-radius:8px}
+.gk-warnbox.gk-w3{border-left-color:var(--rot);background:#fbecec}.gk-warnbox.gk-w2{border-left-color:var(--warn);background:#fbf3e2}
+.gk-az{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:2px 26px}
+.gk-az h3{grid-column:1/-1;margin:20px 0 4px;font-size:17px;border-bottom:1px solid var(--linie);padding-bottom:4px}
+.gk-az a{display:flex;justify-content:space-between;gap:8px;padding:7px 0;color:var(--ink);text-decoration:none}.gk-az a:hover{color:var(--akzent)}
+.gk-text{max-width:760px;font-size:15.5px}.gk-text p{margin:0 0 1em;white-space:pre-line}
+.gk-daten{display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);border-top:1px solid var(--linie);margin:0 0 24px;max-width:860px}
+.gk-daten dt,.gk-daten dd{margin:0;padding:9px 0;border-bottom:1px solid var(--linie)}.gk-daten dt{color:var(--grau);padding-right:14px}
+@media(max-width:560px){.gk-daten{grid-template-columns:1fr}.gk-daten dt{border:0;padding-bottom:0}}
+.gk-reiter{display:flex;gap:4px 18px;border-bottom:1px solid var(--linie);margin:0 0 20px;overflow-x:auto}
+.gk-reiter a{padding:8px 2px;color:var(--grau);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.gk-reiter a[aria-current]{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
+.gk-tab{width:100%;border-collapse:collapse;font-size:14.5px;margin:0 0 22px}
+.gk-tab th,.gk-tab td{text-align:left;padding:9px 10px 9px 0;border-bottom:1px solid var(--linie);vertical-align:top}
+.gk-tab th{font-weight:600;color:var(--grau);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+@media(max-width:700px){.gk-tab thead{display:none}.gk-tab tr{display:block;border-bottom:1px solid var(--linie);padding:8px 0}.gk-tab td{display:block;border:0;padding:2px 0}}
+.gk-form{display:grid;gap:14px;max-width:760px;margin:0 0 26px}
+.gk-form label{display:grid;gap:5px;font-weight:600;font-size:13.5px;color:#3d4148}
+.gk-form input,.gk-form select,.gk-form textarea{font:inherit;font-weight:400;font-size:15px;padding:9px 11px;border:1px solid var(--linie);background:#fff;color:var(--ink);border-radius:8px;width:100%;box-sizing:border-box}
+.gk-form input:disabled,.gk-form select:disabled,.gk-form textarea:disabled{background:var(--hell);color:var(--grau)}
 .gk-form textarea{min-height:130px;resize:vertical}.gk-form .gk-zwei{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-@media(max-width:600px){.gk-form .gk-zwei{grid-template-columns:1fr}}
+@media(max-width:640px){.gk-form .gk-zwei{grid-template-columns:1fr}.gk-form input,.gk-form select,.gk-form textarea{font-size:16px}}
 .gk-form .gk-check{display:flex;gap:8px;align-items:center;font-weight:400}.gk-form .gk-check input{width:auto}
 .gk-knoepfe{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.gk-meldung{border:1px solid var(--rule);border-left:4px solid var(--success);background:var(--success-bg);padding:10px 14px;margin:0 0 20px}
-.gk-meldung.fehler{border-left-color:var(--danger);background:var(--danger-bg)}
-.gk-hinweis{color:var(--muted);border-left:2px solid var(--gold-500);padding:4px 0 4px 14px;margin:0 0 26px}
-.gk-zahlen{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin:0 0 28px}
-.gk-zahlen a,.gk-zahlen div{display:block;border:1px solid var(--rule);background:var(--white);padding:14px 16px;color:var(--muted);text-decoration:none;font:.85rem var(--sans)}
-.gk-zahlen b{display:block;font:600 1.6rem/1.2 var(--serif);color:var(--ink)}
-.gk-verlauf{list-style:none;margin:0 0 26px;padding:0;border-left:2px solid var(--rule)}
-.gk-verlauf li{padding:8px 0 10px 16px;position:relative}.gk-verlauf li::before{content:"";position:absolute;left:-6px;top:14px;width:10px;height:10px;border-radius:50%;background:var(--navy-700)}
-.gk-verlauf li.intern::before{background:var(--gold-500)}.gk-verlauf small{color:var(--muted);display:block}
+.gk-hinweis{color:var(--grau);border-left:3px solid var(--akzent);padding:4px 0 4px 14px;margin:0 0 22px}
+.gk-zahlen{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:0 0 22px}
+.gk-zahlen a,.gk-zahlen div{display:block;border:1px solid var(--linie);border-radius:var(--r);padding:12px 16px;color:var(--grau);text-decoration:none;font-size:13.5px;background:#fff}
+.gk-zahlen a:hover{border-color:#c6ccd6}.gk-zahlen b{display:block;font-size:26px;font-weight:600;line-height:1.2;color:var(--ink)}
+.gk-verlauf{list-style:none;margin:0 0 24px;padding:0;border-left:2px solid var(--linie)}
+.gk-verlauf li{padding:8px 0 10px 16px;position:relative}.gk-verlauf li::before{content:"";position:absolute;left:-6px;top:14px;width:10px;height:10px;border-radius:50%;background:var(--akzent)}
+.gk-verlauf li.intern::before{background:var(--warn)}.gk-verlauf small{color:var(--grau);display:block}
 .gk-verlauf p{margin:4px 0 0;white-space:pre-line}
-.gk-personen{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:16px}
-.gk-person{border:1px solid var(--rule);background:var(--white);padding:16px 18px}.gk-person b{display:block;font:500 1.2rem var(--serif)}
-.gk-person span{color:var(--muted);font-size:.9rem}
-.gk-inline{display:inline}.gk-inline button{background:none;border:0;color:var(--danger);cursor:pointer;font:inherit;padding:0}
+.gk-personen{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:12px}
+.gk-person{display:flex;gap:12px;align-items:center;border:1px solid var(--linie);border-radius:var(--r);background:#fff;padding:12px 14px}
+.gk-person b{display:block;font-size:15px}.gk-person small{color:var(--grau);font-size:13px;display:block}
+.gk-inline{display:inline}.gk-inline button{background:none;border:0;color:var(--rot);cursor:pointer;font:inherit;padding:0}
+.gk-mehr{font-size:13.5px;font-weight:600;color:var(--akzent);text-decoration:none}
 </style>"""
-
-NAV = [("start", "", "Das Generalkonsulat"), ("laender", "laender/", "Länder & Reisen"), ("service", "service/", "Service"),
-       ("meldungen", "meldungen/", "Meldungen"), ("vertraege", "vertraege/", "Verträge")]
 
 
 # ---------------------------------------------------------------- Rechte
@@ -249,43 +232,60 @@ def _protokoll(con, k, text):
     con.execute("INSERT INTO konsulat_protokoll (zeit, autor_id, autor_name, text) VALUES (?,?,?,?)", (int(time.time()), k["id"], k["name"], text))
 
 
-def _leiste(aktiv, k, q=""):
-    links = [(s, u, t) for s, u, t in NAV] + ([("intern", "intern/", "Intern")] if ist_mitarbeiter(k) else [])
-    nav = "".join(f'<a href="{PFAD}{u}"{" aria-current=\"page\"" if s == aktiv else ""}>{esc(t)}</a>' for s, u, t in links)
-    return (f'<div class="gk-leiste"><div class="wrap"><a class="gk-marke" href="{PFAD}"><img src="{PFAD}logo-kurz.png" alt="">'
-            f'<span><small>Imperium Germanicum</small>Kaiserliches Generalkonsulat</span></a><nav class="gk-nav" aria-label="Generalkonsulat">{nav}</nav>'
-            f'<form class="gk-suche" action="{PFAD}suche/" role="search"><input name="q" value="{esc(q)}" placeholder="Wonach suchen Sie?" aria-label="Suche">'
-            '<button type="submit">Suchen</button></form></div></div>')
+# Sidebar-Schlüssel nach Pfad (längster Treffer zuerst)
+_AKTIV = [("intern/antraege/", "gi-antraege"), ("intern/meldungen/", "gi-meldungen"), ("intern/laender/", "gi-laender"),
+          ("intern/vertraege/", "gi-vertraege"), ("intern/krisenvorsorge/", "gi-vorsorge"), ("intern/protokoll/", "gi-protokoll"),
+          ("intern/", "gi-start"), ("service/meine-antraege/", "g-antraege"), ("service/", "g-service"), ("krisenvorsorge/", "g-vorsorge"),
+          ("reisewarnungen/", "g-warn"), ("laender/", "g-laender"), ("meldungen/", "g-meldungen"), ("vertraege/", "g-vertraege"),
+          ("das-generalkonsulat/", "g-ueber"), ("suche/", "g-suche")]
+
+
+def _portal(k):
+    gruppen = [("Generalkonsulat", [("g-start", "house", "Übersicht", ""), ("g-meldungen", "newspaper", "Meldungen", "meldungen/"),
+                                    ("g-laender", "globe", "Länder & Reisen", "laender/"), ("g-warn", "triangle-alert", "Reisewarnungen", "reisewarnungen/"),
+                                    ("g-vertraege", "scroll-text", "Verträge", "vertraege/"), ("g-ueber", "info", "Über uns", "das-generalkonsulat/")]),
+               ("Konsularischer Service", [("g-service", "stamp", "Anträge stellen", "service/"), ("g-antraege", "file-text", "Meine Anträge", "service/meine-antraege/"),
+                                           ("g-vorsorge", "life-buoy", "Krisenvorsorgeliste", "krisenvorsorge/")])]
+    if ist_mitarbeiter(k):
+        gruppen.append(("Intern", [("gi-start", "layout-dashboard", "Übersicht", "intern/"), ("gi-antraege", "inbox", "Anträge", "intern/antraege/"),
+                                   ("gi-meldungen", "pencil", "Meldungen", "intern/meldungen/"), ("gi-laender", "globe", "Länder", "intern/laender/"),
+                                   ("gi-vertraege", "scroll-text", "Verträge", "intern/vertraege/"), ("gi-vorsorge", "life-buoy", "Krisenvorsorge", "intern/krisenvorsorge/"),
+                                   ("gi-protokoll", "clock", "Protokoll", "intern/protokoll/")]))
+    gruppen.append(("Die Reichsregierung", [("r", "arrow-left", "Zur Reichsregierung", "/regierung/")]))
+    return {"basis": PFAD, "logo": "generalkonsulat", "name": "Kaiserliches Generalkonsulat", "start": "Generalkonsulat", "gruppen": gruppen,
+            "suche_url": PFAD + "suche/",
+            "haupt": [("g-start", "house", "Start", ""), ("g-laender", "globe", "Länder", "laender/"), ("g-service", "stamp", "Service", "service/"),
+                      ("g-meldungen", "newspaper", "Meldungen", "meldungen/")]}
+
+
+_KR = re.compile(r'<template data-krumen="([^"]*)"></template>')
 
 
 def _kopf(titel, pfad, lead="", eyebrow=""):
-    kr = "".join(f'<li><a href="{esc(u)}">{esc(t)}</a></li>' if u else f'<li><span aria-current="page">{esc(t)}</span></li>'
-                 for t, u in [("Hauptseite", "/"), ("Generalkonsulat", PFAD)] + pfad)
-    return (f'<div class="page-head"><div class="wrap"><nav class="breadcrumb" aria-label="Brotkrumen"><ol>{kr}</ol></nav>'
-            f'{f"<span class=eyebrow>{esc(eyebrow)}</span>" if eyebrow else ""}<h1>{esc(titel)}</h1>{f"<p class=lead>{lead}</p>" if lead else ""}</div></div>')
+    """Titelblock; die Pfadangaben wandern in die Kopfzeile (siehe _antwort)."""
+    kr = esc(json.dumps([(t, u) for t, u in pfad]))
+    return (f'<template data-krumen="{kr}"></template><div class="gk-kopf">{f"<span class=gk-art>{esc(eyebrow)}</span>" if eyebrow else ""}'
+            f'<h1>{esc(titel)}</h1>{f"<p class=gk-lead>{lead}</p>" if lead else ""}</div>')
 
 
 def _antwort(request, k, aktiv, titel, inhalt, q=""):
-    m = request.query.get("m")
-    f = request.query.get("f")
-    note = (f'<div class="wrap" style="margin-top:20px"><div class="gk-meldung">{esc(m)}</div></div>' if m else "") + \
-           (f'<div class="wrap" style="margin-top:20px"><div class="gk-meldung fehler">{esc(f)}</div></div>' if f else "")
-    if _ooc(k):
-        note = '<div class="wrap" style="margin-top:16px"><div class="gk-hinweis">OOC-Zugang als Serveradministrator.</div></div>' + note
-    return webseite.antwort(titel + " – Generalkonsulat", _leiste(aktiv, k, q) + note + inhalt, CSS)
+    rest = request.path[len(PFAD):]
+    schl = "g-start" if not rest else next((s for p, s in _AKTIV if rest.startswith(p)), "")
+    krumen = None
+    m = _KR.search(inhalt)
+    if m:
+        krumen = [tuple(x) for x in json.loads(html.unescape(m.group(1)))]
+        inhalt = _KR.sub("", inhalt)
+    return regierung.rahmen(request, k, titel, schl, CSS + inhalt, portal=_portal(k), krumen=krumen, q=q)
 
 
-def ist_konsul_rolle(k):
-    return bool(k) and bool({ROLLE_GENERALKONSUL, ROLLE_KONSUL} & set(k["rollen"]))
-
-
-def _ooc(k):
+def _ini(n):
     import amt
-    return amt.ist_ooc_admin(k)
+    return amt._initialen(n)
 
 
-def _abschnitt(inhalt, klasse="section tight"):
-    return f'<section class="{klasse}"><div class="wrap">{inhalt}</div></section>'
+def _abschnitt(inhalt, klasse=""):
+    return f'<section class="gk-ab">{inhalt}</section>'
 
 
 async def _namen_mit_rolle(request, rolle):
@@ -349,21 +349,20 @@ async def start(request):
     con = request.app["db"]
     laender = {l["id"]: l for l in _laender(con)}
     ms = con.execute("SELECT * FROM konsulat_meldungen WHERE status='veroeffentlicht' ORDER BY veroeffentlicht DESC LIMIT 9").fetchall()
-    held = (f'<div class="gk-held"><div class="wrap"><div><span class="eyebrow">Imperium Germanicum</span>'
-            '<h1>Willkommen auf den Seiten des Kaiserlichen Generalkonsulats</h1>'
-            '<p class="lead" style="color:rgba(255,255,255,.8)">Das Generalkonsulat vertritt das Reich und seine Untertanen in der Fremde, '
-            'pflegt die Verbindungen zu befreundeten Staaten und Gemeinschaften und steht Reisenden mit Rat und Beistand zur Seite.</p></div>'
-            f'<img src="{PFAD}logo.png" alt=""></div></div>')
+    held = (f'<a class="rg-held" href="{PFAD}das-generalkonsulat/" style="text-decoration:none"><div class="rg-held-text"><span class="rg-art">Kaiserliches Generalkonsulat</span>'
+            '<h2>Willkommen auf den Seiten des Kaiserlichen Generalkonsulats</h2>'
+            '<p>Das Generalkonsulat vertritt das Reich und seine Untertanen in der Fremde, pflegt die Verbindungen zu befreundeten Staaten '
+            'und Gemeinschaften und steht Reisenden mit Rat und Beistand zur Seite.</p></div>'
+            f'<div class="rg-held-bild"><img src="/regierung/logo/generalkonsulat-kurz.png" alt=""></div></a>')
     if ms:
         neu = '<div class="gk-teaser">' + "".join(_meldung_karte(m, laender) for m in ms[:3]) + "</div>"
         if ms[3:]:
-            neu += ('<h3 style="margin:34px 0 10px">Weitere Meldungen</h3><ul class="gk-liste">'
+            neu += ('<h3 style="margin:24px 0 8px">Weitere Meldungen</h3><ul class="gk-liste">'
                     + "".join(f'<li><a href="{PFAD}meldungen/{m["id"]}/">{esc(m["titel"])}</a><span class="gk-datum">'
                               f'{esc(MELDUNGSARTEN.get(m["art"], ""))} · {_datum(m["veroeffentlicht"])}</span></li>' for m in ms[3:]) + "</ul>")
-        neu += f'<p style="margin-top:18px"><a class="link-arrow" href="{PFAD}meldungen/">Alle Meldungen</a></p>'
     else:
-        neu = '<p class="gk-hinweis">Noch keine Meldungen veröffentlicht.</p>'
-    meldungen = _abschnitt('<div class="section-head"><span class="eyebrow">Newsroom</span><h2>Aktuelles aus dem Generalkonsulat</h2></div>' + neu)
+        neu = '<p class="leer">Noch keine Meldungen veröffentlicht.</p>'
+    meldungen = _abschnitt(f'<h2>Aktuelles aus dem Generalkonsulat <a class="gk-mehr" href="{PFAD}meldungen/">Alle Meldungen</a></h2>' + neu)
 
     warn = [l for l in laender.values() if l["stufe"] >= 2]
     warn.sort(key=lambda l: (-l["stufe"], l["name"]))
@@ -371,26 +370,27 @@ async def start(request):
     warnliste = ('<ul class="gk-liste">' + "".join(f'<li><a href="{PFAD}laender/{esc(l["schl"])}/">{esc(l["name"])}</a>{_stufe_html(l["stufe"])}</li>'
                                                     for l in warn[:8]) + "</ul>") if warn else '<p class="gk-hinweis">Zurzeit bestehen keine Reisewarnungen.</p>'
     reisen = _abschnitt(
-        '<div class="gk-reisen"><div><span class="eyebrow">Sicher reisen</span><h2>Reise- und Sicherheitshinweise</h2>'
+        '<div class="gk-reisen"><div><h2>Sicher reisen</h2>'
         '<p>Informieren Sie sich vor jeder Reise über die Lage in Ihrem Reiseland, die Einreisebestimmungen und die Vertretung des Reiches vor Ort.</p>'
         f'<form class="gk-wahl" onsubmit="if(this.l.value)location.href=\'{PFAD}laender/\'+this.l.value+\'/\';return false">'
-        f'<select name="l" aria-label="Reiseland">{sel}</select><button class="btn btn-navy" type="submit">Suchen</button></form>'
-        f'<p><a class="link-arrow" href="{PFAD}laender/">Alle Länder A–Z</a></p></div>'
-        f'<div><h3>Aktuelle Reisewarnungen</h3>{warnliste}<p style="margin-top:14px"><a class="btn btn-line btn-small" href="{PFAD}reisewarnungen/">Alle Reisewarnungen</a></p></div></div>'
+        f'<select name="l" aria-label="Reiseland">{sel}</select><button class="btn" type="submit">Suchen</button></form>'
+        f'<p><a class="gk-mehr" href="{PFAD}laender/">Alle Länder A–Z</a></p></div>'
+        f'<div><h2>Aktuelle Reisewarnungen</h2>{warnliste}<p style="margin-top:14px"><a class="btn zweit" href="{PFAD}reisewarnungen/">Alle Reisewarnungen</a></p></div></div>'
         '<div class="gk-kacheln">'
         f'<div class="gk-kachel"><h3>Sie sind in der Fremde?</h3><ul><li><a href="{PFAD}service/antrag/?art=hilfe">Konsularische Hilfe</a></li>'
         f'<li><a href="{PFAD}krisenvorsorge/">Krisenvorsorgeliste</a></li></ul></div>'
         f'<div class="gk-kachel"><h3>Sie wollen verreisen?</h3><ul><li><a href="{PFAD}laender/">Länderinformationen</a></li>'
         f'<li><a href="{PFAD}reisewarnungen/">Reisewarnungen</a></li><li><a href="{PFAD}service/antrag/?art=beglaubigung">Beglaubigung</a></li></ul></div>'
         f'<div class="gk-kachel"><h3>Sie wollen ins Reich kommen?</h3><ul><li><a href="{PFAD}service/antrag/?art=visum">Visum und Einreise</a></li>'
-        f'<li><a href="{PFAD}service/antrag/?art=anfrage">Diplomatische Anfrage</a></li></ul></div></div>', "section tight paper")
+        f'<li><a href="{PFAD}service/antrag/?art=anfrage">Diplomatische Anfrage</a></li></ul></div></div>')
 
     gk = await _namen_mit_rolle(request, ROLLE_GENERALKONSUL)
     leitung = _abschnitt(
-        '<div class="gk-reisen"><div><span class="eyebrow">Leitung</span><h2>' + (esc(", ".join(gk)) if gk else "Das Amt des Generalkonsuls ist zurzeit unbesetzt") +
-        '</h2><p>Der Generalkonsul leitet das Kaiserliche Generalkonsulat; ihm unterstehen die Konsuln des Reiches. Der Souverän ernennt und entlässt '
+        '<div class="gk-reisen"><div><h2>Leitung</h2><div class="gk-personen" style="margin-bottom:12px">' + ("".join(
+            f'<div class="gk-person"><span class="avatar">{esc(_ini(n))}</span><span><b>{esc(n)}</b><small>Generalkonsul</small></span></div>' for n in gk)
+            or '<p class="leer">Das Amt des Generalkonsuls ist zurzeit unbesetzt.</p>') + '</div><p>Der Generalkonsul leitet das Kaiserliche Generalkonsulat; ihm unterstehen die Konsuln des Reiches. Der Souverän ernennt und entlässt '
         'die Konsuln, der Kronkanzler verwaltet sie in seinem Namen.</p>'
-        f'<p><a class="link-arrow" href="{PFAD}das-generalkonsulat/">Das Generalkonsulat und seine Konsuln</a></p></div>'
+        f'<p><a class="gk-mehr" href="{PFAD}das-generalkonsulat/">Das Generalkonsulat und seine Konsuln</a></p></div>'
         + _vertraege_kurz(con, laender) + '</div>')
     return _antwort(request, k, "start", "Startseite", held + meldungen + reisen + leitung)
 
@@ -398,11 +398,11 @@ async def start(request):
 def _vertraege_kurz(con, laender):
     vs = con.execute("SELECT * FROM konsulat_vertraege WHERE oeffentlich=1 AND status IN ('unterzeichnet','ratifiziert') ORDER BY aktualisiert DESC LIMIT 5").fetchall()
     if not vs:
-        return '<div><h3>Verträge und Abkommen</h3><p class="gk-hinweis">Noch keine veröffentlichten Verträge.</p></div>'
-    return ('<div><h3>Verträge und Abkommen</h3><ul class="gk-liste">'
+        return '<div><h2>Verträge und Abkommen</h2><p class="gk-hinweis">Noch keine veröffentlichten Verträge.</p></div>'
+    return ('<div><h2>Verträge und Abkommen</h2><ul class="gk-liste">'
             + "".join(f'<li><a href="{PFAD}vertraege/#v{v["id"]}">{esc(v["titel"])}</a><span class="gk-datum">'
                       f'{esc(laender[v["land_id"]]["name"]) if v["land_id"] in laender else ""} · {esc(VERTRAGSSTATUS[v["status"]])}</span></li>' for v in vs)
-            + f'</ul><p style="margin-top:14px"><a class="link-arrow" href="{PFAD}vertraege/">Alle Verträge</a></p></div>')
+            + f'</ul><p style="margin-top:14px"><a class="gk-mehr" href="{PFAD}vertraege/">Alle Verträge</a></p></div>')
 
 
 async def laender_liste(request):
@@ -423,7 +423,7 @@ async def laender_liste(request):
                  "Reise- und Sicherheitshinweise, Einreisebestimmungen, Beziehungen zum Reich und die Vertretungen des Reiches – für alle Staaten und Gemeinschaften, mit denen das Reich in Verbindung steht.",
                  "Sicher reisen")
     return _antwort(request, k, "laender", "Länder", kopf + _abschnitt(
-        f'<p><a class="btn btn-line btn-small" href="{PFAD}reisewarnungen/">Aktuelle Reisewarnungen</a></p>' + inhalt))
+        f'<p><a class="btn zweit" href="{PFAD}reisewarnungen/">Aktuelle Reisewarnungen</a></p>' + inhalt))
 
 
 async def land_seite(request):
@@ -451,7 +451,7 @@ async def land_seite(request):
     elif reiter == "vertretung":
         teil = (f'<dl class="gk-daten"><dt>Zuständiger Konsul</dt><dd>{esc(l["konsul_name"] or "Das Generalkonsulat (unmittelbar)")}</dd></dl>'
                 f'<div class="gk-text">{_absatz(l["vertretung"]) or "<p class=gk-hinweis>Das Reich unterhält hier kein eigenes Konsulat. Zuständig ist das Generalkonsulat.</p>"}</div>'
-                f'<p><a class="btn btn-navy" href="{PFAD}service/antrag/?art=hilfe&land={l["id"]}">Konsularische Hilfe anfordern</a></p>')
+                f'<p><a class="btn" href="{PFAD}service/antrag/?art=hilfe&land={l["id"]}">Konsularische Hilfe anfordern</a></p>')
     else:
         stand = f'Stand: {_datum(l["hinweise_zeit"] or l["aktualisiert"], True)} – unverändert gültig.'
         kl = {3: " gk-w3", 2: " gk-w2"}.get(l["stufe"], "")
@@ -465,7 +465,7 @@ async def land_seite(request):
                 f'<h3>Einreise und Zoll</h3><div class="gk-text">{_absatz(l["einreise"]) or "<p>Keine besonderen Bestimmungen bekannt.</p>"}</div>'
                 f'<div class="gk-warnbox{kl if l["stufe"] else ""}">Sie reisen nach {esc(l["name"])}? Tragen Sie sich in die '
                 f'<a href="{PFAD}krisenvorsorge/?land={l["id"]}">Krisenvorsorgeliste</a> ein, damit das Generalkonsulat Sie in einer Krise erreichen kann.</div>')
-    bearb = f'<p><a class="btn btn-line btn-small" href="{PFAD}intern/laender/{l["id"]}/">Intern bearbeiten</a></p>' if ist_konsul(k) else ""
+    bearb = f'<p><a class="btn zweit" href="{PFAD}intern/laender/{l["id"]}/">Intern bearbeiten</a></p>' if ist_konsul(k) else ""
     kopf = _kopf(l["name"], [("Länder & Reisen", PFAD + "laender/"), (l["name"], None)], "", "Länderinformation")
     return _antwort(request, k, "laender", l["name"], kopf + _abschnitt(leiste + teil + bearb))
 
@@ -517,7 +517,7 @@ async def meldung_seite(request):
                  esc(m["kurz"]), MELDUNGSARTEN.get(m["art"], "Artikel"))
     landlink = f' · <a href="{PFAD}laender/{esc(land["schl"])}/">{esc(land["name"])}</a>' if land else ""
     fuss = f'<p class="gk-datum">{_datum(m["veroeffentlicht"] or m["erstellt"], True)}{landlink}</p>'
-    bearb = f'<p><a class="btn btn-line btn-small" href="{PFAD}intern/meldungen/{m["id"]}/">Intern bearbeiten</a></p>' if ist_mitarbeiter(k) else ""
+    bearb = f'<p><a class="btn zweit" href="{PFAD}intern/meldungen/{m["id"]}/">Intern bearbeiten</a></p>' if ist_mitarbeiter(k) else ""
     return _antwort(request, k, "meldungen", m["titel"], kopf + _abschnitt(entwurf + fuss + f'<div class="gk-text">{_absatz(m["text"])}</div>' + bearb))
 
 
@@ -547,8 +547,8 @@ async def ueber(request):
     for l in _laender(con):
         if l["konsul_name"]:
             zust.setdefault(l["konsul_name"], []).append(l["name"])
-    personen = "".join(f'<div class="gk-person"><b>{esc(n)}</b><span>Generalkonsul</span></div>' for n in gk)
-    personen += "".join(f'<div class="gk-person"><b>{esc(n)}</b><span>Konsul{" · " + esc(", ".join(zust[n])) if n in zust else ""}</span></div>' for n in ks)
+    personen = "".join(f'<div class="gk-person"><span class="avatar">{esc(_ini(n))}</span><span><b>{esc(n)}</b><small>Generalkonsul</small></span></div>' for n in gk)
+    personen += "".join(f'<div class="gk-person"><span class="avatar">{esc(_ini(n))}</span><span><b>{esc(n)}</b><small>Konsul{" · " + esc(", ".join(zust[n])) if n in zust else ""}</small></span></div>' for n in ks)
     aufgaben = ["Vertritt das Reich und seine Untertanen im Ausland und stellt ihnen Schutz und Beistand.",
                 "Unterhält die Konsulate des Reiches; der Souverän ernennt und entlässt die Konsuln, der Kronkanzler verwaltet sie in seinem Namen.",
                 "Führt den diplomatischen Verkehr der Konsulate und bereitet Verträge und Abkommen vor.",
@@ -557,7 +557,7 @@ async def ueber(request):
     inhalt = (_abschnitt('<div class="gk-reisen"><div><h2>Aufgaben</h2><ul>' + "".join(f"<li>{esc(a)}</li>" for a in aufgaben) + "</ul></div>"
                          '<div><h2>Sitz</h2><p>Auswärtiges Amt, Berlin – Sitz des Kaiserlichen Generalkonsulats.</p>'
                          '<p>Das Generalkonsulat gehört zu den <a href="/informationen/die-reichsbehoerden/">Reichsbehörden</a> und arbeitet eng mit dem Kronkanzleramt zusammen.</p></div></div>')
-              + _abschnitt('<h2>Leitung und Konsuln</h2>' + (f'<div class="gk-personen">{personen}</div>' if personen else '<p class="gk-hinweis">Zurzeit sind keine Ämter besetzt.</p>'), "section tight paper"))
+              + _abschnitt('<h2>Leitung und Konsuln</h2>' + (f'<div class="gk-personen">{personen}</div>' if personen else '<p class="gk-hinweis">Zurzeit sind keine Ämter besetzt.</p>'), ))
     kopf = _kopf("Das Generalkonsulat", [("Über uns", None)], "Kaiserliches Generalkonsulat – die auswärtige Vertretung des Imperium Germanicum.", "Reichsbehörde")
     return _antwort(request, k, "start", "Das Generalkonsulat", kopf + inhalt)
 
@@ -593,14 +593,14 @@ async def suche(request):
 async def service(request):
     k = await anmeldung.konto(request)
     kacheln = "".join(f'<a class="gk-tkarte" href="{PFAD}service/antrag/?art={s}"><span class="gk-art">Antrag</span><h3>{esc(t)}</h3><p>{esc(b)}</p>'
-                      '<span class="link-arrow">Antrag stellen</span></a>' for s, (t, b) in ANTRAGSARTEN.items())
+                      '<span class="gk-mehr">Antrag stellen</span></a>' for s, (t, b) in ANTRAGSARTEN.items())
     eigene = ""
     if k:
         n = request.app["db"].execute("SELECT COUNT(*) FROM konsulat_antraege WHERE konto_id=?", (k["id"],)).fetchone()[0]
         eigene = (f'<div class="gk-kacheln"><div class="gk-kachel"><h3>Meine Anträge</h3><p>{n} Antrag/Anträge gestellt.</p>'
-                  f'<a class="link-arrow" href="{PFAD}service/meine-antraege/">Zu meinen Anträgen</a></div>'
+                  f'<a class="gk-mehr" href="{PFAD}service/meine-antraege/">Zu meinen Anträgen</a></div>'
                   f'<div class="gk-kachel"><h3>Krisenvorsorgeliste</h3><p>Reisen ins Ausland eintragen, damit wir Sie in einer Krise erreichen.</p>'
-                  f'<a class="link-arrow" href="{PFAD}krisenvorsorge/">Zur Krisenvorsorgeliste</a></div></div>')
+                  f'<a class="gk-mehr" href="{PFAD}krisenvorsorge/">Zur Krisenvorsorgeliste</a></div></div>')
     else:
         eigene = f'<p class="gk-hinweis" style="margin-top:26px">Für Anträge und die Krisenvorsorgeliste <a href="/anmelden/?weiter={PFAD}service/">melden Sie sich mit Discord an</a>.</p>'
     kopf = _kopf("Konsularischer Service", [("Service", None)], "Anträge an das Generalkonsulat – online gestellt, mit Aktenzeichen und Bescheid per Discord-Nachricht.", "Service")
@@ -628,7 +628,7 @@ async def antrag_formular(request):
             f'<label>Land / Gemeinschaft<select name="land">{_opt(laender, land)}</select></label>'
             f'<label>Ihr Anliegen<textarea name="text" maxlength="5000" required placeholder="{esc(hilfe)}"></textarea></label>'
             f'<p class="gk-datum" style="margin:0">Sie stellen den Antrag als <strong>{esc(k["name"])}</strong>. Den Bescheid erhalten Sie per Discord-Nachricht und unter „Meine Anträge“.</p>'
-            '<div class="gk-knoepfe"><button class="btn btn-navy" type="submit">Antrag einreichen</button></div></form>')
+            '<div class="gk-knoepfe"><button class="btn" type="submit">Antrag einreichen</button></div></form>')
     kopf = _kopf(t, [("Service", PFAD + "service/"), (t, None)], "", "Antrag")
     return _antwort(request, k, "service", t, kopf + _abschnitt(form))
 
@@ -674,7 +674,7 @@ async def meine_antraege(request):
             f'<td>{esc(r["betreff"])}</td><td>{esc(ANTRAGSSTATUS[r["status"]])}</td><td>{_datum(r["erstellt"])}</td></tr>' for r in rs) + "</tbody></table>")
     else:
         inhalt = '<p class="gk-hinweis">Sie haben noch keine Anträge gestellt.</p>'
-    inhalt += f'<p><a class="btn btn-navy" href="{PFAD}service/">Neuen Antrag stellen</a></p>'
+    inhalt += f'<p><a class="btn" href="{PFAD}service/">Neuen Antrag stellen</a></p>'
     kopf = _kopf("Meine Anträge", [("Service", PFAD + "service/"), ("Meine Anträge", None)], "", "Service")
     return _antwort(request, k, "service", "Meine Anträge", kopf + _abschnitt(inhalt))
 
@@ -705,7 +705,7 @@ async def mein_antrag(request):
     if r["status"] in OFFEN:
         nachreichen = (f'<form class="gk-form" method="post" action="{PFAD}service/meine-antraege/{r["id"]}/nachricht">{_csrf(request)}'
                        '<label>Nachricht an das Generalkonsulat<textarea name="text" maxlength="3000" required></textarea></label>'
-                       '<div class="gk-knoepfe"><button class="btn btn-line" type="submit">Senden</button></div></form>')
+                       '<div class="gk-knoepfe"><button class="btn zweit" type="submit">Senden</button></div></form>')
     kopf = _kopf(r["az"], [("Service", PFAD + "service/"), ("Meine Anträge", PFAD + "service/meine-antraege/"), (r["az"], None)], "", "Antrag")
     return _antwort(request, k, "service", r["az"], kopf + _abschnitt(_antrag_daten(con, r) + "<h3>Verlauf</h3>" + _verlauf(con, r["id"], False) + nachreichen))
 
@@ -744,7 +744,7 @@ async def krisenvorsorge(request):
                 '<div class="gk-zwei"><label>Von (IC-Datum)<input name="von" maxlength="20" placeholder="TT.MM.JJJJ"></label>'
                 '<label>Bis (IC-Datum)<input name="bis" maxlength="20" placeholder="TT.MM.JJJJ"></label></div>'
                 '<label>Hinweis (Aufenthaltsort, Mitreisende)<input name="notiz" maxlength="200"></label>'
-                '<div class="gk-knoepfe"><button class="btn btn-navy" type="submit">Eintragen</button></div></form>')
+                '<div class="gk-knoepfe"><button class="btn" type="submit">Eintragen</button></div></form>')
     else:
         form = ""
     kopf = _kopf("Krisenvorsorgeliste", [("Service", PFAD + "service/"), ("Krisenvorsorgeliste", None)],
@@ -777,10 +777,6 @@ async def krisenvorsorge_loeschen(request):
 
 # ---------------------------------------------------------------- Intern
 
-INTERN_TABS = [("", "Übersicht"), ("antraege/", "Anträge"), ("meldungen/", "Meldungen"), ("laender/", "Länder"),
-               ("vertraege/", "Verträge"), ("krisenvorsorge/", "Krisenvorsorge"), ("protokoll/", "Protokoll")]
-
-
 async def _intern_konto(request):
     k = await _konto_oder_login(request)
     if not ist_mitarbeiter(k):
@@ -789,11 +785,10 @@ async def _intern_konto(request):
 
 
 def _intern(request, k, aktiv, titel, inhalt, pfad=()):
-    tabs = '<div class="gk-reiter">' + "".join(f'<a href="{PFAD}intern/{u}"{" aria-current=\"page\"" if u == aktiv else ""}>{t}</a>' for u, t in INTERN_TABS) + "</div>"
     rang = {"leitung": "Leitung", "konsul": "Konsul", "mitarbeiter": "Mitarbeiter"}[stufe(k)]
     pfad = list(pfad) or ([(titel, None)] if aktiv else [])
     kopf = _kopf(titel, [("Intern", PFAD + "intern/")] + pfad, f"Angemeldet als {esc(k['name'])} · {rang}", "Intern")
-    return _antwort(request, k, "intern", titel, kopf + _abschnitt(tabs + inhalt))
+    return _antwort(request, k, "intern", titel, kopf + _abschnitt(inhalt))
 
 
 async def intern_start(request):
@@ -860,13 +855,13 @@ async def intern_antrag(request):
                  '<label class="gk-check" style="align-self:end"><input type="checkbox" name="intern" value="1"> Nur interner Vermerk (Antragsteller sieht ihn nicht)</label></div>')
     else:
         form += '<input type="hidden" name="intern" value="1"><p class="gk-datum" style="margin:0">Mitarbeiter schreiben interne Vermerke.</p>'
-    form += '<div class="gk-knoepfe"><button class="btn btn-navy" type="submit">Speichern</button></div></form>'
+    form += '<div class="gk-knoepfe"><button class="btn" type="submit">Speichern</button></div></form>'
     if ist_konsul(k) and r["bearbeiter_id"] != k["id"]:
         form = (f'<form method="post" action="{aktion}uebernehmen" style="margin:0 0 18px">{_csrf(request)}'
-                '<button class="btn btn-line btn-small" type="submit">Antrag übernehmen</button></form>') + form
+                '<button class="btn zweit" type="submit">Antrag übernehmen</button></form>') + form
     if ist_leitung(k):
         form += (f'<form method="post" action="{aktion}loeschen" onsubmit="return confirm(\'Antrag endgültig löschen?\')">{_csrf(request)}'
-                 '<button class="btn btn-line btn-small" style="color:var(--danger)" type="submit">Antrag löschen</button></form>')
+                 '<button class="btn zweit"  type="submit">Antrag löschen</button></form>')
     return _intern(request, k, "antraege/", r["az"], _antrag_daten(con, r) + "<h3>Verlauf</h3>" + _verlauf(con, r["id"], True) + form,
                    [("Anträge", PFAD + "intern/antraege/"), (r["az"], None)])
 
@@ -936,7 +931,7 @@ async def intern_meldungen(request):
         f'<tr><td><a href="{PFAD}intern/meldungen/{m["id"]}/">{esc(m["titel"])}</a></td><td>{esc(MELDUNGSARTEN.get(m["art"], ""))}</td>'
         f'<td>{"Veröffentlicht" if m["status"] == "veroeffentlicht" else "Entwurf"}</td><td>{esc(m["autor_name"])}</td>'
         f'<td>{_datum(m["veroeffentlicht"] or m["erstellt"])}</td></tr>' for m in ms) + "</tbody></table>") if ms else '<p class="gk-hinweis">Noch keine Meldungen.</p>'
-    return _intern(request, k, "meldungen/", "Meldungen", f'<p><a class="btn btn-navy" href="{PFAD}intern/meldungen/neu/">Neue Meldung</a></p>' + tab)
+    return _intern(request, k, "meldungen/", "Meldungen", f'<p><a class="btn" href="{PFAD}intern/meldungen/neu/">Neue Meldung</a></p>' + tab)
 
 
 async def intern_meldung(request):
@@ -948,9 +943,9 @@ async def intern_meldung(request):
         raise web.HTTPNotFound()
     w = lambda f, d="": (m[f] if m else d)
     laender = [("", "– kein Land –")] + [(l["id"], l["name"]) for l in _laender(con)]
-    knoepfe = '<button class="btn btn-line" name="aktion" value="entwurf" type="submit">Als Entwurf speichern</button>'
+    knoepfe = '<button class="btn zweit" name="aktion" value="entwurf" type="submit">Als Entwurf speichern</button>'
     if ist_konsul(k):
-        knoepfe = '<button class="btn btn-navy" name="aktion" value="veroeffentlichen" type="submit">Veröffentlichen</button>' + knoepfe
+        knoepfe = '<button class="btn" name="aktion" value="veroeffentlichen" type="submit">Veröffentlichen</button>' + knoepfe
     form = (f'<form class="gk-form" method="post" action="{PFAD}intern/meldungen/{i + "/" if i else "neu/"}">{_csrf(request)}'
             f'<label>Titel<input name="titel" maxlength="160" required value="{esc(w("titel"))}"></label>'
             f'<div class="gk-zwei"><label>Art<select name="art">{_opt(MELDUNGSARTEN.items(), w("art", "artikel"))}</select></label>'
@@ -963,10 +958,10 @@ async def intern_meldung(request):
         form = f'<p class="gk-datum">{st} · Verfasser: {esc(m["autor_name"])} · <a href="{PFAD}meldungen/{m["id"]}/">Ansehen</a></p>' + form
         if ist_konsul(k) and m["status"] == "veroeffentlicht":
             form += (f'<form method="post" action="{PFAD}intern/meldungen/{m["id"]}/zurueckziehen" style="margin-top:10px">{_csrf(request)}'
-                     '<button class="btn btn-line btn-small" type="submit">Zurückziehen (wieder Entwurf)</button></form>')
+                     '<button class="btn zweit" type="submit">Zurückziehen (wieder Entwurf)</button></form>')
         if ist_leitung(k) or (m["status"] == "entwurf" and m["autor_id"] == k["id"]):
             form += (f'<form method="post" action="{PFAD}intern/meldungen/{m["id"]}/loeschen" style="margin-top:10px" onsubmit="return confirm(\'Löschen?\')">{_csrf(request)}'
-                     '<button class="btn btn-line btn-small" style="color:var(--danger)" type="submit">Löschen</button></form>')
+                     '<button class="btn zweit"  type="submit">Löschen</button></form>')
     titel = m["titel"] if m else "Neue Meldung"
     return _intern(request, k, "meldungen/", titel, form, [("Meldungen", PFAD + "intern/meldungen/"), (titel, None)])
 
@@ -1034,7 +1029,7 @@ async def intern_laender(request):
         f'<tr><td><a href="{PFAD}intern/laender/{l["id"]}/">{esc(l["name"])}</a></td><td>{esc(BEZIEHUNGEN.get(l["beziehung"], ""))}</td>'
         f'<td>{_stufe_html(l["stufe"])}</td><td>{esc(l["konsul_name"] or "–")}</td><td>{n_vs.get(l["id"], 0)}</td></tr>' for l in ls)
         + "</tbody></table>") if ls else '<p class="gk-hinweis">Noch keine Länder angelegt.</p>'
-    neu = f'<p><a class="btn btn-navy" href="{PFAD}intern/laender/neu/">Land anlegen</a></p>' if ist_konsul(k) else ""
+    neu = f'<p><a class="btn" href="{PFAD}intern/laender/neu/">Land anlegen</a></p>' if ist_konsul(k) else ""
     return _intern(request, k, "laender/", "Länder", neu + tab)
 
 
@@ -1075,7 +1070,7 @@ async def intern_land(request):
             f'<label>Beziehungen zum Reich (Text)<textarea name="info" maxlength="8000"{dis}>{esc(w("info"))}</textarea></label>'
             f'<label>Vertretung des Reiches (Konsulat, Anschrift, Erreichbarkeit)<textarea name="vertretung" maxlength="4000"{dis}>{esc(w("vertretung"))}</textarea></label>'
             + ('<p class="gk-datum" style="margin:0">Bei Stufe „Reisewarnung“ werden alle Eingetragenen der Krisenvorsorgeliste für dieses Land per Discord benachrichtigt.</p>'
-               '<div class="gk-knoepfe"><button class="btn btn-navy" type="submit">Speichern</button></div>' if kn else "") + '</form>')
+               '<div class="gk-knoepfe"><button class="btn" type="submit">Speichern</button></div>' if kn else "") + '</form>')
     if l:
         form = f'<p class="gk-datum">Zuletzt geändert {_datum(l["aktualisiert"], True)} · <a href="{PFAD}laender/{esc(l["schl"])}/">Öffentliche Seite</a></p>' + form
         vs = con.execute("SELECT * FROM konsulat_vorsorge WHERE land_id=? ORDER BY erstellt DESC", (l["id"],)).fetchall()
@@ -1083,7 +1078,7 @@ async def intern_land(request):
             form += "<h3>Krisenvorsorgeliste für dieses Land</h3>" + _vorsorge_tabelle(vs, {l["id"]: l})
         if lt:
             form += (f'<form method="post" action="{PFAD}intern/laender/{l["id"]}/loeschen" style="margin-top:14px" onsubmit="return confirm(\'Land mit allen Einträgen der Krisenvorsorgeliste löschen?\')">'
-                     f'{_csrf(request)}<button class="btn btn-line btn-small" style="color:var(--danger)" type="submit">Land löschen</button></form>')
+                     f'{_csrf(request)}<button class="btn zweit"  type="submit">Land löschen</button></form>')
     titel = l["name"] if l else "Land anlegen"
     return _intern(request, k, "laender/", titel, form, [("Länder", PFAD + "intern/laender/"), (titel, None)])
 
@@ -1178,7 +1173,7 @@ async def intern_vertraege(request):
         f'<tr><td><a href="{PFAD}intern/vertraege/{v["id"]}/">{esc(v["titel"])}</a></td><td>{esc(laender[v["land_id"]]["name"]) if v["land_id"] in laender else "–"}</td>'
         f'<td>{esc(v["art"])}</td><td>{esc(VERTRAGSSTATUS[v["status"]])}</td><td>{"Ja" if v["oeffentlich"] else "Nein"}</td></tr>' for v in vs)
         + "</tbody></table>") if vs else '<p class="gk-hinweis">Noch keine Verträge.</p>'
-    neu = f'<p><a class="btn btn-navy" href="{PFAD}intern/vertraege/neu/">Neuer Vertragsentwurf</a></p>' if ist_konsul(k) else ""
+    neu = f'<p><a class="btn" href="{PFAD}intern/vertraege/neu/">Neuer Vertragsentwurf</a></p>' if ist_konsul(k) else ""
     return _intern(request, k, "vertraege/", "Verträge", neu + tab)
 
 
@@ -1205,11 +1200,11 @@ async def intern_vertrag(request):
             f'<label>Vertragstext<textarea name="text" style="min-height:300px" maxlength="30000"{dis}>{esc(w("text"))}</textarea></label>'
             f'<label class="gk-check"><input type="checkbox" name="oeffentlich" value="1"{" checked" if w("oeffentlich", 0) else ""}{"" if lt else " disabled"}> '
             'In der öffentlichen Vertragssammlung zeigen (Leitung)</label>'
-            + ('<div class="gk-knoepfe"><button class="btn btn-navy" type="submit">Speichern</button></div>' if not dis else
+            + ('<div class="gk-knoepfe"><button class="btn" type="submit">Speichern</button></div>' if not dis else
                '<p class="gk-datum" style="margin:0">Unterzeichnete Verträge ändert nur die Leitung.</p>' if kn else "") + "</form>")
     if v and lt:
         form += (f'<form method="post" action="{PFAD}intern/vertraege/{v["id"]}/loeschen" style="margin-top:12px" onsubmit="return confirm(\'Vertrag löschen?\')">{_csrf(request)}'
-                 '<button class="btn btn-line btn-small" style="color:var(--danger)" type="submit">Löschen</button></form>')
+                 '<button class="btn zweit"  type="submit">Löschen</button></form>')
     titel = v["titel"] if v else "Neuer Vertragsentwurf"
     return _intern(request, k, "vertraege/", titel, form, [("Verträge", PFAD + "intern/vertraege/"), (titel, None)])
 
@@ -1283,10 +1278,40 @@ async def intern_protokoll(request):
                    if ps else '<p class="gk-hinweis">Noch keine Einträge.</p>')
 
 
+def _quelle(con):
+    """Meldungen für den Newsroom der Reichsregierung."""
+    return [{"titel": m["titel"], "kurz": m["kurz"], "art": MELDUNGSARTEN.get(m["art"], "Artikel"), "zeit": m["veroeffentlicht"],
+             "url": f"{PFAD}meldungen/{m['id']}/", "quelle": "Generalkonsulat", "schl": m["art"]}
+            for m in con.execute("SELECT * FROM konsulat_meldungen WHERE status='veroeffentlicht' ORDER BY veroeffentlicht DESC LIMIT 100")]
+
+
+def _hinweis(con):
+    """Kasten auf der Startseite der Reichsregierung, solange Reisewarnungen bestehen."""
+    ls = con.execute("SELECT * FROM konsulat_laender WHERE stufe=3 ORDER BY name").fetchall()
+    if not ls:
+        return ""
+    namen = ", ".join(f'<a href="{PFAD}laender/{esc(l["schl"])}/">{esc(l["name"])}</a>' for l in ls)
+    return (f'<div class="gk-warnbox gk-w3" style="border:1px solid var(--linie);border-left:4px solid var(--rot);background:#fbecec;padding:12px 16px;'
+            f'margin:0 0 26px;border-radius:8px"><b>Reisewarnung des Generalkonsulats:</b> {namen}. '
+            f'<a href="{PFAD}reisewarnungen/">Alle Reise- und Sicherheitshinweise</a></div>')
+
+
+def _suche(con, q):
+    like = f"%{q}%"
+    t = [("Länderinformation · Generalkonsulat", l["name"], f'{PFAD}laender/{l["schl"]}/')
+         for l in con.execute("SELECT * FROM konsulat_laender WHERE name LIKE ? OR hinweise LIKE ? OR info LIKE ? ORDER BY name", (like,) * 3)]
+    t += [("Vertrag · Generalkonsulat", v["titel"], f'{PFAD}vertraege/#v{v["id"]}')
+          for v in con.execute("SELECT * FROM konsulat_vertraege WHERE oeffentlich=1 AND (titel LIKE ? OR text LIKE ?)", (like,) * 2)]
+    t += [("Service · Generalkonsulat", tt, f"{PFAD}service/antrag/?art={schl}") for schl, (tt, b) in ANTRAGSARTEN.items() if q.lower() in (tt + b).lower()]
+    return t
+
+
 def registrieren(app):
     einrichten(app["db"])
+    regierung.QUELLEN.append(_quelle)
+    regierung.HINWEISE.append(_hinweis)
+    regierung.SUCHE.append(_suche)
     r = app.router
-    r.add_get("/regierung/", weiterleiten)
     r.add_get("/regierung/generalkonsulat", weiterleiten)
     r.add_get("/regierung/generalkonsulat.de", weiterleiten)
     r.add_get("/regierung/generalkonsulat.de/", weiterleiten)

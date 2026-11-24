@@ -115,7 +115,9 @@ def erstellen():
     import profil_sa
     benachrichtigung.registrieren(app)
     profil_sa.registrieren(app)
+    import regierung
     import generalkonsulat
+    regierung.registrieren(app)
     generalkonsulat.registrieren(app)
     return app
 
