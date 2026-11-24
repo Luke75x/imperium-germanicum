@@ -937,12 +937,12 @@ KATALOG = {
     "a319": ("Airbus A319CJ", "Flugbereitschaft", "Kurz- und Mittelstrecke",
              "Kompakter Regierungsjet für kleinere Delegationen auf kurzen und mittleren Strecken.",
              [("Länge", "33,8 m"), ("Spannweite", "35,8 m"), ("Reichweite", "ca. 11.000 km"), ("Triebwerke", "2 × CFM56"), ("Kabine", "VIP-Ausstattung")], "16+0"),
-    "global": ("Bombardier Global 6000", "Flugbereitschaft", "Kurzstrecke · kleine Delegationen",
-               "Langstrecken-Geschäftsreiseflugzeug für Leitungsreisen mit kleiner Begleitung.",
-               [("Länge", "30,3 m"), ("Spannweite", "28,7 m"), ("Reichweite", "ca. 11.000 km"), ("Triebwerke", "2 × Rolls-Royce BR710 (Heck)"), ("Kabine", "rund 13 Plätze")], "14+0"),
-    "h225": ("Airbus H225M", "Flugbereitschaft", "Hubschrauber · Pendelflüge",
-             "Zweimotoriger Transporthubschrauber für Pendelflüge zwischen den Dienstsitzen und für kurzfristige Einsätze.",
-             [("Länge", "19,5 m (mit Rotor)"), ("Rotordurchmesser", "16,2 m"), ("Reichweite", "ca. 850 km"), ("Triebwerke", "2 Wellenturbinen"), ("Kabine", "VIP-Ausstattung, bis 12 Plätze")], "82+"),
+    "global": ("Bombardier Global 7500", "Flugbereitschaft", "Langstrecke · kleine Delegationen",
+               "Großraum-Geschäftsreiseflugzeug mit sehr großer Reichweite für Leitungsreisen mit kleiner Begleitung.",
+               [("Länge", "33,8 m"), ("Spannweite", "31,7 m"), ("Reichweite", "ca. 14.000 km"), ("Triebwerke", "2 Mantelstromtriebwerke (Heck)"), ("Kabine", "rund 14 Plätze, vier Bereiche")], "14+0"),
+    "h225": ("Eurocopter AS532 Cougar", "Flugbereitschaft", "Hubschrauber · Pendelflüge",
+             "Zweimotoriger Transporthubschrauber der Super-Puma-Familie, wie ihn die Flugbereitschaft für Pendelflüge zwischen den Dienstsitzen nutzt.",
+             [("Länge", "18,7 m (mit Rotor)"), ("Rotordurchmesser", "15,6 m"), ("Reichweite", "ca. 800 km"), ("Triebwerke", "2 Wellenturbinen"), ("Kabine", "VIP-Ausstattung, bis 12 Plätze")], "82+"),
     "sklasse": ("Mercedes-Benz S 680 Guard", "Fahrbereitschaft", "Geschützte Limousine",
                 "Gepanzerte Staatslimousine der höchsten zivilen Schutzklasse für die Leitung, mit Standarten auf den Kotflügeln.",
                 [("Länge", "5,47 m"), ("Schutzklasse", "VR10"), ("Antrieb", "V12, Allrad"), ("Gewicht", "ca. 4,2 t"), ("Sitze", "4")], "IG-R 1"),
@@ -958,6 +958,16 @@ KATALOG = {
     "sprinter": ("Mercedes-Benz Sprinter", "Fahrbereitschaft", "Begleitfahrzeug · Technik",
                  "Begleit- und Technikfahrzeug für Kolonnen, Gepäck und Funktechnik.",
                  [("Länge", "5,93 m"), ("Höhe", "2,6 m"), ("Sitze", "bis 9"), ("Einsatz", "Kolonne, Technik, Gepäck")], "IG-R 7"),
+}
+# 3D-Modelle (Sketchfab, CC BY 4.0, verändert: Lackierung ersetzt/ergänzt) – Titel, Urheber, Modell-ID
+MODELL_QUELLEN = {
+    "a350": ("airbus a350", "1883", "1232147f25c942beb2a36997596b9dc3"), "a330": ("airbus a330", "1883", "9f40c75533df4faf9de1854fb36add80"),
+    "a321": ("Generic Airbus A321", "barengdoc13", "59065f1ccd78433ebe24b5005eface73"), "a319": ("A319 plane", "gregoirebonnin", "8cc47f95310b4932b7cf71ecb4436811"),
+    "global": ("Bombardier_Global_7500", "mhmdshwatahmdmhdy9", "08c977705e4b473bb0539b32a86a6c27"),
+    "h225": ("AS332 Super Puma \"old\"", "arthur80cristian", "caea6ddba5ed457d960a75cb4ef2e7c9"),
+    "sklasse": ("Mersedes-Benz s65 w222", "BlackSnow02", "f42d9d13b0404b5b9a2302a4c590a94d"), "a8": ("Audi A8 Custom 2018", "everhard", "cd094d03f7684809900a929a9c88c8db"),
+    "bmw7": ("BMW 7-series (F01)", "BlackSnow02", "0806c39847ae42e5996917f50527dda0"), "vklasse": ("Mercedes Benz V Class", "Car2022", "61583f5c172f4e25a963e52e1e67c11a"),
+    "sprinter": ("2019 Mercedes-Benz Sprinter", "tonielpro520", "5788a290ddb5483fbbd5831aeef829a1"),
 }
 FLUG_TYPEN = {"a350", "a330", "a321", "a319", "global", "h225"}
 # Hausfarbe je Ministerium (Bauch, Leitwerk, Winglets der Flugzeuge)
@@ -977,8 +987,8 @@ a.fz-kachel:hover{transform:translateY(-2px);box-shadow:0 14px 30px -18px rgba(1
 .fz-kachel b{font-size:14.5px;line-height:1.3}.fz-kachel small{color:var(--grau);font-size:12.5px;margin-top:auto}
 .fz-kachel.leer{opacity:.45;filter:grayscale(1);background:transparent}
 .fz-kachel .fz-zahl{position:absolute;top:12px;right:12px;background:var(--kopf);color:#fff;border-radius:999px;font-size:11.5px;font-weight:700;padding:2px 9px}
-.fz-buehne{position:relative;height:min(62vh,560px);min-height:340px;border-radius:calc(var(--r) + 6px);overflow:hidden;
- background:radial-gradient(120% 90% at 50% 15%,#ffffff 0%,#e9edf2 55%,#d7dde5 100%);border:1px solid var(--glas-rand,var(--linie))}
+.fz-buehne{position:relative;height:min(62vh,560px);min-height:340px;border-radius:calc(var(--r) + 6px);overflow:hidden;background-color:#dfe4ea;
+ background:radial-gradient(120% 90% at 50% 12%,#f7f9fb 0%,#dfe5ec 55%,#c3ccd8 100%);border:1px solid var(--glas-rand,var(--linie))}
 .fz-buehne canvas{display:block;width:100%!important;height:100%!important;touch-action:none;cursor:grab}
 .fz-buehne:not(.fertig)::after{content:"Modell wird gebaut …";position:absolute;inset:0;display:grid;place-items:center;color:var(--grau);font-size:14px}
 .fz-leiste{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
@@ -1006,11 +1016,30 @@ def _fz_kennung(con, typ):
     return f"{vor}{n}" if typ in FLUG_TYPEN else f"{vor}{n:02d}"
 
 
+def _modell_version(typ):
+    p = os.path.join(DREI_D, "modelle", typ + ".glb")
+    return int(os.path.getmtime(p)) if os.path.isfile(p) else 0
+
+
+def _modell_nachweis(typ):
+    q = MODELL_QUELLEN.get(typ)
+    if not q:
+        return ""
+    titel, urheber, uid = q
+    return (f'<p class="fz-hinweis">3D-Modell: „{esc(titel)}“ von {esc(urheber)} (sketchfab.com/3d-models/{esc(uid)}), Lizenz CC BY 4.0 '
+            '(creativecommons.org/licenses/by/4.0), verändert: Lackierung und Beschriftung ersetzt.</p>')
+
+
 async def drei_d(request):
+    """three.js, Lader und Modelle aus statisch/three/ (nur .js/.glb/.txt, keine Pfade nach außen)."""
     name = request.match_info["datei"]
-    if name not in DREI_D_DATEIEN:
+    if not re.fullmatch(r"(?:[a-z]+/)?[A-Za-z0-9_.-]+\.(?:js|glb|txt)", name) or ".." in name:
         raise web.HTTPNotFound()
-    return web.FileResponse(os.path.join(DREI_D, name), headers={"Cache-Control": "no-cache"})
+    pfad = os.path.join(DREI_D, name)
+    if not os.path.isfile(pfad):
+        raise web.HTTPNotFound()
+    art = {"glb": "model/gltf-binary", "js": "text/javascript", "txt": "text/plain"}[name.rsplit(".", 1)[1]]
+    return web.FileResponse(pfad, headers={"Cache-Control": "no-cache", "Content-Type": art})
 
 
 def _fz_typ_optionen():
@@ -1078,13 +1107,15 @@ async def fahrzeug_ansicht(request):
     wahlleiste = ('<div class="fz-wahl">' + "".join(f'<a href="?f={x["id"]}" class="{"aktiv" if x["id"] == f["id"] else ""}">{esc(KATALOG.get(x["typ"], ("?",))[0])}'
                                                     f'{" · " + esc(x["kennung"]) if x["kennung"] else ""}</a>' for x in fz) + "</div>") if len(fz) > 1 else ""
     daten = {"typ": f["typ"], "kennung": f["kennung"], "name": f["name"], "behoerde": b["name"], "akzent": AKZENTE.get(b["schl"], "#1f2f45"),
-             "sonder": SONDER.get(b["schl"]) if f["typ"] not in FLUG_TYPEN else None, "adler": f"{PFAD}logo/regierung-kurz.png"}
+             "sonder": SONDER.get(b["schl"]) if f["typ"] not in FLUG_TYPEN else None, "adler": f"{PFAD}logo/regierung-kurz.png",
+             "basis": f"{PFAD}3d/", "v": _modell_version(f["typ"])}
     v = int(os.path.getmtime(os.path.join(DREI_D, "fahrzeug.js")))
     buehne = (f'<div class="fz-buehne" id="fz-buehne" aria-label="3D-Ansicht: {esc(typ[0])}"></div>'
               '<div class="fz-leiste"><button type="button" data-ansicht="schraeg">Schräg</button><button type="button" data-ansicht="seite">Seite</button>'
               '<button type="button" data-ansicht="vorne">Vorne</button><button type="button" data-ansicht="oben">Oben</button>'
               '<button type="button" id="fz-dreh" aria-pressed="true">Drehen</button></div>'
-              '<p class="fz-hinweis">Ziehen zum Drehen, Mausrad oder zwei Finger zum Zoomen. Eigenes 3D-Modell mit der Lackierung des Ministeriums.</p>'
+              '<p class="fz-hinweis">Ziehen zum Drehen, Mausrad oder zwei Finger zum Zoomen. Die Lackierung des Ministeriums wird auf das Modell aufgebracht.</p>'
+              + _modell_nachweis(f["typ"]) +
               f'<script type="application/json" id="fz-daten">{json.dumps(daten).replace("</", "<\\/")}</script>'
               f'<script type="importmap">{{"imports":{{"three":"{PFAD}3d/three.module.min.js"}}}}</script>'
               f'<script type="module" src="{PFAD}3d/fahrzeug.js?v={v}"></script>')
@@ -1129,7 +1160,7 @@ def registrieren(app):
     r.add_get(PFAD, start)
     r.add_get(PFAD + "logo/{name}.png", logo)
     r.add_get(PFAD + "bild/{name}", bild)
-    r.add_get(PFAD + "3d/{datei}", drei_d)
+    r.add_get(PFAD + "3d/{datei:.+}", drei_d)
     r.add_get(PFAD + "fahrzeuge/", fahrzeuge)
     r.add_post(PFAD + "fahrzeuge/festlegen", fahrzeug_festlegen)
     r.add_post(PFAD + "fahrzeuge/{id:\\d+}/entfernen", fahrzeug_entfernen)

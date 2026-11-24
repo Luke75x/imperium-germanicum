@@ -6,6 +6,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "./OrbitControls.js";
 import { RoomEnvironment } from "./RoomEnvironment.js";
+import { GLTFLoader } from "./loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "./libs/meshopt_decoder.module.js";
+import { DecalGeometry } from "./geometries/DecalGeometry.js";
 
 const D = JSON.parse(document.getElementById("fz-daten").textContent);
 const huelle = document.getElementById("fz-buehne");
@@ -378,13 +381,216 @@ function wagen(p) {
   return { modell: gr, groesse: L * 1.25, boden: true };
 }
 
+
+// ============================================================ Echte Modelle (Sketchfab, CC BY 4.0; Nachweis auf der Seite)
+// achse: Längsachse im Modell; nase: +1/-1 = Nase zeigt in +/- Richtung dieser Achse; laenge: echte Länge in m.
+// Nach dem Ausrichten zeigt die Nase immer nach -x (wie bei den eigenen Modellen), Mitte im Ursprung.
+const MODELLE = {
+  a350: { achse: "z", nase: 1, laenge: 66.8, art: "flug" },
+  a330: { achse: "z", nase: 1, laenge: 58.8, art: "flug", logo: /qantas|logo/i },
+  a321: { achse: "z", nase: 1, laenge: 44.5, art: "flug" },
+  a319: { achse: "z", nase: 1, laenge: 33.8, art: "flug" },
+  global: { achse: "z", nase: 1, laenge: 33.8, art: "flug" },
+  h225: { achse: "z", nase: 1, laenge: 18.7, art: "heli" },
+  sklasse: { achse: "z", nase: 1, laenge: 5.47, art: "auto", lack: /paint/i },
+  a8: { achse: "z", nase: 1, laenge: 5.45, art: "auto", lack: /a8texture12__(prim|sec)/i },
+  bmw7: { achse: "x", nase: 1, laenge: 5.39, art: "auto", lack: /paint|body|AliceBlue/i },
+  vklasse: { achse: "z", nase: 1, laenge: 5.14, art: "auto", lack: /carpaint/i },
+  sprinter: { achse: "z", nase: 1, laenge: 5.93, art: "auto", lack: /CarPaint|FrontColor/i },
+};
+
+// Farbige Lackflächen der Textur (Airline-Farben) weiß machen; Fenster, Türen, Grau- und Schwarztöne bleiben
+function ausbleichen(tex, art) {
+  const img = tex && tex.image;
+  if (!img || !img.width) return tex;
+  const [c, g] = leinwand(img.width, img.height);
+  g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height), p = d.data;
+  for (let i = 0; i < p.length; i += 4) {
+    const r = p[i], gg = p[i + 1], b = p[i + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
+    const v = mx / 255, s = mx ? (mx - mn) / mx : 0;
+    let weiss = s > 0.25 && v > 0.22;
+    if (art === "heli") weiss = (v > 0.12 && v < 0.8 && !(b > r + 25 && b > gg + 10)) || weiss;   // Tarnanstrich → weiß, blaue Scheiben bleiben
+    if (weiss) { const h = 236 + Math.round(v * 12); p[i] = h; p[i + 1] = h + 1; p[i + 2] = h + 3; }
+  }
+  g.putImageData(d, 0, 0);
+  const t = tex.clone(); t.image = c; t.needsUpdate = true;
+  return t;
+}
+
+// Abziehbild: Leinwand → Textur, auf alle Meshes projiziert, die den Kasten schneiden
+const DECAL_MATS = [];
+function abziehbild(wurzel, canvas, pos, dreh, groesse) {
+  const t = new THREE.CanvasTexture(canvas); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  const m = new THREE.MeshPhysicalMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, roughness: 0.35, clearcoat: 0.5 });
+  DECAL_MATS.push(m);
+  const kasten = new THREE.Box3().setFromCenterAndSize(pos, new THREE.Vector3(Math.max(groesse.x, groesse.z) * 1.5, groesse.y * 1.5, Math.max(groesse.x, groesse.z) * 1.5));
+  const ziele = [];
+  wurzel.traverse(o => { if (o.isMesh && !o.userData.decal && o.visible) { const b = new THREE.Box3().setFromObject(o); if (b.intersectsBox(kasten)) ziele.push(o); } });
+  for (const z of ziele) {
+    const geo = new DecalGeometry(z, pos, dreh, groesse);
+    if (!geo.attributes.position || geo.attributes.position.count === 0) continue;
+    const dm = new THREE.Mesh(geo, m); dm.userData.decal = true; dm.renderOrder = 2;
+    szene.add(dm);
+  }
+}
+
+// Strahl gegen das Modell: erster Treffer von außen
+const strahl = new THREE.Raycaster();
+function treffer(wurzel, von, richtung) {
+  strahl.set(von, richtung.clone().normalize());
+  const t = strahl.intersectObject(wurzel, true).find(h => !h.object.userData.decal);
+  return t ? t.point : null;
+}
+
+function textLeinwand(zeilen, b = 2048, h = 256) {
+  const [c, ctx] = leinwand(b, h);
+  for (const z of zeilen) {
+    let gr = z.groesse;
+    const setzen = () => { ctx.font = `${z.gewicht || 700} ${gr}px "Segoe UI", Roboto, Arial, sans-serif`; ctx.letterSpacing = `${(z.abstand ?? 0.15) * gr}px`; };
+    ctx.save(); ctx.fillStyle = z.farbe; setzen();
+    while (gr > 20 && ctx.measureText(z.text).width > b * 0.94) { gr *= 0.92; setzen(); }
+    ctx.textAlign = z.align || "left"; ctx.textBaseline = "middle";
+    ctx.fillText(z.text, z.x, z.y); ctx.restore();
+  }
+  return c;
+}
+
+async function glbBauen(typ) {
+  const cfg = MODELLE[typ];
+  const lader = new GLTFLoader(); lader.setMeshoptDecoder(MeshoptDecoder);
+  const gltf = await lader.loadAsync(`${D.basis}modelle/${typ}.glb?v=${D.v || 1}`);
+  const roh = gltf.scene;
+  // Ausrichten: Längsachse → x, Nase → -x; auf echte Länge skalieren; Mitte in den Ursprung, Unterkante auf y = boden
+  const halter = new THREE.Group(); halter.add(roh);
+  if (cfg.achse === "z") roh.rotation.y = cfg.nase > 0 ? -Math.PI / 2 : Math.PI / 2;
+  else if (cfg.nase > 0) roh.rotation.y = Math.PI;
+  halter.updateMatrixWorld(true);
+  let box = new THREE.Box3().setFromObject(halter);
+  const s = cfg.laenge / (box.max.x - box.min.x);
+  roh.scale.multiplyScalar(s); halter.updateMatrixWorld(true);
+  box = new THREE.Box3().setFromObject(halter);
+  const mitte = box.getCenter(new THREE.Vector3());
+  roh.position.sub(new THREE.Vector3(mitte.x, box.min.y, mitte.z).divideScalar(1));
+  halter.updateMatrixWorld(true);
+  box = new THREE.Box3().setFromObject(halter);
+  szene.add(halter); halter.updateMatrixWorld(true);
+  const L = cfg.laenge, Hh = box.max.y - box.min.y, ak = "#" + AKZENT.getHexString();
+
+  // Materialien: Flugzeuge ausbleichen, Logos ersetzen; Autos: Lack einfärben
+  const S = cfg.art === "auto" ? D.sonder : null;
+  const lackFarbe = S ? (S.grund || "#eef0f3") : (D.farbe || "#0c0f14");
+  roh.traverse(o => {
+    if (!o.isMesh) return;
+    const vc = o.geometry.attributes.color;
+    if (vc && cfg.art !== "auto") {   // Eckpunktfarben (Rumpf-Lackierung mancher Modelle) ebenfalls ausbleichen
+      const c = new THREE.Color(), hsl = {};
+      for (let i = 0; i < vc.count; i++) { c.fromBufferAttribute(vc, i); c.getHSL(hsl); if (hsl.s > 0.25 && hsl.l > 0.12) vc.setXYZ(i, 0.93, 0.94, 0.95); }
+      vc.needsUpdate = true;
+    }
+    o.material = [].concat(o.material).map(m => {
+      const name = (m.name || "") + " " + o.name;
+      if (cfg.logo && cfg.logo.test(name)) return lack(AKZENT, 0.3);
+      if (cfg.art !== "auto") {
+        m = m.clone();
+        if (m.map) m.map = ausbleichen(m.map, cfg.art);
+        const hsl = {}; m.color.getHSL(hsl);
+        if (hsl.s > 0.25 && hsl.l > 0.12 && hsl.l < 0.9) m.color.set(0xf2f3f5);   // Airline-Farbe → Weiß
+        if (cfg.art === "heli") { m.color.set(0xffffff); m.metalness = Math.min(m.metalness, 0.2); m.roughness = 0.45; }
+        return m;
+      }
+      if (cfg.lack && cfg.lack.test(name)) { const n = lack(lackFarbe, 0.2); n.name = m.name; return n; }
+      return m;
+    });
+    if (o.material.length === 1) o.material = o.material[0];
+  });
+
+  const nase = x => -L / 2 + x * L;   // Anteil der Länge ab der Nase → x
+  if (cfg.art !== "auto") {
+    // Rumpf vermessen: oben/unten bei 35 % und Seite (z) in Rumpfmitte
+    const fx = nase(0.35), oben = treffer(halter, new THREE.Vector3(fx, box.max.y + 5, 0), new THREE.Vector3(0, -1, 0));
+    const unten = treffer(halter, new THREE.Vector3(fx, box.min.y - 5, 0), new THREE.Vector3(0, 1, 0));
+    const yO = oben ? oben.y : box.min.y + Hh * 0.6, yU = unten ? unten.y : box.min.y + Hh * 0.2;
+    const Dm = yO - yU, yM = (yO + yU) / 2;
+    const gross = cfg.art === "heli";
+    for (const seite of [1, -1]) {
+      const dreh = new THREE.Euler(0, seite > 0 ? 0 : Math.PI, 0);
+      const seitlich = (x, y) => treffer(halter, new THREE.Vector3(x, y, seite * (Dm * 4 + 10)), new THREE.Vector3(0, 0, -seite));
+      // Titel über den Fenstern
+      const tx = nase(gross ? 0.42 : 0.33), ty = yM + Dm * (gross ? 0.05 : 0.26);
+      const p1 = seitlich(tx, ty);
+      if (p1) abziehbild(halter, textLeinwand([{ text: "IMPERIUM GERMANICUM", x: 1024, y: 128, groesse: 150, farbe: "#1a2230", align: "center", abstand: 0.2 }]),
+        p1, dreh, new THREE.Vector3(L * (gross ? 0.36 : 0.3), Dm * (gross ? 0.12 : 0.14), Dm * 0.3));
+      // Behördenname unter den Fenstern
+      const p2 = seitlich(tx, yM - Dm * (gross ? 0.12 : 0.06));
+      if (p2) abziehbild(halter, textLeinwand([{ text: (D.behoerde || "").toUpperCase(), x: 1024, y: 128, groesse: 104, farbe: ak, align: "center", gewicht: 600, abstand: 0.14 }]),
+        p2, dreh, new THREE.Vector3(L * (gross ? 0.36 : 0.26), Dm * 0.09, Dm * 0.3));
+      // Zierlinie Schwarz-Gold entlang des Rumpfs
+      const [zc, zx] = leinwand(2048, 64); zx.fillStyle = SCHWARZ; zx.fillRect(0, 0, 2048, 28); zx.fillStyle = GOLD; zx.fillRect(0, 30, 2048, 34);
+      const p3 = seitlich(nase(0.47), yM - Dm * 0.2);
+      if (p3 && !gross) abziehbild(halter, zc, p3, dreh, new THREE.Vector3(L * 0.72, Dm * 0.05, Dm * 0.45));
+      // Kennung am Heck, Taufname an der Nase
+      const p4 = seitlich(nase(0.8), yM + Dm * 0.08);
+      if (p4 && D.kennung) abziehbild(halter, textLeinwand([{ text: D.kennung, x: 1024, y: 128, groesse: 170, farbe: "#2a3140", align: "center", abstand: 0.06 }]),
+        p4, dreh, new THREE.Vector3(L * 0.1, Dm * 0.11, Dm * 0.3));
+      const p5 = seitlich(nase(0.13), yM + Dm * 0.06);
+      if (p5 && D.name && !gross) abziehbild(halter, textLeinwand([{ text: D.name, x: 1024, y: 128, groesse: 130, farbe: "#2a3140", align: "center", gewicht: 500, abstand: 0.02 }]),
+        p5, dreh, new THREE.Vector3(L * 0.1, Dm * 0.07, Dm * 0.3));
+    }
+    // Leitwerk: Hausfarbe, Goldband, weißer Reichsadler
+    const finX = nase(gross ? 0.93 : 0.91), finUnten = yO + Dm * 0.12, finOben = box.max.y;
+    const [fc, fx2] = leinwand(1024, 1024);
+    fx2.fillStyle = ak; fx2.fillRect(0, 0, 1024, 1024); fx2.fillStyle = GOLD; fx2.fillRect(0, 210, 1024, 44); fx2.fillStyle = SCHWARZ; fx2.fillRect(0, 254, 1024, 26);
+    adler(fx2, 512, 610, 420, "#ffffff");
+    if (finOben > finUnten) abziehbild(halter, fc, new THREE.Vector3(finX, (finUnten + finOben) / 2, 0), new THREE.Euler(0, 0, 0),
+      new THREE.Vector3(L * (gross ? 0.14 : 0.2), finOben - finUnten, Dm * 1.2));
+  } else {
+    // Straßenfahrzeuge: Standarten (Leitung), Behördenstreifen und Blaulicht (Polizei, Zoll, KatS)
+    const W2 = (box.max.z - box.min.z) / 2;
+    if (S) {
+      for (const seite of [1, -1]) {
+        const dreh = new THREE.Euler(0, seite > 0 ? 0 : Math.PI, 0);
+        const p = treffer(halter, new THREE.Vector3(0, box.min.y + Hh * 0.42, seite * (W2 + 3)), new THREE.Vector3(0, 0, -seite));
+        if (!p) continue;
+        const [sc, sx] = leinwand(2048, 256);
+        sx.fillStyle = S.streifen; sx.fillRect(0, 40, 2048, 150); sx.fillStyle = S.zweit || S.streifen; sx.fillRect(0, 190, 2048, 30);
+        sx.fillStyle = "#fff"; sx.font = '800 108px "Segoe UI", Roboto, Arial, sans-serif'; sx.textAlign = "center"; sx.textBaseline = "middle"; sx.letterSpacing = "14px";
+        sx.fillText(S.text, 1024, 118);
+        abziehbild(halter, sc, p, dreh, new THREE.Vector3(L * 0.92, Hh * 0.2, W2 * 0.3));
+      }
+      const dachY = treffer(halter, new THREE.Vector3(nase(0.45), box.max.y + 3, 0), new THREE.Vector3(0, -1, 0));
+      const balken = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, W2 * 1.1), new THREE.MeshStandardMaterial({ color: S.licht || 0x1e5bff, emissive: S.licht || 0x1e5bff, emissiveIntensity: 1.3 }));
+      balken.position.set(nase(0.45), (dachY ? dachY.y : box.max.y) + 0.05, 0); szene.add(balken);
+    } else if (typ !== "vklasse" && typ !== "sprinter") {
+      const [fc, fx] = leinwand(256, 160);
+      fx.fillStyle = GOLD; fx.fillRect(0, 0, 256, 160); fx.fillStyle = SCHWARZ; fx.fillRect(0, 0, 256, 18); fx.fillRect(0, 142, 256, 18);
+      adler(fx, 128, 80, 120, SCHWARZ);
+      const ft = textur(fc); ft.flipY = true;
+      for (const seite of [1, -1]) {
+        const vx = nase(0.1), oben = treffer(halter, new THREE.Vector3(vx, box.max.y + 3, seite * W2 * 0.72), new THREE.Vector3(0, -1, 0));
+        const y0 = oben ? oben.y : box.min.y + Hh * 0.55;
+        const stab = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.32, 8), chrom); stab.position.set(vx, y0 + 0.16, seite * W2 * 0.72);
+        const fahne = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.16), new THREE.MeshStandardMaterial({ map: ft, side: THREE.DoubleSide, roughness: 0.8 }));
+        fahne.position.set(vx + 0.14, y0 + 0.25, seite * W2 * 0.72); szene.add(stab, fahne);
+      }
+    }
+  }
+  return { modell: halter, groesse: cfg.art === "auto" ? L * 1.25 : Math.max(L, box.max.z - box.min.z), boden: cfg.art === "auto" };
+}
+
 // ------------------------------------------------------------ Aufbau
 async function bauen() {
   await adlerGeladen;
   let e;
-  if (FLUGZEUGE[D.typ]) e = flugzeug(FLUGZEUGE[D.typ]);
-  else if (D.typ === "h225") e = hubschrauber();
-  else e = wagen(WAGEN[D.typ] || WAGEN.sklasse);
+  if (MODELLE[D.typ]) {
+    try { e = await glbBauen(D.typ); }
+    catch (err) { console.warn("Modell nicht geladen, eigenes Modell als Ersatz:", err); e = null; }
+  }
+  if (!e) {
+    if (FLUGZEUGE[D.typ]) e = flugzeug(FLUGZEUGE[D.typ]);
+    else if (D.typ === "h225") e = hubschrauber();
+    else e = wagen(WAGEN[D.typ] || WAGEN.sklasse);
+  }
   szene.add(e.modell);
   // Bodenschatten (weicher Kreis) unter dem Modell
   const [c, g] = leinwand(256, 256);
