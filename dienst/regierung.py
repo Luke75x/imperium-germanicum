@@ -293,7 +293,9 @@ main.rw-main{max-width:1180px;margin:0 auto;padding:22px clamp(16px,3vw,32px) 56
 RAHMEN_JS = """<script>(function(){var b=document.querySelector('.rw-menue'),k=document.querySelector('.rw-kopf');if(b&&k)b.addEventListener('click',function(){
 k.classList.toggle('offen');var i=k.querySelector('.rw-suche input');if(i&&k.classList.contains('offen'))i.focus()});
 var a=document.querySelector('.rw-nav a.aktiv');if(a&&a.scrollIntoView)a.scrollIntoView({block:'nearest',inline:'center'});
-addEventListener('pageshow',function(e){if(e.persisted)location.reload()})})()</script>"""
+addEventListener('pageshow',function(e){if(e.persisted)location.reload()});
+/* Selbstheilung: alte, im Browser gespeicherte 301 von /regierung/ (erste Fassung) einmalig am Cache vorbei überschreiben */
+try{if(!localStorage.getItem('rg-heil-1')){fetch('/regierung/',{cache:'reload',credentials:'same-origin'}).then(function(r){if(!r.redirected&&r.ok){fetch('/regierung',{cache:'reload',credentials:'same-origin'});localStorage.setItem('rg-heil-1','1');var n=performance.getEntriesByType?performance.getEntriesByType('navigation')[0]:null;if(n&&n.redirectCount>0&&location.pathname==='/regierung/generalkonsulat/'&&!location.search&&!/generalkonsulat/.test(document.referrer))location.replace('/regierung/')}})}}catch(e){}})()</script>"""
 
 
 def _nav_regierung(k):
@@ -309,7 +311,7 @@ def portal_regierung(k):
     return {"basis": PFAD, "logo": "regierung", "name": "Die Reichsregierung", "start": "Reichsregierung", "nav": _nav_regierung(k)}
 
 
-def rahmen(request, k, titel, aktiv, inhalt, portal=None, krumen=None, q="", status=200):
+def rahmen(request, k, titel, aktiv, inhalt, portal=None, krumen=None, q="", status=200, cache="no-store"):
     """Ganze Seite. portal: {basis, logo (Logoschlüssel oder None), name, start, nav: [(Text, URL, [(Schlüssel, Text, URL)])], suche_url};
     ohne portal → Startseite der Reichsregierung. Unterpunkte (zweite Ebene) erscheinen, wenn der aktive Hauptpunkt mehr als einen hat."""
     p = portal or portal_regierung(k)
@@ -367,7 +369,7 @@ def rahmen(request, k, titel, aktiv, inhalt, portal=None, krumen=None, q="", sta
 <meta name="theme-color" content="#1f2f45"><title>{esc(titel)} – {esc(p["name"])}</title><style>{amt.CSS}</style>{glas}{CSS}{RAHMEN_CSS}</head>
 <body>{meta}{kopf_html}{nav}{unter}{krumen_html}
 <main class="rw-main" id="inhalt">{note}{inhalt}</main>{fuss}{RAHMEN_JS}</body></html>"""
-    return web.Response(status=status, text=seite, content_type="text/html", headers={"Cache-Control": "no-store"})
+    return web.Response(status=status, text=seite, content_type="text/html", headers={"Cache-Control": cache})
 
 
 # ---------------------------------------------------------------- Meldungen (eigene + Ministerien mit eigenem Webauftritt)
@@ -411,8 +413,14 @@ async def logo(request):
     return web.FileResponse(pfad, headers={"Cache-Control": "no-cache"})
 
 
+def umleiten(url):
+    """Nur vorübergehende, nie gespeicherte Weiterleitungen: eine 301 ohne Cache-Regel behalten Browser für immer
+    (so blieb /regierung/ → /regierung/generalkonsulat/ aus der ersten Fassung hängen)."""
+    raise web.HTTPFound(url, headers={"Cache-Control": "no-store"})
+
+
 async def ohne_schraegstrich(request):
-    raise web.HTTPMovedPermanently(PFAD)
+    umleiten(PFAD)
 
 
 def ministerium_url(b):
@@ -458,7 +466,7 @@ async def start(request):
     personen = "".join(_person(n, "Der Souverän – Imperator Rex") for n in souv) + "".join(_person(n, "Der Kronkanzler") for n in kanzler)
     regierung = (f'<section class="rg-abschnitt"><h2>Die Reichsregierung <a href="{PFAD}reichsregierung/">Zum Kabinett</a></h2>'
                  f'<div class="rg-karten">{personen or "<p class=leer>Keine Angaben.</p>"}</div></section>')
-    return rahmen(request, k, "Startseite", "r-start", held + hinweise + ministerien + newsroom + regierung)
+    return rahmen(request, k, "Startseite", "r-start", held + hinweise + ministerien + newsroom + regierung, cache="private, no-cache")
 
 
 def _person(n, amt_):
@@ -510,7 +518,7 @@ async def meldung(request):
     if not m or (m["status"] != "veroeffentlicht" and not ist_redaktion(k)):
         raise web.HTTPNotFound(text="Meldung nicht gefunden.")
     if m["ressort"]:
-        raise web.HTTPMovedPermanently(f'{PFAD}{m["ressort"]}/meldungen/{m["id"]}/')
+        umleiten(f'{PFAD}{m["ressort"]}/meldungen/{m["id"]}/')
     return rahmen(request, k, m["titel"], "r-aktuelles", _meldung_html(m, k, f'{PFAD}intern/{m["id"]}/' if ist_redaktion(k) else ""),
                   krumen=[("Aktuelles", PFAD + "aktuelles/"), (m["titel"], None)])
 
@@ -808,11 +816,11 @@ async def m_redaktion_loeschen(request):
 
 
 async def alt_ressorts(request):
-    raise web.HTTPMovedPermanently(PFAD + "ministerien/")
+    umleiten(PFAD + "ministerien/")
 
 
 async def alt_ressort(request):
-    raise web.HTTPMovedPermanently(f'{PFAD}{request.match_info["schl"]}/')
+    umleiten(f'{PFAD}{request.match_info["schl"]}/')
 
 
 def registrieren(app):

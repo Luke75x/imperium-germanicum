@@ -341,7 +341,7 @@ async def logo(request):
 
 
 async def weiterleiten(request):
-    raise web.HTTPMovedPermanently(PFAD)
+    regierung.umleiten(PFAD + "?von=alt")
 
 
 async def start(request):
