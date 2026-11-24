@@ -393,7 +393,7 @@ const MODELLE = {
   global: { achse: "z", nase: 1, laenge: 33.8, art: "flug" },
   h225: { achse: "z", nase: 1, laenge: 18.7, art: "heli" },
   sklasse: { achse: "z", nase: 1, laenge: 5.47, art: "auto", lack: /paint/i },
-  a8: { achse: "z", nase: 1, laenge: 5.45, art: "auto", lack: /a8texture12__(prim|sec)/i },
+  a8: { achse: "z", nase: -1, laenge: 5.45, art: "auto", lack: /a8texture12__(prim|sec)/i },
   bmw7: { achse: "x", nase: 1, laenge: 5.39, art: "auto", lack: /paint|body|AliceBlue/i },
   vklasse: { achse: "z", nase: 1, laenge: 5.14, art: "auto", lack: /carpaint/i },
   sprinter: { achse: "z", nase: 1, laenge: 5.93, art: "auto", lack: /CarPaint|FrontColor/i },
