@@ -119,6 +119,7 @@ def erstellen():
     import generalkonsulat
     regierung.registrieren(app)
     generalkonsulat.registrieren(app)
+    regierung.registrieren_ministerien(app)
     return app
 
 

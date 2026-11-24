@@ -241,21 +241,19 @@ _AKTIV = [("intern/antraege/", "gi-antraege"), ("intern/meldungen/", "gi-meldung
 
 
 def _portal(k):
-    gruppen = [("Generalkonsulat", [("g-start", "house", "Übersicht", ""), ("g-meldungen", "newspaper", "Meldungen", "meldungen/"),
-                                    ("g-laender", "globe", "Länder & Reisen", "laender/"), ("g-warn", "triangle-alert", "Reisewarnungen", "reisewarnungen/"),
-                                    ("g-vertraege", "scroll-text", "Verträge", "vertraege/"), ("g-ueber", "info", "Über uns", "das-generalkonsulat/")]),
-               ("Konsularischer Service", [("g-service", "stamp", "Anträge stellen", "service/"), ("g-antraege", "file-text", "Meine Anträge", "service/meine-antraege/"),
-                                           ("g-vorsorge", "life-buoy", "Krisenvorsorgeliste", "krisenvorsorge/")])]
+    nav = [("Übersicht", "", [("g-start", "Übersicht", ""), ("g-ueber", "Über uns", "das-generalkonsulat/")]),
+           ("Meldungen", "meldungen/", [("g-meldungen", "Meldungen", "meldungen/")]),
+           ("Länder & Reisen", "laender/", [("g-laender", "Länder A–Z", "laender/"), ("g-warn", "Reisewarnungen", "reisewarnungen/")]),
+           ("Verträge", "vertraege/", [("g-vertraege", "Verträge", "vertraege/")]),
+           ("Konsularischer Service", "service/", [("g-service", "Anträge stellen", "service/"), ("g-antraege", "Meine Anträge", "service/meine-antraege/"),
+                                                    ("g-vorsorge", "Krisenvorsorgeliste", "krisenvorsorge/")])]
     if ist_mitarbeiter(k):
-        gruppen.append(("Intern", [("gi-start", "layout-dashboard", "Übersicht", "intern/"), ("gi-antraege", "inbox", "Anträge", "intern/antraege/"),
-                                   ("gi-meldungen", "pencil", "Meldungen", "intern/meldungen/"), ("gi-laender", "globe", "Länder", "intern/laender/"),
-                                   ("gi-vertraege", "scroll-text", "Verträge", "intern/vertraege/"), ("gi-vorsorge", "life-buoy", "Krisenvorsorge", "intern/krisenvorsorge/"),
-                                   ("gi-protokoll", "clock", "Protokoll", "intern/protokoll/")]))
-    gruppen.append(("Die Reichsregierung", [("r", "arrow-left", "Zur Reichsregierung", "/regierung/")]))
-    return {"basis": PFAD, "logo": "generalkonsulat", "name": "Kaiserliches Generalkonsulat", "start": "Generalkonsulat", "gruppen": gruppen,
-            "suche_url": PFAD + "suche/",
-            "haupt": [("g-start", "house", "Start", ""), ("g-laender", "globe", "Länder", "laender/"), ("g-service", "stamp", "Service", "service/"),
-                      ("g-meldungen", "newspaper", "Meldungen", "meldungen/")]}
+        nav.append(("Intern", "intern/", [("gi-start", "Übersicht", "intern/"), ("gi-antraege", "Anträge", "intern/antraege/"),
+                                          ("gi-meldungen", "Meldungen", "intern/meldungen/"), ("gi-laender", "Länder", "intern/laender/"),
+                                          ("gi-vertraege", "Verträge", "intern/vertraege/"), ("gi-vorsorge", "Krisenvorsorge", "intern/krisenvorsorge/"),
+                                          ("gi-protokoll", "Protokoll", "intern/protokoll/")]))
+    return {"basis": PFAD, "logo": "generalkonsulat", "name": "Kaiserliches Generalkonsulat", "start": "Generalkonsulat", "nav": nav,
+            "suche_url": PFAD + "suche/"}
 
 
 _KR = re.compile(r'<template data-krumen="([^"]*)"></template>')
@@ -276,6 +274,8 @@ def _antwort(request, k, aktiv, titel, inhalt, q=""):
     if m:
         krumen = [tuple(x) for x in json.loads(html.unescape(m.group(1)))]
         inhalt = _KR.sub("", inhalt)
+    if schl == "g-start" and krumen is None:
+        krumen = []
     return regierung.rahmen(request, k, titel, schl, CSS + inhalt, portal=_portal(k), krumen=krumen, q=q)
 
 

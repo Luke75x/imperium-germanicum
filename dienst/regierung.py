@@ -34,7 +34,13 @@ import config
 esc = html.escape
 PFAD = "/regierung/"
 LOGO_ORDNER = os.path.join(config.HIER, "amt_logos")
-LOGOS_ERLAUBT = {"regierung", "generalkonsulat", "kanzler", "reichsbehoerden", "schatzamt"}
+LOGO_SCHLUESSEL = {"kanzlei": "kanzler"}   # Ministerium → Logodatei, wenn der Name abweicht
+
+
+def logo_von(schl):
+    """Logoschlüssel eines Ministeriums, wenn es ein Amtslogo gibt (amt_logos/<schl>-kopf.png), sonst None."""
+    n = LOGO_SCHLUESSEL.get(schl, schl)
+    return n if os.path.isfile(os.path.join(LOGO_ORDNER, n + "-kopf.png")) else None
 ROLLE_SOUVERAEN = "1522685953054081054"
 MELDUNGSARTEN = {"pressemitteilung": "Pressemitteilung", "artikel": "Artikel", "rede": "Rede", "kabinett": "Kabinettsbeschluss"}
 # Ressorts mit eigenem Webauftritt (Schlüssel aus reichsbehoerden.py → Pfad)
@@ -85,7 +91,11 @@ CSS = """<style>
 main .rg-held h2,main .rg-held .rg-held-text h2{border:0!important;color:#fff!important;font-size:clamp(22px,3vw,30px)!important;line-height:1.2!important;margin:10px 0 12px!important;padding:0!important;text-transform:none!important;letter-spacing:-.01em!important;font-weight:650!important;display:block!important}
 .rg-held p{color:rgba(255,255,255,.82);margin:0 0 16px;font-size:15.5px}.rg-held .rg-datum{color:rgba(255,255,255,.65)}
 .rg-held .rg-held-bild{display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.14),transparent 65%);padding:24px}
-.rg-held .rg-held-bild img{width:min(100%,260px);height:auto;filter:brightness(0) invert(1);opacity:.92}
+.rg-held .rg-held-bild img{width:min(100%,220px);height:auto;filter:brightness(0) invert(1);opacity:.92}
+.rg-held .rg-knoepfe{margin-top:6px}
+html:root .rg-held .btn{background:#fff;color:var(--kopf);border-color:#fff}
+html:root .rg-held .btn.zweit{background:transparent;color:#fff;border-color:rgba(255,255,255,.45);box-shadow:none}
+.rg-held .rg-held-bild img{clip-path:inset(0 26% 0 0);transform:translateX(13%)}
 @media(max-width:800px){.rg-held{grid-template-columns:1fr}.rg-held .rg-held-bild{display:none}}
 .rg-abschnitt{margin:0 0 34px}
 .rg-abschnitt>h2{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
@@ -126,6 +136,8 @@ a.rg-karte:hover{border-color:#c6ccd6;box-shadow:0 8px 22px -14px rgba(16,24,40,
 .rg-knoepfe{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .rg-ok{border:1px solid var(--linie);border-left:4px solid var(--ok);background:var(--hell);padding:10px 14px;margin:0 0 16px;border-radius:8px}
 .rg-ok.fehler{border-left-color:var(--rot)}
+.rg-gruppe{font-size:13px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--grau);margin:22px 0 10px}
+.rg-knoepfe .btn.zweit{color:var(--ink)}
 .rg-fuss{margin-top:48px;padding-top:16px;border-top:1px solid var(--linie);display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--grau)}
 .rg-fuss a{color:var(--grau);text-decoration:none}.rg-fuss a:hover{color:var(--ink)}
 @media(max-width:800px){.rg-fuss{margin-bottom:calc(var(--tab) + 28px)}}
@@ -141,6 +153,8 @@ def ist_redaktion(k):
 
 def einrichten(con):
     con.executescript(SCHEMA)
+    if "ressort" not in [r[1] for r in con.execute("PRAGMA table_info(regierung_meldungen)")]:
+        con.execute("ALTER TABLE regierung_meldungen ADD COLUMN ressort TEXT NOT NULL DEFAULT ''")
     con.commit()
 
 
@@ -223,97 +237,151 @@ def kopf(titel, lead="", art=""):
             f'{f"<p class=rg-lead>{lead}</p>" if lead else ""}</div>')
 
 
-# ---------------------------------------------------------------- Rahmen
+# ---------------------------------------------------------------- Rahmen (Website-Aufbau: Meta-Leiste, Kopf, Navigation, Fuß)
 
-def _gruppen_regierung(k):
-    g = [("Reichsregierung", [("r-start", "house", "Startseite", ""), ("r-aktuelles", "newspaper", "Aktuelles", "aktuelles/"),
-                              ("r-regierung", "landmark", "Die Reichsregierung", "reichsregierung/"), ("r-ressorts", "building", "Die Ressorts", "ressorts/")]),
-         ("Webauftritte der Ressorts", [("r-gk", "globe", "Generalkonsulat", "generalkonsulat/"), ("r-sa", "wallet", "Schatzamt", "/schatzamt/")]),
-         ("Service", [("r-suche", "search", "Suche", "suche/")])]
+RAHMEN_CSS = """<style>
+html:root body{padding-bottom:0}
+.rw-wrap{width:100%;max-width:1180px;margin:0 auto;padding:0 clamp(16px,3vw,32px);box-sizing:border-box}
+.rw-meta{background:var(--kopf);color:rgba(255,255,255,.78);font-size:13px}
+.rw-meta .rw-wrap{display:flex;align-items:center;gap:16px;min-height:38px}
+.rw-meta a,.rw-meta button{color:rgba(255,255,255,.82);text-decoration:none;background:none;border:0;font:inherit;cursor:pointer;padding:0;display:inline-flex;gap:6px;align-items:center}
+.rw-meta a:hover,.rw-meta button:hover{color:#fff}.rw-meta .icon{width:15px;height:15px}
+.rw-meta .rw-raum{flex:1}.rw-meta form{margin:0;display:inline}
+.rw-meta .rw-ooc{background:#f2c94c;color:#1b1b1b;border-radius:999px;padding:1px 9px;font-weight:700;font-size:11px;letter-spacing:.06em}
+.rw-kopf{background:var(--glas-dicht,rgba(255,255,255,.86));-webkit-backdrop-filter:var(--glas-blur,blur(14px));backdrop-filter:var(--glas-blur,blur(14px));
+ border-bottom:1px solid var(--glas-linie,var(--linie))}
+.rw-kopf .rw-wrap{display:flex;align-items:center;gap:18px;min-height:92px}
+.rw-logo{line-height:0;flex:none}.rw-logo img{height:58px;width:auto;max-width:min(62vw,340px);object-fit:contain;object-position:left}
+.rw-name{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink)}.rw-name img{height:58px;width:auto}
+.rw-name b{font-size:19px;line-height:1.2;font-weight:600;max-width:340px}
+.rw-kopf .rw-raum{flex:1}
+.rw-suche{display:flex;align-items:center;position:relative;margin:0}.rw-suche .icon{position:absolute;left:12px;color:#8b8f96;pointer-events:none}
+.rw-suche input{width:260px;border:1px solid var(--linie);border-radius:999px;padding:9px 14px 9px 38px;font:inherit;font-size:14px;background:rgba(255,255,255,.7)}
+.rw-menue{all:unset;cursor:pointer;width:44px;height:44px;border-radius:50%;place-items:center;display:none}
+.rw-nav{position:sticky;top:0;z-index:20;background:var(--glas-kopf,rgba(255,255,255,.8));-webkit-backdrop-filter:var(--glas-blur,blur(14px));backdrop-filter:var(--glas-blur,blur(14px));
+ border-bottom:1px solid var(--glas-linie,var(--linie));box-shadow:0 6px 18px -14px rgba(16,24,40,.25)}
+.rw-nav .rw-wrap{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.rw-nav a{padding:14px 14px 12px;color:#3a3e45;text-decoration:none;font-weight:500;font-size:15px;white-space:nowrap;border-bottom:3px solid transparent}
+.rw-nav a:hover{color:var(--ink)}.rw-nav a.aktiv{color:var(--ink);border-bottom-color:var(--akzent);font-weight:650}
+.rw-unter{margin:18px 0 0}
+.rw-unter .rw-wrap{display:flex}
+.rw-unter nav{display:inline-flex;gap:4px;padding:4px;background:rgba(22,23,26,.05);border-radius:999px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.rw-unter a{padding:7px 15px;border-radius:999px;color:var(--grau);text-decoration:none;white-space:nowrap;font-size:14px}
+.rw-unter a:hover{background:rgba(255,255,255,.6);color:var(--ink)}
+.rw-unter a.aktiv{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 2px 8px rgba(16,24,40,.12),inset 0 1px 0 #fff}
+.rw-krumen{margin-top:16px;font-size:13px;color:var(--grau);display:flex;flex-wrap:wrap;gap:6px}
+.rw-krumen a{color:var(--grau);text-decoration:none}.rw-krumen a:hover{color:var(--ink)}.rw-krumen span[aria-current]{color:var(--ink)}
+main.rw-main{max-width:1180px;margin:0 auto;padding:22px clamp(16px,3vw,32px) 56px;box-sizing:border-box;animation:none}
+.rw-fuss{background:var(--kopf);color:rgba(255,255,255,.72);font-size:14px;margin-top:20px}
+.rw-fuss .rw-spalten{display:grid;grid-template-columns:1.2fr 2fr 1fr;gap:32px;padding-top:40px;padding-bottom:28px}
+.rw-fuss h3{color:#fff;font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 12px;font-weight:650}
+.rw-fuss ul{list-style:none;margin:0;padding:0}.rw-fuss li{padding:3px 0}
+.rw-fuss .rw-min{columns:2;column-gap:24px}
+.rw-fuss a{color:rgba(255,255,255,.78);text-decoration:none}.rw-fuss a:hover{color:#fff}
+.rw-fuss img{height:46px;width:auto;filter:brightness(0) invert(1);opacity:.92;margin-bottom:10px}
+.rw-fuss .rw-unten{border-top:1px solid rgba(255,255,255,.14);padding-top:14px;padding-bottom:18px;display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px}
+@media(max-width:860px){
+ .rw-kopf .rw-wrap{min-height:70px;gap:10px}.rw-logo img,.rw-name img{height:44px}.rw-name b{font-size:16px}
+ .rw-suche{display:none}.rw-menue{display:grid}
+ .rw-kopf.offen .rw-suche{display:flex;position:absolute;left:12px;right:12px;top:calc(100% + 6px);z-index:30}.rw-kopf{position:relative}
+ .rw-kopf.offen .rw-suche input{width:100%;font-size:16px;box-shadow:0 10px 30px -10px rgba(16,24,40,.4);background:#fff}
+ .rw-fuss .rw-spalten{grid-template-columns:1fr}.rw-fuss .rw-min{columns:1}
+ .rw-meta .rw-weg{display:none}
+}
+</style>"""
+
+RAHMEN_JS = """<script>(function(){var b=document.querySelector('.rw-menue'),k=document.querySelector('.rw-kopf');if(b&&k)b.addEventListener('click',function(){
+k.classList.toggle('offen');var i=k.querySelector('.rw-suche input');if(i&&k.classList.contains('offen'))i.focus()});
+var a=document.querySelector('.rw-nav a.aktiv');if(a&&a.scrollIntoView)a.scrollIntoView({block:'nearest',inline:'center'});
+addEventListener('pageshow',function(e){if(e.persisted)location.reload()})})()</script>"""
+
+
+def _nav_regierung(k):
+    nav = [("Startseite", "", [("r-start", "Startseite", "")]), ("Aktuelles", "aktuelles/", [("r-aktuelles", "Aktuelles", "aktuelles/")]),
+           ("Die Reichsregierung", "reichsregierung/", [("r-regierung", "Die Reichsregierung", "reichsregierung/")]),
+           ("Ministerien", "ministerien/", [("r-ministerien", "Ministerien", "ministerien/")])]
     if ist_redaktion(k):
-        g[2][1].append(("r-intern", "pencil", "Redaktion", "intern/"))
-    return g
+        nav.append(("Redaktion", "intern/", [("r-intern", "Redaktion", "intern/")]))
+    return nav
 
 
-PORTAL_REGIERUNG = {"basis": PFAD, "logo": "regierung", "name": "Die Reichsregierung", "start": "Reichsregierung",
-                    "haupt": [("r-start", "house", "Start", ""), ("r-aktuelles", "newspaper", "Aktuelles", "aktuelles/"),
-                              ("r-regierung", "landmark", "Regierung", "reichsregierung/"), ("r-ressorts", "building", "Ressorts", "ressorts/")]}
+def portal_regierung(k):
+    return {"basis": PFAD, "logo": "regierung", "name": "Die Reichsregierung", "start": "Reichsregierung", "nav": _nav_regierung(k)}
 
 
 def rahmen(request, k, titel, aktiv, inhalt, portal=None, krumen=None, q="", status=200):
-    """Ganze Seite im Stil der Amtsseite. portal: {basis, logo, name, start, gruppen, haupt, suche_url}; ohne → Reichsregierung.
-    krumen: [(Text, URL oder None)] nach dem Portalnamen."""
-    p = dict(PORTAL_REGIERUNG, gruppen=_gruppen_regierung(k)) if portal is None else portal
+    """Ganze Seite. portal: {basis, logo (Logoschlüssel oder None), name, start, nav: [(Text, URL, [(Schlüssel, Text, URL)])], suche_url};
+    ohne portal → Startseite der Reichsregierung. Unterpunkte (zweite Ebene) erscheinen, wenn der aktive Hauptpunkt mehr als einen hat."""
+    p = portal or portal_regierung(k)
     basis = p["basis"]
-
-    def ziel(pfad):
-        return pfad if pfad.startswith("/") else basis + pfad
-
-    def ein(schl, sym, text, pfad):
-        cur = ' aria-current="page"' if schl == aktiv else ""
-        return f'<a class="ein{" aktiv" if schl == aktiv else ""}" href="{ziel(pfad)}"{cur}>{ic(sym)}<span>{esc(text)}</span></a>'
-
-    nav = "".join(f'<div class="gruppe"><p class="gruppe-titel">{esc(t)}</p>{"".join(ein(*e) for e in es)}</div>' for t, es in p["gruppen"])
-    haupt = p["haupt"][:4]
-    im_menue = aktiv not in {e[0] for e in haupt}
-    tabs = "".join(f'<a href="{ziel(pf)}" class="{"aktiv" if s == aktiv else ""}"{" aria-current=page" if s == aktiv else ""}>{ic(sym)}<span>{esc(t)}</span></a>'
-                   for s, sym, t, pf in haupt)
-    tabs += (f'<button type="button" id="menue-auf" class="{"aktiv" if im_menue else ""}" aria-controls="menue" aria-expanded="false">'
-             f'{ic("layout-grid")}<span>Menü</span></button>')
-    kr = [(p["start"], basis)] + list(krumen or ([] if aktiv.endswith("start") else [(titel, None)]))
-    krumen_html = '<nav class="rg-krumen" aria-label="Pfad">' + " › ".join(
-        f'<a href="{esc(u)}">{esc(t)}</a>' if u else f'<span aria-current="page">{esc(t)}</span>' for t, u in kr) + "</nav>"
-    such_url = p.get("suche_url", PFAD + "suche/")
-    suche = (f'<form class="suche" action="{such_url}" method="get" role="search">{ic("search")}'
-             f'<input type="search" name="q" value="{esc(q)}" placeholder="Suchen …" aria-label="Suchen"></form>'
-             f'<button class="knopf-rund such-auf" type="button" aria-label="Suche öffnen" aria-expanded="false">{ic("search")}</button>')
-    if k:
-        konto = (f'<div class="konto-box"><span class="avatar" aria-hidden="true">{esc(amt._initialen(k["name"]))}</span>'
-                 f'<span class="konto-text"><b>{esc(k["name"])}</b><small>{esc(p["name"])}</small></span>'
-                 f'<form method="post" action="/abmelden/"><input type="hidden" name="csrf" value="{esc(request.get("csrf", ""))}"><input type="hidden" name="weiter" value="{basis}">'
-                 f'<button class="knopf-rund" type="submit" title="Abmelden" aria-label="Abmelden">{ic("log-out")}</button></form></div>')
+    ziel = lambda u: u if u.startswith("/") else basis + u
+    nav_html, unter = "", ""
+    for text, url, kinder in p["nav"]:
+        an = any(s == aktiv for s, _, _ in kinder)
+        nav_html += f'<a href="{ziel(url)}" class="{"aktiv" if an else ""}"{" aria-current=page" if an else ""}>{esc(text)}</a>'
+        if an and len(kinder) > 1:
+            unter = ('<div class="rw-unter"><div class="rw-wrap"><nav aria-label="Unterbereich">' + "".join(
+                f'<a href="{ziel(u)}" class="{"aktiv" if s == aktiv else ""}">{esc(t)}</a>' for s, t, u in kinder) + "</nav></div></div>")
+    unterseite = basis != PFAD
+    kr = ([("Die Reichsregierung", PFAD)] if unterseite else []) + [(p["start"], basis)] + list(
+        krumen if krumen is not None else ([] if aktiv.endswith("start") else [(titel, None)]))
+    krumen_html = "" if (aktiv.endswith("start") and not krumen and not unterseite) else (
+        '<div class="rw-wrap"><nav class="rw-krumen" aria-label="Pfad">' + " › ".join(
+            f'<a href="{esc(u)}">{esc(t)}</a>' if u else f'<span aria-current="page">{esc(t)}</span>' for t, u in kr) + "</nav></div>")
+    if p.get("logo"):
+        marke = f'<a class="rw-logo" href="{basis}" title="{esc(p["name"])}"><img src="{PFAD}logo/{p["logo"]}-kopf.png" alt="{esc(p["name"])}"></a>'
     else:
-        konto = f'<a class="ein" href="/anmelden/?weiter={esc(request.path_qs)}">{ic("log-in")}<span>Mit Discord anmelden</span></a>'
+        marke = f'<a class="rw-name" href="{basis}"><img src="{PFAD}logo/regierung-kurz.png" alt=""><b>{esc(p["name"])}</b></a>'
+    such_url = p.get("suche_url", PFAD + "suche/")
+    if k:
+        konto = (f'<span class="rw-weg">{esc(k["name"])}</span><form method="post" action="/abmelden/"><input type="hidden" name="csrf" value="{esc(request.get("csrf", ""))}">'
+                 f'<input type="hidden" name="weiter" value="{basis}"><button type="submit">{ic("log-out")}Abmelden</button></form>')
+    else:
+        konto = f'<a href="/anmelden/?weiter={esc(request.path_qs)}">{ic("log-in")}Anmelden</a>'
+    ooc = '<span class="rw-ooc" title="Zugriff als Serveradministrator – rein OOC">OOC</span>' if k and amt.ist_ooc_admin(k) else ""
+    links = (f'<a href="{PFAD}">{ic("arrow-left")}Die Reichsregierung</a>' if unterseite else '<span class="rw-weg">Imperium Germanicum</span>')
+    meta = (f'<div class="rw-meta"><div class="rw-wrap">{links}<span class="rw-raum"></span>{ooc}'
+            f'<a class="rw-weg" href="/">imperiumgermanicum.de</a>{konto}</div></div>')
+    kopf_html = (f'<header class="rw-kopf"><div class="rw-wrap">{marke}<span class="rw-raum"></span>'
+                 f'<form class="rw-suche" action="{such_url}" role="search">{ic("search")}<input type="search" name="q" value="{esc(q)}" placeholder="Suchen …" aria-label="Suchen"></form>'
+                 f'<button class="rw-menue" type="button" aria-label="Suche öffnen">{ic("search")}</button></div></header>')
+    nav = f'<nav class="rw-nav" aria-label="Hauptnavigation"><div class="rw-wrap">{nav_html}</div></nav>'
+    alle, _ = ressorts()
+    minis = "".join(f'<li><a href="{ministerium_url(b)}">{esc(b.get("kurz") or b["name"])}</a></li>' for b in alle)
+    fuss = (f'<footer class="rw-fuss"><div class="rw-wrap rw-spalten"><div><img src="{PFAD}logo/regierung-kopf.png" alt="Die Reichsregierung">'
+            '<p style="margin:0">Der Kronkanzler und die Reichsbehörden des Imperium Germanicum.</p></div>'
+            f'<div><h3>Ministerien</h3><ul class="rw-min">{minis}</ul></div>'
+            f'<div><h3>Service</h3><ul><li><a href="{PFAD}aktuelles/">Aktuelles</a></li><li><a href="{PFAD}reichsregierung/">Die Reichsregierung</a></li>'
+            f'<li><a href="{PFAD}suche/">Suche</a></li><li><a href="/">imperiumgermanicum.de</a></li><li><a href="/kontakt/">Kontakt</a></li></ul></div></div>'
+            '<div class="rw-wrap rw-unten"><span>© Imperium Germanicum – Die Reichsregierung</span><a href="/impressum/">Impressum</a>'
+            '<a href="/datenschutz/">Datenschutz</a></div></footer>')
     m, f = request.query.get("m"), request.query.get("f")
     note = (f'<div class="rg-ok">{esc(m)}</div>' if m else "") + (f'<div class="rg-ok fehler">{esc(f)}</div>' if f else "")
     import rp_glas
     import profil_sa
     glas = rp_glas.CSS if rp_glas.GLAS else ""
-    glas_js = rp_glas.JS if rp_glas.GLAS else ""
     if k:
         glas += profil_sa.darstellung_css(request.app["db"], k)
-        if amt.ist_ooc_admin(k):
-            suche = (rp_glas.ooc_pille() if rp_glas.GLAS else "") + suche
-    fuss = ('<footer class="rg-fuss"><span>© Imperium Germanicum – Die Reichsregierung</span><a href="/">imperiumgermanicum.de</a>'
-            '<a href="/impressum/">Impressum</a><a href="/datenschutz/">Datenschutz</a><a href="/kontakt/">Kontakt</a></footer>')
     seite = f"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#ffffff"><title>{esc(titel)} – {esc(p["name"])}</title><style>{amt.CSS}</style>
-<script>document.documentElement.className="min"</script></head>
-<body><div class="ladebalken" aria-hidden="true"></div>
-<div class="app">
-<aside class="seite" id="menue" aria-label="Navigation">
-<div class="blatt-kopf"><b>Menü</b><button class="knopf-rund" type="button" id="menue-zu" aria-label="Menü schließen">{ic("x")}</button></div>
-<a class="logo" href="{basis}" title="{esc(p["name"])}"><img src="{PFAD}logo/{p["logo"]}-kopf.png" alt="{esc(p["name"])}"></a>
-<div class="gruppen">{nav}</div>
-<div class="fuss"><a class="ein" href="/">{ic("house")}<span>Zur Website</span></a>{konto}</div>
-</aside>
-<div class="spalte">
-<header class="kopf"><a class="logo" href="{basis}" title="{esc(p["name"])}"><img src="{PFAD}logo/{p["logo"]}-kurz.png" alt="{esc(p["name"])}"></a>{krumen_html}<span class="raum"></span>{suche}</header>
-<main id="inhalt">{CSS}{glas}{note}{inhalt}{fuss}{glas_js}</main>
-</div></div>
-<div class="schleier" id="schleier"></div>
-<nav class="tableiste" aria-label="Schnellzugriff">{tabs}</nav>
-<script>{amt.JS % json.dumps(basis)}</script></body></html>"""
+<meta name="theme-color" content="#1f2f45"><title>{esc(titel)} – {esc(p["name"])}</title><style>{amt.CSS}</style>{glas}{CSS}{RAHMEN_CSS}</head>
+<body>{meta}{kopf_html}{nav}{unter}{krumen_html}
+<main class="rw-main" id="inhalt">{note}{inhalt}</main>{fuss}{RAHMEN_JS}</body></html>"""
     return web.Response(status=status, text=seite, content_type="text/html", headers={"Cache-Control": "no-store"})
 
 
-# ---------------------------------------------------------------- Meldungen (eigene + Ressorts)
+# ---------------------------------------------------------------- Meldungen (eigene + Ministerien mit eigenem Webauftritt)
 
 def _eigene(con):
-    return [{"titel": m["titel"], "kurz": m["kurz"], "art": MELDUNGSARTEN.get(m["art"], "Meldung"), "zeit": m["veroeffentlicht"],
-             "url": f"{PFAD}aktuelles/{m['id']}/", "quelle": "Reichsregierung", "schl": m["art"]}
-            for m in con.execute("SELECT * FROM regierung_meldungen WHERE status='veroeffentlicht' ORDER BY veroeffentlicht DESC LIMIT 200")]
+    alle, _ = ressorts()
+    namen = {b["schl"]: b.get("kurz") or b["name"] for b in alle}
+    out = []
+    for m in con.execute("SELECT * FROM regierung_meldungen WHERE status='veroeffentlicht' ORDER BY veroeffentlicht DESC LIMIT 300"):
+        r = m["ressort"] or ""
+        out.append({"titel": m["titel"], "kurz": m["kurz"], "art": MELDUNGSARTEN.get(m["art"], "Meldung"), "zeit": m["veroeffentlicht"],
+                    "url": f"{PFAD}{r}/meldungen/{m['id']}/" if r else f"{PFAD}aktuelles/{m['id']}/", "quelle": namen.get(r, "Reichsregierung") if r else "Reichsregierung",
+                    "schl": m["art"], "ressort": r})
+    return out
 
 
 def alle_meldungen(con):
@@ -331,11 +399,11 @@ def _karte(m):
             f'<p>{esc(m["kurz"])}</p><span class="rg-datum">{datum(m["zeit"])}</span></a>')
 
 
-# ---------------------------------------------------------------- Seiten
+# ---------------------------------------------------------------- Seiten der Reichsregierung
 
 async def logo(request):
     name = request.match_info["name"]
-    if name.rsplit("-", 1)[0] not in LOGOS_ERLAUBT and name not in LOGOS_ERLAUBT:
+    if not re.fullmatch(r"[a-z]+(-kopf|-kurz)?", name):
         raise web.HTTPNotFound()
     pfad = os.path.join(LOGO_ORDNER, name + ".png")
     if not os.path.isfile(pfad):
@@ -347,67 +415,93 @@ async def ohne_schraegstrich(request):
     raise web.HTTPMovedPermanently(PFAD)
 
 
+def ministerium_url(b):
+    return f'{PFAD}{b["schl"]}/'
+
+
+def _ministerium_karte(b, klein=False):
+    lg = logo_von(b["schl"])
+    bild = f'<img class="rg-logo" src="{PFAD}logo/{lg}-kopf.png" alt="">' if lg else f'<span class="rg-ic">{ic("landmark")}</span>'
+    lead = "" if klein else f'<p>{esc(b.get("lead", ""))}</p>'
+    return (f'<a class="rg-karte" href="{ministerium_url(b)}">{bild}<h3>{esc(b["name"])}</h3>{lead}'
+            f'<span class="rg-mehr">Zum Ministerium {ic("arrow-right")}</span></a>')
+
+
 async def start(request):
+    """Startseite: Einstieg in alle Ministerien, dazu Aktuelles und die Regierung."""
     k = await anmeldung.konto(request)
     con = request.app["db"]
-    ms = alle_meldungen(con)
-    if ms:
-        t = ms[0]
-        held = (f'<a class="rg-held" href="{esc(t["url"])}"><div class="rg-held-text"><span class="rg-art">{esc(t["art"])} · {esc(t["quelle"])}</span>'
-                f'<h2>{esc(t["titel"])}</h2><p>{esc(t["kurz"])}</p><span class="rg-datum">{datum(t["zeit"])}</span></div>'
-                f'<div class="rg-held-bild"><img src="{PFAD}logo/regierung-kurz.png" alt=""></div></a>')
-    else:
-        held = (f'<div class="rg-held"><div class="rg-held-text"><span class="rg-art">Imperium Germanicum</span><h2>Willkommen bei der Reichsregierung</h2>'
-                '<p>Hier informieren der Kronkanzler und die Reichsbehörden über ihre Arbeit: Pressemitteilungen, Beschlüsse, Reden und die Webauftritte der Ressorts.</p></div>'
-                f'<div class="rg-held-bild"><img src="{PFAD}logo/regierung-kurz.png" alt=""></div></div>')
-    schnell = (f'<div class="rg-schnell"><a href="{PFAD}aktuelles/?art=pressemitteilung">Pressemitteilungen</a>'
-               f'<a href="{PFAD}aktuelles/?art=kabinett">Kabinettsbeschlüsse</a><a href="{PFAD}aktuelles/?art=rede">Reden</a>'
-               f'<a href="{PFAD}aktuelles/?quelle=Generalkonsulat">Aus dem Generalkonsulat</a></div>')
-    rest = ms[1:7]
-    newsroom = (f'<section class="rg-abschnitt"><h2>Newsroom <a href="{PFAD}aktuelles/">Alle Meldungen</a></h2>{schnell}'
-                + (f'<div class="rg-karten">{"".join(_karte(m) for m in rest)}</div>' if rest else '<p class="leer">Weitere Meldungen folgen.</p>') + "</section>")
-    souv = await namen_mit_rollen(request, [ROLLE_SOUVERAEN])
-    kanzler = await namen_mit_rollen(request, [amt.ROLLE_KANZLER])
-    person = lambda n, amt_: (f'<div class="rg-person"><span class="avatar" aria-hidden="true">{esc(amt._initialen(n))}</span>'
-                              f'<span><b>{esc(n)}</b><small>{esc(amt_)}</small></span></div>')
-    personen = "".join(person(n, "Der Souverän – Imperator Rex") for n in souv) + "".join(person(n, "Der Kronkanzler") for n in kanzler)
-    regierung = (f'<section class="rg-abschnitt"><h2>Die Reichsregierung im Überblick <a href="{PFAD}reichsregierung/">Zum Kabinett</a></h2>'
-                 f'<div class="rg-karten">{personen or "<p class=leer>Keine Angaben.</p>"}</div></section>')
     alle, gruppen = ressorts()
-    karten = "".join(_ressort_karte(b) for b in alle if b["schl"] in WEBAUFTRITTE or b["gruppe"] in ("kanzlei", "sicherheit", "verwaltung"))
-    ressorts_html = f'<section class="rg-abschnitt"><h2>Die Ressorts <a href="{PFAD}ressorts/">Alle Ressorts</a></h2><div class="rg-karten">{karten}</div></section>'
+    held = ('<div class="rg-held"><div class="rg-held-text"><span class="rg-art">Imperium Germanicum</span><h2>Die Reichsregierung</h2>'
+            '<p>Der Kronkanzler und die Reichsbehörden: Hier finden Sie alle Ministerien des Reiches mit ihren eigenen Seiten, '
+            'dazu Pressemitteilungen, Kabinettsbeschlüsse und Reden.</p>'
+            f'<div class="rg-knoepfe"><a class="btn" href="#ministerien">{ic("landmark")}Alle Ministerien</a>'
+            f'<a class="btn zweit" href="{PFAD}aktuelles/">{ic("newspaper")}Aktuelles</a></div></div>'
+            f'<div class="rg-held-bild"><img src="{PFAD}logo/regierung-kurz.png" alt=""></div></div>')
     hinweise = ""
     for h in HINWEISE:
         try:
             hinweise += h(con)
         except Exception:
             pass
-    return rahmen(request, k, "Startseite", "r-start", held + hinweise + newsroom + regierung + ressorts_html)
+    teile = []
+    for g, gname in gruppen.items():
+        bs = [b for b in alle if b["gruppe"] == g]
+        if bs:
+            teile.append(f'<h3 class="rg-gruppe">{esc(gname)}</h3><div class="rg-karten">{"".join(_ministerium_karte(b) for b in bs)}</div>')
+    ministerien = f'<section class="rg-abschnitt" id="ministerien"><h2>Die Ministerien</h2>{"".join(teile)}</section>'
+    ms = alle_meldungen(con)[:6]
+    newsroom = (f'<section class="rg-abschnitt"><h2>Aktuelles <a href="{PFAD}aktuelles/">Alle Meldungen</a></h2>'
+                + (f'<div class="rg-karten">{"".join(_karte(m) for m in ms)}</div>' if ms else '<p class="leer">Noch keine Meldungen.</p>') + "</section>")
+    souv = await namen_mit_rollen(request, [ROLLE_SOUVERAEN])
+    kanzler = await namen_mit_rollen(request, [amt.ROLLE_KANZLER])
+    personen = "".join(_person(n, "Der Souverän – Imperator Rex") for n in souv) + "".join(_person(n, "Der Kronkanzler") for n in kanzler)
+    regierung = (f'<section class="rg-abschnitt"><h2>Die Reichsregierung <a href="{PFAD}reichsregierung/">Zum Kabinett</a></h2>'
+                 f'<div class="rg-karten">{personen or "<p class=leer>Keine Angaben.</p>"}</div></section>')
+    return rahmen(request, k, "Startseite", "r-start", held + hinweise + ministerien + newsroom + regierung)
 
 
-def _ressort_karte(b):
-    eigen = b["schl"] in WEBAUFTRITTE
-    bild = (f'<img class="rg-logo" src="{PFAD}logo/{b["schl"]}-kopf.png" alt="">' if b["schl"] in LOGOS_ERLAUBT
-            else f'<span class="rg-ic">{ic("landmark")}</span>')
-    return (f'<a class="rg-karte" href="{PFAD}ressorts/{esc(b["schl"])}/">{bild}<h3>{esc(b["name"])}</h3><p>{esc(b.get("lead", ""))}</p>'
-            f'<span class="rg-mehr">{"Eigener Webauftritt" if eigen else "Steckbrief"} {ic("arrow-right")}</span></a>')
+def _person(n, amt_):
+    return (f'<div class="rg-person"><span class="avatar" aria-hidden="true">{esc(amt._initialen(n))}</span>'
+            f'<span><b>{esc(n)}</b><small>{esc(amt_)}</small></span></div>')
+
+
+async def ministerien(request):
+    k = await anmeldung.konto(request)
+    alle, gruppen = ressorts()
+    teile = []
+    for g, gname in gruppen.items():
+        bs = [b for b in alle if b["gruppe"] == g]
+        if bs:
+            teile.append(f'<section class="rg-abschnitt"><h2>{esc(gname)}</h2><div class="rg-karten">{"".join(_ministerium_karte(b) for b in bs)}</div></section>')
+    return rahmen(request, k, "Ministerien", "r-ministerien",
+                  kopf("Die Ministerien", f"{len(alle)} Behörden und Ämter bilden die Reichsverwaltung. Jedes Ministerium hat hier seine eigene Seite.", "Reichsverwaltung") + "".join(teile))
 
 
 async def aktuelles(request):
     k = await anmeldung.konto(request)
-    ms = alle_meldungen(request.app["db"])
+    alle_m = alle_meldungen(request.app["db"])
     art, quelle = request.query.get("art", ""), request.query.get("quelle", "")
+    ms = alle_m
     if art in MELDUNGSARTEN:
         ms = [m for m in ms if m.get("schl") == art or m["art"] == MELDUNGSARTEN[art]]
     if quelle:
         ms = [m for m in ms if m["quelle"] == quelle]
-    quellen = sorted({m["quelle"] for m in alle_meldungen(request.app["db"])})
+    quellen = sorted({m["quelle"] for m in alle_m})
     filt = ('<div class="rg-schnell">' + f'<a href="{PFAD}aktuelles/" class="{"" if art or quelle else "aktiv"}">Alle</a>'
             + "".join(f'<a href="?art={a}" class="{"aktiv" if a == art else ""}">{t}</a>' for a, t in MELDUNGSARTEN.items())
             + "".join(f'<a href="?quelle={esc(q)}" class="{"aktiv" if q == quelle else ""}">{esc(q)}</a>' for q in quellen if q != "Reichsregierung") + "</div>")
     inhalt = (f'<div class="rg-karten">{"".join(_karte(m) for m in ms)}</div>' if ms else '<p class="leer">Keine Meldungen.</p>')
     return rahmen(request, k, "Aktuelles", "r-aktuelles",
-                  kopf("Aktuelles", "Pressemitteilungen, Kabinettsbeschlüsse und Reden der Reichsregierung sowie Meldungen der Ressorts.", "Newsroom") + filt + inhalt)
+                  kopf("Aktuelles", "Pressemitteilungen, Kabinettsbeschlüsse und Reden der Reichsregierung und aller Ministerien.", "Newsroom") + filt + inhalt)
+
+
+def _meldung_html(m, k, bearb_url):
+    art = MELDUNGSARTEN.get(m["art"], "Meldung")
+    entwurf = '<div class="hinweis">Entwurf – noch nicht veröffentlicht.</div>' if m["status"] != "veroeffentlicht" else ""
+    bearb = f'<p><a class="btn zweit" href="{bearb_url}">{ic("pencil")}Bearbeiten</a></p>' if bearb_url else ""
+    return (kopf(m["titel"], esc(m["kurz"]), art) + entwurf + f'<p class="rg-datum">{datum(m["veroeffentlicht"] or m["erstellt"], True)}</p>'
+            f'<div class="rg-text">{absatz(m["text"])}</div>' + bearb)
 
 
 async def meldung(request):
@@ -415,12 +509,10 @@ async def meldung(request):
     m = request.app["db"].execute("SELECT * FROM regierung_meldungen WHERE id=?", (request.match_info["id"],)).fetchone()
     if not m or (m["status"] != "veroeffentlicht" and not ist_redaktion(k)):
         raise web.HTTPNotFound(text="Meldung nicht gefunden.")
-    art = MELDUNGSARTEN.get(m["art"], "Meldung")
-    entwurf = '<div class="hinweis">Entwurf – noch nicht veröffentlicht.</div>' if m["status"] != "veroeffentlicht" else ""
-    bearb = f'<p><a class="btn zweit" href="{PFAD}intern/{m["id"]}/">{ic("pencil")}Bearbeiten</a></p>' if ist_redaktion(k) else ""
-    inhalt = (kopf(m["titel"], esc(m["kurz"]), art) + entwurf + f'<p class="rg-datum">{datum(m["veroeffentlicht"] or m["erstellt"], True)} · Reichsregierung</p>'
-              f'<div class="rg-text">{absatz(m["text"])}</div>' + bearb)
-    return rahmen(request, k, m["titel"], "r-aktuelles", inhalt, krumen=[("Aktuelles", PFAD + "aktuelles/"), (m["titel"], None)])
+    if m["ressort"]:
+        raise web.HTTPMovedPermanently(f'{PFAD}{m["ressort"]}/meldungen/{m["id"]}/')
+    return rahmen(request, k, m["titel"], "r-aktuelles", _meldung_html(m, k, f'{PFAD}intern/{m["id"]}/' if ist_redaktion(k) else ""),
+                  krumen=[("Aktuelles", PFAD + "aktuelles/"), (m["titel"], None)])
 
 
 async def reichsregierung(request):
@@ -431,57 +523,15 @@ async def reichsregierung(request):
     for b in alle:
         rollen = LEITUNG_ROLLEN.get(b["schl"])
         namen = await namen_mit_rollen(request, rollen) if rollen else []
-        zeilen.append(f'<tr><td><a href="{PFAD}ressorts/{esc(b["schl"])}/">{esc(b["name"])}</a></td><td>{esc(b.get("leitung", ""))}</td>'
+        zeilen.append(f'<tr><td><a href="{ministerium_url(b)}">{esc(b["name"])}</a></td><td>{esc(b.get("leitung", ""))}</td>'
                       f'<td>{esc(", ".join(namen)) if namen else ("<span class=leerwert>unbesetzt</span>" if rollen else "–")}</td></tr>')
     inhalt = (kopf("Die Reichsregierung", "Der Souverän ernennt den Kronkanzler. Der Kronkanzler leitet die Reichsverwaltung und führt die Reichsbehörden; "
                    "ihre Leiterinnen und Leiter bilden das Kabinett.", "Staatsaufbau")
               + '<section class="rg-abschnitt"><h2>Der Souverän</h2><div class="rg-karten">'
-              + ("".join(f'<div class="rg-person"><span class="avatar">{esc(amt._initialen(n))}</span><span><b>{esc(n)}</b><small>Imperator Rex</small></span></div>' for n in souv)
-                 or '<p class="leer">–</p>') + '</div></section>'
-              + '<section class="rg-abschnitt"><h2>Das Kabinett</h2><table class="rg-tab"><thead><tr><th>Ressort</th><th>Leitung</th><th>Amtsinhaber</th></tr></thead>'
+              + ("".join(_person(n, "Imperator Rex") for n in souv) or '<p class="leer">–</p>') + '</div></section>'
+              + '<section class="rg-abschnitt"><h2>Das Kabinett</h2><table class="rg-tab"><thead><tr><th>Ministerium</th><th>Leitung</th><th>Amtsinhaber</th></tr></thead>'
               f'<tbody>{"".join(zeilen)}</tbody></table></section>')
     return rahmen(request, k, "Die Reichsregierung", "r-regierung", inhalt)
-
-
-async def ressorts_liste(request):
-    k = await anmeldung.konto(request)
-    alle, gruppen = ressorts()
-    teile = []
-    for g, gname in gruppen.items():
-        bs = [b for b in alle if b["gruppe"] == g]
-        if bs:
-            teile.append(f'<section class="rg-abschnitt"><h2>{esc(gname)}</h2><div class="rg-karten">{"".join(_ressort_karte(b) for b in bs)}</div></section>')
-    return rahmen(request, k, "Die Ressorts", "r-ressorts",
-                  kopf("Die Ressorts", f"{len(alle)} Behörden und Ämter bilden die Reichsverwaltung. Einige haben einen eigenen Webauftritt.", "Reichsverwaltung") + "".join(teile))
-
-
-async def ressort(request):
-    k = await anmeldung.konto(request)
-    alle, gruppen = ressorts()
-    b = next((x for x in alle if x["schl"] == request.match_info["schl"]), None)
-    if not b:
-        raise web.HTTPNotFound(text="Ressort nicht gefunden.")
-    rollen = LEITUNG_ROLLEN.get(b["schl"])
-    namen = await namen_mit_rollen(request, rollen) if rollen else []
-    daten = [("Gliederung", gruppen.get(b["gruppe"], "")), ("Leitung", b.get("leitung", "–"))]
-    if rollen:
-        daten.append(("Amtsinhaber", ", ".join(namen) or "unbesetzt"))
-    if b.get("gebaeude"):
-        g = b["gebaeude"]
-        daten.append(("Dienstsitz", g.get("name", "") + (", " + g["ort"] if g.get("ort") else ", Berlin")))
-    if b.get("nachgeordnet"):
-        daten.append(("Nachgeordnet", ", ".join(b["nachgeordnet"])))
-    if b.get("zusammen"):
-        daten.append(("Zusammenarbeit", ", ".join(b["zusammen"])))
-    dl = '<dl class="rg-daten">' + "".join(f"<dt>{esc(a)}</dt><dd>{esc(w)}</dd>" for a, w in daten) + "</dl>"
-    aufgaben = ("<h2>Aufgaben</h2><ul class='rg-text'>" + "".join(f"<li>{esc(a)}</li>" for a in b.get("aufgaben", [])) + "</ul>") if b.get("aufgaben") else ""
-    if b["schl"] in WEBAUFTRITTE:
-        knopf = f'<p><a class="btn" href="{WEBAUFTRITTE[b["schl"]]}">{ic("globe")}Offizieller Webauftritt: {esc(b["kurz"] if b.get("kurz") else b["name"])}</a></p>'
-    else:
-        knopf = f'<p><a class="btn zweit" href="{ressort_url(b)}">{ic("external-link")}Seite auf imperiumgermanicum.de</a></p>'
-    bild = f'<img src="{PFAD}logo/{b["schl"]}-kopf.png" alt="" style="height:56px;width:auto;margin:0 0 14px">' if b["schl"] in LOGOS_ERLAUBT else ""
-    return rahmen(request, k, b["name"], "r-ressorts", bild + kopf(b["name"], esc(b.get("lead", "")), "Ressort") + knopf + dl + aufgaben,
-                  krumen=[("Die Ressorts", PFAD + "ressorts/"), (b.get("kurz") or b["name"], None)])
 
 
 async def suche(request):
@@ -493,7 +543,7 @@ async def suche(request):
         ql = q.lower()
         treffer += [(m["art"] + " · " + m["quelle"], m["titel"], m["url"]) for m in alle_meldungen(con) if ql in (m["titel"] + " " + m["kurz"]).lower()]
         alle, _ = ressorts()
-        treffer += [("Ressort", b["name"], f'{PFAD}ressorts/{b["schl"]}/') for b in alle if ql in (b["name"] + " " + b.get("lead", "")).lower()]
+        treffer += [("Ministerium", b["name"], ministerium_url(b)) for b in alle if ql in (b["name"] + " " + b.get("lead", "") + " " + " ".join(b.get("aufgaben", []))).lower()]
         for s in SUCHE:
             try:
                 treffer += s(con, q)
@@ -517,31 +567,121 @@ async def suche(request):
     return rahmen(request, k, "Suche", "r-suche", kopf("Suche") + form + erg, q=q)
 
 
-# ---------------------------------------------------------------- Redaktion
+# ---------------------------------------------------------------- Unterseite je Ministerium (/regierung/<schl>/)
 
-async def intern(request):
-    k = await konto_oder_login(request)
-    if not ist_redaktion(k):
-        raise web.HTTPForbidden(text="Nur für die Redaktion der Reichsregierung (Kaiser, Kronkanzler).")
-    ms = request.app["db"].execute("SELECT * FROM regierung_meldungen ORDER BY COALESCE(veroeffentlicht, erstellt) DESC").fetchall()
-    tab = ('<table class="rg-tab"><thead><tr><th>Titel</th><th>Art</th><th>Stand</th><th>Datum</th></tr></thead><tbody>' + "".join(
-        f'<tr><td><a href="{PFAD}intern/{m["id"]}/">{esc(m["titel"])}</a></td><td>{esc(MELDUNGSARTEN.get(m["art"], ""))}</td>'
+def darf_schreiben(k, ressort):
+    """Redaktion eines Ministeriums: Kaiser, Kronkanzler, OOC-Admins und die Leitung des Ministeriums."""
+    if ist_redaktion(k):
+        return True
+    return bool(k) and bool(k["mitglied"]) and bool(ressort) and bool(set(LEITUNG_ROLLEN.get(ressort, [])) & set(k["rollen"]))
+
+
+def _ministerium(request):
+    alle, gruppen = ressorts()
+    b = next((x for x in alle if x["schl"] == request.match_info["schl"]), None)
+    if not b:
+        raise web.HTTPNotFound(text="Ministerium nicht gefunden.")
+    return b, gruppen
+
+
+def portal_ministerium(b, k):
+    s = b["schl"]
+    nav = [("Übersicht", "", [("m-start", "Übersicht", "")]), ("Aufgaben", "aufgaben/", [("m-aufgaben", "Aufgaben", "aufgaben/")]),
+           ("Meldungen", "meldungen/", [("m-meldungen", "Meldungen", "meldungen/")])]
+    if darf_schreiben(k, s):
+        nav.append(("Redaktion", "redaktion/", [("m-redaktion", "Redaktion", "redaktion/")]))
+    return {"basis": f"{PFAD}{s}/", "logo": logo_von(s), "name": b["name"], "start": b.get("kurz") or b["name"], "nav": nav}
+
+
+def _meldungen_von(con, s, alle=False):
+    return con.execute("SELECT * FROM regierung_meldungen WHERE ressort=?" + ("" if alle else " AND status='veroeffentlicht'")
+                       + " ORDER BY COALESCE(veroeffentlicht, erstellt) DESC LIMIT 200", (s,)).fetchall()
+
+
+def _mkarte(b, m):
+    return (f'<a class="rg-karte" href="{PFAD}{b["schl"]}/meldungen/{m["id"]}/"><span class="rg-art">{esc(MELDUNGSARTEN.get(m["art"], "Meldung"))}</span>'
+            f'<h3>{esc(m["titel"])}</h3><p>{esc(m["kurz"])}</p><span class="rg-datum">{datum(m["veroeffentlicht"])}</span></a>')
+
+
+async def ministerium_start(request):
+    k = await anmeldung.konto(request)
+    b, gruppen = _ministerium(request)
+    con = request.app["db"]
+    rollen = LEITUNG_ROLLEN.get(b["schl"])
+    namen = await namen_mit_rollen(request, rollen) if rollen else []
+    bild = f'<img src="{PFAD}logo/{logo_von(b["schl"]) or "regierung"}-kurz.png" alt="">'
+    knopf = ""
+    if b["schl"] in WEBAUFTRITTE and not WEBAUFTRITTE[b["schl"]].startswith(PFAD):
+        knopf = f'<div class="rg-knoepfe"><a class="btn" href="{WEBAUFTRITTE[b["schl"]]}">{ic("arrow-right")}Zum Portal: {esc(b.get("kurz") or b["name"])}</a></div>'
+    held = (f'<div class="rg-held"><div class="rg-held-text"><span class="rg-art">{esc(gruppen.get(b["gruppe"], ""))}</span><h2>{esc(b["name"])}</h2>'
+            f'<p>{esc(b.get("lead", ""))}</p>{knopf}</div><div class="rg-held-bild">{bild}</div></div>')
+    leitung = (f'<section class="rg-abschnitt"><h2>Leitung</h2><div class="rg-karten">'
+               + ("".join(_person(n, b.get("leitung", "")) for n in namen) or f'<div class="rg-person"><span><b>{esc(b.get("leitung", "–"))}</b>'
+                  f'<small>{"zurzeit unbesetzt" if rollen else "Amtsinhaber nicht hinterlegt"}</small></span></div>') + "</div></section>")
+    ms = _meldungen_von(con, b["schl"])[:3]
+    meld = (f'<section class="rg-abschnitt"><h2>Meldungen <a href="{PFAD}{b["schl"]}/meldungen/">Alle Meldungen</a></h2>'
+            + (f'<div class="rg-karten">{"".join(_mkarte(b, m) for m in ms)}</div>' if ms else '<p class="leer">Noch keine Meldungen.</p>') + "</section>")
+    auf = b.get("aufgaben", [])
+    aufgaben = (f'<section class="rg-abschnitt"><h2>Aufgaben <a href="{PFAD}{b["schl"]}/aufgaben/">Mehr erfahren</a></h2><ul class="rg-text">'
+                + "".join(f"<li>{esc(a)}</li>" for a in auf[:4]) + "</ul></section>") if auf else ""
+    return rahmen(request, k, b["name"], "m-start", held + aufgaben + leitung + meld, portal=portal_ministerium(b, k), krumen=[])
+
+
+async def ministerium_aufgaben(request):
+    k = await anmeldung.konto(request)
+    b, gruppen = _ministerium(request)
+    rollen = LEITUNG_ROLLEN.get(b["schl"])
+    namen = await namen_mit_rollen(request, rollen) if rollen else []
+    daten = [("Gliederung", gruppen.get(b["gruppe"], "")), ("Leitung", b.get("leitung", "–"))]
+    if rollen:
+        daten.append(("Amtsinhaber", ", ".join(namen) or "unbesetzt"))
+    if b.get("gebaeude"):
+        g = b["gebaeude"]
+        daten.append(("Dienstsitz", g.get("name", "") + (", " + g["ort"] if g.get("ort") else ", Berlin")))
+    if b.get("nachgeordnet"):
+        daten.append(("Nachgeordnet", ", ".join(b["nachgeordnet"])))
+    if b.get("zusammen"):
+        daten.append(("Zusammenarbeit", ", ".join(b["zusammen"])))
+    dl = '<dl class="rg-daten">' + "".join(f"<dt>{esc(a)}</dt><dd>{esc(w)}</dd>" for a, w in daten) + "</dl>"
+    aufgaben = ("<h2>Aufgaben</h2><ul class='rg-text'>" + "".join(f"<li>{esc(a)}</li>" for a in b.get("aufgaben", [])) + "</ul>") if b.get("aufgaben") else ""
+    web_link = f'<p><a class="btn zweit" href="/{b["seite"].lstrip("/")}">{ic("external-link")}Auch auf imperiumgermanicum.de</a></p>' if b.get("seite") else ""
+    return rahmen(request, k, "Aufgaben", "m-aufgaben", kopf("Aufgaben und Organisation", esc(b.get("lead", "")), b.get("kurz") or b["name"]) + dl + aufgaben + web_link,
+                  portal=portal_ministerium(b, k))
+
+
+async def ministerium_meldungen(request):
+    k = await anmeldung.konto(request)
+    b, _ = _ministerium(request)
+    ms = _meldungen_von(request.app["db"], b["schl"])
+    inhalt = (f'<div class="rg-karten">{"".join(_mkarte(b, m) for m in ms)}</div>' if ms else '<p class="leer">Noch keine Meldungen.</p>')
+    return rahmen(request, k, "Meldungen", "m-meldungen", kopf("Meldungen", "", b.get("kurz") or b["name"]) + inhalt, portal=portal_ministerium(b, k))
+
+
+async def ministerium_meldung(request):
+    k = await anmeldung.konto(request)
+    b, _ = _ministerium(request)
+    m = request.app["db"].execute("SELECT * FROM regierung_meldungen WHERE id=? AND ressort=?", (request.match_info["id"], b["schl"])).fetchone()
+    if not m or (m["status"] != "veroeffentlicht" and not darf_schreiben(k, b["schl"])):
+        raise web.HTTPNotFound(text="Meldung nicht gefunden.")
+    bearb = f'{PFAD}{b["schl"]}/redaktion/{m["id"]}/' if darf_schreiben(k, b["schl"]) else ""
+    return rahmen(request, k, m["titel"], "m-meldungen", _meldung_html(m, k, bearb), portal=portal_ministerium(b, k),
+                  krumen=[("Meldungen", f'{PFAD}{b["schl"]}/meldungen/'), (m["titel"], None)])
+
+
+# ---------------------------------------------------------------- Redaktion (Reichsregierung: /intern/, Ministerium: /<schl>/redaktion/)
+
+def _redaktion_liste(ms, basis):
+    if not ms:
+        return '<p class="leer">Noch keine Meldungen.</p>'
+    return ('<table class="rg-tab"><thead><tr><th>Titel</th><th>Art</th><th>Stand</th><th>Datum</th></tr></thead><tbody>' + "".join(
+        f'<tr><td><a href="{basis}{m["id"]}/">{esc(m["titel"])}</a></td><td>{esc(MELDUNGSARTEN.get(m["art"], ""))}</td>'
         f'<td>{"<span class=\'status s-ok\'>Veröffentlicht</span>" if m["status"] == "veroeffentlicht" else "<span class=\'status s-neutral\'>Entwurf</span>"}</td>'
-        f'<td>{datum(m["veroeffentlicht"] or m["erstellt"])}</td></tr>' for m in ms) + "</tbody></table>") if ms else '<p class="leer">Noch keine Meldungen.</p>'
-    return rahmen(request, k, "Redaktion", "r-intern", kopf("Redaktion", "Pressemitteilungen, Kabinettsbeschlüsse und Reden der Reichsregierung.", "Intern")
-                  + f'<p><a class="btn" href="{PFAD}intern/neu/">{ic("file-plus")}Neue Meldung</a></p>' + tab)
+        f'<td>{datum(m["veroeffentlicht"] or m["erstellt"])}</td></tr>' for m in ms) + "</tbody></table>")
 
 
-async def intern_meldung(request):
-    k = await konto_oder_login(request)
-    if not ist_redaktion(k):
-        raise web.HTTPForbidden(text="Nur für die Redaktion der Reichsregierung.")
-    i = request.match_info.get("id")
-    m = request.app["db"].execute("SELECT * FROM regierung_meldungen WHERE id=?", (i,)).fetchone() if i else None
-    if i and not m:
-        raise web.HTTPNotFound()
+def _redaktion_form(request, m, aktion, loeschen):
     w = lambda f, d="": (m[f] if m else d)
-    form = (f'<form class="rg-form" method="post" action="{PFAD}intern/{i + "/" if i else "neu/"}">{csrf_feld(request)}'
+    form = (f'<form class="rg-form" method="post" action="{aktion}">{csrf_feld(request)}'
             f'<label>Titel<input name="titel" maxlength="160" required value="{esc(w("titel"))}"></label>'
             f'<label>Art<select name="art">{opt(MELDUNGSARTEN.items(), w("art", "pressemitteilung"))}</select></label>'
             f'<label>Kurztext (Teaser)<input name="kurz" maxlength="300" value="{esc(w("kurz"))}"></label>'
@@ -549,20 +689,15 @@ async def intern_meldung(request):
             '<div class="rg-knoepfe"><button class="btn" name="aktion" value="veroeffentlichen" type="submit">Veröffentlichen</button>'
             '<button class="btn zweit" name="aktion" value="entwurf" type="submit">Als Entwurf speichern</button></div></form>')
     if m:
-        form += (f'<form method="post" action="{PFAD}intern/{m["id"]}/loeschen" onsubmit="return confirm(\'Meldung löschen?\')">{csrf_feld(request)}'
+        form += (f'<form method="post" action="{loeschen}" onsubmit="return confirm(\'Meldung löschen?\')">{csrf_feld(request)}'
                  f'<button class="btn gefahr" type="submit">{ic("trash-2")}Löschen</button></form>')
-    titel = m["titel"] if m else "Neue Meldung"
-    return rahmen(request, k, titel, "r-intern", kopf(titel, "", "Redaktion") + form, krumen=[("Redaktion", PFAD + "intern/"), (titel, None)])
+    return form
 
 
-async def intern_speichern(request):
-    k, form = await post_pruefen(request, ist_redaktion)
-    con = request.app["db"]
-    i = request.match_info.get("id")
-    m = con.execute("SELECT * FROM regierung_meldungen WHERE id=?", (i,)).fetchone() if i else None
+def _speichern(con, k, form, m, ressort):
     titel = (form.get("titel") or "").strip()[:160]
     if not titel:
-        weiter(request.path, f="Titel fehlt.")
+        return None
     art = form.get("art") if form.get("art") in MELDUNGSARTEN else "pressemitteilung"
     werte = (titel, art, (form.get("kurz") or "").strip()[:300], (form.get("text") or "").strip()[:20000])
     jetzt = int(time.time())
@@ -570,22 +705,114 @@ async def intern_speichern(request):
         con.execute("UPDATE regierung_meldungen SET titel=?, art=?, kurz=?, text=? WHERE id=?", werte + (m["id"],))
         mid = m["id"]
     else:
-        mid = con.execute("INSERT INTO regierung_meldungen (titel, art, kurz, text, autor_id, autor_name, erstellt) VALUES (?,?,?,?,?,?,?)",
-                          werte + (k["id"], k["name"], jetzt)).lastrowid
+        mid = con.execute("INSERT INTO regierung_meldungen (titel, art, kurz, text, autor_id, autor_name, erstellt, ressort) VALUES (?,?,?,?,?,?,?,?)",
+                          werte + (k["id"], k["name"], jetzt, ressort)).lastrowid
     if form.get("aktion") == "veroeffentlichen":
         con.execute("UPDATE regierung_meldungen SET status='veroeffentlicht', veroeffentlicht=COALESCE(veroeffentlicht, ?) WHERE id=?", (jetzt, mid))
     else:
         con.execute("UPDATE regierung_meldungen SET status='entwurf', veroeffentlicht=NULL WHERE id=?", (mid,))
     con.commit()
+    return mid
+
+
+async def intern(request):
+    k = await konto_oder_login(request)
+    if not ist_redaktion(k):
+        raise web.HTTPForbidden(text="Nur für die Redaktion der Reichsregierung (Kaiser, Kronkanzler).")
+    ms = request.app["db"].execute("SELECT * FROM regierung_meldungen WHERE ressort='' ORDER BY COALESCE(veroeffentlicht, erstellt) DESC").fetchall()
+    return rahmen(request, k, "Redaktion", "r-intern", kopf("Redaktion", "Pressemitteilungen, Kabinettsbeschlüsse und Reden der Reichsregierung. "
+                                                            "Meldungen eines Ministeriums schreibt dessen Leitung auf der Seite des Ministeriums.", "Intern")
+                  + f'<p><a class="btn" href="{PFAD}intern/neu/">{ic("file-plus")}Neue Meldung</a></p>' + _redaktion_liste(ms, PFAD + "intern/"))
+
+
+async def intern_meldung(request):
+    k = await konto_oder_login(request)
+    if not ist_redaktion(k):
+        raise web.HTTPForbidden(text="Nur für die Redaktion der Reichsregierung.")
+    i = request.match_info.get("id")
+    m = request.app["db"].execute("SELECT * FROM regierung_meldungen WHERE id=? AND ressort=''", (i,)).fetchone() if i else None
+    if i and not m:
+        raise web.HTTPNotFound()
+    titel = m["titel"] if m else "Neue Meldung"
+    form = _redaktion_form(request, m, f'{PFAD}intern/{i + "/" if i else "neu/"}', f'{PFAD}intern/{i}/loeschen')
+    return rahmen(request, k, titel, "r-intern", kopf(titel, "", "Redaktion") + form, krumen=[("Redaktion", PFAD + "intern/"), (titel, None)])
+
+
+async def intern_speichern(request):
+    k, form = await post_pruefen(request, ist_redaktion)
+    con = request.app["db"]
+    i = request.match_info.get("id")
+    m = con.execute("SELECT * FROM regierung_meldungen WHERE id=? AND ressort=''", (i,)).fetchone() if i else None
+    mid = _speichern(con, k, form, m, "")
+    if mid is None:
+        weiter(request.path, f="Titel fehlt.")
     weiter(f"{PFAD}intern/{mid}/", "Gespeichert.")
 
 
 async def intern_loeschen(request):
     k, _ = await post_pruefen(request, ist_redaktion)
     con = request.app["db"]
-    con.execute("DELETE FROM regierung_meldungen WHERE id=?", (request.match_info["id"],))
+    con.execute("DELETE FROM regierung_meldungen WHERE id=? AND ressort=''", (request.match_info["id"],))
     con.commit()
     weiter(f"{PFAD}intern/", "Gelöscht.")
+
+
+async def m_redaktion(request):
+    k = await konto_oder_login(request)
+    b, _ = _ministerium(request)
+    if not darf_schreiben(k, b["schl"]):
+        raise web.HTTPForbidden(text="Nur für die Leitung dieses Ministeriums.")
+    basis = f'{PFAD}{b["schl"]}/redaktion/'
+    return rahmen(request, k, "Redaktion", "m-redaktion", kopf("Redaktion", "Meldungen dieses Ministeriums. Veröffentlichte Meldungen erscheinen auch unter Aktuelles der Reichsregierung.",
+                                                                b.get("kurz") or b["name"])
+                  + f'<p><a class="btn" href="{basis}neu/">{ic("file-plus")}Neue Meldung</a></p>' + _redaktion_liste(_meldungen_von(request.app["db"], b["schl"], True), basis),
+                  portal=portal_ministerium(b, k))
+
+
+async def m_redaktion_meldung(request):
+    k = await konto_oder_login(request)
+    b, _ = _ministerium(request)
+    if not darf_schreiben(k, b["schl"]):
+        raise web.HTTPForbidden(text="Nur für die Leitung dieses Ministeriums.")
+    i = request.match_info.get("id")
+    m = request.app["db"].execute("SELECT * FROM regierung_meldungen WHERE id=? AND ressort=?", (i, b["schl"])).fetchone() if i else None
+    if i and not m:
+        raise web.HTTPNotFound()
+    basis = f'{PFAD}{b["schl"]}/redaktion/'
+    titel = m["titel"] if m else "Neue Meldung"
+    return rahmen(request, k, titel, "m-redaktion", kopf(titel, "", "Redaktion") + _redaktion_form(request, m, f'{basis}{i + "/" if i else "neu/"}', f'{basis}{i}/loeschen'),
+                  portal=portal_ministerium(b, k), krumen=[("Redaktion", basis), (titel, None)])
+
+
+async def m_redaktion_speichern(request):
+    b, _ = _ministerium(request)
+    k, form = await post_pruefen(request, lambda k: darf_schreiben(k, b["schl"]))
+    con = request.app["db"]
+    i = request.match_info.get("id")
+    m = con.execute("SELECT * FROM regierung_meldungen WHERE id=? AND ressort=?", (i, b["schl"])).fetchone() if i else None
+    if i and not m:
+        raise web.HTTPNotFound()
+    mid = _speichern(con, k, form, m, b["schl"])
+    if mid is None:
+        weiter(request.path, f="Titel fehlt.")
+    weiter(f'{PFAD}{b["schl"]}/redaktion/{mid}/', "Gespeichert.")
+
+
+async def m_redaktion_loeschen(request):
+    b, _ = _ministerium(request)
+    k, _ = await post_pruefen(request, lambda k: darf_schreiben(k, b["schl"]))
+    con = request.app["db"]
+    con.execute("DELETE FROM regierung_meldungen WHERE id=? AND ressort=?", (request.match_info["id"], b["schl"]))
+    con.commit()
+    weiter(f'{PFAD}{b["schl"]}/redaktion/', "Gelöscht.")
+
+
+async def alt_ressorts(request):
+    raise web.HTTPMovedPermanently(PFAD + "ministerien/")
+
+
+async def alt_ressort(request):
+    raise web.HTTPMovedPermanently(f'{PFAD}{request.match_info["schl"]}/')
 
 
 def registrieren(app):
@@ -597,8 +824,9 @@ def registrieren(app):
     r.add_get(PFAD + "aktuelles/", aktuelles)
     r.add_get(PFAD + "aktuelles/{id:\\d+}/", meldung)
     r.add_get(PFAD + "reichsregierung/", reichsregierung)
-    r.add_get(PFAD + "ressorts/", ressorts_liste)
-    r.add_get(PFAD + "ressorts/{schl}/", ressort)
+    r.add_get(PFAD + "ministerien/", ministerien)
+    r.add_get(PFAD + "ressorts/", alt_ressorts)
+    r.add_get(PFAD + "ressorts/{schl}/", alt_ressort)
     r.add_get(PFAD + "suche/", suche)
     r.add_get(PFAD + "intern/", intern)
     r.add_get(PFAD + "intern/neu/", intern_meldung)
@@ -606,3 +834,20 @@ def registrieren(app):
     r.add_get(PFAD + "intern/{id:\\d+}/", intern_meldung)
     r.add_post(PFAD + "intern/{id:\\d+}/", intern_speichern)
     r.add_post(PFAD + "intern/{id:\\d+}/loeschen", intern_loeschen)
+
+
+def registrieren_ministerien(app):
+    """Unterseiten aller Ministerien ohne eigenes Modul. Erst NACH den Ministerien mit eigenem Modul (generalkonsulat) aufrufen,
+    sonst fängt /regierung/{schl}/ deren Seiten ab."""
+    r = app.router
+    s = PFAD + "{schl:[a-z]+}/"
+    r.add_get(s, ministerium_start)
+    r.add_get(s + "aufgaben/", ministerium_aufgaben)
+    r.add_get(s + "meldungen/", ministerium_meldungen)
+    r.add_get(s + "meldungen/{id:\\d+}/", ministerium_meldung)
+    r.add_get(s + "redaktion/", m_redaktion)
+    r.add_get(s + "redaktion/neu/", m_redaktion_meldung)
+    r.add_post(s + "redaktion/neu/", m_redaktion_speichern)
+    r.add_get(s + "redaktion/{id:\\d+}/", m_redaktion_meldung)
+    r.add_post(s + "redaktion/{id:\\d+}/", m_redaktion_speichern)
+    r.add_post(s + "redaktion/{id:\\d+}/loeschen", m_redaktion_loeschen)
