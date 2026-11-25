@@ -700,10 +700,13 @@ ORG_CSS = """<style>
 .rgo-tab th,.rgo-tab td{text-align:left;vertical-align:top;padding:11px 14px 11px 0;border:0;border-bottom:1px solid var(--linie)}
 .rgo-tab thead th{font-size:13px;color:var(--grau);font-weight:600;border-bottom:1px solid var(--ink)}
 .rgo-tab tbody th{font-weight:650;white-space:nowrap}
-.rgo-amt{min-width:0;max-width:760px}
+.rgo-amt{min-width:0;max-width:860px}
+.rgo-amt td.bg{white-space:nowrap;font-variant-numeric:tabular-nums}
+.rgo-amt td.geh{font-variant-numeric:tabular-nums;white-space:nowrap}
+.rgo-zus{display:block;font-size:13px;color:var(--grau);font-weight:400;white-space:normal}
 .rgo-amt td.nr{width:44px;color:var(--grau);font-variant-numeric:tabular-nums;padding-right:10px}
 .rgo-amt tr.gr th{padding-top:22px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#1f2f45;border-bottom:2px solid #1f2f45;white-space:normal}
-.rgo-amt tr.gr:first-child th{padding-top:6px}
+.rgo-amt tbody tr.gr:first-child th{padding-top:6px}
 .rgo-amt tr.aw td{font-style:italic;color:var(--grau);font-size:14px}
 .rgo-amt tr.spitze td{font-weight:650}
 .rgo-hinweis{font-size:14px;color:var(--grau);margin:-14px 0 0}
@@ -730,30 +733,47 @@ html:root .oge .dialog h1,html:root .oge .dialog h2,html:root .oge .dialog h3{fo
 </style>"""
 
 
+# (Amtsbezeichnung, Besoldungsgruppe aus besoldung.py / bs_gruppen, Zuschlag in Kronen); * = Anwärter ohne Rangnummer
 AMTSBEZEICHNUNGEN = [
-    ("Mittlerer Verwaltungsdienst", ["Amtsmeister", "Oberamtsmeister", "Regierungssekretär", "Regierungsobersekretär", "Regierungshauptsekretär",
-                                     "Regierungsamtsinspektor", "*Regierungsinspektoranwärter"]),
-    ("Gehobener Dienst", ["Regierungsinspektor", "Regierungsoberinspektor", "Regierungsamtmann", "Regierungsamtsrat", "*Regierungsratanwärter"]),
-    ("Höherer Dienst", ["Regierungsrat", "Regierungsoberrat", "Regierungsdirektor", "Leitender Regierungsdirektor"]),
-    ("Besondere Verwaltungsämter", ["Ministerialrat", "Ministerialdirigent", "Ministerialdirektor", "Staatssekretär / Konsul / Oberherold"]),
-    ("Reichsregierung", ["Generaldirektor / Generalkonsul / Reichskronkommissar", "Vizekronkanzler", "Kronkanzler"]),
+    ("Mittlerer Verwaltungsdienst", [("Amtsmeister", "A3"), ("Oberamtsmeister", "A4"), ("Regierungssekretär", "A6"), ("Regierungsobersekretär", "A7"),
+                                     ("Regierungshauptsekretär", "A8"), ("Regierungsamtsinspektor", "A9"), ("*Regierungsinspektoranwärter", "")]),
+    ("Gehobener Dienst", [("Regierungsinspektor", "A9"), ("Regierungsoberinspektor", "A10"), ("Regierungsamtmann", "A11"), ("Regierungsamtsrat", "A12"),
+                          ("*Regierungsratanwärter", "")]),
+    ("Höherer Dienst", [("Regierungsrat", "A13"), ("Regierungsoberrat", "A14"), ("Regierungsdirektor", "A15"), ("Leitender Regierungsdirektor", "A16")]),
+    ("Besondere Verwaltungsämter", [("Ministerialrat", "A16"), ("Ministerialdirigent", "B6"), ("Ministerialdirektor", "B9"),
+                                    ("Staatssekretär / Konsul / Oberherold", "B11")]),
+    ("Reichsregierung", [("Generaldirektor / Generalkonsul / Reichskronkommissar", "B6", "Reichskronkommissar: Zuschlag 2.500 Kr"),
+                         ("Vizekronkanzler", "", "Grundamt + Zuschlag 3.200 Kr"), ("Kronkanzler", "S2")]),
 ]
 
 
-def _amtsbezeichnungen():
-    """Rangfolge der Amtsbezeichnungen; Anwärter (mit * markiert) sind Ausbildungsstufen ohne eigene Rangnummer."""
+def _kr(heller):
+    return f"{heller // 100:,} Kr".replace(",", ".")
+
+
+def _amtsbezeichnungen(con):
+    """Rangfolge der Amtsbezeichnungen mit Besoldungsgruppe und Grundgehalt (aus bs_gruppen); Anwärter ohne Rangnummer."""
+    try:
+        gehalt = {r[0]: r[1] for r in con.execute("SELECT schl, grundgehalt FROM bs_gruppen")}
+    except Exception:
+        gehalt = {}
     zeilen, nr = [], 0
     for gruppe, aemter in AMTSBEZEICHNUNGEN:
-        zeilen.append(f'<tr class="gr"><th colspan="2" scope="rowgroup">{esc(gruppe)}</th></tr>')
-        for a in aemter:
+        zeilen.append(f'<tr class="gr"><th colspan="4" scope="rowgroup">{esc(gruppe)}</th></tr>')
+        for e in aemter:
+            a, bg, extra = e[0], e[1], (e[2] if len(e) > 2 else "")
             if a.startswith("*"):
-                zeilen.append(f'<tr class="aw"><td class="nr"></td><td>{esc(a[1:])} (Ausbildung zum nächsthöheren Dienst)</td></tr>')
-            else:
-                nr += 1
-                kl = ' class="spitze"' if gruppe == "Reichsregierung" else ""
-                zeilen.append(f'<tr{kl}><td class="nr">{nr}</td><td>{esc(a)}</td></tr>')
-    return ('<div class="rgo-tab-rahmen"><table class="rgo-tab rgo-amt"><tbody>' + "".join(zeilen) + "</tbody></table></div>"
-            '<p class="rgo-hinweis">Aufsteigend vom Eingangsamt bis zum Kronkanzler. Anwärter stehen zwischen den Laufbahnen und tragen keine Rangnummer.</p>')
+                zeilen.append(f'<tr class="aw"><td class="nr"></td><td>{esc(a[1:])} (Ausbildung zum nächsthöheren Dienst)</td><td>–</td><td></td></tr>')
+                continue
+            nr += 1
+            kl = ' class="spitze"' if gruppe == "Reichsregierung" else ""
+            betrag = _kr(gehalt[bg]) if bg in gehalt else ""
+            zus = f'<span class="rgo-zus">{esc(extra)}</span>' if extra else ""
+            zeilen.append(f'<tr{kl}><td class="nr">{nr}</td><td>{esc(a)}</td><td class="bg">{esc(bg) or "–"}</td><td class="geh">{betrag}{zus}</td></tr>')
+    return ('<div class="rgo-tab-rahmen"><table class="rgo-tab rgo-amt"><thead><tr><th></th><th>Amtsbezeichnung</th><th>Besoldungsgruppe</th>'
+            '<th>Grundgehalt / Monat</th></tr></thead><tbody>' + "".join(zeilen) + "</tbody></table></div>"
+            '<p class="rgo-hinweis">Aufsteigend vom Eingangsamt bis zum Kronkanzler. Anwärter stehen zwischen den Laufbahnen und tragen keine Rangnummer. '
+            'Zuschläge kommen zum Grundgehalt hinzu.</p>')
 
 
 async def organisation(request):
@@ -778,7 +798,7 @@ async def organisation(request):
               'ein Klick auf ein Amt nennt Amtsträger, Aufgaben und alle Beziehungen.</p>'
               f'{organigramme.einbettung(request, "verwaltung", k)}</section>'
               f'<section class="rg-abschnitt" id="aufbau"><h2>Aufbau der Reichsverwaltung</h2>{tab}</section>'
-              f'<section class="rg-abschnitt" id="amtsbezeichnungen"><h2>Amtsbezeichnungen</h2>{_amtsbezeichnungen()}</section>')
+              f'<section class="rg-abschnitt" id="amtsbezeichnungen"><h2>Amtsbezeichnungen</h2>{_amtsbezeichnungen(request.app['db'])}</section>')
     return rahmen(request, k, "Organisation", "r-organisation", inhalt)
 
 
