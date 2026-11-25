@@ -402,6 +402,7 @@ WAPPEN = {
     "i6b2e0c7d41a95f38": "The Crown Estates",
     "i3c7a91e5d20b84f6": "Doppeladler auf Gold (grau)",
     "i8e14b6a0c9d357f2": "Doppeladler auf Gold (klassisch)",
+    "i6c1e867e559879e9": "Reichsstandarte (Doppeladler auf Gold)",
     "i0315259ab08a3c08": "Amtswappen mit Krone",
     "i8fe9b680ffa65aa7": "Die Inquisition (Amtslogo)",
     "i32e1adf30ba23c75": "Kaiserliches Reichssicherheitsamt (Amtslogo)",
