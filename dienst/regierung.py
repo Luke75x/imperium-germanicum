@@ -36,7 +36,7 @@ esc = html.escape
 PFAD = "/regierung/"
 LOGO_ORDNER = os.path.join(config.HIER, "amt_logos")
 LOGO_SCHLUESSEL = {"kanzlei": "kanzler"}
-RUNDE_LOGOS = {"crownestates", "kronstatthalterschaft"}   # quadratische/runde Logos ohne Schriftzug daneben: im Kopf mit Namen, in Karten größer   # Ministerium → Logodatei, wenn der Name abweicht
+RUNDE_LOGOS = set()  # 25.11.2026: Crown Estates und Kronstatthalterschaft haben jetzt Logos im Einheitsstil (alte runde in amt_logos/archiv/)   # quadratische/runde Logos ohne Schriftzug daneben: im Kopf mit Namen, in Karten größer   # Ministerium → Logodatei, wenn der Name abweicht
 
 
 def logo_von(schl):
@@ -543,7 +543,7 @@ def _karte(m):
 
 async def logo(request):
     name = request.match_info["name"]
-    if not re.fullmatch(r"[a-z]+(-kopf|-kurz)?", name):
+    if not re.fullmatch(r"[a-z]+(-kopf|-kurz|-pool)?", name):
         raise web.HTTPNotFound()
     pfad = os.path.join(LOGO_ORDNER, name + ".png")
     if not os.path.isfile(pfad):
@@ -575,30 +575,22 @@ def _ministerium_karte(b, klein=False):
 
 
 LOGO_POOL_CSS = """<style>
-.rg-pool{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:14px}.rg-pool>a{min-width:0;box-sizing:border-box}
-.rg-pool a{display:grid;place-items:center;height:118px;padding:16px 20px;border:1px solid var(--linie);border-radius:var(--r);background:#fff;
- text-decoration:none;color:var(--ink);transition:border-color .15s,box-shadow .2s,transform .2s}
-.rg-pool a:hover,.rg-pool a:focus-visible{border-color:#c6ccd6;box-shadow:0 14px 30px -18px rgba(16,24,40,.45);transform:translateY(-2px)}
-.rg-pool img.pl-kopf{max-width:100%;max-height:64px;width:auto;height:auto;object-fit:contain}
-.rg-pool img.pl-rund{height:78px;width:auto}
-.rg-pool .pl-ersatz{display:flex;align-items:center;gap:9px;max-width:100%;min-width:0}
-.rg-pool .pl-ersatz img{height:42px;width:auto;flex:none}
-.rg-pool .pl-ersatz span{font-size:15px;line-height:1.22;font-weight:400;text-align:left;color:#000;overflow-wrap:break-word;hyphens:auto}
-@media(max-width:560px){.rg-pool{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.rg-pool a{height:96px;padding:12px}.rg-pool img.pl-kopf{max-height:48px}
- .rg-pool img.pl-rund{height:62px}.rg-pool .pl-ersatz img{height:30px}.rg-pool .pl-ersatz span{font-size:12.5px}}
+.rg-pool{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:14px}
+.rg-pool>a{display:grid;place-items:center;min-width:0;box-sizing:border-box;height:112px;padding:14px 16px;border:1px solid var(--linie);
+ border-radius:var(--r);background:#fff;text-decoration:none;transition:border-color .15s,box-shadow .2s,transform .2s}
+.rg-pool>a:hover,.rg-pool>a:focus-visible{border-color:#c6ccd6;box-shadow:0 14px 30px -18px rgba(16,24,40,.45);transform:translateY(-2px)}
+.rg-pool img{display:block;height:60px;width:auto;max-width:100%;object-fit:contain}
+@media(max-width:560px){.rg-pool{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.rg-pool>a{height:84px;padding:10px 8px}.rg-pool img{height:40px}}
 </style>"""
 
 
 def _logo_kachel(b):
-    """Kachel nur mit dem Amtslogo; ohne eigenes Logo Adler mit Schriftzug im selben Stil."""
-    lg = logo_von(b["schl"])
+    """Kachel nur mit dem Logo im Einheitsstil (amt_logos/<schl>-pool.png, werkzeuge/pool_logos.py): alle gleich hoch, also gleich große Schrift."""
     name = b["name"]
-    if lg in RUNDE_LOGOS:
-        inhalt = f'<img class="pl-rund" src="{PFAD}logo/{lg}-kopf.png" alt="{esc(name)}">'
-    elif lg:
-        inhalt = f'<img class="pl-kopf" src="{PFAD}logo/{lg}-kopf.png" alt="{esc(name)}">'
+    if os.path.isfile(os.path.join(LOGO_ORDNER, b["schl"] + "-pool.png")):
+        inhalt = f'<img src="{PFAD}logo/{b["schl"]}-pool.png" alt="{esc(name)}">'
     else:
-        inhalt = f'<span class="pl-ersatz"><img src="{PFAD}logo/kanzler-kurz.png" alt=""><span>{esc(name)}</span></span>'
+        inhalt = f'<span>{esc(name)}</span>'
     return f'<a href="{ministerium_url(b)}" title="{esc(name)}" aria-label="{esc(name)}">{inhalt}</a>'
 
 
