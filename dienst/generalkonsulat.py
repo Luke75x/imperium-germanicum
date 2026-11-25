@@ -47,6 +47,13 @@ STUFEN = {0: ("Keine besonderen Hinweise", "gk-s0"), 1: ("Sicherheitshinweis", "
           2: ("Teilreisewarnung", "gk-s2"), 3: ("Reisewarnung", "gk-s3")}
 BEZIEHUNGEN = {"verbuendet": "Verbündet", "befreundet": "Befreundet", "diplomatisch": "Diplomatische Beziehungen",
                "neutral": "Neutral", "angespannt": "Angespannt", "keine": "Keine Beziehungen", "feindlich": "Feindselig"}
+# Ehrenkonsuln ohne Discord-Konto (nach britischem Vorbild – Palmerston, Chief Mouser im Foreign Office). konsul_id = Schlüssel hier.
+EHRENKONSULN = {
+    "tier:fogo": {"name": "Fogo", "bild": "fogo", "amt": "Konsul auf Fogo Island", "art": "Labrador-Retriever",
+                  "text": "Konsul Fogo vertritt das Reich auf Fogo Island vor der Küste Neufundlands. Nach dem Vorbild der britischen Regierung, die ihre Amtskatzen "
+                          "zu Chief Mousern ernennt, hat der Souverän einen Hund in den konsularischen Dienst berufen. Der Konsul empfängt Besucher bevorzugt am Hafen, "
+                          "nimmt Anträge in Form von Leckerlis entgegen und hat bislang keine einzige Möwe ins Reich einreisen lassen."},
+}
 ARTEN_LAND = ["Staat", "Gemeinschaft", "Organisation", "Sonstiges"]
 MELDUNGSARTEN = {"artikel": "Artikel", "pressemitteilung": "Pressemitteilung", "rede": "Rede", "reise": "Reise und Sicherheit"}
 ANTRAGSARTEN = {
@@ -152,6 +159,7 @@ CSS = """<style>
 .gk-verlauf p{margin:4px 0 0;white-space:pre-line}
 .gk-personen{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:12px}
 .gk-person{display:flex;gap:12px;align-items:center;border:1px solid var(--linie);border-radius:var(--r);background:#fff;padding:12px 14px}
+.gk-avatar-bild{object-fit:cover;object-position:top;background:#eee}
 .gk-person b{display:block;font-size:15px}.gk-person small{color:var(--grau);font-size:13px;display:block}
 .gk-inline{display:inline}.gk-inline button{background:none;border:0;color:var(--rot);cursor:pointer;font:inherit;padding:0}
 .gk-mehr{font-size:13.5px;font-weight:600;color:var(--akzent);text-decoration:none}
@@ -283,6 +291,8 @@ def _antwort(request, k, aktiv, titel, inhalt, q=""):
 
 def _konsul(con, l):
     """Name des zuständigen Konsuls: aktueller IC-Name aus der Bürgerakte, sonst der gespeicherte Name."""
+    if l["konsul_id"] in EHRENKONSULN:
+        return EHRENKONSULN[l["konsul_id"]]["name"]
     return regierung.ic_name(con, l["konsul_id"], l["konsul_name"]) if l["konsul_id"] else ""
 
 
@@ -521,7 +531,13 @@ async def land_seite(request):
             teil += '<h3>Meldungen</h3><ul class="gk-liste">' + "".join(
                 f'<li><a href="{PFAD}meldungen/{m["id"]}/">{esc(m["titel"])}</a><span class="gk-datum">{_datum(m["veroeffentlicht"])}</span></li>' for m in ms) + "</ul>"
     elif reiter == "vertretung":
-        teil = (f'<dl class="gk-daten"><dt>Zuständiger Konsul</dt><dd>{esc(_konsul(con, l) or "Das Generalkonsulat (unmittelbar)")}</dd></dl>'
+        ek = EHRENKONSULN.get(l["konsul_id"])
+        teil = ""
+        if ek:
+            teil = (regierung.leitung_block(f'Konsul {ek["name"]}', ek["bild"], [("Konsularische Hilfe anfordern", f'{PFAD}service/antrag/?art=hilfe&land={l["id"]}'),
+                                                                               ("Das Generalkonsulat", f"{PFAD}das-generalkonsulat/")])
+                    + f'<p class="gk-datum">{esc(ek["amt"])} · {esc(ek["art"])}</p><div class="gk-text"><p>{esc(ek["text"])}</p></div>')
+        teil += (f'<dl class="gk-daten"><dt>Zuständiger Konsul</dt><dd>{esc(_konsul(con, l) or "Das Generalkonsulat (unmittelbar)")}</dd></dl>'
                 f'<div class="gk-text">{_absatz(l["vertretung"]) or "<p class=gk-hinweis>Das Reich unterhält hier kein eigenes Konsulat. Zuständig ist das Generalkonsulat.</p>"}</div>'
                 f'<p><a class="btn" href="{PFAD}service/antrag/?art=hilfe&land={l["id"]}">Konsularische Hilfe anfordern</a></p>')
     else:
@@ -621,6 +637,12 @@ async def ueber(request):
             zust.setdefault(l["konsul_id"], []).append(l["name"])
     personen = "".join(f'<div class="gk-person"><span class="avatar">{esc(_ini(n))}</span><span><b>{esc(n)}</b><small>Generalkonsul</small></span></div>' for n in gk)
     personen += "".join(f'<div class="gk-person"><span class="avatar">{esc(_ini(n))}</span><span><b>{esc(n)}</b><small>Konsul{" · " + esc(", ".join(zust[i])) if i in zust else ""}</small></span></div>' for i, n in ks)
+    for i, ek in EHRENKONSULN.items():
+        if i in zust:
+            u = regierung.bild_url(ek["bild"])
+            av = f'<img class="avatar gk-avatar-bild" src="{u}" alt="">' if u else f'<span class="avatar">{esc(_ini(ek["name"]))}</span>'
+            personen += (f'<div class="gk-person">{av}<span><b>{esc(ek["name"])}</b>'
+                         f'<small>Konsul · {esc(", ".join(zust[i]))} · {esc(ek["art"])}</small></span></div>')
     aufgaben = ["Vertritt das Reich und seine Untertanen im Ausland und stellt ihnen Schutz und Beistand.",
                 "Unterhält die Konsulate des Reiches; der Souverän ernennt und entlässt die Konsuln, der Kronkanzler verwaltet sie in seinem Namen.",
                 "Führt den diplomatischen Verkehr der Konsulate und bereitet Verträge und Abkommen vor.",
@@ -1133,6 +1155,7 @@ async def intern_land(request):
             konsuln = await regierung.mitglieder_mit_rollen(request, [ROLLE_KONSUL])
         except Exception:
             konsuln = []
+        konsuln += [(i, f'{ek["name"]} ({ek["art"]}, ohne Discord-Konto)') for i, ek in EHRENKONSULN.items()]
         if l and l["konsul_id"] and l["konsul_id"] not in dict(konsuln):
             konsuln.append((l["konsul_id"], _konsul(con, l) + " (ohne Konsul-Rolle)"))
     bez = (f'<label>Beziehungen zum Reich<select name="beziehung">{_opt(BEZIEHUNGEN.items(), w("beziehung", "neutral"))}</select></label>' if lt else
@@ -1187,7 +1210,9 @@ async def intern_land_speichern(request):
     if lt:
         konsul_id = form.get("konsul", "") or ""
         konsul_name = ""
-        if konsul_id:
+        if konsul_id in EHRENKONSULN:
+            konsul_name = EHRENKONSULN[konsul_id]["name"]
+        elif konsul_id:
             m = next((m for m in await request.app["discord"].mitglieder() if m["id"] == konsul_id), None)
             konsul_name = regierung.ic_name(con, m["id"], m["name"]) if m else (l["konsul_name"] if l and l["konsul_id"] == konsul_id else "")
             if not konsul_name:
