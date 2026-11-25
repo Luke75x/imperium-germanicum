@@ -631,18 +631,31 @@ async def ueber(request):
     con = request.app["db"]
     gk = await _namen_mit_rolle(request, ROLLE_GENERALKONSUL)
     ks = await regierung.mitglieder_mit_rollen(request, [ROLLE_KONSUL])
-    zust = {}
+    kanzler = await regierung.namen_mit_rollen(request, [regierung.amt.ROLLE_KANZLER])
+    leitung = ('<div class="rg-leit-paar-raster">'
+               + regierung.leitung_block(regierung.leitung_titel("Kronkanzler", kanzler), "kanzlei",
+                                         [("Das Kronkanzleramt", "/regierung/kanzlei/"), ("Die Reichsregierung", "/regierung/reichsregierung/")], paar=True)
+               + regierung.leitung_block(regierung.leitung_titel("Generalkonsul", gk), "generalkonsulat",
+                                         [("Das Generalkonsulat", PFAD), ("Länder & Reisen", PFAD + "laender/")], paar=True)
+               + "</div>")
+    # Konsuln als Karten wie im Reichskabinett: Discord-Konsuln (Silhouette) und Ehrenkonsuln (mit Porträt)
+    land_von = {}
     for l in _laender(con):
         if l["konsul_id"]:
-            zust.setdefault(l["konsul_id"], []).append(l["name"])
-    personen = "".join(f'<div class="gk-person"><span class="avatar">{esc(_ini(n))}</span><span><b>{esc(n)}</b><small>Generalkonsul</small></span></div>' for n in gk)
-    personen += "".join(f'<div class="gk-person"><span class="avatar">{esc(_ini(n))}</span><span><b>{esc(n)}</b><small>Konsul{" · " + esc(", ".join(zust[i])) if i in zust else ""}</small></span></div>' for i, n in ks)
-    for i, ek in EHRENKONSULN.items():
-        if i in zust:
-            u = regierung.bild_url(ek["bild"])
-            av = f'<img class="avatar gk-avatar-bild" src="{u}" alt="">' if u else f'<span class="avatar">{esc(_ini(ek["name"]))}</span>'
-            personen += (f'<div class="gk-person">{av}<span><b>{esc(ek["name"])}</b>'
-                         f'<small>Konsul · {esc(", ".join(zust[i]))} · {esc(ek["art"])}</small></span></div>')
+            land_von.setdefault(l["konsul_id"], []).append(l)
+    eintraege = [(i, n, None) for i, n in ks] + [(i, ek["name"], ek) for i, ek in EHRENKONSULN.items() if i in land_von]
+    def karte(i, n, ek):
+        url = regierung.bild_url(ek["bild"]) if ek else None
+        bild = f'<img src="{url}" alt="Porträtbild">' if url else regierung.SILHOUETTE
+        ls = land_von.get(i, [])
+        ziel = f'{PFAD}laender/{esc(ls[0]["schl"])}/?t=vertretung' if ls else None
+        amt_ = "Konsul" + (f' · {esc(ek["art"])}' if ek else "")
+        links = "".join(f'<a class="kb-link" href="{PFAD}laender/{esc(l["schl"])}/?t=vertretung">{regierung.ic("arrow-right")}{esc(l["name"])}</a>' for l in ls)
+        kopf_ = f'<a href="{ziel}">{esc(n)}</a>' if ziel else esc(n)
+        bild_ = (f'<a class="kb-bild" href="{ziel}" aria-hidden="true" tabindex="-1">{bild}</a>' if ziel else f'<div class="kb-bild">{bild}</div>')
+        return (f'<article class="kb-karte">{bild_}<div class="kb-text"><h3>{kopf_}</h3><span class="kb-amt">{amt_}</span>'
+                f'{links or "<span class=kb-amt>Ohne festen Amtsbezirk</span>"}</div></article>')
+    konsuln = "".join(karte(*e) for e in eintraege)
     aufgaben = ["Vertritt das Reich und seine Untertanen im Ausland und stellt ihnen Schutz und Beistand.",
                 "Unterhält die Konsulate des Reiches; der Souverän ernennt und entlässt die Konsuln, der Kronkanzler verwaltet sie in seinem Namen.",
                 "Führt den diplomatischen Verkehr der Konsulate und bereitet Verträge und Abkommen vor.",
@@ -651,7 +664,8 @@ async def ueber(request):
     inhalt = (_abschnitt('<div class="gk-reisen"><div><h2>Aufgaben</h2><ul>' + "".join(f"<li>{esc(a)}</li>" for a in aufgaben) + "</ul></div>"
                          '<div><h2>Sitz</h2><p>Auswärtiges Amt, Berlin – Sitz des Kaiserlichen Generalkonsulats.</p>'
                          '<p>Das Generalkonsulat gehört zu den <a href="/informationen/die-reichsbehoerden/">Reichsbehörden</a> und arbeitet eng mit dem Kronkanzleramt zusammen.</p></div></div>')
-              + _abschnitt('<h2>Leitung und Konsuln</h2>' + (f'<div class="gk-personen">{personen}</div>' if personen else '<p class="gk-hinweis">Zurzeit sind keine Ämter besetzt.</p>'), ))
+              + _abschnitt('<h2>Leitung und Konsuln</h2>' + regierung.KAB_CSS + leitung + '<h3>Die Konsuln</h3>'
+                           + (f'<div class="kb-raster">{konsuln}</div>' if konsuln else '<p class="gk-hinweis">Zurzeit sind keine Konsuln ernannt.</p>')))
     kopf = _kopf("Das Generalkonsulat", [("Über uns", None)], "Kaiserliches Generalkonsulat – die auswärtige Vertretung des Imperium Germanicum.", "Reichsbehörde")
     return _antwort(request, k, "start", "Das Generalkonsulat", kopf + inhalt)
 
