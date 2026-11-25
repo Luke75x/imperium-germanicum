@@ -452,7 +452,7 @@ def rahmen(request, k, titel, aktiv, inhalt, portal=None, krumen=None, q="", sta
         glas += profil_sa.darstellung_css(request.app["db"], k)
     seite = f"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1f2f45"><title>{esc(titel)} – {esc(p["name"])}</title><link rel="icon" type="image/png" sizes="256x256" href="{PFAD}logo/regierungsicon.png"><link rel="apple-touch-icon" href="{PFAD}logo/regierungsapple.png"><style>{amt.CSS}</style>{glas}{CSS}{RAHMEN_CSS}{MODAL_CSS}</head>
+<meta name="theme-color" content="#1f2f45"><title>{esc(titel)} – {esc(p["name"])}</title><link rel="icon" type="image/png" sizes="256x256" href="{PFAD}logo/regierungsicon.png?v={_icon_v()}"><link rel="apple-touch-icon" href="{PFAD}logo/regierungsapple.png?v={_icon_v()}"><style>{amt.CSS}</style>{glas}{CSS}{RAHMEN_CSS}{MODAL_CSS}</head>
 <body>{meta}{kopf_html}{nav}{unter}{krumen_html}
 <main class="rw-main" id="inhalt">{note}{inhalt}</main>{fuss}{RAHMEN_JS}</body></html>"""
     return web.Response(status=status, text=seite, content_type="text/html", headers={"Cache-Control": cache})
@@ -549,6 +549,14 @@ async def logo(request):
     if not os.path.isfile(pfad):
         raise web.HTTPNotFound()
     return web.FileResponse(pfad, headers={"Cache-Control": "no-cache"})
+
+
+def _icon_v():
+    """Versionszeichen fürs Website-Icon (Browser halten Favicons sehr lange fest)."""
+    try:
+        return int(os.path.getmtime(os.path.join(LOGO_ORDNER, "regierungsicon.png")))
+    except OSError:
+        return 0
 
 
 def umleiten(url):
