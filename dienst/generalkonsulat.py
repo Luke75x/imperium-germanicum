@@ -159,6 +159,17 @@ CSS = """<style>
 .gk-verlauf p{margin:4px 0 0;white-space:pre-line}
 .gk-personen{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:12px}
 .gk-person{display:flex;gap:12px;align-items:center;border:1px solid var(--linie);border-radius:var(--r);background:#fff;padding:12px 14px}
+.kk-raster{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:18px;margin:4px 0 24px}
+.kk-karte{position:relative;display:flex;flex-direction:column;margin-top:56px;border:1px solid var(--linie);border-radius:var(--r);background:#fff;transition:box-shadow .2s,transform .2s}
+.kk-karte:hover{box-shadow:0 14px 30px -18px rgba(16,24,40,.45);transform:translateY(-2px)}
+.kk-bild{display:block;position:relative;height:190px;margin-top:-56px;border-bottom:1px solid var(--linie)}
+.kk-bild img{position:absolute;left:0;right:0;bottom:0;margin:auto;max-width:92%;height:100%;object-fit:contain;object-position:center bottom}
+.kk-bild .rg-silhouette{position:absolute;left:50%;bottom:0;transform:translateX(-50%);height:78%;width:auto}
+.kk-text{padding:12px 14px 14px;display:flex;flex-direction:column;gap:4px}
+.kk-text h3{margin:0;font-size:16px;line-height:1.3}.kk-text h3 a{color:var(--ink);text-decoration:none}.kk-text h3 a:hover{color:var(--akzent)}
+.kk-text .kb-amt{font-size:13.5px;color:#3d4148}
+.kk-text a.kb-link{color:var(--akzent);text-decoration:none;font-size:14px;font-weight:600;display:inline-flex;gap:6px;align-items:center}
+.kk-text a.kb-link .icon{width:15px;height:15px}
 .gk-avatar-bild{object-fit:cover;object-position:top;background:#eee}
 .gk-person b{display:block;font-size:15px}.gk-person small{color:var(--grau);font-size:13px;display:block}
 .gk-inline{display:inline}.gk-inline button{background:none;border:0;color:var(--rot);cursor:pointer;font:inherit;padding:0}
@@ -652,8 +663,8 @@ async def ueber(request):
         amt_ = "Konsul" + (f' · {esc(ek["art"])}' if ek else "")
         links = "".join(f'<a class="kb-link" href="{PFAD}laender/{esc(l["schl"])}/?t=vertretung">{regierung.ic("arrow-right")}{esc(l["name"])}</a>' for l in ls)
         kopf_ = f'<a href="{ziel}">{esc(n)}</a>' if ziel else esc(n)
-        bild_ = (f'<a class="kb-bild" href="{ziel}" aria-hidden="true" tabindex="-1">{bild}</a>' if ziel else f'<div class="kb-bild">{bild}</div>')
-        return (f'<article class="kb-karte">{bild_}<div class="kb-text"><h3>{kopf_}</h3><span class="kb-amt">{amt_}</span>'
+        bild_ = (f'<a class="kk-bild" href="{ziel}" aria-hidden="true" tabindex="-1">{bild}</a>' if ziel else f'<div class="kk-bild">{bild}</div>')
+        return (f'<article class="kk-karte">{bild_}<div class="kk-text"><h3>{kopf_}</h3><span class="kb-amt">{amt_}</span>'
                 f'{links or "<span class=kb-amt>Ohne festen Amtsbezirk</span>"}</div></article>')
     konsuln = "".join(karte(*e) for e in eintraege)
     aufgaben = ["Vertritt das Reich und seine Untertanen im Ausland und stellt ihnen Schutz und Beistand.",
@@ -665,7 +676,7 @@ async def ueber(request):
                          '<div><h2>Sitz</h2><p>Auswärtiges Amt, Berlin – Sitz des Kaiserlichen Generalkonsulats.</p>'
                          '<p>Das Generalkonsulat gehört zu den <a href="/informationen/die-reichsbehoerden/">Reichsbehörden</a> und arbeitet eng mit dem Kronkanzleramt zusammen.</p></div></div>')
               + _abschnitt('<h2>Leitung und Konsuln</h2>' + regierung.KAB_CSS + leitung + '<h3>Die Konsuln</h3>'
-                           + (f'<div class="kb-raster">{konsuln}</div>' if konsuln else '<p class="gk-hinweis">Zurzeit sind keine Konsuln ernannt.</p>')))
+                           + (f'<div class="kk-raster">{konsuln}</div>' if konsuln else '<p class="gk-hinweis">Zurzeit sind keine Konsuln ernannt.</p>')))
     kopf = _kopf("Das Generalkonsulat", [("Über uns", None)], "Kaiserliches Generalkonsulat – die auswärtige Vertretung des Imperium Germanicum.", "Reichsbehörde")
     return _antwort(request, k, "start", "Das Generalkonsulat", kopf + inhalt)
 
