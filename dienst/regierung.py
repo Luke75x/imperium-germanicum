@@ -574,6 +574,34 @@ def _ministerium_karte(b, klein=False):
             f'<span class="rg-mehr">Zum Ministerium {ic("arrow-right")}</span></a>')
 
 
+LOGO_POOL_CSS = """<style>
+.rg-pool{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:14px}.rg-pool>a{min-width:0;box-sizing:border-box}
+.rg-pool a{display:grid;place-items:center;height:118px;padding:16px 20px;border:1px solid var(--linie);border-radius:var(--r);background:#fff;
+ text-decoration:none;color:var(--ink);transition:border-color .15s,box-shadow .2s,transform .2s}
+.rg-pool a:hover,.rg-pool a:focus-visible{border-color:#c6ccd6;box-shadow:0 14px 30px -18px rgba(16,24,40,.45);transform:translateY(-2px)}
+.rg-pool img.pl-kopf{max-width:100%;max-height:64px;width:auto;height:auto;object-fit:contain}
+.rg-pool img.pl-rund{height:78px;width:auto}
+.rg-pool .pl-ersatz{display:flex;align-items:center;gap:9px;max-width:100%;min-width:0}
+.rg-pool .pl-ersatz img{height:42px;width:auto;flex:none}
+.rg-pool .pl-ersatz span{font-size:15px;line-height:1.22;font-weight:400;text-align:left;color:#000;overflow-wrap:break-word;hyphens:auto}
+@media(max-width:560px){.rg-pool{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.rg-pool a{height:96px;padding:12px}.rg-pool img.pl-kopf{max-height:48px}
+ .rg-pool img.pl-rund{height:62px}.rg-pool .pl-ersatz img{height:30px}.rg-pool .pl-ersatz span{font-size:12.5px}}
+</style>"""
+
+
+def _logo_kachel(b):
+    """Kachel nur mit dem Amtslogo; ohne eigenes Logo Adler mit Schriftzug im selben Stil."""
+    lg = logo_von(b["schl"])
+    name = b["name"]
+    if lg in RUNDE_LOGOS:
+        inhalt = f'<img class="pl-rund" src="{PFAD}logo/{lg}-kopf.png" alt="{esc(name)}">'
+    elif lg:
+        inhalt = f'<img class="pl-kopf" src="{PFAD}logo/{lg}-kopf.png" alt="{esc(name)}">'
+    else:
+        inhalt = f'<span class="pl-ersatz"><img src="{PFAD}logo/kanzler-kurz.png" alt=""><span>{esc(name)}</span></span>'
+    return f'<a href="{ministerium_url(b)}" title="{esc(name)}" aria-label="{esc(name)}">{inhalt}</a>'
+
+
 async def start(request):
     """Startseite: Einstieg in alle Ministerien, dazu Aktuelles und die Regierung."""
     k = await anmeldung.konto(request)
@@ -592,12 +620,8 @@ async def start(request):
             hinweise += h(con)
         except Exception:
             pass
-    teile = []
-    for g, gname in gruppen.items():
-        bs = [b for b in alle if b["gruppe"] == g]
-        if bs:
-            teile.append(f'<h3 class="rg-gruppe">{esc(gname)}</h3><div class="rg-karten">{"".join(_ministerium_karte(b) for b in bs)}</div>')
-    ministerien = f'<section class="rg-abschnitt" id="ministerien"><h2>Die Ministerien</h2>{"".join(teile)}</section>'
+    ministerien = (f'<section class="rg-abschnitt" id="ministerien"><h2>Die Ministerien <a href="{PFAD}ministerien/">Alle mit Beschreibung</a></h2>'
+                   + LOGO_POOL_CSS + f'<div class="rg-pool">{"".join(_logo_kachel(b) for b in alle)}</div></section>')
     ms = alle_meldungen(con)[:6]
     newsroom = (f'<section class="rg-abschnitt"><h2>Aktuelles <a href="{PFAD}aktuelles/">Alle Meldungen</a></h2>'
                 + (f'<div class="rg-karten">{"".join(_karte(m) for m in ms)}</div>' if ms else '<p class="leer">Noch keine Meldungen.</p>') + "</section>")
