@@ -384,7 +384,7 @@ def _nav_regierung(k):
     nav = [("Startseite", "", [("r-start", "Startseite", "")]), ("Regierungsfahrzeuge", "fahrzeuge/", [("r-fahrzeuge", "Regierungsfahrzeuge", "fahrzeuge/")]),
            ("Aktuelles", "aktuelles/", [("r-aktuelles", "Aktuelles", "aktuelles/")]),
            ("Die Reichsregierung", "reichsregierung/", [("r-regierung", "Die Reichsregierung", "reichsregierung/")]),
-           ("Organigramm", "organigramm/", [("r-organigramm", "Organigramm", "organigramm/")]),
+           ("Organisation", "organisation/", [("r-organisation", "Organisation", "organisation/")]),
            ("Ministerien", "ministerien/", [("r-ministerien", "Ministerien", "ministerien/")])]
     if ist_redaktion(k):
         nav.append(("Redaktion", "intern/", [("r-intern", "Redaktion", "intern/")]))
@@ -700,6 +700,13 @@ ORG_CSS = """<style>
 .rgo-tab th,.rgo-tab td{text-align:left;vertical-align:top;padding:11px 14px 11px 0;border:0;border-bottom:1px solid var(--linie)}
 .rgo-tab thead th{font-size:13px;color:var(--grau);font-weight:600;border-bottom:1px solid var(--ink)}
 .rgo-tab tbody th{font-weight:650;white-space:nowrap}
+.rgo-amt{min-width:0;max-width:760px}
+.rgo-amt td.nr{width:44px;color:var(--grau);font-variant-numeric:tabular-nums;padding-right:10px}
+.rgo-amt tr.gr th{padding-top:22px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#1f2f45;border-bottom:2px solid #1f2f45;white-space:normal}
+.rgo-amt tr.gr:first-child th{padding-top:6px}
+.rgo-amt tr.aw td{font-style:italic;color:var(--grau);font-size:14px}
+.rgo-amt tr.spitze td{font-weight:650}
+.rgo-hinweis{font-size:14px;color:var(--grau);margin:-14px 0 0}
 /* Organigramm in den Farben der Reichsregierung (statt Elfenbein/Gold der Hauptseite) – nur auf /regierung/ */
 html:root .oge{--navy-950:#16202f;--navy-900:#1f2f45;--navy-800:#2a3d58;--navy-700:#3a5170;--navy-100:#e7ebf1;
  --gold-700:#8a6a12;--gold-600:#b8902a;--gold-500:#f2c94c;--gold-300:#f2c94c;--ivory:#f5f6f8;--paper:#fff;--white:#fff;
@@ -723,8 +730,34 @@ html:root .oge .dialog h1,html:root .oge .dialog h2,html:root .oge .dialog h3{fo
 </style>"""
 
 
-async def organigramm(request):
-    """Organigramm der Reichsverwaltung, hier selbst wiedergegeben (interaktiv, Daten aus organigramme.py), dazu der Aufbau in Säulen."""
+AMTSBEZEICHNUNGEN = [
+    ("Mittlerer Verwaltungsdienst", ["Amtsmeister", "Oberamtsmeister", "Regierungssekretär", "Regierungsobersekretär", "Regierungshauptsekretär",
+                                     "Regierungsamtsinspektor", "*Regierungsinspektoranwärter"]),
+    ("Gehobener Dienst", ["Regierungsinspektor", "Regierungsoberinspektor", "Regierungsamtmann", "Regierungsamtsrat", "*Regierungsratanwärter"]),
+    ("Höherer Dienst", ["Regierungsrat", "Regierungsoberrat", "Regierungsdirektor", "Leitender Regierungsdirektor"]),
+    ("Besondere Verwaltungsämter", ["Ministerialrat", "Ministerialdirigent", "Ministerialdirektor", "Staatssekretär / Konsul / Oberherold"]),
+    ("Reichsregierung", ["Generaldirektor / Generalkonsul / Reichskronkommissar", "Vizekronkanzler", "Kronkanzler"]),
+]
+
+
+def _amtsbezeichnungen():
+    """Rangfolge der Amtsbezeichnungen; Anwärter (mit * markiert) sind Ausbildungsstufen ohne eigene Rangnummer."""
+    zeilen, nr = [], 0
+    for gruppe, aemter in AMTSBEZEICHNUNGEN:
+        zeilen.append(f'<tr class="gr"><th colspan="2" scope="rowgroup">{esc(gruppe)}</th></tr>')
+        for a in aemter:
+            if a.startswith("*"):
+                zeilen.append(f'<tr class="aw"><td class="nr"></td><td>{esc(a[1:])} (Ausbildung zum nächsthöheren Dienst)</td></tr>')
+            else:
+                nr += 1
+                kl = ' class="spitze"' if gruppe == "Reichsregierung" else ""
+                zeilen.append(f'<tr{kl}><td class="nr">{nr}</td><td>{esc(a)}</td></tr>')
+    return ('<div class="rgo-tab-rahmen"><table class="rgo-tab rgo-amt"><tbody>' + "".join(zeilen) + "</tbody></table></div>"
+            '<p class="rgo-hinweis">Aufsteigend vom Eingangsamt bis zum Kronkanzler. Anwärter stehen zwischen den Laufbahnen und tragen keine Rangnummer.</p>')
+
+
+async def organisation(request):
+    """Organisation der Reichsverwaltung: Organigramm (interaktiv, Daten aus organigramme.py), Aufbau in Säulen, Amtsbezeichnungen."""
     k = await anmeldung.konto(request)
     alle, _ = ressorts()
     vt = next((b for b in alle if b["gruppe"] == "vertretung"), None)
@@ -738,13 +771,19 @@ async def organigramm(request):
                         f'{vt["name"]}: Vertretung des Souveräns in Teilstaaten und Städten ohne eigenen Regenten. Untersteht unmittelbar dem Souverän.'))
     tab = ('<div class="rgo-tab-rahmen"><table class="rgo-tab"><thead><tr><th>Säule</th><th>Leitung</th><th>Aufgabe</th></tr></thead><tbody>'
            + "".join(f'<tr><th scope="row">{esc(n)}</th><td>{esc(l)}</td><td>{esc(t)}</td></tr>' for n, l, t in saeulen) + "</tbody></table></div>")
-    inhalt = (ORG_CSS + kopf("Organigramm der Reichsverwaltung",
-                             "Alle Ämter und Behörden der Reichsverwaltung mit ihren gegenwärtigen Amtsträgern. An der Spitze steht der Souverän; "
-                             "ihm unterstehen das Kronkanzleramt mit den Reichsbehörden und das Reichsamt für die Kronstatthalterschaft. "
-                             "Das Organigramm lässt sich zoomen und durchsuchen; ein Klick auf ein Amt nennt Amtsträger, Aufgaben und alle Beziehungen.")
-              + f'<section class="rg-abschnitt">{organigramme.einbettung(request, "verwaltung", k)}</section>'
-              f'<section class="rg-abschnitt"><h2>Aufbau der Reichsverwaltung</h2>{tab}</section>')
-    return rahmen(request, k, "Organigramm", "r-organigramm", inhalt)
+    inhalt = (ORG_CSS + kopf("Organisation der Reichsverwaltung",
+                             "Alle Ämter und Behörden der Reichsverwaltung mit ihren gegenwärtigen Amtsträgern, ihr Aufbau und die Amtsbezeichnungen. "
+                             "An der Spitze steht der Souverän; ihm unterstehen das Kronkanzleramt mit den Reichsbehörden und das Reichsamt für die Kronstatthalterschaft.")
+              + '<section class="rg-abschnitt" id="organigramm"><h2>Organigramm</h2><p class="rgo-hinweis" style="margin:0 0 14px">Zoomen und durchsuchen; '
+              'ein Klick auf ein Amt nennt Amtsträger, Aufgaben und alle Beziehungen.</p>'
+              f'{organigramme.einbettung(request, "verwaltung", k)}</section>'
+              f'<section class="rg-abschnitt" id="aufbau"><h2>Aufbau der Reichsverwaltung</h2>{tab}</section>'
+              f'<section class="rg-abschnitt" id="amtsbezeichnungen"><h2>Amtsbezeichnungen</h2>{_amtsbezeichnungen()}</section>')
+    return rahmen(request, k, "Organisation", "r-organisation", inhalt)
+
+
+async def organigramm_alt(request):
+    raise web.HTTPFound(PFAD + "organisation/")
 
 
 # ---------------------------------------------------------------- Reichskabinett (Aufbau wie bundesregierung.de/…/bundeskabinett)
@@ -1502,7 +1541,8 @@ def registrieren(app):
     r.add_get(PFAD + "reichsregierung/{id:[0-9a-z]+}/", kabinett_person)
     r.add_post(PFAD + "reichsregierung/{id:[0-9a-z]+}/lebenslauf", kabinett_lebenslauf)
     r.add_get(PFAD + "ministerien/", ministerien)
-    r.add_get(PFAD + "organigramm/", organigramm)
+    r.add_get(PFAD + "organisation/", organisation)
+    r.add_get(PFAD + "organigramm/", organigramm_alt)
     r.add_get(PFAD + "ressorts/", alt_ressorts)
     r.add_get(PFAD + "ressorts/{schl}/", alt_ressort)
     r.add_get(PFAD + "suche/", suche)
