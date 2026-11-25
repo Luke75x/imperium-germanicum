@@ -82,6 +82,15 @@ html.bk-lock, html.bk-lock body { overflow: hidden; overscroll-behavior: none; }
 .bk-art .n a { color: inherit; text-decoration: none; }
 .bk-art p { margin: 0 0 .5em; }
 .bk-art p:last-child { margin-bottom: 0; }
+.bk-art .art-title { margin: 0 0 .45em; text-align: center; font: italic 600 .95em/1.3 var(--serif); color: #4a3f2a; }
+.bk-art p.abs { padding-left: 1.8em; text-indent: -1.8em; text-align: left; }
+.bk-art .abs-n, .bk-art .li-n { color: #8c6d1c; font-weight: 600; }
+.bk-art p.vacant { text-align: center; font-style: italic; color: #7d7058; }
+.bk-art ol.charta-num, .bk-art ol.charta-sub { list-style: none; padding-left: 0; margin: .2em 0 .5em; text-align: left; }
+.bk-art ol.charta-num > li { padding-left: 2.1em; text-indent: -2.1em; margin-bottom: .2em; }
+.bk-art ol.charta-num .li-n { display: inline-block; min-width: 1.9em; text-indent: 0; }
+.bk-art ol.charta-sub > li { padding-left: 1.5em; text-indent: -1.5em; }
+.bk-art ul.charta-list { padding-left: 1.2em; margin: .2em 0 .5em; text-align: left; }
 .bk-art ol.alpha { list-style: lower-alpha; padding-left: 1.5em; margin: .2em 0 .5em; }
 .bk-art blockquote, .bk-art .oath { margin: .5em 0; padding: 0 0 0 .9em; background: none; color: inherit; border-left: 2px solid #c9a43a; font-style: italic; font-size: 1em; line-height: inherit; text-align: left; hyphens: auto; }
 .bk-art dl { margin: .3em 0; }

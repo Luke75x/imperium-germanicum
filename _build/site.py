@@ -4,7 +4,7 @@ Aufruf (im Projektordner):
     python _build/bilder.py   # nur nach neuen Bildern in assets/img/original
     python _build/site.py     # erzeugt alle HTML-Seiten, sitemap.xml und robots.txt
 
-Alle Inhalte stehen in dieser Datei (Seitenfunktionen), in etikette.py und charta.json.
+Alle Inhalte stehen in dieser Datei (Seitenfunktionen), in etikette.py und charta.txt.
 """
 import html
 import json
@@ -1307,77 +1307,132 @@ def page_kanzler():
                      article, parent=("informationen/die-reichsbehoerden/", "Die Reichsbehörden"))
 
 
-ROMAN = re.compile(r"^(?:B )?([IVX]+)\.\s+(.+)$")
-PAR = re.compile(r"^(\d+)§\.$")
+CH_PART = re.compile(r"^([IVX]+)\.\s+(.+)$")
+CH_PAR = re.compile(r"^§\s*(\d+)(?:\s*·\s*(.+))?$")
+CH_ABS = re.compile(r"^\((\d+)\)\s+(.+)$")
+CH_ITEM = re.compile(r"^(\d+[a-z]?)\.\s+(.+)$")
+CH_SUB = re.compile(r"^([a-z])\)\s+(.+)$")
 
 
-def strip_b(t):
-    return t[2:] if t.startswith("B ") else t
+def charta_quelle():
+    """Liest _build/charta.txt (Fassung + Zeilen ohne Kommentare)."""
+    fassung, rows = "", []
+    with open(os.path.join(HERE, "charta.txt"), encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("@fassung "):
+                fassung = line[9:].strip()
+                continue
+            rows.append(line)
+    return fassung, rows
 
 
 def charta_parts():
-    with open(os.path.join(HERE, "charta.json"), encoding="utf-8") as fh:
-        rows = [r[1] for r in json.load(fh) if r[0] == "p"]
-    parts = [{"num": "", "title": "Präambel", "id": "praeambel", "intro": [], "articles": []}]
-    cur_art = None
-    for row in rows[1:]:  # erste Zeile = "Präambel"
-        m = ROMAN.match(row)
+    """Abschnitte → Paragraphen → Blöcke. Blocktypen: p, abs, list, bullets, oath, titel, anrede."""
+    _, rows = charta_quelle()
+    parts = []
+    art = None
+    for row in rows:
+        if row == "Präambel":
+            parts.append({"num": "", "title": "Präambel", "id": "praeambel", "intro": [], "articles": []})
+            art = None
+            continue
+        m = CH_PART.match(row)
         if m:
             parts.append({"num": m.group(1), "title": m.group(2).strip(), "id": "abschnitt-" + m.group(1).lower(),
                           "intro": [], "articles": []})
-            cur_art = None
+            art = None
             continue
-        m = PAR.match(row)
+        m = CH_PAR.match(row)
         if m:
-            cur_art = {"n": m.group(1), "lines": []}
-            parts[-1]["articles"].append(cur_art)
+            art = {"n": m.group(1), "title": (m.group(2) or "").strip(), "blocks": []}
+            parts[-1]["articles"].append(art)
             continue
-        if cur_art is None:
-            parts[-1]["intro"].append(strip_b(row))
+        if art is None:
+            parts[-1]["intro"].append(row)
+            continue
+        b = art["blocks"]
+        last = b[-1] if b else None
+        if row.startswith("@titel "):
+            who, txt = [x.strip() for x in row[7:].split("|", 1)]
+            if last and last["t"] == "titel":
+                last["rows"].append((who, txt))
+            else:
+                b.append({"t": "titel", "rows": [(who, txt)]})
+        elif row.startswith("@anrede "):
+            vals = [x.strip() for x in row[8:].split("|")]
+            if last and last["t"] == "anrede":
+                last["rows"].append(vals)
+            else:
+                b.append({"t": "anrede", "rows": [vals]})
+        elif row.startswith("„"):
+            b.append({"t": "oath", "text": row})
+        elif row.startswith("- "):
+            if last and last["t"] == "bullets":
+                last["items"].append(row[2:].strip())
+            else:
+                b.append({"t": "bullets", "items": [row[2:].strip()]})
+        elif CH_SUB.match(row) and last and last["t"] == "list":
+            s = CH_SUB.match(row)
+            last["items"][-1]["subs"].append((s.group(1), s.group(2)))
+        elif CH_ITEM.match(row):
+            s = CH_ITEM.match(row)
+            item = {"n": s.group(1), "text": s.group(2), "subs": []}
+            if last and last["t"] == "list":
+                last["items"].append(item)
+            else:
+                b.append({"t": "list", "items": [item]})
+        elif CH_ABS.match(row):
+            s = CH_ABS.match(row)
+            b.append({"t": "abs", "n": s.group(1), "text": s.group(2)})
         else:
-            cur_art["lines"].append(row)
+            b.append({"t": "p", "text": row})
     return parts
 
 
-def render_article_body(part_num, art):
-    lines = art["lines"]
+def render_article_body(art):
     out = []
-    i = 0
-    # Kriegsrecht § 4: Aufzählung der Befugnisse
-    if part_num == "VII" and art["n"] == "4":
-        intro, items, tail = lines[0], lines[1:-1], lines[-1]
-        lis = "".join(f"<li>{esc(strip_b(x))}</li>" for x in items)
-        return f"<p>{esc(intro)}</p><ol class=\"alpha\">{lis}</ol><p>{esc(tail)}</p>"
-    while i < len(lines):
-        line = lines[i]
-        if line.endswith(":") and i + 1 < len(lines) and lines[i + 1].startswith("B ") and line in ("Souverän:", "Gemahlin:"):
-            groups = []
-            while i < len(lines) and lines[i] in ("Souverän:", "Gemahlin:"):
-                label = lines[i][:-1]
-                i += 1
-                vals = []
-                while i < len(lines) and lines[i].startswith("B "):
-                    vals.append(lines[i][2:].strip())
-                    i += 1
-                groups.append((label, vals))
-            if all(len(v) == 3 for _, v in groups):
-                rows = "".join(f"<tr><th scope=\"row\">{l}</th>{''.join(f'<td data-label=\"{k}\">{esc(x)}</td>' for k, x in zip(('Langform', 'Kurzform', 'Briefkürzel'), v))}</tr>" for l, v in groups)
-                out.append('<div class="table-scroll"><table class="styles-table"><thead><tr><th></th><th>Langform</th>'
-                           f'<th>Kurzform</th><th>Briefkürzel</th></tr></thead><tbody>{rows}</tbody></table></div>')
-            else:
-                dl = "".join(f"<dt>{l}</dt><dd>{esc(' '.join(v))}</dd>" for l, v in groups)
-                out.append(f'<dl class="titles">{dl}</dl>')
-            continue
-        if line.startswith("B „"):
-            out.append(f'<blockquote class="oath">{esc(line[2:])}</blockquote>')
-        else:
-            out.append(f"<p>{esc(strip_b(line))}</p>")
-        i += 1
+    if art["title"]:
+        out.append(f'<h3 class="art-title">{esc(art["title"])}</h3>')
+    for b in art["blocks"]:
+        t = b["t"]
+        if t == "p":
+            cls = ' class="vacant"' if b["text"] == "(unbesetzt)" else ""
+            out.append(f"<p{cls}>{esc(b['text'])}</p>")
+        elif t == "abs":
+            out.append(f'<p class="abs"><span class="abs-n">({b["n"]})</span> {esc(b["text"])}</p>')
+        elif t == "oath":
+            out.append(f'<blockquote class="oath">{esc(b["text"])}</blockquote>')
+        elif t == "bullets":
+            out.append('<ul class="charta-list">' + "".join(f"<li>{esc(x)}</li>" for x in b["items"]) + "</ul>")
+        elif t == "list":
+            lis = []
+            for it in b["items"]:
+                subs = ""
+                if it["subs"]:
+                    subs = '<ol class="charta-sub">' + "".join(
+                        f'<li><span class="li-n">{k})</span> {esc(x)}</li>' for k, x in it["subs"]) + "</ol>"
+                txt = f'<span class="li-t">{esc(it["text"])}</span>' if subs else esc(it["text"])  # eigene Übersetzungseinheit
+                lis.append(f'<li><span class="li-n">{esc(it["n"])}.</span> {txt}{subs}</li>')
+            out.append('<ol class="charta-num">' + "".join(lis) + "</ol>")
+        elif t == "titel":
+            dl = "".join(f"<dt>{esc(w)}</dt><dd>{esc(x)}</dd>" for w, x in b["rows"])
+            out.append(f'<dl class="titles">{dl}</dl>')
+        elif t == "anrede":
+            rows = "".join(
+                f"<tr><th scope=\"row\">{esc(v[0])}</th>"
+                + "".join(f'<td data-label="{k}">{esc(x)}</td>' for k, x in zip(("Langform", "Kurzform", "Briefkürzel"), v[1:]))
+                + "</tr>" for v in b["rows"])
+            out.append('<div class="table-scroll"><table class="styles-table"><thead><tr><th></th><th>Langform</th>'
+                       f'<th>Kurzform</th><th>Briefkürzel</th></tr></thead><tbody>{rows}</tbody></table></div>')
     return "".join(out)
 
 
 def page_charta():
     Ctx.prefix = "../../"
+    fassung, _ = charta_quelle()
     parts = charta_parts()
     toc, sections = [], []
     for p in parts:
@@ -1394,18 +1449,20 @@ def page_charta():
         for a in p["articles"]:
             aid = f'{p["id"]}-par-{a["n"]}'
             arts.append(f'<div class="article-par" id="{aid}"><div class="par"><a href="#{aid}" title="Link zu diesem Paragraphen">§ {a["n"]}</a></div>'
-                        f'<div class="body">{render_article_body(p["num"], a)}</div></div>')
+                        f'<div class="body">{render_article_body(a)}</div></div>')
         sections.append(f"""
 <section class="doc-part" id="{p["id"]}">
   <header><span class="num">Abschnitt {p["num"]}</span><h2>{esc(p["title"])}</h2></header>
   {"".join(arts)}
 </section>""")
+    stand = f'<p class="doc-version">{esc(fassung)}</p>' if fassung else ""
     body = page_head([("informationen/", "Staatsaufbau"), ("informationen/imperiale-charta/", "Imperiale Charta")],
-                     "Die Imperiale Charta", "Die Verfassung und Satzung des Imperium Germanicum") + f"""
+                     "Die Imperiale Charta", "Die Verfassung des Imperium Germanicum" + (f" · {fassung}" if fassung else "")) + f"""
 <div class="section">
   <div class="wrap with-aside left">
     <aside class="aside-nav toc" aria-label="Inhaltsverzeichnis der Charta">
       <h2>Inhalt</h2>
+      {stand}
       <ol>{"".join(toc)}</ol>
       <div class="doc-tools">
         <button class="btn btn-line" type="button" data-print>{icon("print")}Drucken</button>
@@ -1417,7 +1474,7 @@ def page_charta():
 <link rel="stylesheet" href="{asset("css/charta-book.css")}?v={_hash("css/charta-book.css")}">
 <script src="{asset("js/charta-book.js")}?v={_hash("js/charta-book.js")}" defer></script>"""
     render("informationen/imperiale-charta/", "Die Imperiale Charta",
-           "Die Imperiale Charta – Verfassung und Satzung des Imperium Germanicum: Grundrechte, Reich und Gliederstaaten, Reichstag, Senat, Souverän, Rechtsprechung und Kriegsrecht.",
+           "Die Imperiale Charta – Verfassung des Imperium Germanicum: Grundrechte, Reich und Gliederstaaten, Reichstag, Senat, Souverän, Reichsregierung, Rechtsprechung und Kriegsrecht.",
            body)
 
 
