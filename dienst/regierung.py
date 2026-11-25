@@ -742,7 +742,7 @@ AMTSBEZEICHNUNGEN = [
     ("Höherer Dienst", [("Regierungsrat", "A13"), ("Regierungsoberrat", "A14"), ("Regierungsdirektor", "A15"), ("Leitender Regierungsdirektor", "A16")]),
     ("Besondere Verwaltungsämter", [("Ministerialrat", "A16"), ("Ministerialdirigent", "B6"), ("Ministerialdirektor", "B9"),
                                     ("Staatssekretär / Konsul / Oberherold", "B11")]),
-    ("Reichsregierung", [("Generaldirektor / Generalkonsul / Reichskronkommissar", "B6", "Reichskronkommissar: Zuschlag 2.500 Kr"),
+    ("Reichsregierung", [("Generaldirektor / Generalkonsul / Reichskronkommissar", "B12", "Reichskronkommissar: Grundamt + Zuschlag 2.500 Kr"),
                          ("Vizekronkanzler", "", "Grundamt + Zuschlag 3.200 Kr"), ("Kronkanzler", "S2")]),
 ]
 
