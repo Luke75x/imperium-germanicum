@@ -164,7 +164,7 @@ CSS = """<style>
 .kk-karte:hover{box-shadow:0 14px 30px -18px rgba(16,24,40,.45);transform:translateY(-2px)}
 .kk-bild{display:block;position:relative;height:190px;margin-top:-56px;border-bottom:1px solid var(--linie)}
 .kk-bild img{position:absolute;left:0;right:0;bottom:0;margin:auto;max-width:92%;height:100%;object-fit:contain;object-position:center bottom}
-.kk-bild .rg-silhouette{position:absolute;left:50%;bottom:0;transform:translateX(-50%);height:78%;width:auto}
+.kk-bild .rg-silhouette{position:absolute;left:50%;bottom:0;transform:translateX(-50%);height:122%;width:auto;max-width:none}
 .kk-text{padding:12px 14px 14px;display:flex;flex-direction:column;gap:4px}
 .kk-text h3{margin:0;font-size:16px;line-height:1.3}.kk-text h3 a{color:var(--ink);text-decoration:none}.kk-text h3 a:hover{color:var(--akzent)}
 .kk-text .kb-amt{font-size:13.5px;color:#3d4148}

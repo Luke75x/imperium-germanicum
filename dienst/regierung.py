@@ -51,6 +51,9 @@ WEBAUFTRITTE = {"generalkonsulat": PFAD + "generalkonsulat/", "schatzamt": "/sch
 # Reichsamt für die Kronstatthalterschaft (Reichsvertretung): geleitet vom Privatsekretär des Souveräns (= Kronkanzler), dort „Reichskronkommissar“;
 # untersteht unmittelbar dem Souverän. Bekommt der Reichskronkommissar eine eigene Discord-Rolle, hier eintragen.
 LEITUNG_ROLLEN = {"kanzlei": [amt.ROLLE_KANZLER], "generalkonsulat": ["1522702617833246822"], "kronstatthalterschaft": [amt.ROLLE_KANZLER]}
+# Vizekronkanzler = ständiger Vertreter des Kronkanzlers (Nutzervorgabe 25.11.2026: Robin Marc von Schwalben, zugleich Generalkonsul).
+# Es gibt dafür keine Discord-Rolle, deshalb Konto-IDs. Porträt: leitung_bilder/vizekanzler.png (Kopie des Generalkonsul-Bildes).
+VIZEKANZLER_IDS = ["636314029760970772"]
 for _b in amt.BEHOERDEN:
     if _b["leitung"]:
         LEITUNG_ROLLEN.setdefault(_b["schl"], _b["leitung"])
@@ -747,11 +750,23 @@ async def kabinett_liste(request):
             gesehen.add((kid, b["schl"]))
             amt_ = "Kronkanzler" if b["schl"] == "kanzlei" else ohne_artikel(b.get("leitung", "Leitung"))
             out.append((kid, name, amt_, b))
+        if b["schl"] == "kanzlei":
+            for kid, name in await vizekanzler(request):
+                out.append((kid, name, "Vizekronkanzler", dict(b, bild="vizekanzler")))
     return out
 
 
+async def vizekanzler(request):
+    """[(Konto-ID, IC-Name)] des Vizekronkanzlers (VIZEKANZLER_IDS, nur wer auf dem Server ist)."""
+    try:
+        con = request.app["db"]
+        return [(m["id"], ic_name(con, m["id"], m["name"])) for m in await request.app["discord"].mitglieder() if m["id"] in VIZEKANZLER_IDS]
+    except Exception:
+        return []
+
+
 def _kb_bild(b):
-    url = bild_url(b["schl"])
+    url = bild_url(b.get("bild") or b["schl"])
     return f'<img src="{url}" alt="Porträtbild">' if url else SILHOUETTE
 
 
@@ -902,6 +917,8 @@ async def ministerium_start(request):
     k = await anmeldung.konto(request)
     b, gruppen = _ministerium(request)
     con = request.app["db"]
+    if b["schl"] == "kanzlei":
+        return await _kanzlei_start(request, k, b, con)
     rollen = LEITUNG_ROLLEN.get(b["schl"])
     namen = await namen_mit_rollen(request, rollen) if rollen else []
     bild = f'<img src="{PFAD}logo/kanzler-kurz.png" alt="">'
@@ -924,6 +941,77 @@ async def ministerium_start(request):
     return rahmen(request, k, b["name"], "m-start", held + leitung + aufgaben + meld, portal=portal_ministerium(b, k), krumen=[])
 
 
+KANZLEI_CSS = """<style>
+.kz-held{position:relative;overflow:hidden}
+.kz-held::after{content:"";position:absolute;inset:auto -60px -80px auto;width:340px;height:340px;border-radius:50%;
+ background:radial-gradient(circle,rgba(242,201,76,.16),transparent 70%);pointer-events:none}
+.kz-band{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:0;border:1px solid var(--linie);border-radius:var(--r);
+ background:#fff;margin:0 0 40px;overflow:hidden}
+.kz-band>div{padding:18px 20px;border-right:1px solid var(--linie)}.kz-band>div:last-child{border-right:0}
+.kz-band small{display:block;color:var(--grau);font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:650;margin-bottom:6px}
+.kz-band b{display:block;font-size:17px;line-height:1.3;color:var(--ink)}.kz-band span{display:block;color:#50555d;font-size:13.5px;margin-top:3px}
+@media(max-width:700px){.kz-band>div{border-right:0;border-bottom:1px solid var(--linie)}.kz-band>div:last-child{border-bottom:0}}
+.kz-aufgaben{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:14px}
+.kz-aufgabe{border:1px solid var(--linie);border-radius:var(--r);background:#fff;padding:18px;display:flex;flex-direction:column;gap:10px}
+.kz-aufgabe .rg-ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--kopf);color:#f2c94c}
+.kz-aufgabe h3{margin:0;font-size:16px}.kz-aufgabe p{margin:0;color:#50555d;font-size:14px}
+.kz-zitat{margin:44px 0;padding:30px clamp(20px,5vw,56px);border-radius:var(--r);background:var(--kopf);color:#fff;display:grid;
+ grid-template-columns:auto 1fr;gap:22px;align-items:center}
+.kz-zitat img{width:74px;height:auto;background:#f7f8fa;padding:10px;border-radius:14px}
+.kz-zitat p{margin:0;font-size:clamp(16px,1.8vw,19px);line-height:1.5}.kz-zitat small{display:block;margin-top:8px;color:rgba(255,255,255,.65);font-size:13px}
+@media(max-width:600px){.kz-zitat{grid-template-columns:1fr}}
+</style>"""
+
+KANZLEI_AUFGABEN = [("scroll-text", "Wille der Krone", 0), ("layout-grid", "Koordination der Reichsbehörden", 1),
+                    ("shield-check", "Aufsicht über die Sicherheit", 2), ("landmark", "Kronbesitz und Schatzkammer", 3)]
+
+
+async def _kanzlei_start(request, k, b, con):
+    """Eigene Startseite des Kronkanzleramts: Kronkanzler und Vizekronkanzler, das Amt auf einen Blick, Aufgaben, Geschäftsbereich, Meldungen."""
+    basis = f'{PFAD}kanzlei/'
+    kanzler = await namen_mit_rollen(request, [amt.ROLLE_KANZLER])
+    kanzler_ids = [i for i, _ in await mitglieder_mit_rollen(request, [amt.ROLLE_KANZLER])]
+    vize = await vizekanzler(request)
+    held = (f'<div class="rg-held kz-held"><div class="rg-held-text"><h2>{esc(b["name"])}</h2><p>{esc(b.get("lead", ""))}</p>'
+            f'<div class="rg-knoepfe"><a class="btn" href="{PFAD}reichsregierung/">{ic("users")}Das Reichskabinett</a>'
+            f'<a class="btn zweit" href="{PFAD}fahrzeuge/kanzlei/">{ic("flag")}Flugbereitschaft und Fahrdienst</a></div></div>'
+            f'<div class="rg-held-bild"><img src="{PFAD}logo/kanzler-kurz.png" alt=""></div></div>')
+    k_links = ([("Lebenslauf", f"{PFAD}reichsregierung/{kanzler_ids[0]}/#lebenslauf")] if kanzler_ids else []) + [
+        ("Reden", basis + "meldungen/?art=rede"), ("Pressemitteilungen", basis + "meldungen/?art=pressemitteilung"),
+        ("Kabinettsbeschlüsse", PFAD + "aktuelles/?art=kabinett")]
+    v_links = ([("Lebenslauf", f"{PFAD}reichsregierung/{vize[0][0]}/#lebenslauf")] if vize else []) + [
+        ("Aufgaben der Stellvertretung", basis + "aufgaben/#leitung"), ("Das Generalkonsulat", PFAD + "generalkonsulat/")]
+    leitung = ('<div class="rg-leit-paar-raster">'
+               + leitung_block(leitung_titel("Kronkanzler", kanzler), "kanzlei", k_links, paar=True)
+               + leitung_block(leitung_titel("Vizekronkanzler", [n for _, n in vize]), "vizekanzler", v_links, paar=True) + "</div>")
+    alle, _ = ressorts()
+    n_beh = len([x for x in alle if x["schl"] != "kanzlei"])
+    g = b.get("gebaeude") or {}
+    band = ('<div class="kz-band">'
+            f'<div><small>Dienstsitz</small><b>{esc(g.get("name", "Kronkanzleramt"))}</b><span>{esc(g.get("ort", "Berlin"))}</span></div>'
+            '<div><small>Untersteht</small><b>Dem Souverän</b><span>Der Kronkanzler ist Privatsekretär der Krone</span></div>'
+            f'<div><small>Koordiniert</small><b>{n_beh} Reichsbehörden</b><span>Reichsämter und Behörden für Sicherheit und Ordnung</span></div>'
+            f'<div><small>Stellvertretung</small><b>Vizekronkanzler</b><span>{esc(", ".join(n for _, n in vize) or "zurzeit unbesetzt")}</span></div></div>')
+    auf = b.get("aufgaben", [])
+    aufgaben = ""
+    if auf:
+        aufgaben = (f'<section class="rg-abschnitt"><h2>Was das Kronkanzleramt leistet <a href="{basis}aufgaben/">Aufgaben und Organisation</a></h2><div class="kz-aufgaben">'
+                    + "".join(f'<div class="kz-aufgabe"><span class="rg-ic">{ic(i)}</span><h3>{esc(t)}</h3><p>{esc(auf[n])}</p></div>'
+                              for i, t, n in KANZLEI_AUFGABEN if n < len(auf)) + "</div></section>")
+    zitat = ('<div class="kz-zitat"><img src="' + PFAD + 'logo/kanzler-kurz.png" alt="">'
+             '<div><p>Das Kronkanzleramt verbindet die Krone mit der Verwaltung: Was der Souverän entscheidet, setzt das Amt mit den Reichsbehörden um. '
+             'Der Vizekronkanzler vertritt den Kronkanzler in allen Amtsgeschäften, wenn dieser verhindert ist.</p>'
+             '<small>Aus dem Selbstverständnis des Kronkanzleramts</small></div></div>')
+    bereich = [x for x in alle if x["schl"] in ("crownestates", "krs", "kronstatthalterschaft")]
+    gb = (f'<section class="rg-abschnitt"><h2>Im Geschäftsbereich des Kronkanzlers</h2><div class="rg-karten">{"".join(_ministerium_karte(x) for x in bereich)}</div></section>'
+          if bereich else "")
+    ms = _meldungen_von(con, "kanzlei")[:3]
+    meld = (f'<section class="rg-abschnitt"><h2>Aktuelles aus dem Kronkanzleramt <a href="{basis}meldungen/">Alle Meldungen</a></h2>'
+            + (f'<div class="rg-karten">{"".join(_mkarte(b, m) for m in ms)}</div>' if ms else '<p class="leer">Noch keine Meldungen.</p>') + "</section>")
+    return rahmen(request, k, b["name"], "m-start", KANZLEI_CSS + held + leitung + band + aufgaben + zitat + gb + meld,
+                  portal=portal_ministerium(b, k), krumen=[])
+
+
 async def ministerium_aufgaben(request):
     k = await anmeldung.konto(request)
     b, gruppen = _ministerium(request)
@@ -934,6 +1022,8 @@ async def ministerium_aufgaben(request):
         daten.append(("Untersteht", b["untersteht"]))
     if rollen:
         daten.append(("Amtsinhaber", ", ".join(namen) or "unbesetzt"))
+    if b["schl"] == "kanzlei":
+        daten.append(("Stellvertretung", "Vizekronkanzler " + (", ".join(n for _, n in await vizekanzler(request)) or "– zurzeit unbesetzt")))
     if b.get("gebaeude"):
         g = b["gebaeude"]
         daten.append(("Dienstsitz", g.get("name", "") + (", " + g["ort"] if g.get("ort") else ", Berlin")))
