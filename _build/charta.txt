@@ -10,7 +10,7 @@ I. Die Grundrechte
 § 1 · Würde des Menschen
 (1) Die Würde des Menschen ist unantastbar. Sie zu achten und zu schützen ist Verpflichtung aller staatlichen Gewalt.
 (2) Das Volk des Imperiums bekennt sich darum zu unverletzlichen und unveräußerlichen Menschenrechten als Grundlage jeder menschlichen Gemeinschaft, des Friedens und der Gerechtigkeit in der Welt.
-(3) Die nachfolgenden Grundrechte binden Gesetzgebung, vollziehende Gewalt und Rechtsprechung als unmittelbar geltendes Recht
+(3) Die nachfolgenden Grundrechte binden Gesetzgebung, vollziehende Gewalt und Rechtsprechung als unmittelbar geltendes Recht.
 § 2 · Freie Entfaltung, Leben und Freiheit
 (1) Jeder hat das Recht auf die freie Entfaltung seiner Persönlichkeit, soweit er nicht die Rechte anderer verletzt und nicht gegen die Ordnung der Charta verstößt oder der Majestätsbeleidigung unterliegt.
 (2) Jeder hat das Recht auf Leben und körperliche Unversehrtheit. Die Freiheit der Person ist unverletzlich. In diese Rechte darf nur auf Grund eines Gesetzes eingegriffen werden.
@@ -33,7 +33,7 @@ Staatsbürger des Imperium Germanicum kann grundsätzlich jeder werden, der von 
 Alle Staatsbürger des Imperium Germanicum zahlen eine Steuer als Mitgliedsbeitrag zur Finanzierung des Staates.
 Näheres regelt ein Beschluss des Reichstags.
 § 11 · Austritt
-Jedem Staatsbürger bleibt es frei das Imperium Germanicum jederzeit ohne Frist wieder zu verlassen.
+Jedem Staatsbürger bleibt es frei, das Imperium Germanicum jederzeit ohne Frist wieder zu verlassen.
 § 12 · Schulwesen
 (1) Das gesamte Schulwesen steht unter der Aufsicht des Staates.
 (2) Die Erziehungsberechtigten haben das Recht, über die Teilnahme des Kindes am Religionsunterricht zu bestimmen.
@@ -54,7 +54,7 @@ Jedem Staatsbürger bleibt es frei das Imperium Germanicum jederzeit ohne Frist 
 (4) Zur Abwehr dringender Gefahren für die öffentliche Sicherheit, insbesondere einer gemeinen Gefahr oder einer Lebensgefahr, dürfen technische Mittel zur Überwachung von Wohnungen nur auf Grund richterlicher Anordnung eingesetzt werden. Bei Gefahr im Verzuge kann die Maßnahme auch durch eine andere gesetzlich bestimmte Stelle angeordnet werden; eine richterliche Entscheidung ist unverzüglich nachzuholen.
 (5) Sind technische Mittel ausschließlich zum Schutze der bei einem Einsatz in Wohnungen tätigen Personen vorgesehen, kann die Maßnahme durch eine gesetzlich bestimmte Stelle angeordnet werden. Eine anderweitige Verwertung der hierbei erlangten Erkenntnisse ist nur zum Zwecke der Strafverfolgung oder der Gefahrenabwehr und nur zulässig, wenn zuvor die Rechtmäßigkeit der Maßnahme richterlich festgestellt ist; bei Gefahr im Verzuge ist die richterliche Entscheidung unverzüglich nachzuholen.
 (6) Die Senatsverwaltung unterrichtet den Reichstag monatlich über den nach Absatz 3 sowie über den im Zuständigkeitsbereich des Imperiums nach Absatz 4 und, soweit richterlich überprüfungsbedürftig, nach Absatz 5 erfolgten Einsatz technischer Mittel.
-(7) Eingriffe und Beschränkungen dürfen im übrigen nur zur Abwehr einer gemeinen Gefahr oder einer Lebensgefahr für einzelne Personen, auf Grund eines Gesetzes auch zur Verhütung dringender Gefahren für die öffentliche Sicherheit und Ordnung, insbesondere zur Behebung der Raumnot, zur Bekämpfung von Seuchengefahr oder zum Schutze gefährdeter Jugendlicher vorgenommen werden
+(7) Eingriffe und Beschränkungen dürfen im übrigen nur zur Abwehr einer gemeinen Gefahr oder einer Lebensgefahr für einzelne Personen, auf Grund eines Gesetzes auch zur Verhütung dringender Gefahren für die öffentliche Sicherheit und Ordnung, insbesondere zur Behebung der Raumnot, zur Bekämpfung von Seuchengefahr oder zum Schutze gefährdeter Jugendlicher vorgenommen werden.
 § 15 · Eigentum, Erbrecht und Enteignung
 (1) Das Eigentum und das Erbrecht werden gewährleistet. Inhalt und Schranken werden durch die Gesetze bestimmt.
 (2) Eigentum verpflichtet. Sein Gebrauch soll zugleich dem Wohle der Allgemeinheit dienen.
@@ -73,7 +73,7 @@ Für alle Behörden und Bürger des Imperiums gilt folgende Rangordnung:
 6. Landesgesetze
 7. Verordnungen von Behörden
 § 19 · Änderung der Grundrechte
-Die hier in (I. Grundrechte) genannten Artikel dürfen ausschließlich mit einer einstimmigen Mehrheit des Reichstag, Senat und Souverän geändert werden.
+Die hier in (I. Grundrechte) genannten Artikel dürfen ausschließlich mit einer einstimmigen Mehrheit des Reichstages, des Senats und des Souveräns geändert werden.
 § 20
 (unbesetzt)
 II. Das Reich und die Gliederstaaten
@@ -103,7 +103,7 @@ Entscheidungen hierüber trifft der Souverän auf Antrag des Reichstags und Sena
 § 12 · Zuständigkeit der Teilstaaten
 Die Ausübung der staatlichen Befugnisse und die Erfüllung der staatlichen Aufgaben ist Sache der Teilstaaten, soweit diese Charta keine andere Regelung trifft oder zuläßt.
 § 13 · Vorrang des Reichsrechts
-Reichsrecht bricht Landesrecht
+Reichsrecht bricht Landesrecht.
 § 14 · Auswärtige Beziehungen
 Die Pflege der Beziehungen zu auswärtigen Staaten ist Sache des Imperiums.
 § 15 · Anhörung der Teilstaaten
@@ -114,7 +114,7 @@ Eine Unterschrift des Souveräns ist zwingend erforderlich.
 § 17 · Rechts- und Amtshilfe
 (1) Alle Behörden des Imperiums und der Teilstaaten leisten sich gegenseitig Rechts- und Amtshilfe.
 (2) Zur Aufrechterhaltung oder Wiederherstellung der öffentlichen Sicherheit oder Ordnung kann ein Land in Fällen von besonderer Bedeutung Kräfte und Einrichtungen der Streitkräfte zur Unterstützung seiner Polizei anfordern, wenn die Polizei ohne diese Unterstützung eine Aufgabe nicht oder nur unter erheblichen Schwierigkeiten erfüllen könnte. Zur Hilfe bei einer Naturkatastrophe oder bei einem besonders schweren Unglücksfall kann ein Teilstaat Polizeikräfte anderer Teilstaaten, Kräfte und Einrichtungen anderer Verwaltungen sowie der Zollverwaltung und der Streitkräfte anfordern.
-(3) Gefährdet die Naturkatastrophe oder der Unglücksfall das Gebiet mehr als eines Teilstaates, so kann der Senat, soweit es zur wirksamen Bekämpfung erforderlich ist, den Regierungen der Teilstaaten die Weisung erteilen, Polizeikräfte anderen Ländern zur Verfügung zu stellen, sowie Einheiten der Zollverwaltung und der Streitkräfte zur Unterstützung der Polizeikräfte einsetzen. Maßnahmen des Senats nach Satz 1 sind jederzeit auf Verlangen des Reichstag, im übrigen unverzüglich nach Beseitigung der Gefahr aufzuheben.
+(3) Gefährdet die Naturkatastrophe oder der Unglücksfall das Gebiet mehr als eines Teilstaates, so kann der Senat, soweit es zur wirksamen Bekämpfung erforderlich ist, den Regierungen der Teilstaaten die Weisung erteilen, Polizeikräfte anderen Ländern zur Verfügung zu stellen, sowie Einheiten der Zollverwaltung und der Streitkräfte zur Unterstützung der Polizeikräfte einsetzen. Maßnahmen des Senats nach Satz 1 sind jederzeit auf Verlangen des Reichstages, im übrigen unverzüglich nach Beseitigung der Gefahr aufzuheben.
 § 18 · Reichsexekution
 Wenn ein Teilstaat die ihm nach der Charta oder einem anderen Reichsgesetz obliegenden Reichspflichten nicht erfüllt oder der Teilstaat droht militärisch gegen das Imperium oder einen seiner Gliederstaaten vorzugehen, kann der Souverän mit Zustimmung des Senats die notwendigen Maßnahmen treffen, um den Teilstaat im Wege der Reichsexekution zur Erfüllung seiner Pflichten anzuhalten.
 § 19 · Weisungsrecht bei der Reichsexekution
@@ -124,7 +124,7 @@ Zur Durchführung der Reichsexekution hat der Souverän oder sein Beauftragter d
 (2) Zur Kriegführung bestimmte Waffen dürfen nur mit Genehmigung des Senats hergestellt, befördert und in Verkehr gebracht werden. Das Nähere regelt ein Reichsgesetz.
 § 21 · Ausschließliche Gesetzgebung des Reiches
 (1) Das Reich hat die ausschließliche Gesetzgebung über:
-1. die auswärtigen Angelegenheiten sowie den Schutzes der Zivilbevölkerung;
+1. die auswärtigen Angelegenheiten sowie den Schutz der Zivilbevölkerung;
 2. die Staatsangehörigkeit im Reich;
 3. die Freizügigkeit, das Paßwesen, das Melde- und Ausweiswesen, die Ein- und Auswanderung und die Auslieferung;
 4. das Währungs-, Geld- und Münzwesen, Maße und Gewichte sowie die Zeitbestimmung;
@@ -135,7 +135,7 @@ Zur Durchführung der Reichsexekution hat der Souverän oder sein Beauftragter d
 7. das Postwesen und die Telekommunikation;
 8. die Rechtsverhältnisse der im Dienste des Imperiums und der reichsunmittelbaren Körperschaften des öffentlichen Rechtes stehenden Personen;
 9. den gewerblichen Rechtsschutz, das Urheberrecht und das Verlagsrecht;
-9a. die Abwehr von Gefahren des internationalen Terrorismus durch die kaiserliche Polizeibehörde sowie in Fällen in denen eine länderübergreifende Gefahr vorliegt
+9a. die Abwehr von Gefahren des internationalen Terrorismus durch die kaiserliche Polizeibehörde sowie in Fällen, in denen eine länderübergreifende Gefahr vorliegt;
 10. die Zusammenarbeit des Imperiums und der Teilstaaten
 a) in der Polizeibehörde,
 b) zum Schutze der Grundordnung, des Bestandes und der Sicherheit des Imperiums oder eines Teilstaates (Reichssicherheitsamt) und
@@ -146,15 +146,15 @@ c) zum Schutze gegen Bestrebungen im Reichsgebiet, die durch Anwendung von Gewal
 14. die Erzeugung und Nutzung der Kernenergie zu friedlichen Zwecken, die Errichtung und den Betrieb von Anlagen, die diesen Zwecken dienen, den Schutz gegen Gefahren, die bei Freiwerden von Kernenergie oder durch ionisierende Strahlen entstehen, und die Beseitigung radioaktiver Stoffe.
 III. Der Reichstag
 § 1 · Zusammensetzung
-Die Abgeordneten des Reichstages bestehen aus den Oberhäuptern der Teilstaaten zuzüglich ihrer Delegation. Sie sind vertreter ihres Gliederstaates, an Aufträge und Weisungen nicht gebunden und nur ihrem Gewissen und der Loyalität zum Souverän unterworfen. Der Kanzler der Krone vertritt das Reich in seiner Funktion als Leiter der Reichsregierung.
+Die Abgeordneten des Reichstages bestehen aus den Oberhäuptern der Teilstaaten zuzüglich ihrer Delegation. Sie sind Vertreter ihres Gliederstaates, an Aufträge und Weisungen nicht gebunden und nur ihrem Gewissen und der Loyalität zum Souverän unterworfen. Der Kanzler der Krone vertritt das Reich in seiner Funktion als Leiter der Reichsregierung.
 § 2 · Dauer des Mandats
 Der Reichstag wird vorbehaltlich der nachfolgenden Bestimmungen auf ein halbes Jahr bevollmächtigt. Seine Sitzungsperiode endet mit dem Zusammentritt eines neuen Reichstages. Das neue Mandat wird frühestens eine Woche, spätestens 2 Wochen nach der Wahl des Souveräns ausgestellt.
 § 3 · Erster Zusammentritt
-Der Reichtag tritt mit der Thronende des Souveräns vor jeder Sitzungsperiode zum ersten Mal zusammen.
+Der Reichstag tritt mit der Thronrede des Souveräns vor jeder Sitzungsperiode zum ersten Mal zusammen.
 § 4 · Sitzungen und Einberufung
 Der Reichstag bestimmt den Schluß und den Wiederbeginn seiner Sitzungen. Der Präsident des Reichstages kann ihn früher einberufen. Er ist hierzu verpflichtet, wenn ein Drittel der Mitglieder, der Souverän oder der Senat es verlangen.
 § 5 · Präsidium
-Der Souverän bestimmt den Präsident des Reichstages, dessen Stellvertreter und die Schriftführer. Die Amtszeit des Präsidenten dauert eine Sitzungsperiode, üblicherweise ein halbes Jahr. Eine anschließende oder später Wiederernennung durch den Souverän ist möglich.
+Der Souverän bestimmt den Präsidenten des Reichstages, dessen Stellvertreter und die Schriftführer. Die Amtszeit des Präsidenten dauert eine Sitzungsperiode, üblicherweise ein halbes Jahr. Eine anschließende oder spätere Wiederernennung durch den Souverän ist möglich.
 § 6 · Hausrecht
 Der Präsident übt das Hausrecht im Gebäude des Reichstages aus. Ohne seine Genehmigung darf in den Räumen des Reichstages keine Durchsuchung oder Beschlagnahme stattfinden.
 § 7 · Beschwerde
@@ -171,16 +171,16 @@ Durch den kaiserlichen Senat wirken die 9 Kurfürstentümer und damit die 9 Kurf
 § 2 · Zusammensetzung
 Der Senat besteht aus den 9 Oberhäuptern der 9 Kurfürstentümer des Reiches, mit deren Amtsantritt sie bestellt und Ausscheiden sie abberufen werden. Sie können durch andere Mitglieder ihres Hofes vertreten werden.
 § 3 · Vorsitz
-Den Vorsitz des Senats übernimmt der Reichsombudsmann, welcher als Hand des Kaisers primus inter pares das Bindeglied zwischen dem Senat und dem Souverän darstellt. In Abwesenheit des Souveräns übernimmt er geschäftführend die Aufgaben des Souveräns.
+Den Vorsitz des Senats übernimmt der Reichsombudsmann, welcher als Hand des Kaisers primus inter pares das Bindeglied zwischen dem Senat und dem Souverän darstellt. In Abwesenheit des Souveräns übernimmt er geschäftsführend die Aufgaben des Souveräns.
 § 4 · Einberufung
 Der Reichsombudsmann beruft in seiner Funktion als Hand des Kaisers den Senat ein. Er hat ihn einzuberufen, wenn die Vertreter von mindestens zwei Kurfürstentümern oder der Souverän es verlangen.
 § 5 · Ernennung und Entlassung der Kurfürsten
 Die 9 Kurfürsten werden auf Vorschlag der Hand des Kaisers vom Souverän ernannt.
 Entlassen werden können Kurfürsten mit einer dreiviertel Mehrheit des Senates ebenfalls durch den Souverän.
 § 6 · Ernennung des Reichsombudsmannes
-Der Reichsombudsmannes wird durch den Souverän formell als dessen Hand ernannt oder entlassen. Die Amtszeit der Hand des Kaisers ist an die des Souveräns gebunden, üblicherweise ein Jahr. Eine anschließende Wiederernennung durch den Souverän findet nach dessen Wahl statt.
+Der Reichsombudsmann wird durch den Souverän formell als dessen Hand ernannt oder entlassen. Die Amtszeit der Hand des Kaisers ist an die des Souveräns gebunden, üblicherweise ein Jahr. Eine anschließende Wiederernennung durch den Souverän findet nach dessen Wahl statt.
 § 7 · Richtlinien des Senats
-Der Reichsombudsmann bestimmt mit Rücksprache beim Souverän die Richtlinien des Senats und trägt dafür sie Verantwortung. Innerhalb dieser Richtlinien leiten der Reichsombudsmann die Senatsverwaltung unter eigener Verantwortung.
+Der Reichsombudsmann bestimmt mit Rücksprache beim Souverän die Richtlinien des Senats und trägt dafür die Verantwortung. Innerhalb dieser Richtlinien leitet der Reichsombudsmann die Senatsverwaltung unter eigener Verantwortung.
 § 8 · Befehls- und Kommandogewalt
 Der Souverän hat die Befehls- und Kommandogewalt über die Streitkräfte.
 In der Praxis wird diese Aufgabe von den Stabschefs wahrgenommen.
@@ -189,15 +189,15 @@ Alle Beamten des Imperiums außer Reichsrichter leisten bei ihrer Amtseinführun
 „Ich schwöre, dass ich meine Kraft dem Wohle seiner kaiserlichen und königlichen Majestät Alexander IX. widmen, seinen Nutzen mehren, Schaden von ihm wenden, die Charta und die Gesetze des Imperiums wahren und verteidigen, meine Pflichten gewissenhaft erfüllen und Gerechtigkeit gegen jedermann üben werde der unseren Kaiser stürzen zu vermag. So wahr mir Gott helfe.“
 Der Eid kann auch ohne religiöse Beteuerung geleistet werden und gilt im Falle, dass ein neuer Souverän gewählt wird auch für den nächsten Souverän.
 § 10 · Zusätzliche Verpflichtung
-Der Eid kann für Beamte die zusätzlich im dienste von einem der Teilstaaten sind eine zusätzliche Verpflichtung auf das Oberhaupt des jeweiligen Gliederstaates enthalten.
+Der Eid kann für Beamte, die zusätzlich im Dienste von einem der Teilstaaten sind, eine zusätzliche Verpflichtung auf das Oberhaupt des jeweiligen Gliederstaates enthalten.
 § 11 · Amtszeit der Kurfürsten
-Die Amtszeit der Kurfürsten ist an ihre Regierungszeit gebunden, üblicherweise ein Leben lang. Die Amtszeit eines Kurfürsten endet mit dessen Tod oder durch Aberkennung der Kurwürde durch den Senat selbst, dieser Antrag Bedarf dreiviertel der abgegebenen Stimmen.
-Der Reichsgerichtshof kann einen Kurfürst seines Amtes für nichtig erklären, wenn er feststellt, dass der Kurfürst gegen die Charta oder seine Amtspflichten verstoßen hat.
-Der Titel eines Kurfürsten ist nicht vererbbar und wird nach dem Tod eines Kurfürsten nach § 5 neu vergeben. Die einzige Ausnahme bildet hierbei § 6
+Die Amtszeit der Kurfürsten ist an ihre Regierungszeit gebunden, üblicherweise ein Leben lang. Die Amtszeit eines Kurfürsten endet mit dessen Tod oder durch Aberkennung der Kurwürde durch den Senat selbst, dieser Antrag bedarf dreiviertel der abgegebenen Stimmen.
+Der Reichsgerichtshof kann einen Kurfürsten seines Amtes für nichtig erklären, wenn er feststellt, dass der Kurfürst gegen die Charta oder seine Amtspflichten verstoßen hat.
+Der Titel eines Kurfürsten ist nicht vererbbar und wird nach dem Tod eines Kurfürsten nach § 5 neu vergeben. Die einzige Ausnahme bildet hierbei § 6.
 V. Der Souverän
 § 1 · Stellung und Wahl
 (1) Der Souverän ist das Staatsoberhaupt und Oberbefehlshaber der Streitkräfte des Imperium Germanicum, er kann andere Amtsträger de facto mit der Ausübung seiner Pflichten oder dem Befehl über die Streitkräfte betrauen, wenn es ihm beliebt.
-(2) Der Souverän wird ohne Aussprache vom Senat gewählt. Wählbar ist jeder Wahlberechtigte Kurfürst.
+(2) Der Souverän wird ohne Aussprache vom Senat gewählt. Wählbar ist jeder wahlberechtigte Kurfürst.
 § 2 · Amtsdauer
 Das Amt des Souveräns dauert ein Jahr. Anschließende Wiederwahl ist unbegrenzt zulässig.
 § 3 · Krönung
@@ -206,7 +206,7 @@ Eine offizielle Krönung des Souveräns findet nur bei der ersten Wahl statt, be
 Der Senat tritt spätestens dreißig Tage nach Ablauf der Amtszeit des Souveräns zusammen. Die Wahl wird vom Reichsombudsmann einberufen.
 § 5 · Wahlverfahren und Thronvakanz
 Gewählt ist, wer die Stimmen der Mehrheit der Mitglieder des Senats erhält.
-Wird diese Mehrheit nach 10 Wahlgängen nicht erreicht entscheidet eine Stichwahl zwischen den beiden Kurfürsten mit den meisten Stimmen, der Gewählte muss dann die meisten der abgegebenen Stimmen auf sich vereinen.
+Wird diese Mehrheit nach 10 Wahlgängen nicht erreicht, entscheidet eine Stichwahl zwischen den beiden Kurfürsten mit den meisten Stimmen, der Gewählte muss dann die meisten der abgegebenen Stimmen auf sich vereinen.
 In dieser Zeit der Thronvakanz übernimmt der Reichsombudsmann temporär die Führung des Imperiums, kann auch er seine Pflichten nicht wahrnehmen so übernimmt der dienstälteste Kurfürst.
 § 6 · Amtseid
 Der Souverän leistet bei seinem Amtsantritt vor den versammelten Mitgliedern des Senates und des Reichstages folgenden Eid:
@@ -227,7 +227,7 @@ Der Senat kann den Souverän wegen vorsätzlicher Verletzung der Charta oder man
 § 13 · Amtsenthebung
 Stellt der Reichsgerichtshof fest, daß der Monarch einer vorsätzlichen Verletzung der Charta oder der Missachtung seiner Amtspflichten schuldig ist, so kann es ihn des Amtes für verlustig erklären. Durch einstweilige Anordnung kann es nach der Erhebung der Anklage bestimmen, daß er an der Ausübung seines Amtes verhindert ist.
 § 14 · Titel
-Dem Souverän und seiner Gemahlin stehen durch Amtsantritt folgende Titel zur Verfügung die er per Amtswegen bekommt, in der männlichen und weiblichen Form.
+Dem Souverän und seiner Gemahlin stehen durch Amtsantritt folgende Titel zur Verfügung, die er von Amts wegen bekommt, in der männlichen und weiblichen Form.
 @titel Souverän | Seine kaiserliche und königliche Majestät (Alexander IX.), von Gottes Gnaden Kaiser des Imperium Germanicum, König von Apulien, (König der Westerwälder Union), Erzherzog von Österreich und (Fürst von Sayen-Wittgenstein-Sayen)
 @titel Gemahlin | Ihre kaiserliche und königliche Majestät (Francesca), von Gottes Gnaden Kaiserin des Imperium Germanicum, Königin von Apulien, (Königin der Westerwälder Union), Erzherzogin von Österreich und (Fürstin von Sayen-Wittgenstein-Sayen)
 § 15 · Anrede
@@ -235,7 +235,7 @@ Der Souverän und seine Gemahlin sind grundsätzlich wie folgt anzusprechen, Lan
 @anrede Souverän | Eure/Seine {kaiserliche und königliche} Majestät | Majestät | SKKM/SM
 @anrede Gemahlin | Eure/Ihre {kaiserliche und königliche} Majestät | Majestät | IKKM/IM
 § 16 · Gesetzgebungsverfahren
-Reichsgesetze durchlaufen in erster Instanz den Reichstag, danach den Senat und dann den Souverän, bei weiteren Unstimmigkeiten ist ein Urteil des Reichsgerichtshof von Nöten, dessen Urteile sind endgültig und können nur vom Gericht selbst aufgehoben werden.
+Reichsgesetze durchlaufen in erster Instanz den Reichstag, danach den Senat und dann den Souverän, bei weiteren Unstimmigkeiten ist ein Urteil des Reichsgerichtshofes von Nöten, dessen Urteile sind endgültig und können nur vom Gericht selbst aufgehoben werden.
 Der Souverän ist für die Verkündigung neuer Gesetze, Dekrete und Erlasse im Reichsgesetzblatt verantwortlich.
 § 17 · Vetorecht
 Der Souverän hat ein allgemeines Vetorecht gegen Beschlüsse des Senats, dieses Veto muss der Souverän allerdings innerhalb von 48 Stunden stellen und innerhalb von 72 Stunden durch Artikel in der Charta rechtfertigen. Der Reichsgerichtshof muss diese Begründung innerhalb von 48 Stunden prüfen.
@@ -245,9 +245,9 @@ Der Souverän kann temporäre Dekrete ohne den Reichstag erlassen, diese Dekrete
 Dekrete dürfen nicht gegen die Grundrechte verstoßen.
 VI. Die Reichsregierung
 § 1 · Zusammensetzung
-Die Reichsregierung besteht aus dem Kanzler der Krone und aus den Leitein der Behörden.
+Die Reichsregierung besteht aus dem Kanzler der Krone und aus den Leitern der Behörden.
 § 2 · Wahl des Kanzlers der Krone
-(1) Der Kanzler der Krone wird vom Reichstag auf Vorschlag Souveräns gewählt.
+(1) Der Kanzler der Krone wird vom Reichstag auf Vorschlag des Souveräns gewählt.
 (2) Gewählt ist, wer die Stimmen der Mehrheit der Mitglieder des Reichstages auf sich vereinigt. Der Gewählte ist vom Souverän zu ernennen.
 (3) Wird der Vorgeschlagene nicht gewählt, so kann der Reichstag binnen 5 Tagen nach dem Wahlgange einen Gegenkandidaten vorschlagen.
 (4) Kommt eine Wahl innerhalb dieser Frist nicht zustande, so bestimmt der Souverän einen Kandidaten seiner Wahl.
@@ -265,7 +265,7 @@ Der Kanzler der Krone und die Behördenchefs dürfen keine Landesherren, keine K
 (2) Zwischen dem Antrage und der Wahl müssen achtundvierzig Stunden liegen.
 § 7 · Stellvertretung und Ende der Amtszeit
 (1) Der Kanzler der Krone ernennt einen Behördenchef zu seinem Stellvertreter.
-(2) Das Amt des Kanzlers endigt in jedem Falle mit dem Zusammentritt eines neuen Reichstages.
+(2) Die Amtszeit des Kanzlers der Krone dauert ein halbes Jahr. Das Amt des Kanzlers endigt in jedem Falle mit dem Zusammentritt eines neuen Reichstages.
 (3) Auf Ersuchen des Souveräns ist der Kanzler der Krone, auf Ersuchen des Kanzlers oder des Souveräns ein Behördenchef verpflichtet, die Geschäfte bis zur Ernennung seines Nachfolgers weiterzuführen.
 § 8 · Umsetzung von Beschlüssen
 Beschlüsse und Entscheidungen der Reichsregierung sind spätestens bis zum Ablauf einer Frist von 7 Tagen von den Behörden des Reiches und der Teilstaaten umzusetzen, ansonsten ist das Imperium zur Durchführung der Reichsexekution bevollmächtigt oder anderweitig befugt die Ordnung und das Recht durchzusetzen. Zu diesem Zweck stehen der Reichsregierung die Streitkräfte, Polizeibehörde, Zollverwaltung und der Katastrophenschutz zur Verfügung.
@@ -275,13 +275,13 @@ Die rechtsprechende Gewalt ist den Richtern anvertraut; sie wird durch den Reich
 § 2 · Stellung des Reichsgerichtshofes
 Der Reichsgerichtshof ist ein allen anderen Reichsorganen gegenüber selbständiger und nur dem Souverän verpflichteter Gerichtshof des Imperiums.
 § 3 · Zusammensetzung
-Der Reichsgerichtshof besteht aus 5 Reichsrichtern von denen einer als Oberster Richter fungiert und anderen Mitgliedern.
+Der Reichsgerichtshof besteht aus 5 Reichsrichtern, von denen einer als Oberster Richter fungiert und anderen Mitgliedern.
 § 4 · Auslegung der Charta
 Der Reichsgerichtshof entscheidet über die Auslegung dieser Charta aus Anlass von Streitigkeiten über den Umfang der Rechte und Pflichten eines obersten Reichsorgans oder anderer Beteiligter, die durch diese Charta oder in der Geschäftsordnung eines obersten Reichsorgans mit eigenen Rechten ausgestattet sind;
 § 5 · Bindungswirkung
-Die Entscheidungen des Reichsgerichtshof binden die Staatsorgane des Imperiums und der Teilstaaten sowie alle Gerichte und Behörden. Ein Reichsgesetz bestimmt, in welchen Fällen seine Entscheidungen Gesetzeskraft haben.
+Die Entscheidungen des Reichsgerichtshofes binden die Staatsorgane des Imperiums und der Teilstaaten sowie alle Gerichte und Behörden. Ein Reichsgesetz bestimmt, in welchen Fällen seine Entscheidungen Gesetzeskraft haben.
 § 6 · Aufhebung von Entscheidungen
-Entscheidungen die der Reichsgerichtshof getroffen hat können nur durch den Gerichtshof selbst aufgehoben werden.
+Entscheidungen, die der Reichsgerichtshof getroffen hat, können nur durch den Gerichtshof selbst aufgehoben werden.
 § 7 · Unabhängigkeit der Richter
 Die Richter sind nur dem Gesetz und Souverän unterworfen.
 § 8 · Richtereid
@@ -290,25 +290,25 @@ Alle Richter haben folgenden Eid zu Beginn ihrer Amtszeit zu leisten:
 § 9 · Eid ohne religiöse Beteuerung
 Der Eid kann ohne die Worte „so wahr mir Gott helfe“ geleistet werden und gilt auch bei Wahl eines neuen Monarchen für den neuen Souverän.
 § 10 · Zusätzliche Verpflichtung
-Der Eid kann für Richter im dienst der Teilstaaten eine zusätzliche Verpflichtung auf das Oberhaupt des jeweiligen Gliederstaates enthalten.
+Der Eid kann für Richter im Dienst der Teilstaaten eine zusätzliche Verpflichtung auf das Oberhaupt des jeweiligen Gliederstaates enthalten.
 § 11 · Amtszeit und Geschäftsordnung
-(1) Die Amtszeit der Mitglieder des Reichsgerichtshof dauert ein Jahre. Nach Ablauf der Amtszeit führen die Richter ihre Amtsgeschäfte bis zur Ernennung des Nachfolgers fort. Eine anschließende oder spätere Neuernennung durch den Souverän ist unbegrenzt möglich.
+(1) Die Amtszeit der Mitglieder des Reichsgerichtshofes dauert ein Jahr. Nach Ablauf der Amtszeit führen die Richter ihre Amtsgeschäfte bis zur Ernennung des Nachfolgers fort. Eine anschließende oder spätere Neuernennung durch den Souverän ist unbegrenzt möglich.
 (2) Der Reichsgerichtshof gibt sich eine Geschäftsordnung, die das Plenum beschließt.
 § 12 · Zuständigkeiten
 Der Reichsgerichtshof entscheidet:
 1. über die Auslegung dieser Charta aus Anlass von Streitigkeiten über den Umfang der Rechte und Pflichten eines obersten Reichsorgans oder anderer Beteiligter, die durch diese Charta oder in der Geschäftsordnung eines obersten Reichsorgans mit eigenen Rechten ausgestattet sind;
 2. bei Meinungsverschiedenheiten oder Zweifeln über die förmliche und sachliche Vereinbarkeit von Reichsrecht oder Landesrecht mit dieser Charta oder die Vereinbarkeit von Landesrecht mit sonstigem Reichsrecht auf Antrag des Senats, einer Landesregierung oder eines Viertels der Mitglieder des Reichstags;
-2a. bei Meinungsverschiedenheiten, ob ein Gesetz den Voraussetzungen des Artikels 72 Absatz 2 entspricht, auf Antrag des Senats, einer Landesregierung oder der Volksvertretung eines Teilstaaten;
+2a. bei Meinungsverschiedenheiten, ob ein Gesetz den Voraussetzungen des Artikels 72 Absatz 2 entspricht, auf Antrag des Senats, einer Landesregierung oder der Volksvertretung eines Teilstaates;
 3. bei Meinungsverschiedenheiten über Rechte und Pflichten des Imperiums und der Teilstaaten, insbesondere bei der Ausführung von Reichsrecht durch die Teilstaaten und bei der Ausübung der Reichsaufsicht;
 4. in anderen öffentlich-rechtlichen Streitigkeiten zwischen dem Imperium und den Teilstaaten, zwischen verschiedenen Teilstaaten oder innerhalb eines Teilstaates, soweit nicht ein anderer Rechtsweg gegeben ist;
 4a. über Verfassungsbeschwerden, die von jedermann mit der Behauptung erhoben werden können, durch die öffentliche Gewalt in einem seiner Grundrechte oder in einem seiner in Artikel 20 Absatz 4, 33, 38, 101, 103 und 104 enthaltenen Rechte verletzt zu sein;
 4b. über Verfassungsbeschwerden von Gemeinden und Gemeindeverbänden wegen Verletzung des Rechts auf Selbstverwaltung nach Artikel 28 durch ein Gesetz, bei Landesgesetzen jedoch nur, soweit nicht Beschwerde beim Landesverfassungsgericht erhoben werden kann;
-4c. über Beschwerden von Vereinigungen gegen ihre Nichtanerkennung als Verein
+4c. über Beschwerden von Vereinigungen gegen ihre Nichtanerkennung als Verein;
 5. in den übrigen in dieser Charta vorgesehenen Fällen.
 § 13 · Vollzug von Beschlüssen und Urteilen
-Beschlüsse und Urteile des Reichsgerichtshof sind spätestens bis zum Ablauf einer vom Gericht gesetzten Frist auszuführen, diese muss allerdings mindestens 48 Stunden betragen.
+Beschlüsse und Urteile des Reichsgerichtshofes sind spätestens bis zum Ablauf einer vom Gericht gesetzten Frist auszuführen, diese muss allerdings mindestens 48 Stunden betragen.
 § 14 · Majestätsbeleidigung
-Der Strafbestand der Majestätsbeleidigung muss durch den Souverän oder einen bevollmächtigten Amtsträger angeklagt werden.
+Der Straftatbestand der Majestätsbeleidigung muss durch den Souverän oder einen bevollmächtigten Amtsträger angeklagt werden.
 § 15 · Rechte vor Gericht
 (1) Vor Gericht hat jedermann Anspruch auf rechtliches Gehör.
 (2) Eine Tat kann nur bestraft werden, wenn die Strafbarkeit gesetzlich bestimmt war, bevor die Tat begangen wurde. Ausnahmen bilden Taten im Bereich des Hochverrats.
@@ -321,10 +321,10 @@ Die Feststellung, daß das Reichsgebiet mit Waffengewalt angegriffen wird oder e
 § 2 · Verkündung
 Die Feststellung wird vom Monarchen verkündet. Ist dies nicht rechtzeitig möglich, so erfolgt die Verkündung in anderer Weise; sie ist vom Monarchen nachzuholen, sobald die Umstände es zulassen.
 § 3 · Übergang der Befehlsgewalt
-Mit der Verkündung des Kriegsrecht gehen besondere Befehls- und Kommandogewalten über die Streitkräfte aller Teilstaaten auf den Souverän über, der Souverän erhält notwendige Sondervollmachten durch Zustimmung des Senats.
+Mit der Verkündung des Kriegsrechts gehen besondere Befehls- und Kommandogewalten über die Streitkräfte aller Teilstaaten auf den Souverän über, der Souverän erhält notwendige Sondervollmachten durch Zustimmung des Senats.
 § 4 · Befugnisse im Kriegsrecht
 Der Souverän kann im Kriegsrecht, soweit es die Verhältnisse erfordern,
 - Die Streitkräfte im gesamten Reichsgebiet einsetzen;
 - Außer der Reichsregierung auch den Regierungen der Teilstaaten und, wenn er es für dringlich erachtet, den Behörden der Teilstaaten Weisungen erteilen und diese Befugnis auf von ihm zu bestimmende Vertreter übertragen.
-- Den Reichstag temporär auflösen und vorübergehend mit dem Senat alleine Regieren.
+- Den Reichstag temporär auflösen und vorübergehend mit dem Senat alleine regieren.
 Der Senat stimmt spätestens alle 4 Wochen darüber ab, ob der Zustand weiter erhalten bleiben muss, ansonsten endet das Kriegsrecht automatisch. Regulär beendet der Souverän selbst den Zustand nach Ende der Gefahr, beispielsweise die Unterzeichnung eines Friedensvertrages oder Abkommens.
