@@ -676,6 +676,26 @@ ORG_CSS = """<style>
 .rgo-tab th,.rgo-tab td{text-align:left;vertical-align:top;padding:11px 14px 11px 0;border:0;border-bottom:1px solid var(--linie)}
 .rgo-tab thead th{font-size:13px;color:var(--grau);font-weight:600;border-bottom:1px solid var(--ink)}
 .rgo-tab tbody th{font-weight:650;white-space:nowrap}
+/* Organigramm in den Farben der Reichsregierung (statt Elfenbein/Gold der Hauptseite) – nur auf /regierung/ */
+html:root .oge{--navy-950:#16202f;--navy-900:#1f2f45;--navy-800:#2a3d58;--navy-700:#3a5170;--navy-100:#e7ebf1;
+ --gold-700:#8a6a12;--gold-600:#b8902a;--gold-500:#f2c94c;--gold-300:#f2c94c;--ivory:#f5f6f8;--paper:#fff;--white:#fff;
+ --ink:#16171a;--ink-2:#3d4148;--muted:#6b6f76;--rule:#e3e4e8;--rule-strong:#b9c0cb;--serif:var(--schrift);--sans:var(--schrift);
+ --og-beschluss:#1f4e8c;--og-kontrolle:#1f2f45;--og-gliederung:#b9c0cb}
+html:root .oge .org-flaeche{background:linear-gradient(180deg,#f8f9fb,#eef1f5);border:1px solid var(--linie)}
+html:root .oge .og-bahn rect{fill:rgba(31,47,69,.045)}html:root .oge .og-bahn.alt rect{fill:rgba(31,78,140,.06)}
+html:root .oge .og-bahn text{font:650 20px var(--schrift);fill:#1f2f45;letter-spacing:.04em;text-transform:uppercase}
+html:root .oge .og-knoten text{font-family:var(--schrift)}
+html:root .oge .og-knoten.is-hover .og-feld{fill:#fff;stroke:#1f4e8c}
+html:root .oge .og-initial-kreis{fill:#1f2f45;stroke:#f2c94c}
+html:root .oge .og-initial{font-family:var(--schrift);fill:#fff!important}
+html:root .oge .karte-legende-item{background:#fff;border:1px solid var(--linie);border-left-width:1px;color:var(--ink)}
+html:root .oge .karte-legende-item[aria-pressed="true"]{border-color:#1f2f45;box-shadow:inset 0 0 0 1px #1f2f45}
+html:root .oge .karte-legende-item[aria-pressed="false"]{opacity:.7}
+html:root .oge .btn-line{background:#fff}
+html:root .oge .btn-line:hover{background:#1f2f45;border-color:#1f2f45;color:#fff}
+html:root .oge .karte-flaeche:focus-visible{outline-color:#1f4e8c}
+html:root .oge .dialog{border-color:var(--linie);color:var(--ink)}
+html:root .oge .dialog h1,html:root .oge .dialog h2,html:root .oge .dialog h3{font-family:var(--schrift)}
 </style>"""
 
 
@@ -951,20 +971,12 @@ KANZLEI_CSS = """<style>
 .kz-band small{display:block;color:var(--grau);font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:650;margin-bottom:6px}
 .kz-band b{display:block;font-size:17px;line-height:1.3;color:var(--ink)}.kz-band span{display:block;color:#50555d;font-size:13.5px;margin-top:3px}
 @media(max-width:700px){.kz-band>div{border-right:0;border-bottom:1px solid var(--linie)}.kz-band>div:last-child{border-bottom:0}}
-.kz-aufgaben{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:14px}
-.kz-aufgabe{border:1px solid var(--linie);border-radius:var(--r);background:#fff;padding:18px;display:flex;flex-direction:column;gap:10px}
-.kz-aufgabe .rg-ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--kopf);color:#f2c94c}
-.kz-aufgabe h3{margin:0;font-size:16px}.kz-aufgabe p{margin:0;color:#50555d;font-size:14px}
 .kz-zitat{margin:44px 0;padding:30px clamp(20px,5vw,56px);border-radius:var(--r);background:var(--kopf);color:#fff;display:grid;
  grid-template-columns:auto 1fr;gap:22px;align-items:center}
 .kz-zitat img{width:74px;height:auto;background:#f7f8fa;padding:10px;border-radius:14px}
 .kz-zitat p{margin:0;font-size:clamp(16px,1.8vw,19px);line-height:1.5}.kz-zitat small{display:block;margin-top:8px;color:rgba(255,255,255,.65);font-size:13px}
 @media(max-width:600px){.kz-zitat{grid-template-columns:1fr}}
 </style>"""
-
-KANZLEI_AUFGABEN = [("scroll-text", "Wille der Krone", 0), ("layout-grid", "Koordination der Reichsbehörden", 1),
-                    ("shield-check", "Aufsicht über die Sicherheit", 2), ("landmark", "Kronbesitz und Schatzkammer", 3)]
-
 
 async def _kanzlei_start(request, k, b, con):
     """Eigene Startseite des Kronkanzleramts: Kronkanzler und Vizekronkanzler, das Amt auf einen Blick, Aufgaben, Geschäftsbereich, Meldungen."""
@@ -992,12 +1004,6 @@ async def _kanzlei_start(request, k, b, con):
             '<div><small>Untersteht</small><b>Dem Souverän</b><span>Der Kronkanzler ist Privatsekretär der Krone</span></div>'
             f'<div><small>Koordiniert</small><b>{n_beh} Reichsbehörden</b><span>Reichsämter und Behörden für Sicherheit und Ordnung</span></div>'
             f'<div><small>Stellvertretung</small><b>Vizekronkanzler</b><span>{esc(", ".join(n for _, n in vize) or "zurzeit unbesetzt")}</span></div></div>')
-    auf = b.get("aufgaben", [])
-    aufgaben = ""
-    if auf:
-        aufgaben = (f'<section class="rg-abschnitt"><h2>Was das Kronkanzleramt leistet <a href="{basis}aufgaben/">Aufgaben und Organisation</a></h2><div class="kz-aufgaben">'
-                    + "".join(f'<div class="kz-aufgabe"><span class="rg-ic">{ic(i)}</span><h3>{esc(t)}</h3><p>{esc(auf[n])}</p></div>'
-                              for i, t, n in KANZLEI_AUFGABEN if n < len(auf)) + "</div></section>")
     zitat = ('<div class="kz-zitat"><img src="' + PFAD + 'logo/kanzler-kurz.png" alt="">'
              '<div><p>Das Kronkanzleramt verbindet die Krone mit der Verwaltung: Was der Souverän entscheidet, setzt das Amt mit den Reichsbehörden um. '
              'Der Vizekronkanzler vertritt den Kronkanzler in allen Amtsgeschäften, wenn dieser verhindert ist.</p>'
@@ -1008,7 +1014,7 @@ async def _kanzlei_start(request, k, b, con):
     ms = _meldungen_von(con, "kanzlei")[:3]
     meld = (f'<section class="rg-abschnitt"><h2>Aktuelles aus dem Kronkanzleramt <a href="{basis}meldungen/">Alle Meldungen</a></h2>'
             + (f'<div class="rg-karten">{"".join(_mkarte(b, m) for m in ms)}</div>' if ms else '<p class="leer">Noch keine Meldungen.</p>') + "</section>")
-    return rahmen(request, k, b["name"], "m-start", KANZLEI_CSS + held + leitung + band + aufgaben + zitat + gb + meld,
+    return rahmen(request, k, b["name"], "m-start", KANZLEI_CSS + held + leitung + band + zitat + gb + meld,
                   portal=portal_ministerium(b, k), krumen=[])
 
 
