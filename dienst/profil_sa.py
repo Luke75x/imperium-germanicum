@@ -23,6 +23,7 @@ import post
 import schatzamt as sa
 
 esc = amt.esc
+amt.ICONS.setdefault("sparkles", '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>')   # Lucide
 PFAD = sa.PFAD + "profil/"
 
 STANDARD = {"sa_glas": "50", "sa_blur": "normal", "sa_bewegung": "normal", "sa_dichte": "normal", "sa_start": "zuletzt", "sa_thema": "an"}
@@ -211,7 +212,8 @@ def _darstellung(request, k, con):
     return (f'<form class="pf-karte" method="post" action="{PFAD}speichern">{amt.csrf_feld(request)}<input type="hidden" name="teil" value="darstellung">'
             f'<h3>{amt.ic("sliders-horizontal")}Darstellung</h3>{vorschau}{"".join(zeilen)}'
             f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button>'
-            f'<button class="btn zweit" type="submit" name="zuruecksetzen" value="1">Standard wiederherstellen</button></div></form>' + js)
+            f'<button class="btn zweit" type="submit" name="zuruecksetzen" value="1">Standard wiederherstellen</button>'
+            f'<a class="btn zweit" href="/willkommen/?weiter={PFAD}">{amt.ic("sparkles")}Einführung erneut ansehen</a></div></form>' + js)
 
 
 def _benachrichtigungen(request, k, con):

@@ -115,6 +115,8 @@ def erstellen():
     import profil_sa
     benachrichtigung.registrieren(app)
     profil_sa.registrieren(app)
+    import einfuehrung
+    einfuehrung.registrieren(app)   # „Lass uns dein Erlebnis anpassen“ nach dem ersten Anmelden
     import regierung
     import generalkonsulat
     regierung.registrieren(app)

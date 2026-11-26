@@ -104,6 +104,7 @@ async def rueckruf(request):
             "Anmeldung fehlgeschlagen", "Discord hat die Anmeldung nicht bestätigt. Bitte versuche es gleich noch einmal.", nochmal))
 
     con = request.app["db"]
+    neu = not con.execute("SELECT 1 FROM konten WHERE id=?", (k["id"],)).fetchone()   # erstes Anmelden: Einführung (einfuehrung.py)
     db.konto_speichern(con, k)
     db.anmeldung_vermerken(con, k["id"])
     log.info("Anmeldung: %s (%s), Mitglied=%s, Admin=%s", k["name"], k["id"], k["mitglied"], k["admin"])
@@ -115,7 +116,10 @@ async def rueckruf(request):
             "Die Anmeldung steht nur Mitgliedern offen.",
             [("Zum Discord-Server", "https://discord.gg/cbD4E7yXJp", True), ("Zur Hauptseite", "/", False)]))
     else:
-        resp = web.HTTPFound(_weiter(ziel))
+        import einfuehrung
+        if neu:
+            einfuehrung.vormerken(con, k["id"])
+        resp = web.HTTPFound(einfuehrung.ziel_url(_weiter(ziel)) if einfuehrung.offen(con, k["id"]) else _weiter(ziel))
         _cookie(resp, config.SITZUNG_COOKIE, db.sitzung_anlegen(con, k["id"]), config.SITZUNG_TAGE * 86400)
     resp.del_cookie(config.STATE_COOKIE, path="/")
     if isinstance(resp, web.HTTPException):
