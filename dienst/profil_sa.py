@@ -213,7 +213,7 @@ def _darstellung(request, k, con):
             f'<h3>{amt.ic("sliders-horizontal")}Darstellung</h3>{vorschau}{"".join(zeilen)}'
             f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button>'
             f'<button class="btn zweit" type="submit" name="zuruecksetzen" value="1">Standard wiederherstellen</button>'
-            f'<a class="btn zweit" href="/willkommen/?weiter={PFAD}">{amt.ic("sparkles")}Einführung erneut ansehen</a></div></form>' + js)
+            f'<a class="btn zweit" href="{sa.PFAD}willkommen/?weiter={PFAD}">{amt.ic("sparkles")}Einführung erneut ansehen</a></div></form>' + js)
 
 
 def _benachrichtigungen(request, k, con):

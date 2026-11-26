@@ -235,6 +235,8 @@ async def pin_sperre(request, handler):
     if request.path.startswith(sa.PFAD) and not request.path.startswith(PFAD):
         k = await anmeldung.konto(request)
         con = request.app["db"]
+        import einfuehrung
+        einfuehrung.pruefen(request, con, k)   # erster Besuch im Schatzamt: zuerst „Lass uns dein Erlebnis anpassen“
         if k and braucht_pin(con, request, k) and not entsperrt(con, request, k):
             if request.method == "GET":
                 raise web.HTTPFound(f"{PFAD}entsperren?weiter={quote(request.path_qs)}")

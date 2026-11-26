@@ -1,6 +1,8 @@
-"""Einführung nach dem ersten Anmelden: „Lass uns dein Erlebnis anpassen“ (/willkommen/, seit 26.11.2026).
+"""Einführung beim ersten Besuch im Schatzamt: „Lass uns dein Erlebnis anpassen“ (/schatzamt/willkommen/, seit 26.11.2026).
 
-Neue Konten (erste Anmeldung über Discord, anmeldung.rueckruf) werden einmal hierher geleitet und danach an ihr eigentliches Ziel (?weiter=).
+Nur im Schatzamt (Nutzervorgabe: nicht nach dem Login, nicht woanders). bankkarte.pin_sperre ruft pruefen() bei jedem HTML-GET im Schatzamt – noch vor der
+Bank-PIN: Hat das Konto keinen Eintrag „einfuehrung“, zählt es als erster Besuch, außer es hat schon eine Bankkarte mit PIN (war also schon im
+Schatzamt → still „fertig“). Erster Besuch → einfuehrung=offen und Weiterleitung hierher, danach an das eigentliche Ziel (?weiter=).
 Schritte (ein Formular, Umschalten per JavaScript; ohne JavaScript steht alles untereinander):
   1. Willkommen  2. Aussehen (Themenbasiertes Design oder Schlicht)  3. Glas & Bewegung (Transparenz mit Vorschau, Bewegung, Dichte, ggf. Startansicht)
   4. Benachrichtigungen (Discord-DMs je Art)  5. Fertig.
@@ -20,15 +22,31 @@ import geld
 import post
 import profil_sa
 import schatzamt as sa
-import seiten
 
-PFAD = "/willkommen/"
+PFAD = sa.PFAD + "willkommen/"
 esc = html.escape
 
 
 def offen(con, kid):
     """Einführung vorgemerkt und noch nicht abgeschlossen/übersprungen (bestehende Konten haben keinen Eintrag → nie offen)."""
     return post.einstellung(con, kid, "einfuehrung", "") == "offen"
+
+
+def pruefen(request, con, k):
+    """Middleware-Teil (bankkarte.pin_sperre): beim ersten Schatzamt-Besuch auf die Einführung umleiten."""
+    if (not k or not k["mitglied"] or request.method != "GET" or request.path.startswith(PFAD)
+            or "text/html" not in request.headers.get("Accept", "") or request.query.get("nur")):
+        return
+    w = post.einstellung(con, k["id"], "einfuehrung", "")
+    if w == "fertig":
+        return
+    if not w:
+        if con.execute("SELECT 1 FROM bk_karten WHERE konto_id=? AND pin_hash!=''", (k["id"],)).fetchone():
+            post.einstellung_setzen(con, k["id"], "einfuehrung", "fertig")   # kennt das Schatzamt schon
+            con.commit()
+            return
+        vormerken(con, k["id"])
+    raise web.HTTPFound(ziel_url(request.path_qs))
 
 
 def vormerken(con, kid):
@@ -38,16 +56,16 @@ def vormerken(con, kid):
 
 
 def ziel_url(weiter):
-    return PFAD + "?weiter=" + quote(weiter or "/", safe="/")
+    return PFAD + "?weiter=" + quote(weiter or sa.PFAD, safe="/")
 
 
 def _weiter(w):
-    w = str(w or "/")
-    return w if w.startswith("/") and not w.startswith("//") else "/"
+    w = str(w or sa.PFAD)
+    return w if w.startswith(sa.PFAD) and not w.startswith(PFAD) else sa.PFAD
 
 
 CSS = """<style>
-.ef{padding:clamp(28px,6vw,72px) 0 clamp(48px,8vw,96px)}
+.ef{padding:clamp(8px,3vw,32px) 0 clamp(24px,5vw,56px)}
 .ef-karte{position:relative;max-width:660px;margin:0 auto;background:var(--paper,#fbf9f4);border:1px solid var(--rule,#ddd5c3);box-shadow:0 30px 80px -30px rgba(18,24,60,.35),0 2px 6px rgba(18,24,60,.06);
  overflow:hidden;color:var(--ink,#161a2e)}
 .ef-karte::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#000 0 33.3%,#d00 33.3% 66.6%,#ffcc21 66.6%)}
@@ -61,9 +79,10 @@ CSS = """<style>
 .js .ef-schritt.zurueck{transform:translateX(-40px)}
 .js .ef-schritt.aktiv{position:relative;opacity:1;visibility:visible;transform:none;transition:opacity .35s ease .08s,transform .45s cubic-bezier(.2,.8,.2,1) .04s,visibility 0s}
 .ef-augen{display:block;font:600 11.5px/1 var(--sans,system-ui);letter-spacing:.16em;text-transform:uppercase;color:var(--gold-600,#9a7618);margin:0 0 10px}
-.ef h1,.ef h2{font-family:var(--serif,Georgia,serif);font-weight:500;color:var(--ink,#161a2e);margin:0 0 8px;line-height:1.15}
-.ef h1{font-size:clamp(30px,5vw,40px)}
-.ef h2{font-size:clamp(24px,4vw,30px)}
+html:root .ef h1,html:root .ef h2{text-transform:none;letter-spacing:0;border:0;padding:0;font-family:var(--serif,Georgia,serif);font-weight:500;color:var(--ink,#161a2e);margin:0 0 8px;line-height:1.15}
+html:root .ef h1{font-size:clamp(30px,5vw,40px)}
+html:root .ef h2{font-size:clamp(24px,4vw,30px)}
+html:root .ef .btn-navy{background:var(--navy-900,#12183c);color:#fff}
 .ef p.lead{color:var(--muted,#646778);font-size:16.5px;line-height:1.55;margin:0 0 6px}
 .ef-person{display:flex;align-items:center;gap:14px;margin:4px 0 22px}
 .ef-person img,.ef-person .ini{width:60px;height:60px;border-radius:50%;object-fit:cover;flex:none;box-shadow:0 0 0 3px var(--paper,#fff),0 0 0 4px var(--gold-500,#c9a43a)}
@@ -202,11 +221,11 @@ def seite_html(request, k):
     thema = w("sa_thema") != "aus"
     schritte = [
         # 1 Willkommen
-        f'''<section class="ef-schritt aktiv"><span class="ef-augen">Willkommen im Imperium</span>
-<div class="ef-person">{bild}<div><b>{esc(vorname)}</b><small>Dein Konto ist eingerichtet.</small></div></div>
+        f'''<section class="ef-schritt aktiv"><span class="ef-augen">Willkommen im Schatzamt</span>
+<div class="ef-person">{bild}<div><b>{esc(vorname)}</b><small>Schön, dass du zum ersten Mal hier bist.</small></div></div>
 <h1>Lass uns dein Erlebnis anpassen</h1>
 <p class="lead">Drei kurze Fragen, dann kann es losgehen. Alles lässt sich später unter <i>Mein Profil</i> ändern.</p>
-<ul class="ef-liste"><li><span>1</span>Wie die Portale aussehen sollen</li><li><span>2</span>Glas, Bewegung und Dichte</li><li><span>3</span>Worüber dich der Bot auf Discord informiert</li></ul>
+<ul class="ef-liste"><li><span>1</span>Wie das Schatzamt aussehen soll</li><li><span>2</span>Glas, Bewegung und Dichte</li><li><span>3</span>Worüber dich der Bot auf Discord informiert</li></ul>
 {_aktionen(weiter="Los geht’s", ueberspringen=True)}</section>''',
         # 2 Aussehen
         f'''<section class="ef-schritt"><span class="ef-augen">Schritt 1 von 3 · Aussehen</span>
@@ -243,23 +262,19 @@ def seite_html(request, k):
         f'''<section class="ef-schritt"><div class="ef-haken"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
 <span class="ef-augen">Alles bereit</span><h2>So ist es eingestellt</h2>
 <ul class="ef-zusammen"><li>Deine Auswahl</li></ul>
-<p class="ef-hinweis">Ändern kannst du alles jederzeit unter Schatzamt → Weiteres → <i>Mein Profil</i>.</p>
+<p class="ef-hinweis">Ändern kannst du alles jederzeit unter Weiteres → <i>Mein Profil</i> → Darstellung.</p>
 <div class="ef-aktionen"><button class="ef-leise" type="button" data-geh="-1">Zurück</button><div class="rechts"><button class="btn btn-navy" type="submit">Speichern und loslegen</button></div></div></section>''',
     ]
     fort = "".join("<i></i>" for _ in range(len(schritte) - 1))
     inhalt = (CSS + f'''<section class="ef"><div class="wrap">
 <form class="ef-karte" id="ef" method="post" action="{PFAD}">{amt.csrf_feld(request)}<input type="hidden" name="weiter" value="{esc(weiter)}">
 <div class="ef-fort" aria-hidden="true">{fort}</div><div class="ef-buehne">{"".join(schritte)}</div></form></div></section>''' + JS)
-    return seiten.seite("Willkommen", inhalt, konto=k, csrf=request["csrf"], pfad=PFAD)
+    return inhalt
 
 
-async def seite(request):
-    k = await anmeldung.konto(request)
-    if not k:
-        raise web.HTTPFound("/anmelden/?weiter=" + quote(request.path_qs))
-    if not k["mitglied"]:
-        raise web.HTTPFound(_weiter(request.query.get("weiter")))
-    return web.Response(content_type="text/html", headers={"Cache-Control": "no-store"}, text=seite_html(request, k))
+@sa.seite("mitglied")
+async def seite(request, k):
+    return sa.ant(request, k, "Willkommen", "sa-willkommen", seite_html(request, k))
 
 
 async def speichern(request):
