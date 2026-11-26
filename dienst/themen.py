@@ -311,3 +311,71 @@ def css(aktiv):
     else:
         return ""
     return f'<style id="sa-thema">{inhalt}</style>'
+
+
+# ---------------------------------------------------------------- Umbau-Animation beim Seitenwechsel (seit 26.11.2026)
+# Seitenübergänge über View Transitions zwischen Dokumenten (Chrome/Edge ab 126, Safari ab 18.2). Statt des Ladeskeletts bleibt die alte Seite
+# stehen, bis die neue da ist (amt.JS: laden() prüft html.vt, zeigt nur den Ladebalken). Dann:
+# * „umbau“ (anderes Thema, z. B. Verteidigung → Energie), nacheinander: altes Blatt wird abgeräumt (sinkt, kippt, blendet aus), die Unterlage
+#   wird ausgetauscht (neue schiebt sich von rechts herein, alte weicht dunkler nach links), das neue Blatt wird aufgelegt (von oben, setzt sich);
+#   Seitenleiste/Kopf blenden ruhig über.
+# * „blatt“ (gleiches Thema oder ohne Thema): nur das Blatt wechselt (kurzes Aus- und Einblenden, kein Skelett).
+# <link rel=expect … blocking=render> hält die erste Darstellung an, bis die Seite bis zur Tableiste (#schnellzugriff in amt.rahmen) eingelesen ist –
+# sonst erfasst der Browser (v. a. am Handy) das neue Blatt nicht einzeln. Welches Thema vorher war, merkt sich sessionStorage „sa-thema“. Ohne View Transitions: altes Skelett wie bisher, das neue Blatt baut sich bei
+# Themenwechsel per CSS-Animation auf (html.th-aufbau). Aus bei „Bewegung: Ruhig“ und prefers-reduced-motion.
+
+UMBAU_CSS = """<link rel="expect" href="#schnellzugriff" blocking="render"><style id="sa-umbau">
+@view-transition{navigation:auto}
+html:root #inhalt{view-transition-name:blatt}
+html:root .seite{view-transition-name:seite}
+html:root .kopf{view-transition-name:kopf}
+html:root .tableiste{view-transition-name:leiste}
+@media (prefers-reduced-motion:reduce){@view-transition{navigation:none}}
+::view-transition-group(*){animation-duration:.42s;animation-timing-function:cubic-bezier(.2,.8,.2,1)}
+/* gleiches Thema: nur das Blatt wechselt */
+html.vt-blatt::view-transition-old(blatt){animation:th-blatt-weg .18s ease-in both}
+html.vt-blatt::view-transition-new(blatt){animation:th-blatt-her .32s cubic-bezier(.2,.8,.2,1) .06s both}
+html.vt-blatt::view-transition-group(blatt){animation-duration:.32s}
+@keyframes th-blatt-weg{to{opacity:0;transform:translateY(-6px)}}
+@keyframes th-blatt-her{from{opacity:0;transform:translateY(10px)}}
+/* anderes Thema: Umbau in drei Schritten – 1. Blatt abräumen, 2. Unterlage austauschen, 3. neues Blatt auflegen (zusammen ~0,9 s) */
+html.vt-umbau::view-transition-group(*){animation-duration:.9s}
+html.vt-umbau::view-transition-group(blatt){animation:none}
+html.vt-umbau::view-transition-old(root){animation:th-unterlage-weg .6s cubic-bezier(.7,0,.3,1) .12s both}
+html.vt-umbau::view-transition-new(root){animation:th-unterlage-her .6s cubic-bezier(.7,0,.3,1) .12s both}
+html.vt-umbau::view-transition-old(blatt){animation:th-abbau .34s cubic-bezier(.55,0,.8,.2) both;transform-origin:50% 30%}
+html.vt-umbau::view-transition-new(blatt){animation:th-aufbau .52s cubic-bezier(.2,.9,.25,1.04) .44s both;transform-origin:50% 0}
+html.vt-umbau::view-transition-old(seite),html.vt-umbau::view-transition-old(kopf),html.vt-umbau::view-transition-old(leiste){animation:th-aus .3s ease .2s both}
+html.vt-umbau::view-transition-new(seite),html.vt-umbau::view-transition-new(kopf),html.vt-umbau::view-transition-new(leiste){animation:th-ein .3s ease .2s both}
+@keyframes th-unterlage-weg{to{transform:translateX(-30%);filter:brightness(.45)}}
+@keyframes th-unterlage-her{from{transform:translateX(100%);box-shadow:-30px 0 60px rgba(0,0,0,.5)}to{transform:none;box-shadow:-30px 0 60px rgba(0,0,0,0)}}
+@keyframes th-abbau{to{transform:translateY(46px) scale(.9) rotate(-2.5deg);opacity:0;filter:blur(1.5px)}}
+@keyframes th-aufbau{0%{transform:translateY(-26px) scale(1.05) rotate(-1.2deg);opacity:0}45%{opacity:1}
+ 75%{transform:translateY(3px) scale(.997) rotate(.2deg)}to{transform:none;opacity:1}}
+@keyframes th-aus{to{opacity:0}}
+@keyframes th-ein{from{opacity:0}}
+/* Rückfall ohne View Transitions: neues Blatt baut sich auf */
+html.th-aufbau #inhalt{animation:th-aufbau .52s cubic-bezier(.2,.9,.25,1.04) both;transform-origin:50% 0}
+</style>"""
+
+UMBAU_JS = """<script>(function(){var d=document.documentElement,neu=%s,alt=null;
+try{alt=sessionStorage.getItem("sa-thema");sessionStorage.setItem("sa-thema",neu)}catch(x){}
+var ruhig=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches,anders=alt!==null&&alt!==neu&&(alt||neu);
+if(!ruhig&&"onpagereveal" in window&&"startViewTransition" in document){d.classList.add("vt");
+ addEventListener("pagereveal",function(e){var v=e.viewTransition;if(!v)return;var k=anders?"vt-umbau":"vt-blatt";d.classList.add(k);
+  v.finished.then(function(){d.classList.remove(k)},function(){d.classList.remove(k)})})}
+else if(!ruhig&&anders){d.classList.add("th-aufbau");setTimeout(function(){d.classList.remove("th-aufbau")},900)}})();</script>"""
+
+
+def name_fuer(aktiv):
+    """Kennung des Themas einer Seite ('' = ohne Thema); Mein Teilstaat → Land zählt als eigenes Thema."""
+    if not AKTIV:
+        return ""
+    return SEITEN.get(aktiv) or ("land" if aktiv in UNTERTABS else "")
+
+
+def umbau_kopf(aktiv):
+    """HTML für <head>: Übergangs-CSS und das Skript, das den Übergang je nach Themenwechsel wählt."""
+    import json
+    # className="min" im Kopf von amt.rahmen läuft vorher; die Klassen hier werden danach gesetzt
+    return UMBAU_CSS + UMBAU_JS % json.dumps(name_fuer(aktiv))

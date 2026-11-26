@@ -350,7 +350,7 @@ body.laedt main>.skelett{display:block;animation:rein .2s ease both}
 .sk-dt .sk{height:13px}
 .ladebalken{position:fixed;top:0;left:0;right:0;height:2px;z-index:60;overflow:hidden;opacity:0;transition:opacity .2s;pointer-events:none}
 .ladebalken::before{content:"";position:absolute;top:0;bottom:0;width:40%;background:var(--akzent);animation:balken 1s ease-in-out infinite}
-body.laedt .ladebalken{opacity:1}
+body.laedt .ladebalken,body.vt-laedt .ladebalken{opacity:1}
 @keyframes balken{from{left:-40%}to{left:100%}}
 @media (prefers-reduced-motion:reduce){*,*::before{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}}
 
@@ -567,9 +567,9 @@ function skelett(u){var p=u.pathname,s='<div class="skelett" aria-hidden="true">
  else if(p===BASIS||/statistik\\/$/.test(p)){s+='<div class="sk-kz">';for(var i=0;i<5;i++)s+='<span class="sk"></span>';s+='</div><span class="sk sk-h2"></span>'+zeilen(5,['16%%','30%%','26%%','12%%'])}
  else s+=zeilen(9,['14%%','28%%','22%%','16%%']);
  return s+'</div>'}
-function laden(u){fertig();warte=setTimeout(function(){var alt=M.querySelector(".skelett");if(alt)alt.remove();M.insertAdjacentHTML("afterbegin",skelett(u));B.classList.add("laedt");window.scrollTo(0,0)},90);
+function laden(u){fertig();if(document.documentElement.classList.contains("vt")){B.classList.add("vt-laedt");uhr=setTimeout(fertig,15000);return}warte=setTimeout(function(){var alt=M.querySelector(".skelett");if(alt)alt.remove();M.insertAdjacentHTML("afterbegin",skelett(u));B.classList.add("laedt");window.scrollTo(0,0)},90);
  uhr=setTimeout(fertig,15000)}
-function fertig(){clearTimeout(warte);clearTimeout(uhr);B.classList.remove("laedt");var s=M.querySelector(".skelett");if(s)s.remove();
+function fertig(){clearTimeout(warte);clearTimeout(uhr);B.classList.remove("laedt","vt-laedt");var s=M.querySelector(".skelett");if(s)s.remove();
  document.querySelectorAll(".btn.arbeitet").forEach(function(b){b.classList.remove("arbeitet");b.disabled=false})}
 function intern(u){return u.origin===location.origin&&u.pathname.indexOf(BASIS)===0&&!/(\\/pdf$|\\/logo\\/|\\/anhang\\/)/.test(u.pathname)}
 document.addEventListener("click",function(e){if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
@@ -634,7 +634,7 @@ AMT_GLAS_JS = """<script>(function(){document.querySelectorAll('#inhalt form[met
 def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
     """Seitenrahmen der Amtsseite. portal = {"basis", "gruppen", "haupt", "logo": (schl, name), "name"} für eigene Portale im selben
     Stil (z. B. schatzamt.py): eigene Navigation, eigenes Logo, eigener Basispfad, keine Aktensuche. Optional "unter_logo" (HTML unter
-    dem Logo der Seitenleiste) und "kopf_zusatz" (HTML neben dem Logo im Kopf, sichtbar auf dem Handy)."""
+    dem Logo der Seitenleiste) und "kopf_zusatz" (HTML neben dem Logo im Kopf, sichtbar auf dem Handy), "head" (HTML am Ende von <head>, z. B. Seitenübergänge aus themen.py)."""
     import post
     basis = portal["basis"] if portal else BASIS
     leser = ist_leser(k) and not portal
@@ -684,7 +684,7 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
     return f"""<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ffffff"><meta name="robots" content="noindex,nofollow"><title>{esc(titel)} – {esc(logo_name)}, {esc(seitenname)}</title><style>{CSS}</style>
-<script>document.documentElement.className="min"</script></head>
+<script>document.documentElement.className="min"</script>{portal.get("head", "") if portal else ""}</head>
 <body><div class="ladebalken" aria-hidden="true"></div>
 <div class="app">
 <aside class="seite" id="menue" aria-label="Navigation">
@@ -701,7 +701,7 @@ def rahmen(titel, aktiv, inhalt, k, csrf, q="", portal=None):
 <main id="inhalt">{ooc_html}{inhalt}</main>
 </div></div>
 <div class="schleier" id="schleier"></div>
-<nav class="tableiste" aria-label="Schnellzugriff">{tabs}</nav>
+<nav class="tableiste" id="schnellzugriff" aria-label="Schnellzugriff">{tabs}</nav>
 <script>{js}</script></body></html>"""
 
 
