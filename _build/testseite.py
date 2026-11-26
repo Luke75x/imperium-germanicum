@@ -221,7 +221,7 @@ def breadcrumb(crumbs):
     return S.breadcrumb(crumbs).replace('class="breadcrumb"', 'class="tg-crumbs"')
 
 
-def page_head(crumbs, title, eyebrow="", lead="", dark=False, aside=""):
+def page_head(crumbs, title, eyebrow="", lead="", dark=False, aside="", emb=None, **_kw):
     e = kicker("", esc(eyebrow)) if eyebrow else ""
     l = f'<p class="tg-pagehead__lead">{lead}</p>' if lead else ""
     a = f'<div class="tg-pagehead__aside">{aside}</div>' if aside else ""

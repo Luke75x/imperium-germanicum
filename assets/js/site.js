@@ -112,7 +112,10 @@
   var header = $(".site-header");
   var menuBtn = $(".menu-button");
   var onScroll = function () {
-    document.body.classList.toggle("is-scrolled", window.scrollY > 38);
+    // „angeheftet“, sobald die Kopfzeile an ihrer sticky-Position klebt (Desktop: Wappenkopf ist hinausgerollt)
+    var stuck = window.scrollY > 38;
+    if (header) stuck = header.getBoundingClientRect().top <= (parseFloat(getComputedStyle(header).top) || 0) + 0.5 && window.scrollY > 0;
+    document.body.classList.toggle("is-scrolled", stuck);
   };
   window.addEventListener("scroll", onScroll, { passive: true });
   onScroll();

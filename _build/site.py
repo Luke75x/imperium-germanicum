@@ -251,14 +251,16 @@ def header(current):
   </div>
 </div>
 <header class="site-header">
-  <div class="wrap">
+  <div class="wrap header-crest">
     <a class="brand" href="{u("")}" aria-label="Imperium Germanicum – zur Hauptseite">
-      {img(LOGO, "", "56px", eager=True)}
+      {img(LOGO, "", "72px", eager=True)}
       <span class="brand-text"><span class="brand-name">Imperium Germanicum</span><span class="brand-sub">Das Rollenspiel</span></span>
     </a>
     <button class="menu-button" type="button" aria-expanded="false" aria-controls="nav-main"><span class="bars"><i></i></span><span class="menu-label">Menü</span></button>
-    {nav_html(current)}
   </div>
+  <div class="header-nav"><div class="wrap">
+    {nav_html(current)}
+  </div></div>
 </header>"""
 
 
@@ -347,16 +349,22 @@ def breadcrumb(crumbs):
     return f'<nav class="breadcrumb" aria-label="Brotkrumen"><ol>{"".join(parts)}</ol></nav>'
 
 
-def page_head(crumbs, title, eyebrow="", lead="", dark=False):
+def page_head(crumbs, title, eyebrow="", lead="", dark=False, emb=None):
     e = f'<span class="eyebrow">{esc(eyebrow)}</span>' if eyebrow else ""
     l = f'<p class="lead">{lead}</p>' if lead else ""
+    sig = f'<div class="page-head-emblem" aria-hidden="true">{img(emb, "", "(min-width: 900px) 220px, 120px", eager=True)}</div>' if emb else ""
     return f"""
-<div class="page-head{" dark" if dark else ""}">
+<div class="page-head{" dark" if dark else ""}{" has-emblem" if emb else ""}">
   <div class="wrap">
     {breadcrumb(crumbs)}
-    {e}
-    <h1>{title}</h1>
-    {l}
+    <div class="page-head-grid">
+      <div class="page-head-text">
+        {e}
+        <h1>{title}</h1>
+        {l}
+      </div>
+      {sig}
+    </div>
   </div>
 </div>"""
 
@@ -366,6 +374,26 @@ def page_head(crumbs, title, eyebrow="", lead="", dark=False):
 # ---------------------------------------------------------------------------
 
 PAGES = []  # (pfad, priorität) für die sitemap.xml
+
+# Bereiche: jede Seitengruppe bekommt eine Körperklasse b-<bereich> und damit ihren eigenen Seitenkopf (site.css, „Bereiche“)
+BEREICHE = [
+    ("informationen/imperiale-charta/", "charta"), ("informationen/etiketten-guide/", "guide"),
+    ("informationen/", "staat"), ("der-souveraen/", "souveraen"), ("die-bildergalerie/", "galerie"),
+    ("neue-erlasse-und-gesetze/", "erlasse"), ("kontakt/", "kontakt"), ("regelwerk/", "regelwerk"),
+    ("impressum/", "recht"), ("datenschutz/", "recht"), ("gewaehrleistung/", "recht"), ("widerruf/", "recht"),
+    ("sitemap/", "recht"),
+]
+
+
+def bereich(path, current):
+    if current == "404":
+        return "fehler"
+    if path == "":
+        return "start"
+    for prefix, name in BEREICHE:
+        if path.startswith(prefix):
+            return name
+    return ""
 
 
 def render(path, title, description, body, current=None, robots="index,follow", in_sitemap=True,
@@ -378,6 +406,8 @@ def render(path, title, description, body, current=None, robots="index,follow", 
     alt_de, alt_en = f"{SITE_URL}/{path}", f"{SITE_URL}/en/{path}"
     translatable = current != "404"
     ld = f'<script type="application/ld+json">{json.dumps(jsonld, ensure_ascii=False)}</script>' if jsonld else ""
+    b = bereich(path, current)
+    body_tag = f'<body class="b-{b}">' if b else "<body>"   # Rahmen für den Dienst (wiki-shell) bleibt bei <body>, dort ersetzt seiten.py
     doc = f"""<!doctype html>
 <html lang="de">
 <head>
@@ -388,7 +418,7 @@ def render(path, title, description, body, current=None, robots="index,follow", 
 <meta name="robots" content="{robots}">
 <link rel="canonical" href="{canonical}">
 {f'<link rel="alternate" hreflang="de" href="{alt_de}"><link rel="alternate" hreflang="en" href="{alt_en}"><link rel="alternate" hreflang="x-default" href="{alt_de}">' if translatable else ""}
-<meta name="theme-color" content="#12183c">
+<meta name="theme-color" content="#0e1b3d">
 <script>(function(){{try{{var t=localStorage.getItem("ig-theme");if(t!=="dark"&&t!=="light")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)}}catch(e){{}}}})();</script>
 <meta property="og:type" content="website">
 <meta property="og:locale" content="de_DE">
@@ -407,7 +437,7 @@ def render(path, title, description, body, current=None, robots="index,follow", 
 <script src="{asset("js/site.js")}?v={JS_VERSION}" defer></script>
 {ld}
 </head>
-<body>
+{body_tag}
 {header(current)}
 <main id="inhalt" tabindex="-1">
 {body}
@@ -512,26 +542,30 @@ def page_home():
          "Erfahre mehr über das höchste exekutive Gremium im Reich", "i921660718e056bad", "Kartei lesen"),
     ]
     cards = "".join(card(p, t, d, e, c, f"{i:02d}") for i, (p, t, d, e, c) in enumerate(overview, 1))
+    hero_bild = (f'<img src="{asset("img/if3da36451cad23de-1280.webp")}" srcset="{asset("img/if3da36451cad23de-640.webp")} 640w, '
+                 f'{asset("img/if3da36451cad23de-1280.webp")} 1280w, {original("if3da36451cad23de")} 1440w" sizes="100vw" '
+                 f'width="1440" height="600" alt="" fetchpriority="high" decoding="async">')
     body = f"""
 <section class="hero on-dark" aria-labelledby="hero-titel">
+  <div class="hero-media" aria-hidden="true">{hero_bild}</div>
   <div class="wrap">
-    <div>
+    <div class="hero-text">
       <span class="eyebrow">Für Monarchie-, Adels-, Militär- und Geschichtsliebhaber</span>
       <h1 id="hero-titel">Das interaktive <em>Rollenspiel</em></h1>
       <p class="lead">Das Imperium Germanicum ist ein fiktiver Staatenbund in Europa, basierend auf den Grenzen des früheren Heiligen Römischen Reiches, es stellt eine alternative Gegenwart dar, in der das Heilige Römische Reich die Jahre überdauert hat und sich bis in die heutige Zeit weiterentwickelt hat.</p>
       <div class="hero-actions">
-        <a class="btn btn-gold" href="{u("kontakt/")}">Melde dich zum Dienst {icon("arrow")}</a>
+        <a class="btn btn-light" href="{u("kontakt/")}">Melde dich zum Dienst {icon("arrow")}</a>
         <a class="btn btn-line" href="{u("informationen/imperiale-charta/")}">Die Imperiale Charta</a>
       </div>
     </div>
-    <figure class="hero-seal">
-      {img("idbbec25dc54e06be", "Großes Wappen des Imperium Germanicum", "(min-width: 900px) 460px, 300px", eager=True)}
-    </figure>
   </div>
 </section>
 
 <section class="facts" aria-label="Das Reich in Zahlen">
   <div class="wrap">
+    <figure class="facts-crest">
+      {img("idbbec25dc54e06be", "Großes Wappen des Imperium Germanicum", "(min-width: 900px) 220px, 160px")}
+    </figure>
     <dl>
       <div><dt>Hoheitsgebiet</dt><dd>1.205.000 km²</dd></div>
       <div><dt>Staatsbürger</dt><dd>217.000.000</dd></div>
@@ -596,9 +630,9 @@ def page_home():
   </div>
 </section>
 
-<section class="section navy on-dark" aria-labelledby="souveraen-titel">
-  <div class="wrap split wide-right">
-    <div class="reveal">{emblem("ie6ecf3d509ef6fc3", "", "Emblem des Kaisers: Schloss Charlottenburg mit dem Schriftzug Der Kaiser")}</div>
+<section class="feature on-dark" aria-labelledby="souveraen-titel">
+  <div class="feature-media">{img("i50101bc1effeb76a", "Seine Majestät Alexander IX. in Uniform", "(min-width: 900px) 50vw, 100vw")}</div>
+  <div class="feature-text">
     <div class="prose reveal">
       <span class="eyebrow">Staatsoberhaupt</span>
       <h2 id="souveraen-titel">Der Souverän</h2>
@@ -608,8 +642,18 @@ def page_home():
         "Der Souverän ist der höchste Repräsentant des Reiches und genießt als solcher die höchste Würde, der Souverän hat immer das Recht angehört zu werden.",
       )}
       <div class="hero-actions" style="margin-top:28px">
-        <a class="btn btn-gold" href="{u("der-souveraen/")}">Seine Majestät Alexander IX. {icon("arrow")}</a>
+        <a class="btn btn-light" href="{u("der-souveraen/")}">Seine Majestät Alexander IX. {icon("arrow")}</a>
       </div>
+    </div>
+  </div>
+</section>
+
+<section class="join on-dark" aria-label="Mitmachen">
+  <div class="join-media" aria-hidden="true">{img("i9611b2162cb65868", "", "100vw")}</div>
+  <div class="wrap">
+    <div class="join-text reveal">
+      <p>Interesse geweckt? Werde ein Teil des Imperium Germanicum.</p>
+      <a class="btn btn-light" href="{u("kontakt/")}">Melde dich zum Dienst {icon("arrow")}</a>
     </div>
   </div>
 </section>"""
@@ -646,7 +690,9 @@ def institution_page(path, short, title, eyebrow, description, article, parent=N
     # parent = (pfad, kurzname): Unterseite einer Institution, nur von dort aus verlinkt
     Ctx.prefix = "../" * path.count("/")
     crumbs = [("informationen/", "Staatsaufbau")] + ([parent] if parent else []) + [(path, short)]
-    body = page_head(crumbs, title, eyebrow) + f"""
+    embleme = {p: e for p, _s, _t, _d, e in INSTITUTIONEN}
+    emb = embleme.get(path) or (embleme.get(parent[0]) if parent else None)
+    body = page_head(crumbs, title, eyebrow, emb=emb) + f"""
 <div class="section">
   <div class="wrap with-aside">
     <article class="article">{article()}</article>
@@ -1457,7 +1503,7 @@ def page_charta():
 </section>""")
     stand = f'<p class="doc-version">{esc(fassung)}</p>' if fassung else ""
     body = page_head([("informationen/", "Staatsaufbau"), ("informationen/imperiale-charta/", "Imperiale Charta")],
-                     "Die Imperiale Charta", "Die Verfassung des Imperium Germanicum" + (f" · {fassung}" if fassung else "")) + f"""
+                     "Die Imperiale Charta", "Die Verfassung des Imperium Germanicum" + (f" · {fassung}" if fassung else ""), emb="i2e330402e5d67b0a") + f"""
 <div class="section">
   <div class="wrap with-aside left">
     <aside class="aside-nav toc" aria-label="Inhaltsverzeichnis der Charta">
@@ -1566,7 +1612,7 @@ def page_etikette():
     rang = "".join(f"<li>{esc(x)}</li>" for x in etikette.RANGLISTE)
     regeln = "".join(f"<li><span>{esc(x)}</span></li>" for x in etikette.VERHALTENSREGELN)
     body = page_head([("informationen/", "Staatsaufbau"), ("informationen/etiketten-guide/", "Etiketten-Guide")],
-                     "Etiketten-Guide", "Benimmregeln und Höflichkeitsetikette") + f"""
+                     "Etiketten-Guide", "Benimmregeln und Höflichkeitsetikette", emb="i1ed8e9913dc91849") + f"""
 <div class="section" style="padding-top:clamp(36px,5vw,64px)">
   <div class="wrap">
     <section class="split top" aria-labelledby="praeambel">
@@ -1613,7 +1659,20 @@ def page_etikette():
 
 def page_souveraen():
     Ctx.prefix = "../"
-    body = page_head([("der-souveraen/", "Der Souverän")], "Der Souverän", "Staatsoberhaupt des Imperium Germanicum") + f"""
+    body = f"""
+<div class="page-head dark portrait-head">
+  <div class="wrap">
+    {breadcrumb([("der-souveraen/", "Der Souverän")])}
+    <div class="page-head-grid">
+      <div class="page-head-text">
+        <span class="eyebrow">Staatsoberhaupt des Imperium Germanicum</span>
+        <h1>Der Souverän</h1>
+        <p class="lead">Seine kaiserliche und königliche Majestät Alexander IX.</p>
+      </div>
+      <div class="page-head-portrait">{img("iceaef15058c1dbef", "Seine Majestät Alexander IX.", "(min-width: 900px) 360px, 60vw", eager=True)}</div>
+    </div>
+  </div>
+</div>""" + f"""
 <section class="section">
   <div class="wrap">
     <div class="split wide-right top">
@@ -1803,7 +1862,8 @@ def form_common(kind):
 def page_kontakt():
     Ctx.prefix = "../"
     body = page_head([("kontakt/", "Kontakt")], "Melde dich zum Dienst!", "Kontakt",
-                     f'Klicke <a href="{INSTAGRAM}" rel="noopener" target="_blank"><strong>HIER</strong></a> um auf den offiziellen Instagram-Account des Imperium Germanicum zu gelangen.') + f"""
+                     f'Klicke <a href="{INSTAGRAM}" rel="noopener" target="_blank"><strong>HIER</strong></a> um auf den offiziellen Instagram-Account des Imperium Germanicum zu gelangen.',
+                     emb=LOGO) + f"""
 <section class="section">
   <div class="wrap split wide-left top">
     <div>
