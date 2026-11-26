@@ -191,7 +191,8 @@ def _darstellung(request, k, con):
         _zeile("Dichte", "Kompakt zeigt mehr Zeilen auf einmal (kleinere Abstände).",
                _select("sa_dichte", [("normal", "Normal"), ("kompakt", "Kompakt")], w("sa_dichte"))),
         _zeile("Themenbasiertes Design", "Jeder Bereich sieht aus wie sein Arbeitsplatz: Verteidigung als Plantisch mit Lagekarte, Energie als Leitwarte, "
-               "Handel als Kontor-Hauptbuch, Privatbesitz als Katalog, Goldreserven als Tresor, Krisen als Lagezentrum, Entwicklung als Planungstisch.",
+               "Handel als Kontor-Hauptbuch, Privatbesitz als Katalog, Goldreserven als Tresor, Krisen als Lagezentrum, Entwicklung als Planungstisch, "
+               "alles rund um Geld und Bank in schwarz-weißem Marmor.",
                f'<label class="pf-schalter"><input type="checkbox" name="sa_thema" value="an"{" checked" if w("sa_thema") != "aus" else ""} aria-label="Themenbasiertes Design"><i></i></label>'),
     ]
     if sa.hat_staat(con, k):

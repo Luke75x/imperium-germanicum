@@ -8,6 +8,8 @@ Jeder Bereich bekommt den Look seines „echten“ Arbeitsplatzes: Die Seite (#i
 * tresor      – Goldreserven: gebürsteter Stahl, Kennzahlen als Goldbarren.
 * krisenstab  – Krisen: Lagemeldung im Lagezentrum mit Warnstreifen.
 * planung     – Entwicklung: Planpause mit Millimeterraster auf der Schneidematte, Schriftfeld.
+* marmor      – alles mit Geld & Bank (Übersicht, Konto & Umsätze, Überweisen, Steuern, Gehalt, Gewerbe, Bankkarte, Kassen, Geldmenge, Besoldung …):
+                schwarz-weißer Marmor (statisch/marmor.jpg, nahtlos gespiegelt), poliertes Blatt mit Doppelrahmen, Antiqua-Ziffern, Schwarz als Akzent.
 Mein Teilstaat → Land bündelt Entwicklung/Energie/Krisen: dort wechselt das Thema mit dem sichtbaren Untertab (:has()).
 
 Ein-/Ausschalten: Mein Profil → Darstellung → „Themenbasiertes Design“ (Schlüssel sa_thema, Standard „an“; profil_sa.thema_an).
@@ -27,12 +29,22 @@ SEITEN = {
     "sa-gold": "tresor",
     "sa-krisen": "krisenstab",
     "sa-entwicklung": "planung",
+    # Geld & Bank: Marmor (schwarz/weiß)
+    "sa-start": "marmor", "sa-konto": "marmor", "sa-ueberweisen": "marmor", "sa-steuern": "marmor", "sa-gehalt": "marmor", "sa-gewerbe": "marmor",
+    "sa-bankkarte": "marmor", "sa-finanzen": "marmor", "sa-staatshaushalt": "marmor", "sa-etats": "marmor", "sa-notlage": "marmor", "sa-ts-fin": "marmor",
+    "sa-amt-konten": "marmor", "sa-amt-geld": "marmor", "sa-amt-bankkarten": "marmor", "sa-amt-besoldung": "marmor", "sa-amt-steuern": "marmor", "sa-rp-konten": "marmor",
 }
 # Seiten mit Untertabs: Thema je sichtbarem Abschnitt
 UNTERTABS = {"sa-ts-land": {"entwicklung": "planung", "energie": "leitwarte", "krisen": "krisenstab"}}
 
 NAMEN = {"plantisch": "Plantisch (Verteidigung)", "leitwarte": "Leitwarte (Energie)", "kontor": "Handelskontor (Handel)",
-         "katalog": "Exposé-Katalog (Privatbesitz)", "tresor": "Tresor (Goldreserven)", "krisenstab": "Lagezentrum (Krisen)", "planung": "Planungstisch (Entwicklung)"}
+         "katalog": "Exposé-Katalog (Privatbesitz)", "tresor": "Tresor (Goldreserven)", "krisenstab": "Lagezentrum (Krisen)", "planung": "Planungstisch (Entwicklung)",
+         "marmor": "Marmor (Geld & Bank)"}
+
+import os as _os
+_MARMOR_DATEI = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "statisch", "marmor.jpg")
+MARMOR = f"url('/schatzamt/statisch/marmor.jpg?v={int(_os.path.getmtime(_MARMOR_DATEI))}')"
+ANTIQUA = 'Didot,"Bodoni 72","Bodoni MT","Libre Bodoni","Playfair Display",Georgia,"Times New Roman",serif'
 
 SCHREIBMASCHINE = '"Courier New",Courier,"Nimbus Mono PS","Liberation Mono",monospace'
 SCHMAL = '"Arial Narrow","Roboto Condensed","Nimbus Sans Narrow","Helvetica Neue",Arial,sans-serif'
@@ -292,6 +304,32 @@ THEMEN = {
 § #inhalt th{text-transform:uppercase;letter-spacing:.08em}
 """,
     },
+    # ------------------------------------------------ Geld & Bank: schwarz-weißer Marmor
+    "marmor": {
+        "vars_body": f"""--th-tisch:radial-gradient(ellipse at 50% 40%,transparent 55%,rgba(0,0,0,.16)),{MARMOR} 0 0/1200px 1200px,#f2f2f2;
+ --th-blatt:linear-gradient(rgba(255,255,255,.88),rgba(255,255,255,.88)),{MARMOR} 300px 200px/900px 900px,#fff;
+ --th-blatt-rand:1px solid #111;--th-radius:2px;--th-blatt-schatten:0 0 0 5px rgba(255,255,255,.92),0 0 0 6px rgba(0,0,0,.55),0 34px 80px rgba(0,0,0,.28);
+ --th-text:inherit;--th-titel:{ANTIQUA};--th-titel-sperr:.02em;--th-titel-gross:none;--th-titel-farbe:#0d0d0d;
+ --th-zahl:{ANTIQUA};--th-zahl-farbe:#0d0d0d;--th-zahl-gewicht:400;--th-ziffern:inherit;--th-tab-kopf:inherit;--th-tab-linie:1.5px solid #111;
+ --th-karte:#fff;--th-karte-hover:#fff;--th-karte-rand:1px solid rgba(0,0,0,.14);--th-karte-radius:2px;
+ --th-karte-schatten:inset 0 2px 0 #111,0 8px 24px rgba(0,0,0,.07);
+ --th-reiter:rgba(0,0,0,.05);--th-reiter-aktiv:#0d0d0d;--th-reiter-aktiv-text:#fff;--th-knopf:#0d0d0d;--th-knopf-text:#fff;
+ --th-feld:#fff;--th-sheet:#fff;
+ --th-marke:"Schatz- und Währungsamt · Bank";--th-marke-schrift:{ANTIQUA};--th-marke-farbe:#111;--th-marke-rand:1px solid #111;
+ --th-marke-radius:0;--th-marke-dreh:0deg;--th-marke-bg:rgba(255,255,255,.9)""",
+        "vars_inhalt": "--ink:#0d0d0d;--grau:#5f5f5f;--linie:rgba(0,0,0,.12);--akzent:#0d0d0d",
+        "extra": """
+§ #inhalt h1{font-weight:400;font-size:32px}
+§ #inhalt h2{font:600 11.5px/1.2 var(--schrift);letter-spacing:.2em;text-transform:uppercase;color:#111;border-bottom:1px solid #111;padding-bottom:7px}
+§ #inhalt .kennzahlen b{font-size:30px;letter-spacing:-.01em}
+§ #inhalt .kennzahlen>div>span,§ #inhalt .kennzahlen>div>small{letter-spacing:.04em}
+§ #inhalt th{text-transform:uppercase;letter-spacing:.12em;font-size:11px;color:#111}
+§ #inhalt .sa-saldo{font-family:""" + ANTIQUA + """;font-weight:400}
+§ #inhalt .sa-saldo,§ #inhalt .sa-saldo .sa-plus{color:#0d0d0d}
+§ #inhalt a:not([class]){color:#0d0d0d;text-decoration-thickness:1px;text-underline-offset:3px}
+§ #inhalt .status.s-ok{background:#fff;color:#111;border:1px solid #111}
+""",
+    },
 }
 
 
@@ -382,6 +420,10 @@ NAV = {
  --th-nav-rand:1px solid #a9bfd8;--th-nav-schatten:0 18px 44px rgba(0,0,0,.4);--th-nav-radius:2px;--th-nav-aktiv-radius:1px;
  --th-nav-text:#14243f;--th-nav-icon:#4a5f7c;--th-nav-titel:#1d3c6e;--th-nav-titel-schrift:""" + SCHMAL + """;--th-nav-hover:rgba(29,60,110,.08);--th-nav-linie:rgba(29,60,110,.25)""",
                 "§ body .seite .gruppe-titel::before{content:'▸ ';color:#c0392b}"),
+    "marmor": (f"""--th-nav:linear-gradient(rgba(255,255,255,.8),rgba(255,255,255,.8)),{MARMOR} 0 0/700px 700px,#fff;--th-nav-rand:1px solid #111;
+ --th-nav-schatten:0 0 0 4px rgba(255,255,255,.9),0 0 0 5px rgba(0,0,0,.45),0 18px 44px rgba(0,0,0,.22);--th-nav-radius:2px;--th-nav-aktiv-radius:1px;
+ --th-nav-text:#0d0d0d;--th-nav-icon:#4a4a4a;--th-nav-titel:#111;--th-nav-titel-schrift:{ANTIQUA};--th-nav-hover:rgba(0,0,0,.05);--th-nav-linie:rgba(0,0,0,.25)""",
+               "§ body .seite .gruppe-titel{letter-spacing:.22em;font-weight:400;font-size:10.5px}"),
 }
 
 
@@ -437,6 +479,15 @@ if(!ruhig&&"onpagereveal" in window&&"startViewTransition" in document){d.classL
  addEventListener("pagereveal",function(e){var v=e.viewTransition;if(!v)return;var k=anders?"vt-umbau":"vt-blatt";d.classList.add(k);
   v.finished.then(function(){d.classList.remove(k)},function(){d.classList.remove(k)})})}
 else if(!ruhig&&anders){d.classList.add("th-aufbau");setTimeout(function(){d.classList.remove("th-aufbau")},900)}})();</script>"""
+
+
+async def _marmor(request):
+    from aiohttp import web
+    return web.FileResponse(_MARMOR_DATEI, headers={"Cache-Control": "public, max-age=31536000, immutable"})   # Adresse trägt ?v=Änderungszeit
+
+
+def registrieren(app):
+    app.router.add_get("/schatzamt/statisch/marmor.jpg", _marmor)
 
 
 def name_fuer(aktiv):
