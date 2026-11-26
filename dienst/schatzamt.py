@@ -600,6 +600,10 @@ def seite(recht=None):
                 ok = hat_handel(request.app["db"], k)
             elif recht == "verteidigung":
                 ok = hat_verteidigung(request.app["db"], k)
+            if request.method == "GET" and k["mitglied"]:   # vorgemerkte Einführung („Lass uns dein Erlebnis anpassen“) zuerst zeigen
+                import einfuehrung
+                if einfuehrung.offen(request.app["db"], k["id"]):
+                    raise web.HTTPFound(einfuehrung.ziel_url(request.path_qs))
             if not ok:
                 text = {"mitglied": "Diese Funktion steht nur Mitgliedern unseres Discord-Servers zur Verfügung.",
                         "staat": "Dieser Bereich ist staatlich und nur für Amtsträger mit Verfügung über eine staatliche Kasse einsehbar.",
