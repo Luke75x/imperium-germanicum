@@ -11,6 +11,7 @@ Jeder Bereich bekommt den Look seines „echten“ Arbeitsplatzes: Die Seite (#i
 Mein Teilstaat → Land bündelt Entwicklung/Energie/Krisen: dort wechselt das Thema mit dem sichtbaren Untertab (:has()).
 
 Ein-/Ausschalten: Mein Profil → Darstellung → „Themenbasiertes Design“ (Schlüssel sa_thema, Standard „an“; profil_sa.thema_an).
+Seitenleiste, Kopf und Tableiste bekommen das Material des Themas (NAV, NAV_BASIS) statt Glas.
 Eingebunden in schatzamt.ant nach rp_glas. Alle Regeln beginnen mit dem Bereich „§“ (html:root bzw. html:root:has(...)) und #inhalt, damit sie
 die Glas-Regeln schlagen. SCHNELL ZURÜCK: AKTIV = False + systemctl restart imperium-dienst.
 """
@@ -296,7 +297,8 @@ THEMEN = {
 
 def _css_thema(name, bereich):
     t = THEMEN[name]
-    css = f"§{{{t['vars_body']}}}§ #inhalt{{{t['vars_inhalt']}}}" + BASIS + t["extra"]
+    nav_vars, nav_extra = NAV[name]
+    css = f"§{{{t['vars_body']}}}§{{{nav_vars}}}§ #inhalt{{{t['vars_inhalt']}}}" + BASIS + t["extra"] + NAV_BASIS + nav_extra
     return css.replace("§", bereich)
 
 
@@ -311,6 +313,76 @@ def css(aktiv):
     else:
         return ""
     return f'<style id="sa-thema">{inhalt}</style>'
+
+
+# ---------------------------------------------------------------- Navigation (Seitenleiste, Kopf, Tableiste am Handy) im Material des Themas
+# Statt Glas (auf dunkler Unterlage grau und kontrastarm) ein festes, helles Material je Thema mit kräftiger aktiver Markierung.
+
+NAV_SCHRAUBEN = _schraube("top 8px left 8px") + "," + _schraube("top 8px right 8px")   # nur oben: unten scrollen die Einträge darunter
+
+NAV_BASIS = """
+§ body .seite,§ body .kopf,§ body .tableiste{background:var(--th-nav);border:var(--th-nav-rand);-webkit-backdrop-filter:none;backdrop-filter:none;
+ box-shadow:var(--th-nav-schatten);color:var(--th-nav-text)}
+§ body .kopf,§ body .tableiste{background:var(--th-kopf,var(--th-nav))}
+@media (min-width:801px){§ body .seite{border-radius:var(--th-nav-radius)}§ body .kopf{border-radius:var(--th-nav-radius)}}
+§ body .seite{scrollbar-color:var(--th-nav-linie) transparent}
+§ body .seite .gruppe-titel{color:var(--th-nav-titel);font-family:var(--th-nav-titel-schrift);letter-spacing:.12em}
+§ body .seite a.ein{color:var(--th-nav-text);transition:background .2s,color .2s,transform .2s}
+§ body .seite a.ein .icon{color:var(--th-nav-icon)}
+§ body .seite a.ein:hover{background:var(--th-nav-hover);color:var(--th-nav-text)}
+§ body .seite a.ein.aktiv{background:var(--th-reiter-aktiv);color:var(--th-reiter-aktiv-text);box-shadow:0 3px 10px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.12);border-radius:var(--th-nav-aktiv-radius)}
+§ body .seite a.ein.aktiv .icon{color:var(--th-reiter-aktiv-text)}
+§ body .seite .fuss{border-top:1px solid var(--th-nav-linie)}
+§ body .seite .fuss a.ein{color:var(--th-nav-icon)}
+§ body .sa-modus{background:var(--th-nav-hover);border:1px solid var(--th-nav-linie);box-shadow:inset 0 1px 2px rgba(0,0,0,.08)}
+§ body .sa-modus a{color:var(--th-nav-icon)}
+§ body .sa-modus a.aktiv,§ body .sa-modus a.aktiv:hover{color:var(--th-reiter-aktiv-text)}
+§ body .sa-modus .pille{background:var(--th-reiter-aktiv);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+§ body .kopf input[type=search]{background:rgba(255,255,255,.72);border-color:var(--th-nav-linie)}
+§ body .kopf .knopf-rund:hover{background:var(--th-nav-hover)}
+§ body .tableiste a,§ body .tableiste button{color:var(--th-nav-icon)}
+§ body .tableiste .aktiv{background:var(--th-reiter-aktiv);color:var(--th-reiter-aktiv-text);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+@media (max-width:800px){§ body .seite{border-radius:22px 22px 0 0}§ body .kopf{border-left:0;border-right:0;border-top:0}}
+"""
+
+NAV = {
+    "plantisch": ("""--th-nav:linear-gradient(rgba(70,74,40,.09) 1px,transparent 1px) -1px -1px/24px 24px,linear-gradient(90deg,rgba(70,74,40,.09) 1px,transparent 1px) -1px -1px/24px 24px,
+ linear-gradient(180deg,#eee7cc,#ddd3ae);--th-nav-rand:1px solid #a99c6e;--th-nav-schatten:0 2px 0 #c8bb8e,0 18px 44px rgba(0,0,0,.45);--th-nav-radius:4px;--th-nav-aktiv-radius:3px;
+ --th-nav-text:#2a2e1e;--th-nav-icon:#5f5d40;--th-nav-titel:#7a2a1a;--th-nav-titel-schrift:""" + SCHREIBMASCHINE + """;--th-nav-hover:rgba(60,62,36,.1);--th-nav-linie:rgba(74,74,48,.3)""",
+                  "§ body .seite .gruppe-titel{border-bottom:1px dashed rgba(74,74,48,.35);margin:6px 8px 4px;padding:8px 2px 4px}"),
+    "leitwarte": ("""--th-nav:""" + NAV_SCHRAUBEN + """,
+ repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 1px,transparent 1px 3px),linear-gradient(180deg,#d3dcd4,#bfc9c1);
+ --th-kopf:repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 1px,transparent 1px 3px),linear-gradient(180deg,#d3dcd4,#bfc9c1);
+ --th-nav-rand:3px solid #8f9b92;--th-nav-schatten:inset 0 2px 0 rgba(255,255,255,.55),0 18px 44px rgba(0,0,0,.55);--th-nav-radius:10px;--th-nav-aktiv-radius:5px;
+ --th-nav-text:#1b2225;--th-nav-icon:#46524c;--th-nav-titel:#e7ede8;--th-nav-titel-schrift:""" + ANZEIGE + """;--th-nav-hover:rgba(29,36,39,.1);--th-nav-linie:rgba(43,50,54,.28)""",
+                  "§ body .seite .gruppe-titel{display:table;margin:12px 8px 6px;padding:4px 8px;border-radius:3px;font-size:9.5px;"
+                  "background:linear-gradient(180deg,#39434a,#232b30);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 0 rgba(255,255,255,.5)}"
+                  "§ body .seite a.ein.aktiv::after{content:'';position:absolute;right:12px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;"
+                  "background:#46e06e;box-shadow:0 0 6px 1px rgba(70,224,110,.75)}"),
+    "kontor": ("""--th-nav:linear-gradient(90deg,transparent 14px,rgba(185,40,40,.35) 14px 15px,transparent 15px),
+ repeating-linear-gradient(transparent 0 29px,rgba(60,100,170,.12) 29px 30px),linear-gradient(180deg,#f8f0db,#eee2c2);
+ --th-nav-rand:1px solid #c9b183;--th-nav-schatten:0 1px 0 #e9dcb8,0 3px 0 #d8c69c,0 18px 44px rgba(30,12,0,.5);--th-nav-radius:4px;--th-nav-aktiv-radius:3px;
+ --th-nav-text:#2e2213;--th-nav-icon:#7a6040;--th-nav-titel:#8a4a2a;--th-nav-titel-schrift:""" + SERIF + """;--th-nav-hover:rgba(90,58,34,.09);--th-nav-linie:rgba(138,109,59,.32)""",
+               "§ body .seite .gruppe-titel{font-variant:small-caps;text-transform:none;font-size:13px;letter-spacing:.06em;padding-left:16px}"),
+    "katalog": ("""--th-nav:linear-gradient(180deg,#fdfbf5,#f4eddc);--th-nav-rand:1px solid #c6a960;--th-nav-schatten:0 0 0 4px #fdfbf5,0 0 0 5px #c6a960,0 20px 50px rgba(0,0,0,.55);
+ --th-nav-radius:2px;--th-nav-aktiv-radius:1px;--th-nav-text:#2a1a1f;--th-nav-icon:#8a6a50;--th-nav-titel:#a88a3c;--th-nav-titel-schrift:""" + SERIF + """;
+ --th-nav-hover:rgba(198,169,96,.14);--th-nav-linie:rgba(198,169,96,.45)""",
+                "§ body .seite .gruppe-titel{font-weight:400;letter-spacing:.22em}§ body .seite a.ein{font-family:" + SERIF + "}"),
+    "tresor": ("""--th-nav:""" + NAV_SCHRAUBEN + """,
+ repeating-linear-gradient(90deg,rgba(255,255,255,.22) 0 1px,rgba(0,0,0,.02) 1px 3px),linear-gradient(170deg,#eef0f2,#cfd4d9);
+ --th-kopf:repeating-linear-gradient(90deg,rgba(255,255,255,.22) 0 1px,rgba(0,0,0,.02) 1px 3px),linear-gradient(170deg,#eef0f2,#cfd4d9);
+ --th-nav-rand:1px solid #8d969f;--th-nav-schatten:inset 0 1px 0 #fff,0 18px 44px rgba(0,0,0,.55);--th-nav-radius:14px;--th-nav-aktiv-radius:7px;
+ --th-nav-text:#22272c;--th-nav-icon:#58616a;--th-nav-titel:#6a737c;--th-nav-titel-schrift:""" + SCHMAL + """;--th-nav-hover:rgba(44,50,56,.08);--th-nav-linie:rgba(89,98,107,.3)""",
+               "§ body .seite .gruppe-titel{text-shadow:0 1px 0 #fff}"),
+    "krisenstab": ("""--th-nav:repeating-linear-gradient(-45deg,#e0b000 0 10px,#1d1d1f 10px 20px) top/100% 6px no-repeat,linear-gradient(180deg,#fdfcf8,#f1eee5);
+ --th-nav-rand:1px solid #cfcab9;--th-nav-schatten:0 18px 44px rgba(0,0,0,.55);--th-nav-radius:6px;--th-nav-aktiv-radius:3px;
+ --th-nav-text:#1d1d1f;--th-nav-icon:#5e5b52;--th-nav-titel:#9b1c1c;--th-nav-titel-schrift:""" + SCHREIBMASCHINE + """;--th-nav-hover:rgba(155,28,28,.07);--th-nav-linie:rgba(29,29,31,.18)""",
+                   "§ body .seite{padding-top:24px}"),
+    "planung": ("""--th-nav:linear-gradient(rgba(40,90,160,.12) 1px,transparent 1px) -1px -1px/24px 24px,linear-gradient(90deg,rgba(40,90,160,.12) 1px,transparent 1px) -1px -1px/24px 24px,#f3f7fb;
+ --th-nav-rand:1px solid #a9bfd8;--th-nav-schatten:0 18px 44px rgba(0,0,0,.4);--th-nav-radius:2px;--th-nav-aktiv-radius:1px;
+ --th-nav-text:#14243f;--th-nav-icon:#4a5f7c;--th-nav-titel:#1d3c6e;--th-nav-titel-schrift:""" + SCHMAL + """;--th-nav-hover:rgba(29,60,110,.08);--th-nav-linie:rgba(29,60,110,.25)""",
+                "§ body .seite .gruppe-titel::before{content:'▸ ';color:#c0392b}"),
+}
 
 
 # ---------------------------------------------------------------- Umbau-Animation beim Seitenwechsel (seit 26.11.2026)
