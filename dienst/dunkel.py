@@ -41,7 +41,6 @@ html:root .seite a.ein:hover{{background:rgba(255,255,255,.07);color:#fff}}
 html:root .seite a.ein.aktiv{{background:rgba(255,255,255,.13);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}}
 html:root .seite a.ein.aktiv .icon{{color:{BLAU}}}
 html:root .seite .fuss{{border-top-color:rgba(255,255,255,.08)}}
-html:root .seite .logo img,html:root .kopf .logo img,html:root .ef-kopf img{{filter:invert(1) hue-rotate(180deg) brightness(1.05)}}
 html:root .tableiste a,html:root .tableiste button{{color:{TEXT2}}}
 html:root .tableiste .aktiv{{color:#fff;background:rgba(255,255,255,.14);box-shadow:none}}
 html:root .kopf input[type=search]{{background:rgba(118,118,128,.24);border-color:transparent;color:#fff}}
@@ -153,9 +152,18 @@ MARMOR_DUNKEL = """
 § #inhalt .status.s-ok{background:transparent;color:#fff;border-color:#fff}
 § #inhalt td{border-color:rgba(84,84,88,.5)}
 § #inhalt input[type=text],§ #inhalt input[type=search],§ #inhalt input[type=number],§ #inhalt select,§ #inhalt textarea{color:#fff}
-§ body .seite .logo img,§ body .kopf .logo img{filter:invert(1) hue-rotate(180deg) brightness(1.05)}
 § body .sa-modus a.aktiv,§ body .sa-modus a.aktiv:hover{color:#000}
 """
+
+
+def _logo_js():
+    """Definiert window.saLogo(dunkel): tauscht das Schatzamt-Logo (Seitenleiste, Kopf, Einführung) gegen die Fassung für dunklen Grund
+    (statisch/schatzamt-*-dunkel.png: Schwarz und Weiß getauscht, Rot und Gold echt) – statt eines Farbfilters."""
+    import themen
+    return ("<script>window.saLogo=window.saLogo||function(d){var U={kopf:'" + themen.statisch_url("schatzamt-kopf-dunkel.png") + "',kurz:'"
+            + themen.statisch_url("schatzamt-kurz-dunkel.png") + "'};document.querySelectorAll('.seite .logo img,.kopf .logo img,.ef-kopf img').forEach(function(i){"
+            "var o=i.getAttribute('data-hell');if(!o){if(!/\\/logo\\/schatzamt-(kopf|kurz)\\.png/.test(i.getAttribute('src')||''))return;o=i.getAttribute('src');i.setAttribute('data-hell',o)}"
+            "i.src=d?U[/kurz/.test(o)?'kurz':'kopf']:o})};</script>")
 
 
 def modus(con, k):
@@ -181,16 +189,18 @@ def css(con, k, thema):
         inhalt = MARMOR_DUNKEL.replace("§", "html:root").replace("MARMOR_D", themen.MARMOR_DUNKEL_URL)
     if m == "auto":
         inhalt = "@media (prefers-color-scheme:dark){" + inhalt + "}"
-    farbe = ('<script>(function(){var m=document.querySelector(\'meta[name=theme-color]\');if(m&&' +
-             ("matchMedia('(prefers-color-scheme: dark)').matches" if m == "auto" else "true") + ")m.content='#000000'})();</script>")
-    return f'<style id="sa-dunkel">{inhalt}</style>{farbe}'
+    bed = "matchMedia('(prefers-color-scheme: dark)').matches" if m == "auto" else "true"
+    farbe = ("<script>(function(){function setz(){var d=" + bed + ",m=document.querySelector('meta[name=theme-color]');if(m)m.content=d?'#000000':'#ffffff';saLogo(d)}"
+             "if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setz);else setz();"
+             + ("matchMedia('(prefers-color-scheme: dark)').addEventListener('change',setz);" if m == "auto" else "") + "})();</script>")
+    return f'<style id="sa-dunkel">{inhalt}</style>{_logo_js()}{farbe}'
 
 
 def vorschau_html(name):
     """Live-Umschaltung für ein Auswahlfeld/Radio-Gruppe `name` (hell/dunkel/auto): Vorschau-Style über media an/aus, gespeicherte Fassung (#sa-dunkel) aus."""
-    return (f'<style id="sa-dunkel-vorschau" media="not all">{CSS}</style>'
+    return (f'<style id="sa-dunkel-vorschau" media="not all">{CSS}</style>' + _logo_js() +
             "<script>(function(){var v=document.getElementById('sa-dunkel-vorschau');"
             "function u(w){var alt=document.getElementById('sa-dunkel');if(alt)alt.media='not all';"
             "v.media=w==='dunkel'?'all':w==='auto'?'(prefers-color-scheme: dark)':'not all';"
-            "var m=document.querySelector('meta[name=theme-color]'),d=w==='dunkel'||(w==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);if(m)m.content=d?'#000000':'#ffffff'}"
+            "var m=document.querySelector('meta[name=theme-color]'),d=w==='dunkel'||(w==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);if(m)m.content=d?'#000000':'#ffffff';saLogo(d)}"
             f"document.addEventListener('change',function(e){{if(e.target.name==='{name}')u(e.target.value)}})}})();</script>")

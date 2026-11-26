@@ -483,19 +483,24 @@ if(!ruhig&&"onpagereveal" in window&&"startViewTransition" in document){d.classL
 else if(!ruhig&&anders){d.classList.add("th-aufbau");setTimeout(function(){d.classList.remove("th-aufbau")},900)}})();</script>"""
 
 
-async def _marmor(request):
-    from aiohttp import web
-    return web.FileResponse(_MARMOR_DATEI, headers={"Cache-Control": "public, max-age=31536000, immutable"})   # Adresse trägt ?v=Änderungszeit
+STATISCH = ("marmor.jpg", "marmor_dunkel.jpg", "schatzamt-kopf-dunkel.png", "schatzamt-kurz-dunkel.png")   # Texturen und Logo-Fassungen für den Dunkelmodus
 
 
-async def _marmor_dunkel(request):
+def statisch_url(name):
+    return f"/schatzamt/statisch/{name}?v={int(_os.path.getmtime(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'statisch', name)))}"
+
+
+async def _statisch(request):
     from aiohttp import web
-    return web.FileResponse(_MARMOR_DUNKEL_DATEI, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+    name = request.match_info["name"]
+    if name not in STATISCH:
+        raise web.HTTPNotFound()
+    pfad = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "statisch", name)
+    return web.FileResponse(pfad, headers={"Cache-Control": "public, max-age=31536000, immutable"})   # Adressen tragen ?v=Änderungszeit
 
 
 def registrieren(app):
-    app.router.add_get("/schatzamt/statisch/marmor.jpg", _marmor)
-    app.router.add_get("/schatzamt/statisch/marmor_dunkel.jpg", _marmor_dunkel)
+    app.router.add_get("/schatzamt/statisch/{name}", _statisch)
 
 
 def name_fuer(aktiv):
