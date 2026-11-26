@@ -44,6 +44,8 @@ NAMEN = {"plantisch": "Plantisch (Verteidigung)", "leitwarte": "Leitwarte (Energ
 import os as _os
 _MARMOR_DATEI = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "statisch", "marmor.jpg")
 MARMOR = f"url('/schatzamt/statisch/marmor.jpg?v={int(_os.path.getmtime(_MARMOR_DATEI))}')"
+_MARMOR_DUNKEL_DATEI = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "statisch", "marmor_dunkel.jpg")   # invertiert, für den Dunkelmodus (dunkel.py)
+MARMOR_DUNKEL_URL = f"url('/schatzamt/statisch/marmor_dunkel.jpg?v={int(_os.path.getmtime(_MARMOR_DUNKEL_DATEI))}')"
 ANTIQUA = 'Didot,"Bodoni 72","Bodoni MT","Libre Bodoni","Playfair Display",Georgia,"Times New Roman",serif'
 
 SCHREIBMASCHINE = '"Courier New",Courier,"Nimbus Mono PS","Liberation Mono",monospace'
@@ -486,8 +488,14 @@ async def _marmor(request):
     return web.FileResponse(_MARMOR_DATEI, headers={"Cache-Control": "public, max-age=31536000, immutable"})   # Adresse trägt ?v=Änderungszeit
 
 
+async def _marmor_dunkel(request):
+    from aiohttp import web
+    return web.FileResponse(_MARMOR_DUNKEL_DATEI, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
 def registrieren(app):
     app.router.add_get("/schatzamt/statisch/marmor.jpg", _marmor)
+    app.router.add_get("/schatzamt/statisch/marmor_dunkel.jpg", _marmor_dunkel)
 
 
 def name_fuer(aktiv):

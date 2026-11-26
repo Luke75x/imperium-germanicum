@@ -207,7 +207,7 @@ function glas(){var t=r.value/100;o.textContent=r.value;g.style.background='rgba
 if(r){r.addEventListener('input',glas);glas()}
 function wert(name){var x=f.querySelector('[name='+name+']:checked');return x?x.value:''}
 function zusammen(){var l=[],t=wert('sa_thema')==='an';l.push(t?'Themenbasiertes Design – jeder Bereich im Look seines Arbeitsplatzes':'Schlichtes Glas-Design');
- l.push('Glas-Transparenz '+r.value+' von 100');l.push(wert('sa_bewegung')==='ruhig'?'Ruhige Darstellung ohne Animationen':'Animationen an');
+ l.push({hell:'Helles Erscheinungsbild',dunkel:'Dunkelmodus',auto:'Hell oder dunkel wie dein Gerät'}[wert('sa_hell')]||'Helles Erscheinungsbild');l.push('Glas-Transparenz '+r.value+' von 100');l.push(wert('sa_bewegung')==='ruhig'?'Ruhige Darstellung ohne Animationen':'Animationen an');
  l.push(wert('sa_dichte')==='kompakt'?'Kompakte Ansicht':'Normale Abstände');
  var d=f.querySelectorAll('.ef-dm input:checked').length,a=f.querySelectorAll('.ef-dm input').length;l.push(d?d+' von '+a+' Benachrichtigungen per Discord':'Keine Benachrichtigungen per Discord');
  f.querySelector('.ef-zusammen').innerHTML=l.map(function(x){return '<li>'+x.replace(/</g,'&lt;')+'</li>'}).join('')}
@@ -278,10 +278,11 @@ def seite_html(request, k):
 {_aktionen()}</section>''',
         # 3 Glas & Bewegung
         f'''<section class="ef-schritt"><span class="ef-augen">Schritt 2 von 3</span>
-<h2>Glas, Bewegung und Dichte</h2>
-<p class="lead">Seitenleiste, Kopf und Fenster sind aus Glas. Wie durchsichtig darf es sein?</p>
+<h2>Hell oder dunkel?</h2>
+<p class="lead">Erscheinungsbild, Glas, Bewegung und Dichte – so, wie es dir angenehm ist.</p>
 <div class="ef-glas"><div>Glasfläche</div></div>
 <div class="ef-block">
+{_zeile("Erscheinungsbild", "Hell, dunkel oder passend zum Gerät.", _seg("sa_hell", [("hell", "Hell"), ("dunkel", "Dunkel"), ("auto", "Auto")], w("sa_hell")))}
 {_zeile("Transparenz", "0 = deckend weiß, 100 = sehr durchsichtig.",
         f'<div class="ef-regler"><input type="range" name="sa_glas" min="0" max="100" step="5" value="{t}" aria-label="Transparenz"><output id="ef-glas-wert">{t}</output></div>')}
 {_zeile("Bewegung", "Federnde Animationen und Übergänge.", _seg("sa_bewegung", [("normal", "Normal"), ("ruhig", "Ruhig")], w("sa_bewegung")))}
@@ -303,7 +304,8 @@ def seite_html(request, k):
     ]
     fort = "".join("<i></i>" for _ in range(len(schritte) - 1))
     logo = f'{amt.BASIS}logo/{geld.STELLE[0]}-kopf.png'
-    return (CSS + f'''<div class="ef-voll" role="dialog" aria-modal="true" aria-label="Einführung"><form class="ef" id="ef" method="post" action="{PFAD}">{amt.csrf_feld(request)}
+    import dunkel
+    return (CSS + dunkel.vorschau_html("sa_hell") + f'''<div class="ef-voll" role="dialog" aria-modal="true" aria-label="Einführung"><form class="ef" id="ef" method="post" action="{PFAD}">{amt.csrf_feld(request)}
 <input type="hidden" name="weiter" value="{esc(weiter)}">
 <div class="ef-kopf"><img src="{logo}" alt="Kaiserliches Schatz- und Währungsamt"><div class="ef-fort" aria-hidden="true">{fort}</div>
 <button class="ef-spaeter" type="submit" name="spaeter" value="1" formnovalidate>Später</button></div>
@@ -325,7 +327,7 @@ async def speichern(request):
     if not form.get("spaeter"):
         g = str(form.get("sa_glas", "50"))
         post.einstellung_setzen(con, kid, "sa_glas", str(max(0, min(100, int(g)))) if g.isdigit() else "50")
-        for s, erlaubt in (("sa_thema", ("an", "aus")), ("sa_bewegung", ("normal", "ruhig")), ("sa_dichte", ("normal", "kompakt")), ("sa_start", ("zuletzt", "staat", "privat"))):
+        for s, erlaubt in (("sa_thema", ("an", "aus")), ("sa_bewegung", ("normal", "ruhig")), ("sa_dichte", ("normal", "kompakt")), ("sa_start", ("zuletzt", "staat", "privat")), ("sa_hell", ("hell", "dunkel", "auto"))):
             v = str(form.get(s, profil_sa.STANDARD[s]))
             post.einstellung_setzen(con, kid, s, v if v in erlaubt else profil_sa.STANDARD[s])
         regent = bool(geld.regierte_staatskassen(con, k)) or amt.ROLLE_KANZLER in k["rollen"]

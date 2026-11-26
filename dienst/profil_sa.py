@@ -26,7 +26,7 @@ esc = amt.esc
 amt.ICONS.setdefault("sparkles", '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>')   # Lucide
 PFAD = sa.PFAD + "profil/"
 
-STANDARD = {"sa_glas": "50", "sa_blur": "normal", "sa_bewegung": "normal", "sa_dichte": "normal", "sa_start": "zuletzt", "sa_thema": "an"}
+STANDARD = {"sa_glas": "50", "sa_blur": "normal", "sa_bewegung": "normal", "sa_dichte": "normal", "sa_start": "zuletzt", "sa_thema": "an", "sa_hell": "hell"}
 BLUR = {"stark": 34, "normal": 22, "leicht": 10, "aus": 0}
 
 
@@ -181,6 +181,8 @@ def _darstellung(request, k, con):
     w = lambda s: wert(con, k["id"], s)
     t = int(w("sa_glas")) if w("sa_glas").isdigit() else 50
     zeilen = [
+        _zeile("Erscheinungsbild", "Hell, dunkel (wie der Dunkelmodus von iOS) oder automatisch passend zu deinem Gerät.",
+               _select("sa_hell", [("hell", "Hell"), ("dunkel", "Dunkel"), ("auto", "Automatisch")], w("sa_hell"))),
         _zeile("Transparenz der Glasflächen", "0 = deckend weiß, 100 = sehr durchsichtig. Gilt für Seitenleiste, Kopf, Leiste am Handy, Karten und Fenster.",
                f'<div class="pf-regler"><input type="range" name="sa_glas" id="pf-glas" min="0" max="100" step="5" value="{t}" aria-label="Transparenz">'
                f'<output id="pf-glas-wert">{t}</output></div>'),
@@ -214,7 +216,8 @@ def _darstellung(request, k, con):
             f'<h3>{amt.ic("sliders-horizontal")}Darstellung</h3>{vorschau}{"".join(zeilen)}'
             f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button>'
             f'<button class="btn zweit" type="submit" name="zuruecksetzen" value="1">Standard wiederherstellen</button>'
-            f'<a class="btn zweit" href="{sa.PFAD}willkommen/?weiter={PFAD}">{amt.ic("sparkles")}Einführung erneut ansehen</a></div></form>' + js)
+            f'<a class="btn zweit" href="{sa.PFAD}willkommen/?weiter={PFAD}">{amt.ic("sparkles")}Einführung erneut ansehen</a></div></form>' + js
+            + __import__("dunkel").vorschau_html("sa_hell"))
 
 
 def _benachrichtigungen(request, k, con):
@@ -298,7 +301,7 @@ async def speichern(request):
             _weiter("darstellung", "Darstellung auf Standard zurückgesetzt.")
         g = str(form.get("sa_glas", "50"))
         post.einstellung_setzen(con, kid, "sa_glas", str(max(0, min(100, int(g)))) if g.isdigit() else "50")
-        for s, erlaubt in (("sa_blur", BLUR), ("sa_bewegung", ("normal", "ruhig")), ("sa_dichte", ("normal", "kompakt")), ("sa_start", ("zuletzt", "staat", "privat"))):
+        for s, erlaubt in (("sa_blur", BLUR), ("sa_bewegung", ("normal", "ruhig")), ("sa_dichte", ("normal", "kompakt")), ("sa_start", ("zuletzt", "staat", "privat")), ("sa_hell", ("hell", "dunkel", "auto"))):
             v = str(form.get(s, STANDARD[s]))
             post.einstellung_setzen(con, kid, s, v if v in erlaubt else STANDARD[s])
         post.einstellung_setzen(con, kid, "sa_thema", "an" if form.get("sa_thema") else "aus")

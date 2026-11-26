@@ -390,7 +390,7 @@ def _reiter_kontext(request, k, con, aktiv):
             return "ts", ziel[3:], tab if tab == "etat" else "land"
         if ziel == "reich" or (ziel.startswith("ts-") and ziel[3:] not in regiert):
             return "reich", None, tab
-        return ("ts", next(iter(regiert)), tab) if regiert else ("reich", None, tab)
+        return ("ts", next(iter(regiert)), tab if tab == "etat" else "land") if regiert else ("reich", None, tab)   # Entwicklung/Energie/Krisen liegen bei Mein Teilstaat unter „Land“
     if aktiv == "sa-gold":
         if ziel.startswith("ts-") and ziel[3:] in regiert:
             return "ts", ziel[3:], "fin"
@@ -577,7 +577,10 @@ def ant(request, k, titel, aktiv, inhalt, status=200):
         glas += themen.css(aktiv)
         if k and profil_sa.wert(request.app["db"], k["id"], "sa_bewegung") != "ruhig":   # Umbau-Animation beim Seitenwechsel
             portal["head"] = themen.umbau_kopf(aktiv)
-    glas += profil_sa.darstellung_css(request.app["db"], k)   # persönliche Darstellung (Transparenz, Unschärfe, Bewegung, Dichte)
+    glas += profil_sa.darstellung_css(request.app["db"], k)
+    import dunkel   # Dunkelmodus (iOS-Stil), nach allem anderen
+    import themen as _th
+    glas += dunkel.css(request.app["db"], k, _th.name_fuer(aktiv) if profil_sa.thema_an(request.app["db"], k) else "")   # persönliche Darstellung (Transparenz, Unschärfe, Bewegung, Dichte)
     return web.Response(status=status, content_type="text/html", headers={"Cache-Control": "no-store"},
                         text=amt.rahmen(titel, nav_aktiv, CSS + glas + _kennzahlen_kurz(reiter + inhalt) + glas_js, k, request["csrf"], portal=portal))
 
