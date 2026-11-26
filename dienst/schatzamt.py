@@ -569,6 +569,9 @@ def ant(request, k, titel, aktiv, inhalt, status=200):
             portal["ooc"] = ""
             portal["suche"] = rp_glas.ooc_pille() + portal.get("suche", "")
     import profil_sa
+    if profil_sa.thema_an(request.app["db"], k):   # themenbasiertes Design je Bereich (Plantisch, Leitwarte, Kontor …)
+        import themen
+        glas += themen.css(aktiv)
     glas += profil_sa.darstellung_css(request.app["db"], k)   # persönliche Darstellung (Transparenz, Unschärfe, Bewegung, Dichte)
     return web.Response(status=status, content_type="text/html", headers={"Cache-Control": "no-store"},
                         text=amt.rahmen(titel, nav_aktiv, CSS + glas + _kennzahlen_kurz(reiter + inhalt) + glas_js, k, request["csrf"], portal=portal))

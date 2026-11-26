@@ -2,7 +2,7 @@
 
 Reiter:
 * Übersicht: Discord-Konto, Angaben aus der Bürgerakte, eigene Konten (ohne Salden – „Mein Geld“ ist mit der Bank-PIN geschützt), Bankkarte, Verweise.
-* Darstellung: Transparenz der Glaselemente (0 = deckend … 100 = sehr durchsichtig), Unschärfe, Bewegung, Dichte, Startansicht (Staatl./Privat).
+* Darstellung: Transparenz der Glaselemente (0 = deckend … 100 = sehr durchsichtig), Unschärfe, Bewegung, Dichte, Themenbasiertes Design (themen.py), Startansicht (Staatl./Privat).
   Wirkt auf allen Seiten des Portals: schatzamt.ant hängt darstellung_css() an (CSS-Variablen aus rp_glas.py). Live-Vorschau beim Schieben.
 * Benachrichtigungen: Discord-DMs des Bots je Art an/aus (benachrichtigung.ARTEN), Mindestbetrag für Zahlungseingänge, Ruhezeit, Test-Nachricht.
 * Konto & Sicherheit: Bankkarte & PIN, Sitzungen (auf allen anderen Geräten abmelden), Abmelden.
@@ -25,7 +25,7 @@ import schatzamt as sa
 esc = amt.esc
 PFAD = sa.PFAD + "profil/"
 
-STANDARD = {"sa_glas": "50", "sa_blur": "normal", "sa_bewegung": "normal", "sa_dichte": "normal", "sa_start": "zuletzt"}
+STANDARD = {"sa_glas": "50", "sa_blur": "normal", "sa_bewegung": "normal", "sa_dichte": "normal", "sa_start": "zuletzt", "sa_thema": "an"}
 BLUR = {"stark": 34, "normal": 22, "leicht": 10, "aus": 0}
 
 
@@ -70,6 +70,11 @@ def darstellung_css(con, k):
     if dichte == "kompakt":
         css.append(KOMPAKT_CSS)
     return f'<style id="sa-persoenlich">{"".join(css)}</style>' if css else ""
+
+
+def thema_an(con, k):
+    """Themenbasiertes Design (Plantisch bei Verteidigung, Leitwarte bei Energie …, themen.py) – Standard an."""
+    return not k or wert(con, k["id"], "sa_thema") != "aus"
 
 
 def startmodus(con, k):
@@ -184,6 +189,9 @@ def _darstellung(request, k, con):
                _select("sa_bewegung", [("normal", "Normal"), ("ruhig", "Ruhig")], w("sa_bewegung"))),
         _zeile("Dichte", "Kompakt zeigt mehr Zeilen auf einmal (kleinere Abstände).",
                _select("sa_dichte", [("normal", "Normal"), ("kompakt", "Kompakt")], w("sa_dichte"))),
+        _zeile("Themenbasiertes Design", "Jeder Bereich sieht aus wie sein Arbeitsplatz: Verteidigung als Plantisch mit Lagekarte, Energie als Leitwarte, "
+               "Handel als Kontor-Hauptbuch, Privatbesitz als Katalog, Goldreserven als Tresor, Krisen als Lagezentrum, Entwicklung als Planungstisch.",
+               f'<label class="pf-schalter"><input type="checkbox" name="sa_thema" value="an"{" checked" if w("sa_thema") != "aus" else ""} aria-label="Themenbasiertes Design"><i></i></label>'),
     ]
     if sa.hat_staat(con, k):
         zeilen.append(_zeile("Startansicht", "Welche Ansicht beim Öffnen des Schatzamts erscheint.",
@@ -290,6 +298,7 @@ async def speichern(request):
         for s, erlaubt in (("sa_blur", BLUR), ("sa_bewegung", ("normal", "ruhig")), ("sa_dichte", ("normal", "kompakt")), ("sa_start", ("zuletzt", "staat", "privat"))):
             v = str(form.get(s, STANDARD[s]))
             post.einstellung_setzen(con, kid, s, v if v in erlaubt else STANDARD[s])
+        post.einstellung_setzen(con, kid, "sa_thema", "an" if form.get("sa_thema") else "aus")
         con.commit()
         _weiter("darstellung", "Darstellung gespeichert.")
     if teil == "benachrichtigungen":
