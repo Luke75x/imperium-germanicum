@@ -28,29 +28,40 @@ with open(os.path.join(os.path.dirname(__file__), "bilder.json"), "w", encoding=
     json.dump(meta, fh, indent=1)
 print(f"{len(meta)} Bilder verarbeitet")
 
-# Favicons und Vorschaubild für soziale Netzwerke aus dem Reichswappen
-LOGO = os.path.join(SRC, "i92158683d4a0cca4.png")
-NAVY = (18, 24, 60)
-GOLD = (201, 164, 58)
+# Favicons, Vorschaubild und Wasserzeichen aus dem Reichswappen (seit 27.11.2026: Greifenwappen in Navy)
+LOGO = os.path.join(SRC, "ibeaf46b6d63d94cd.png")
+NAVY = (1, 37, 71)
 logo = Image.open(LOGO).convert("RGBA")
-bbox = logo.getbbox()
-logo = logo.crop(bbox)
+logo = logo.crop(logo.getbbox())
 
-ico = logo.copy()
-ico.save(os.path.join(ROOT, "assets", "favicon.ico"), sizes=[(16, 16), (32, 32), (48, 48)])
-logo.resize((32, 32), Image.LANCZOS).save(os.path.join(ROOT, "assets", "favicon-32.png"))
 
-touch = Image.new("RGBA", (180, 180), NAVY + (255,))
-small = logo.resize((150, round(logo.height * 150 / logo.width)), Image.LANCZOS)
-touch.alpha_composite(small, ((180 - small.width) // 2, (180 - small.height) // 2))
+def quadrat(bild, seite, rand=0, grund=(0, 0, 0, 0)):
+    q = Image.new("RGBA", (seite, seite), grund)
+    f = (seite - 2 * rand) / max(bild.size)
+    k = bild.resize((round(bild.width * f), round(bild.height * f)), Image.LANCZOS)
+    q.alpha_composite(k, ((seite - k.width) // 2, (seite - k.height) // 2))
+    return q
+
+
+def weiss(bild):
+    w = Image.new("RGBA", bild.size, (255, 255, 255, 0))
+    w.putalpha(bild.getchannel("A"))
+    return w
+
+
+quadrat(logo, 256).save(os.path.join(ROOT, "assets", "favicon.ico"), sizes=[(16, 16), (32, 32), (48, 48)])
+quadrat(logo, 32).save(os.path.join(ROOT, "assets", "favicon-32.png"))
+touch = quadrat(logo, 180, 18, (255, 255, 255, 255))
 touch.convert("RGB").save(os.path.join(ROOT, "assets", "apple-touch-icon.png"))
 
-from PIL import ImageDraw
-og = Image.new("RGBA", (1200, 630), NAVY + (255,))
-d = ImageDraw.Draw(og)
-d.rectangle((18, 18, 1181, 611), outline=GOLD + (110,), width=2)
-d.rectangle((28, 28, 1171, 601), outline=GOLD + (50,), width=1)
-big = logo.resize((480, round(logo.height * 480 / logo.width)), Image.LANCZOS)
-og.alpha_composite(big, ((1200 - big.width) // 2, (630 - big.height) // 2))
+og = Image.new("RGBA", (1200, 630), (255, 255, 255, 255))
+gross = quadrat(logo, 470)
+og.alpha_composite(gross, ((1200 - 470) // 2, (630 - 470) // 2))
 og.convert("RGB").save(os.path.join(ROOT, "assets", "og-image.jpg"), quality=88)
-print("Favicons und OG-Bild erzeugt")
+
+# Wasserzeichen am Seitenrand (wie auf royal.uk): Navy bzw. Weiß mit sehr geringer Deckkraft
+for name, farbe, deckung in (("wappen-wz-hell.webp", logo, .055), ("wappen-wz-dunkel.webp", weiss(logo), .05)):
+    wz = farbe.resize((640, round(640 * logo.height / logo.width)), Image.LANCZOS)
+    wz.putalpha(wz.getchannel("A").point(lambda a: int(a * deckung)))
+    wz.save(os.path.join(OUT, name), "WEBP", quality=80, method=6)
+print("Favicons, OG-Bild und Wasserzeichen erzeugt")

@@ -27,7 +27,7 @@ INSTAGRAM = "https://www.instagram.com/das_imperium_germanicum?igsh=MWs5dWJwdXdz
 YOUTUBE = "https://youtube.com/@imperiumgermanicum?si=9u5nQkK9O9SOq-6q"
 EMAIL = "das.imperium.germanicum@gmail.com"
 
-LOGO = "i92158683d4a0cca4"
+LOGO = "ibeaf46b6d63d94cd"   # Reichswappen (Greifen) seit 27.11.2026; das alte Wappen i92158683d4a0cca4 bleibt für interne Seiten
 
 esc = html.escape
 
@@ -36,7 +36,7 @@ esc = html.escape
 # ---------------------------------------------------------------------------
 
 ICONS = {
-    "arrow": '<path d="M3 8h10M9 4l4 4-4 4"/>',
+    "arrow": '<path d="M5.5 3.5l6.5 4.5-6.5 4.5z" fill="currentColor" stroke="none"/>',
     "chev": '<path d="M3 6l5 5 5-5"/>',
     "zoom": '<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14M7 5v4M5 7h4"/>',
     "close": '<path d="M3 3l10 10M13 3L3 13"/>',
@@ -194,11 +194,22 @@ INSTITUTIONEN = [
 INSTITUTIONEN_BREIT = {"informationen/die-reichsbehoerden/"}
 
 NAV = [
-    ("", "Hauptseite"),
-    ("informationen/", "Informationen"),
+    ("informationen/", "Staatsaufbau"),
     ("der-souveraen/", "Der Souverän"),
-    ("die-bildergalerie/", "Die Bildergalerie"),
-    ("neue-erlasse-und-gesetze/", "Neue Erlasse und Gesetze"),
+    ("informationen/imperiale-charta/", "Die Charta"),
+    ("die-bildergalerie/", "Bildergalerie"),
+    ("neue-erlasse-und-gesetze/", "Erlasse und Gesetze"),
+    ("karte/", "Reichskarte"),
+    ("kontakt/", "Kontakt"),
+]
+
+# „Websites des Reiches“ (Ausklappliste oben rechts, wie „Royal websites“ auf royal.uk); absolute Pfade, gelten auch auf /en/
+WEBSITES = [
+    ("/regierung/", "Reichsregierung"),
+    ("/schatzamt/", "Schatzamt"),
+    ("/informationen/die-reichsbehoerden/intern/", "Amtsseite der Reichsbehörden"),
+    ("/informationen/die-teilstaaten/", "Die Teilstaaten"),
+    ("/informationen/organigramm/", "Organigramm des Reiches"),
 ]
 
 
@@ -207,60 +218,68 @@ def nav_html(current):
     for path, label in NAV:
         cur = ' aria-current="page"' if current == path else ""
         if path == "informationen/":
-            section = current.startswith("informationen/")
+            section = current.startswith("informationen/") and not current.startswith("informationen/imperiale-charta/")
             sub = []
             for p, short, _t, desc, emb in INSTITUTIONEN:
                 c = ' aria-current="page"' if current == p else ""
-                wide = ' class="is-wide"' if p in INSTITUTIONEN_BREIT else ""
                 sub.append(
-                    f'<li{wide}><a href="{u(p)}"{c}>{img(emb, "", "44px")}'
+                    f'<li><a href="{u(p)}"{c}>{img(emb, "", "44px")}'
                     f'<span><strong>{esc(short)}</strong><small>{esc(desc)}</small></span></a></li>')
             items.append(
                 f'<li class="has-sub{" is-section" if section else ""}">'
                 f'<div class="nav-parent"><a href="{u(path)}"{cur}>{label}</a>'
                 f'<button class="nav-toggle-sub" type="button" aria-expanded="false" aria-controls="subnav-info">'
                 f'<span class="sr-only">Untermenü {label} öffnen</span>{icon("chev")}</button></div>'
-                f'<div class="subnav" id="subnav-info"><div class="subnav-head"><span>Staatsaufbau</span>'
+                f'<div class="subnav" id="subnav-info"><div class="subnav-inner">'
+                f'<div class="subnav-head"><span>Staatsaufbau</span><p>Die Verfassung und alle staatlichen Institutionen, die im Auftrag seiner Majestät tätig sind.</p>'
                 f'<a class="link-arrow" href="{u(path)}">Alle Institutionen {icon("arrow")}</a></div>'
-                f'<ul>{"".join(sub)}</ul></div></li>')
+                f'<ul>{"".join(sub)}</ul></div></div></li>')
         else:
-            items.append(f'<li><a href="{u(path)}"{cur}>{label}</a></li>')
-    cur = ' aria-current="page"' if current == "kontakt/" else ""
-    items.append(f'<li class="nav-cta"><a href="{u("kontakt/")}"{cur}>Kontakt</a></li>')
+            sec = ' class="is-section"' if path and current != path and current.startswith(path) else ""
+            items.append(f'<li{sec}><a href="{u(path)}"{cur}>{label}</a></li>')
+    # nur im Handy-Menü: was am Desktop oben rechts steht
+    items.append(f'<li class="nav-extra"><a href="{u("regelwerk/")}">Regelwerk</a></li>')
+    items.append('<li class="nav-extra nav-sites"><span>Websites des Reiches</span><ul>'
+                 + "".join(f'<li><a href="{p}">{esc(l)}</a></li>' for p, l in WEBSITES) + '</ul></li>')
     return f'<nav class="nav-main" id="nav-main" aria-label="Hauptnavigation"><ul>{"".join(items)}</ul></nav>'
 
 
 def header(current):
+    sites = "".join(f'<li><a href="{p}">{esc(l)}{icon("ext")}</a></li>' for p, l in WEBSITES)
     return f"""
 <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
 <div class="progress" aria-hidden="true"></div>
-<div class="topbar">
-  <div class="wrap">
-    <div class="topbar-links">
-      <a href="{INSTAGRAM}" rel="noopener" target="_blank">{icon("insta")}<span class="lbl">Instagram</span></a>
-      <a href="{YOUTUBE}" rel="noopener" target="_blank">{icon("yt")}<span class="lbl">YouTube</span></a>
-      <a href="mailto:{EMAIL}">{icon("mail")}<span class="lbl">E-Mail</span></a>
-    </div>
-    <div class="topbar-tools">
-      <span class="lang-switch" role="group" aria-label="Sprache">
-        <a href="@@LANG_DE@@" lang="de" hreflang="de" data-lang="de" aria-label="Deutsch" title="Deutsch"><svg class="flag" viewBox="0 0 5 3" aria-hidden="true" focusable="false"><path fill="#000" d="M0 0h5v1H0z"/><path fill="#d00" d="M0 1h5v1H0z"/><path fill="#ffce00" d="M0 2h5v1H0z"/></svg></a>
-        <a href="@@LANG_EN@@" lang="en" hreflang="en" data-lang="en" aria-label="English" title="English"><svg class="flag" viewBox="0 0 60 30" aria-hidden="true" focusable="false"><path fill="#012169" d="M0 0h60v30H0z"/><path stroke="#fff" stroke-width="6" d="M0 0l60 30M60 0L0 30"/><path stroke="#c8102e" stroke-width="2.5" d="M0 0l60 30M60 0L0 30"/><path stroke="#fff" stroke-width="10" d="M30 0v30M0 15h60"/><path stroke="#c8102e" stroke-width="6" d="M30 0v30M0 15h60"/></svg></a>
-      </span>
-      <button class="theme-toggle" type="button" aria-label="Zwischen hellem und dunklem Design wechseln">{icon("sun")}{icon("moon")}</button>
-    </div>
-  </div>
-</div>
+<ul class="social-rail" aria-label="Soziale Netzwerke">
+  <li><a href="{INSTAGRAM}" rel="noopener" target="_blank" aria-label="Instagram">{icon("insta")}</a></li>
+  <li><a href="{YOUTUBE}" rel="noopener" target="_blank" aria-label="YouTube">{icon("yt")}</a></li>
+  <li><a href="mailto:{EMAIL}" aria-label="E-Mail">{icon("mail")}</a></li>
+</ul>
 <header class="site-header">
-  <div class="wrap header-crest">
+  <div class="wrap header-inner">
     <a class="brand" href="{u("")}" aria-label="Imperium Germanicum – zur Hauptseite">
-      {img(LOGO, "", "72px", eager=True)}
-      <span class="brand-text"><span class="brand-name">Imperium Germanicum</span><span class="brand-sub">Das Rollenspiel</span></span>
+      {img(LOGO, "", "(min-width: 1181px) 104px, 64px", eager=True)}
     </a>
+    <div class="header-body">
+      <div class="topbar">
+        <ul class="util-links">
+          <li><a href="{u("regelwerk/")}">Regelwerk</a></li>
+          <li class="has-drop"><button class="drop-toggle" type="button" aria-expanded="false" aria-controls="websites">Websites des Reiches{icon("chev")}</button>
+            <ul class="drop" id="websites">{sites}</ul></li>
+        </ul>
+        <div class="topbar-tools">
+          <span class="lang-switch" role="group" aria-label="Sprache">
+            <a href="@@LANG_DE@@" lang="de" hreflang="de" data-lang="de" aria-label="Deutsch" title="Deutsch"></a>
+            <a href="@@LANG_EN@@" lang="en" hreflang="en" data-lang="en" aria-label="English" title="English"></a>
+          </span>
+          <button class="theme-toggle" type="button" aria-label="Zwischen hellem und dunklem Design wechseln">{icon("sun")}{icon("moon")}</button>
+        </div>
+      </div>
+      <div class="header-nav">
+        {nav_html(current)}
+      </div>
+    </div>
     <button class="menu-button" type="button" aria-expanded="false" aria-controls="nav-main"><span class="bars"><i></i></span><span class="menu-label">Menü</span></button>
   </div>
-  <div class="header-nav"><div class="wrap">
-    {nav_html(current)}
-  </div></div>
 </header>"""
 
 
@@ -280,7 +299,7 @@ def crowns():
 <section class="crowns" aria-labelledby="kronen-titel">
   <div class="wrap">
     <div class="section-head center">
-      <div class="ornament center"><i></i></div>
+      <span class="eyebrow">Insignien</span>
       <h2 id="kronen-titel">Die Kronen des Reiches</h2>
     </div>
     <div class="grid">{"".join(figs)}</div>
@@ -293,46 +312,27 @@ def address_html():
 
 
 def footer():
-    staat = "".join(f'<li><a href="{u(p)}">{esc(s)}</a></li>' for p, s, *_ in INSTITUTIONEN)
-    main = "".join(f'<li><a href="{u(p)}">{l}</a></li>' for p, l in NAV) + f'<li><a href="{u("regelwerk/")}">Regelwerk</a></li><li><a href="{u("kontakt/")}">Kontakt</a></li><li><a href="{u("vorschlaege/")}">Vorschläge</a></li>'
+    main = "".join(f'<li><a href="{u(p)}">{esc(l)}</a></li>' for p, l in NAV)
     return f"""
 <footer class="site-footer">
-  <div class="wrap footer-main">
-    <div class="footer-brand">
-      {img(LOGO, "", "72px")}
-      <span class="brand-name">Imperium Germanicum</span>
-      <span>Ein fiktiver Staatenbund in Europa – das interaktive Rollenspiel.</span>
-      <address>{address_html()}</address>
-    </div>
-    <div>
-      <h2>Navigation</h2>
-      <ul>{main}</ul>
-    </div>
-    <div>
-      <h2>Staatsaufbau</h2>
-      <ul>{staat}</ul>
-    </div>
-    <div>
-      <h2>Kontakt</h2>
-      <ul class="social">
-        <li><a href="mailto:{EMAIL}">{icon("mail")}{EMAIL}</a></li>
-        <li><a href="{INSTAGRAM}" rel="noopener" target="_blank">{icon("insta")}das_imperium_germanicum</a></li>
-        <li><a href="{YOUTUBE}" rel="noopener" target="_blank">{icon("yt")}Imperium Germanicum</a></li>
-      </ul>
-    </div>
-  </div>
-  <div class="footer-legal">
-    <div class="wrap">
-      <span>© {YEAR} Imperium Germanicum – Das Rollenspiel</span>
-      <ul>
-        <li><a href="{u("impressum/")}">Impressum</a></li>
-        <li><a href="{u("datenschutz/")}">Datenschutz</a></li>
-        <li><a href="{u("datenschutz/")}#cookies">Cookie-Richtlinie</a></li>
-        <li><a href="{u("sitemap/")}">Sitemap</a></li>
-        <li><a href="{u("gewaehrleistung/")}">Gesetzliche Gewährleistung</a></li>
-        <li><a href="{u("widerruf/")}">Vertrag widerrufen</a></li>
-      </ul>
-    </div>
+  <div class="wrap">
+    <a class="footer-crest" href="{u("")}" aria-label="Imperium Germanicum – zur Hauptseite">{img(LOGO, "", "120px")}</a>
+    <nav aria-label="Fußnavigation"><ul class="footer-nav">{main}</ul></nav>
+    <ul class="footer-links">
+      <li><a href="{u("regelwerk/")}">Regelwerk</a></li>
+      <li><a href="{u("sitemap/")}">Sitemap</a></li>
+      <li><a href="{u("impressum/")}">Impressum</a></li>
+      <li><a href="{u("datenschutz/")}">Datenschutz</a></li>
+      <li><a href="{u("datenschutz/")}#cookies">Cookie-Richtlinie</a></li>
+      <li><a href="{u("gewaehrleistung/")}">Gesetzliche Gewährleistung</a></li>
+      <li><a href="{u("widerruf/")}">Vertrag widerrufen</a></li>
+    </ul>
+    <ul class="footer-social">
+      <li><a href="{INSTAGRAM}" rel="noopener" target="_blank">{icon("insta")}Instagram</a></li>
+      <li><a href="{YOUTUBE}" rel="noopener" target="_blank">{icon("yt")}YouTube</a></li>
+      <li><a href="mailto:{EMAIL}">{icon("mail")}{EMAIL}</a></li>
+    </ul>
+    <p class="footer-copy">© {YEAR} Imperium Germanicum – Das Rollenspiel · Kaiser-Wilhelm-Straße 45 · 67054 Ludwigshafen am Rhein</p>
   </div>
 </footer>"""
 
@@ -349,21 +349,49 @@ def breadcrumb(crumbs):
     return f'<nav class="breadcrumb" aria-label="Brotkrumen"><ol>{"".join(parts)}</ol></nav>'
 
 
-def page_head(crumbs, title, eyebrow="", lead="", dark=False, emb=None):
+# Seitenkopf als Kachelpaar wie auf royal.uk: große Kachel (Foto oder Navy) mit Titel, daneben Emblem- oder Bildkachel.
+# Fotos je Bereich (Bild, Bildausschnitt); Seiten mit Emblem bekommen die Navy-Kachel.
+KOPFBILDER = {
+    "staat": ("ifaa30c71d018e2fa", "center 55%"),
+    "galerie": ("i9611b2162cb65868", "center 35%"),
+    "erlasse": ("i1230b12d712ff174", "center 45%"),
+    "kontakt": ("ikanzleramtamtssitz", "center 60%"),
+}
+
+
+def page_head(crumbs, title, eyebrow="", lead="", dark=False, emb=None, bild=None, seite=None):
+    """bild = (Bild, Ausschnitt) für die große Kachel; emb = Emblem für die Seitenkachel; seite = (Bild, Alt) als Fotokachel daneben."""
+    path = crumbs[-1][0] if crumbs else ""
+    if bild is None and not emb and not seite:
+        bild = KOPFBILDER.get(bereich(path, path))
     e = f'<span class="eyebrow">{esc(eyebrow)}</span>' if eyebrow else ""
     l = f'<p class="lead">{lead}</p>' if lead else ""
-    sig = f'<div class="page-head-emblem" aria-hidden="true">{img(emb, "", "(min-width: 900px) 220px, 120px", eager=True)}</div>' if emb else ""
-    return f"""
-<div class="page-head{" dark" if dark else ""}{" has-emblem" if emb else ""}">
+    text = f'<div class="ph-text">{e}<h1>{title}</h1>{l}</div>'
+    plain = not (bild or emb or seite or dark)
+    if plain:
+        return f"""
+<div class="page-head is-plain">
   <div class="wrap">
     {breadcrumb(crumbs)}
-    <div class="page-head-grid">
-      <div class="page-head-text">
-        {e}
-        <h1>{title}</h1>
-        {l}
-      </div>
-      {sig}
+    {text}
+  </div>
+</div>"""
+    media = ""
+    if bild:
+        iid, pos = bild
+        media = f'<div class="ph-media" aria-hidden="true">{img(iid, "", "(min-width: 1000px) 66vw, 100vw", eager=True, extra=f" style=\"object-position:{pos}\"")}</div>'
+    side = ""
+    if emb:
+        side = f'<div class="ph-side is-emblem" aria-hidden="true">{img(emb, "", "(min-width: 1000px) 260px, 40vw", eager=True)}</div>'
+    elif seite:
+        side = f'<div class="ph-side is-photo">{img(seite[0], seite[1], "(min-width: 1000px) 33vw, 100vw", eager=True)}</div>'
+    return f"""
+<div class="page-head is-mosaic{" has-side" if side else ""}">
+  <div class="wrap">
+    {breadcrumb(crumbs)}
+    <div class="ph-mosaic">
+      <div class="ph-main{" has-photo" if bild else ""}">{media}{text}</div>
+      {side}
     </div>
   </div>
 </div>"""
@@ -418,7 +446,7 @@ def render(path, title, description, body, current=None, robots="index,follow", 
 <meta name="robots" content="{robots}">
 <link rel="canonical" href="{canonical}">
 {f'<link rel="alternate" hreflang="de" href="{alt_de}"><link rel="alternate" hreflang="en" href="{alt_en}"><link rel="alternate" hreflang="x-default" href="{alt_de}">' if translatable else ""}
-<meta name="theme-color" content="#0e1b3d">
+<meta name="theme-color" content="#012547">
 <script>(function(){{try{{var t=localStorage.getItem("ig-theme");if(t!=="dark"&&t!=="light")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)}}catch(e){{}}}})();</script>
 <meta property="og:type" content="website">
 <meta property="og:locale" content="de_DE">
@@ -442,7 +470,6 @@ def render(path, title, description, body, current=None, robots="index,follow", 
 <main id="inhalt" tabindex="-1">
 {body}
 </main>
-{crowns() if show_crowns else ""}
 {footer()}
 </body>
 </html>
@@ -541,63 +568,90 @@ def page_home():
         ("informationen/der-senat/", "Der kaiserliche Senat",
          "Erfahre mehr über das höchste exekutive Gremium im Reich", "i921660718e056bad", "Kartei lesen"),
     ]
-    cards = "".join(card(p, t, d, e, c, f"{i:02d}") for i, (p, t, d, e, c) in enumerate(overview, 1))
-    hero_bild = (f'<img src="{asset("img/if3da36451cad23de-1280.webp")}" srcset="{asset("img/if3da36451cad23de-640.webp")} 640w, '
-                 f'{asset("img/if3da36451cad23de-1280.webp")} 1280w, {original("if3da36451cad23de")} 1440w" sizes="100vw" '
-                 f'width="1440" height="600" alt="" fetchpriority="high" decoding="async">')
+    cards = "".join(card(p, t, d, e, c) for p, t, d, e, c in overview)
+
+    def kachel(cls, href, eyebrow, titel, bild=None, pos="center", text="", cta="", sizes="(min-width: 1000px) 66vw, 100vw", eager=False):
+        media = (f'<div class="tile-media">{img(bild, "", sizes, eager=eager, extra=f" style=\"object-position:{pos}\"")}</div>'
+                 if bild else "")
+        eb = f'<span class="eyebrow">{eyebrow}</span>' if eyebrow else ""
+        tx = f"<p>{text}</p>" if text else ""
+        c = f'<span class="tile-cta">{cta} {icon("arrow")}</span>' if cta else ""
+        return (f'<a class="tile {cls}{" has-photo" if bild else ""}" href="{u(href)}">{media}'
+                f'<div class="tile-text">{eb}<strong class="tile-title">{titel}</strong>{tx}{c}</div></a>')
+
+    mosaik = "".join([
+        kachel("t-a", "informationen/", "Über", "Das Imperium Germanicum", "ibruehlaugustusb01", "center 45%",
+               "Ein fiktiver Staatenbund in Europa – das interaktive Rollenspiel", eager=True),
+        kachel("t-b", "der-souveraen/", "Staatsoberhaupt", "Der Souverän", "i50101bc1effeb76a", "center 18%",
+               sizes="(min-width: 1000px) 33vw, 100vw", eager=True),
+        kachel("t-c", "die-bildergalerie/", "Einblicke", "Die Bildergalerie", "i2033223ba41d9585", "center 30%"),
+        kachel("t-d is-navy", "neue-erlasse-und-gesetze/", "", "Neue Erlasse und Gesetze", cta="Ansehen"),
+        kachel("t-e is-deep", "informationen/imperiale-charta/", "", "Die Imperiale Charta", cta="Lesen"),
+        f'''<figure class="tile t-f is-quote"><blockquote>Der Souverän ist der höchste Repräsentant des Reiches und genießt als solcher die höchste Würde.</blockquote>
+        <figcaption>Aus dem Staatsaufbau des Imperium Germanicum</figcaption></figure>''',
+        kachel("t-g", "karte/", "Hoheitsgebiet", "Die Reichskarte", "ie5894868af0372d8", "center 60%",
+               sizes="(min-width: 1000px) 33vw, 100vw"),
+    ])
     body = f"""
-<section class="hero on-dark" aria-labelledby="hero-titel">
-  <div class="hero-media" aria-hidden="true">{hero_bild}</div>
-  <div class="wrap">
-    <div class="hero-text">
-      <span class="eyebrow">Für Monarchie-, Adels-, Militär- und Geschichtsliebhaber</span>
-      <h1 id="hero-titel">Das interaktive <em>Rollenspiel</em></h1>
-      <p class="lead">Das Imperium Germanicum ist ein fiktiver Staatenbund in Europa, basierend auf den Grenzen des früheren Heiligen Römischen Reiches, es stellt eine alternative Gegenwart dar, in der das Heilige Römische Reich die Jahre überdauert hat und sich bis in die heutige Zeit weiterentwickelt hat.</p>
-      <div class="hero-actions">
-        <a class="btn btn-light" href="{u("kontakt/")}">Melde dich zum Dienst {icon("arrow")}</a>
-        <a class="btn btn-line" href="{u("informationen/imperiale-charta/")}">Die Imperiale Charta</a>
-      </div>
-    </div>
-  </div>
+<h1 class="sr-only">Imperium Germanicum – Das interaktive Rollenspiel</h1>
+<section class="mosaic-section" aria-label="Im Überblick">
+  <div class="wrap"><div class="mosaic">{mosaik}</div></div>
 </section>
 
-<section class="facts" aria-label="Das Reich in Zahlen">
-  <div class="wrap">
-    <figure class="facts-crest">
-      {img("idbbec25dc54e06be", "Großes Wappen des Imperium Germanicum", "(min-width: 900px) 220px, 160px")}
-    </figure>
-    <dl>
-      <div><dt>Hoheitsgebiet</dt><dd>1.205.000 km²</dd></div>
-      <div><dt>Staatsbürger</dt><dd>217.000.000</dd></div>
-      <div><dt>Kurfürsten im Senat</dt><dd>9</dd></div>
-      <div><dt>Amtszeit des Kaisers</dt><dd>1 Jahr</dd></div>
-    </dl>
-  </div>
-</section>
-
-<section class="section" aria-labelledby="reich-titel">
-  <div class="wrap split wide-left top">
+<section class="section intro" aria-labelledby="reich-titel">
+  <div class="wrap intro-grid">
     <div class="prose reveal">
-      <span class="eyebrow">Das Reich</span>
-      <h2 id="reich-titel">Das Resultat dieser Entwicklung ist das Imperium Germanicum.</h2>
+      <span class="eyebrow">Für Monarchie-, Adels-, Militär- und Geschichtsliebhaber</span>
+      <h2 id="reich-titel">Das interaktive Rollenspiel</h2>
+      <p class="lead">Das Imperium Germanicum ist ein fiktiver Staatenbund in Europa, basierend auf den Grenzen des früheren Heiligen Römischen Reiches, es stellt eine alternative Gegenwart dar, in der das Heilige Römische Reich die Jahre überdauert hat und sich bis in die heutige Zeit weiterentwickelt hat.</p>
       {paras(
         "Das Imperium Germanicum besteht wie schon sein historisches Vorbild aus unzähligen kleineren Staaten, darunter verschiedene Fürstentümer, Königreiche, Herzogtümer und andere Gebietskörperschaften.",
         "Sehr weit oben in der Hierarchie befinden sich die 9 Kurfürsten welche die 9 Landesoberhäupter der wichtigsten Teilstaaten des Reiches sind, sie bilden den sogenannten kaiserlichen Senat.",
         "Eine der wichtigsten Aufgaben des Senats ist die Wahl des Souveräns und Staatsoberhaupts des Imperium Germanicum, des Kaisers.",
         "Der Kaiser wird für 1 Jahr aus einem der 9 Kurfürsten gewählt und eine Wiederwahl ist unbegrenzt möglich.",
       )}
-      <p><strong>Haben diese Informationen dein Interesse geweckt?</strong><br>Schau dich gerne auf unserer Website um und werde ein Teil des Imperium Germanicum.</p>
-      <a class="link-arrow" href="{u("informationen/")}">Zum Staatsaufbau {icon("arrow")}</a>
+      <a class="btn btn-line" href="{u("informationen/")}">Zum Staatsaufbau {icon("arrow")}</a>
     </div>
-    <div class="reveal">
-      {organigramm()}
-      <a class="link-arrow" href="{u("informationen/organigramm/")}">Zum interaktiven Organigramm {icon("arrow")}</a>
+    <aside class="facts reveal" aria-label="Das Reich in Zahlen">
+      <figure class="facts-crest">{img(LOGO, "Wappen des Imperium Germanicum", "200px")}</figure>
+      <dl>
+        <div><dt>Hoheitsgebiet</dt><dd>1.205.000 km²</dd></div>
+        <div><dt>Staatsbürger</dt><dd>217.000.000</dd></div>
+        <div><dt>Kurfürsten im Senat</dt><dd>9</dd></div>
+        <div><dt>Amtszeit des Kaisers</dt><dd>1 Jahr</dd></div>
+      </dl>
+    </aside>
+  </div>
+</section>
+
+<section class="section paper" aria-labelledby="ueberblick-titel">
+  <div class="wrap">
+    <div class="section-head row">
+      <div>
+        <span class="eyebrow">Institutionen &amp; Verfassung</span>
+        <h2 id="ueberblick-titel">Ein kleiner Überblick</h2>
+        <p class="lead">Ein kleiner Vorgeschmack auf einige unserer zahlreichen Institutionen und die Verfassung des Reiches</p>
+      </div>
+      <a class="link-arrow" href="{u("informationen/")}">Alle Institutionen {icon("arrow")}</a>
     </div>
+    <div class="card-grid cols-4">{cards}</div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="organigramm-titel">
+  <div class="wrap split wide-right">
+    <div class="prose reveal">
+      <span class="eyebrow">Interaktiv</span>
+      <h2 id="organigramm-titel">Wer wählt, wer ernennt, wer kontrolliert</h2>
+      <p>Das Organigramm zeigt alle Organe des Reiches mit ihren gegenwärtigen Amtsträgern und wer wen wählt, ernennt, kontrolliert oder überstimmen kann.</p>
+      <a class="btn btn-line" href="{u("informationen/organigramm/")}">Zum interaktiven Organigramm {icon("arrow")}</a>
+    </div>
+    <div class="reveal">{organigramm()}</div>
   </div>
 </section>
 
 <section class="section paper" aria-labelledby="gebiet-titel">
-  <div class="wrap split wide-right">
+  <div class="wrap split wide-left">
     <div class="reveal">
       {reichskarte()}
     </div>
@@ -614,49 +668,22 @@ def page_home():
         "9 der Teilstaaten des Imperiums sind sogenannte Kurfürstentümer deren jeweiliges Landesoberhaupt als Kurfürst einen Sitz im Senat, dem exekutiven Organ des Imperiums innehat.",
         "Alle anderen Landesoberhäupter haben mit ihrer jeweiligen Delegation einen Sitz im Reichstag, dem legislativen Organ des Imperiums.",
       )}
-      <a class="link-arrow" href="{u("karte/")}">Zur Reichskarte {icon("arrow")}</a>
+      <a class="btn btn-line" href="{u("karte/")}">Zur Reichskarte {icon("arrow")}</a>
     </div>
   </div>
 </section>
 
-<section class="section" aria-labelledby="ueberblick-titel">
-  <div class="wrap">
-    <div class="section-head">
-      <span class="eyebrow">Institutionen &amp; Verfassung</span>
-      <h2 id="ueberblick-titel">Ein kleiner Überblick</h2>
-      <p class="lead">Ein kleiner Vorgeschmack auf einige unserer zahlreichen Institutionen und die Verfassung des Reiches</p>
-    </div>
-    <div class="card-grid cols-4">{cards}</div>
-  </div>
-</section>
+{crowns()}
 
-<section class="feature on-dark" aria-labelledby="souveraen-titel">
-  <div class="feature-media">{img("i50101bc1effeb76a", "Seine Majestät Alexander IX. in Uniform", "(min-width: 900px) 50vw, 100vw")}</div>
-  <div class="feature-text">
-    <div class="prose reveal">
-      <span class="eyebrow">Staatsoberhaupt</span>
-      <h2 id="souveraen-titel">Der Souverän</h2>
-      {paras(
-        "Der Souverän ist das offizielle Staatsoberhaupt des Imperium Germanicums, Amtsträger, Offiziere und Richter schwören ihm die Treue.",
-        "Der Souverän ernennt und entlässt die Beamten und Richter sowie Konsule des Reiches und bestellt sie nach Belieben ein, außerdem besitzt der Souverän die Möglichkeit Verurteilte zu begnadigen und über Dekrete gewisse Entscheidungen temporär ohne den Senat zu treffen.",
-        "Der Souverän ist der höchste Repräsentant des Reiches und genießt als solcher die höchste Würde, der Souverän hat immer das Recht angehört zu werden.",
-      )}
-      <div class="hero-actions" style="margin-top:28px">
-        <a class="btn btn-light" href="{u("der-souveraen/")}">Seine Majestät Alexander IX. {icon("arrow")}</a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="join on-dark" aria-label="Mitmachen">
-  <div class="join-media" aria-hidden="true">{img("i9611b2162cb65868", "", "100vw")}</div>
+<section class="join" aria-label="Mitmachen">
   <div class="wrap">
     <div class="join-text reveal">
       <p>Interesse geweckt? Werde ein Teil des Imperium Germanicum.</p>
-      <a class="btn btn-light" href="{u("kontakt/")}">Melde dich zum Dienst {icon("arrow")}</a>
+      <a class="btn btn-line" href="{u("kontakt/")}">Melde dich zum Dienst {icon("arrow")}</a>
     </div>
   </div>
 </section>"""
+
     render("", "Hauptseite",
            "Das Imperium Germanicum ist ein fiktiver Staatenbund in Europa – das interaktive Rollenspiel für Monarchie-, Adels-, Militär- und Geschichtsliebhaber.",
            body, jsonld=jsonld)
@@ -1551,7 +1578,7 @@ def page_regelwerk():
            f'<li><a href="#rollenspiel"><span>II</span>{esc(rs["titel"])}</a></li>')
     body = page_head([("regelwerk/", "Regelwerk")], "Das Regelwerk", "Server und Rollenspiel",
                      "Die Richtlinien des Discord-Servers und die Regeln des Rollenspiels. Wer am Imperium Germanicum teilnimmt, "
-                     "erkennt sie an und setzt sie um.") + f"""
+                     "erkennt sie an und setzt sie um.", dark=True) + f"""
 <div class="section">
   <div class="wrap with-aside left">
     <aside class="aside-nav toc" aria-label="Inhaltsverzeichnis des Regelwerks">
@@ -1659,20 +1686,9 @@ def page_etikette():
 
 def page_souveraen():
     Ctx.prefix = "../"
-    body = f"""
-<div class="page-head dark portrait-head">
-  <div class="wrap">
-    {breadcrumb([("der-souveraen/", "Der Souverän")])}
-    <div class="page-head-grid">
-      <div class="page-head-text">
-        <span class="eyebrow">Staatsoberhaupt des Imperium Germanicum</span>
-        <h1>Der Souverän</h1>
-        <p class="lead">Seine kaiserliche und königliche Majestät Alexander IX.</p>
-      </div>
-      <div class="page-head-portrait">{img("iceaef15058c1dbef", "Seine Majestät Alexander IX.", "(min-width: 900px) 360px, 60vw", eager=True)}</div>
-    </div>
-  </div>
-</div>""" + f"""
+    body = page_head([("der-souveraen/", "Der Souverän")], "Der Souverän", "Staatsoberhaupt des Imperium Germanicum",
+                     "Seine kaiserliche und königliche Majestät Alexander IX.", bild=("if3da36451cad23de", "center 45%"),
+                     seite=("iceaef15058c1dbef", "Seine Majestät Alexander IX.")) + f"""
 <section class="section">
   <div class="wrap">
     <div class="split wide-right top">
@@ -1863,7 +1879,7 @@ def page_kontakt():
     Ctx.prefix = "../"
     body = page_head([("kontakt/", "Kontakt")], "Melde dich zum Dienst!", "Kontakt",
                      f'Klicke <a href="{INSTAGRAM}" rel="noopener" target="_blank"><strong>HIER</strong></a> um auf den offiziellen Instagram-Account des Imperium Germanicum zu gelangen.',
-                     emb=LOGO) + f"""
+                     emb=LOGO, bild=KOPFBILDER["kontakt"]) + f"""
 <section class="section">
   <div class="wrap split wide-left top">
     <div>

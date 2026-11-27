@@ -136,6 +136,29 @@
       btn.setAttribute("aria-expanded", String(open));
     });
   });
+  /* „Websites des Reiches“ oben rechts */
+  $$(".drop-toggle").forEach(function (btn) {
+    var li = btn.closest(".has-drop");
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      btn.setAttribute("aria-expanded", String(li.classList.toggle("open")));
+    });
+  });
+  document.addEventListener("click", function (e) {
+    $$(".has-drop.open").forEach(function (li) {
+      if (!li.contains(e.target)) { li.classList.remove("open"); li.querySelector(".drop-toggle").setAttribute("aria-expanded", "false"); }
+    });
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    $$(".has-drop.open").forEach(function (li) {
+      li.classList.remove("open");
+      var b = li.querySelector(".drop-toggle");
+      b.setAttribute("aria-expanded", "false");
+      b.focus();
+    });
+  });
+
   document.addEventListener("click", function (e) {
     $$(".has-sub.open").forEach(function (li) {
       if (!li.contains(e.target)) {
