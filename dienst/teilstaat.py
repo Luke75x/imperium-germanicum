@@ -347,11 +347,11 @@ async def einstellungen(request, k):
                         f'{" checked" if recht in mein else ""}><span>{esc(text)}</span></label>')
             zeilen.append((f'<b>{esc(t)}</b>', haken(b + ":lesen", le, "l"), haken(b, be, "b")))
         stand = ("" if befugnisse.GESETZT in roh else
-                 '<p class="sa-hinweis">Noch nicht festgelegt: es gilt der Grundzugang (Etat, Entwicklung, Energie und Krisen ansehen). Mit „Speichern“ gilt nur noch, was angehakt ist.</p>'
+                 '<p class="sa-hinweis">Grundzugang: Etat, Entwicklung, Energie, Krisen ansehen – bis zum ersten Speichern.</p>'
                  if eigen else "")
         if bev and not any(r in befugnisse.GUELTIG for r in roh):
-            stand += '<p class="sa-hinweis">Bevollmächtigt, aber noch ohne Befugnisse: Haken setzen und speichern, damit die Person etwas sehen oder bearbeiten kann.</p>'
-        marke = (' <span class="ts-marke">Bevollmächtigt' + ("" if ist_sa else " · nicht im Schatzamt") + "</span>") if bev else ""
+            stand += '<p class="sa-hinweis">Vollmacht ohne Befugnisse – Bereiche anhaken und speichern.</p>'
+        marke = ' <span class="ts-marke">· Vollmacht</span>' if bev else ""
         widerruf = (f'<button class="btn zweit" type="submit" formaction="{sa.PFAD}teilstaat/einstellungen/vollmacht" name="aktion" value="widerrufen" '
                     f'onclick="return confirm(\'Vollmacht von {esc(m["name"])} widerrufen? Alle Befugnisse in diesem Teilstaat entfallen.\')">{amt.ic("user-x")}Vollmacht widerrufen</button>') if bev else ""
         bloecke.append(f'<section class="ts-bef" id="bef-{esc(m["id"])}"><h3>{amt.ic("user")} {esc(m["name"])}{marke}</h3>{stand}'
@@ -363,43 +363,63 @@ async def einstellungen(request, k):
     js = ("<script>document.querySelectorAll('.ts-bef input[data-b]').forEach(function(i){i.addEventListener('change',function(){"
           "var f=i.form,b=i.getAttribute('data-b');if(i.getAttribute('data-art')==='b'&&i.checked){var l=f.querySelector('input[data-b=\"'+b+'\"][data-art=l]');if(l)l.checked=true}"
           "if(i.getAttribute('data-art')==='l'&&!i.checked){var x=f.querySelector('input[data-b=\"'+b+'\"][data-art=b]');if(x)x.checked=false}})})</script>")
+    gelistet = {m["id"] for m in personen}
+    if request.query.get("nur") == "treffer":
+        return web.Response(text=_vollmacht_treffer(request, schl, alle_m, gelistet, k), content_type="text/html")
+    kopfzeile = (f'<div class="ts-kopfzeile"><h2>Personen</h2><button class="btn" type="button" data-vm-auf>{amt.ic("user-plus")}Person bevollmächtigen</button></div>')
     tab = ("".join(bloecke) + js if bloecke
-           else '<p class="az">Für diesen Teilstaat ist noch niemand im Kaiserlichen Schatz- und Währungsamt eingestellt oder bevollmächtigt. Mit <code>/einstellen</code> in Discord stellen Sie Personen ein '
-                'oder bevollmächtigen unten eine beliebige Person; hier geben Sie ihnen dann Befugnisse.</p>')
-    tab = VOLLMACHT_CSS + '<h2>Eingestellte und bevollmächtigte Personen</h2>' + tab + _vollmacht_suche(request, schl, alle_m, {m["id"] for m in personen}, k)
+           else '<p class="az">Noch niemand eingestellt (<code>/einstellen</code>) oder bevollmächtigt.</p>')
     inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("settings")} Einstellungen · {name}</h1>', sid, name) + amt.meldung(request) +
-              '<p class="az">Hier legen Sie für jede im Schatz- und Währungsamt eingestellte Person einzeln fest, welche Bereiche Ihres Teilstaats sie ansehen und bearbeiten darf. '
-              'Bearbeiten schließt Ansehen ein. Die Befugnisse gelten nur für diesen Teilstaat; Sie können sie jederzeit ändern oder entziehen. '
-              'Ohne Befugnis sieht die Person den Bereich nicht. Über die Kassen selbst (Überweisungen) verfügt weiterhin nur der Regent.</p>' + wahl + tab)
+              '<p class="az">Wer welche Bereiche Ihres Teilstaats ansehen oder bearbeiten darf. Überweisungen bleiben dem Regenten vorbehalten.</p>'
+              + wahl + VOLLMACHT_CSS + kopfzeile + tab + _vollmacht_modal(request, schl, alle_m, gelistet, k))
     return sa.ant(request, k, "Einstellungen", "sa-ts-einst", inhalt)
 
 
 amt.ICONS.setdefault("user-plus", '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>')
 amt.ICONS.setdefault("user-x", '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" x2="22" y1="8" y2="13"/><line x1="22" x2="17" y1="8" y2="13"/>')
-VOLLMACHT_CSS = ('<style>.ts-marke{display:inline-block;margin-left:8px;padding:2px 9px;border:1px solid var(--linie);border-radius:999px;font-size:12px;font-weight:500;vertical-align:middle}'
-                 '.ts-vollmacht{margin-top:28px}</style>')
+VOLLMACHT_CSS = ('<style>.ts-marke{font-weight:500;color:var(--grau)}'
+                 '.ts-kopfzeile{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0 6px}.ts-kopfzeile>h2{margin:0!important;padding:0!important}'
+                 '#ts-vm-f{margin:0 0 10px}.ts-vm-zeile{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--linie);margin:0}'
+                 '.ts-vm-zeile:first-child{border-top:0}.ts-vm-zeile .btn{flex:none}</style>')
 
 
-def _vollmacht_suche(request, schl, alle_m, gelistet, k):
-    """Suchfeld „Person bevollmächtigen“: beliebige Discord-Nutzer per Name (oder ID) finden und bevollmächtigen."""
+def _vollmacht_treffer(request, schl, alle_m, gelistet, k):
+    """Trefferliste der Personensuche im Modal „Person bevollmächtigen“ (auch per fetch mit ?nur=treffer)."""
     q = (request.query.get("q") or "").strip()[:60]
-    treffer = ""
-    if q:
-        ql = q.lower()
-        gef = [m for m in alle_m if (ql in m["name"].lower() or q == m["id"]) and m["id"] not in gelistet and m["id"] != k["id"]]
-        gef.sort(key=lambda m: (not m["name"].lower().startswith(ql), m["name"].lower()))
-        zeilen = [(f'{amt.ic("user")} {esc(m["name"])}', '<span class="az" style="margin:0">Schatzamt</span>' if befugnisse_rolle(m) else "",
-                   f'<form method="post" action="{sa.PFAD}teilstaat/einstellungen/vollmacht" style="margin:0">{amt.csrf_feld(request)}'
-                   f'<input type="hidden" name="ziel" value="{esc(schl)}"><input type="hidden" name="person" value="{esc(m["id"])}">'
-                   f'<button class="btn" type="submit" name="aktion" value="erteilen">{amt.ic("user-plus")}Bevollmächtigen</button></form>') for m in gef[:15]]
-        treffer = (amt.tabelle(["Discord-Nutzer", "", ""], zeilen, f"Niemand gefunden für „{esc(q)}“ (bereits gelistete Personen erscheinen nicht).")
-                   + (f'<p class="az">{len(gef) - 15} weitere Treffer – bitte genauer suchen.</p>' if len(gef) > 15 else ""))
-    return ('<section class="ts-bef ts-vollmacht"><h2>' + amt.ic("user-plus") + ' Person bevollmächtigen</h2>'
-            '<p class="az">Sie können jede Person unseres Discord-Servers für Ihren Teilstaat bevollmächtigen, auch ohne Einstellung im Schatz- und Währungsamt. '
-            'Nach der Vollmacht legen Sie wie oben fest, welche Bereiche sie ansehen und bearbeiten darf – ohne Haken sieht sie nichts.</p>'
-            f'<form class="sa-leiste" method="get" action="{sa.PFAD}teilstaat/einstellungen/"><input type="hidden" name="ziel" value="{esc(schl)}">'
-            f'<div><label for="vm-q">Name suchen</label><input type="search" id="vm-q" name="q" value="{esc(q)}" placeholder="Discord-Name" autocomplete="off" required minlength="2"></div>'
-            f'<button class="btn zweit" type="submit">{amt.ic("search")}Suchen</button></form>{treffer}</section>')
+    if len(q) < 2:
+        return '<p class="az" style="margin:6px 0 0">Mindestens zwei Zeichen eingeben.</p>' if q else ""
+    ql = q.lower()
+    gef = [m for m in alle_m if (ql in m["name"].lower() or q == m["id"]) and m["id"] not in gelistet and m["id"] != k["id"]]
+    gef.sort(key=lambda m: (not m["name"].lower().startswith(ql), m["name"].lower()))
+    if not gef:
+        return f'<p class="az" style="margin:6px 0 0">Niemand gefunden für „{esc(q)}“.</p>'
+    zeilen = "".join(
+        f'<form class="ts-vm-zeile" method="post" action="{sa.PFAD}teilstaat/einstellungen/vollmacht">{amt.csrf_feld(request)}'
+        f'<input type="hidden" name="ziel" value="{esc(schl)}"><input type="hidden" name="person" value="{esc(m["id"])}">'
+        f'<span>{amt.ic("user")} {esc(m["name"])}' + (' <span class="ts-marke">· Schatzamt</span>' if befugnisse_rolle(m) else "") + '</span>'
+        f'<button class="btn" type="submit" name="aktion" value="erteilen">Bevollmächtigen</button></form>' for m in gef[:12])
+    mehr = f'<p class="az" style="margin:6px 0 0">{len(gef) - 12} weitere – genauer suchen.</p>' if len(gef) > 12 else ""
+    return zeilen + mehr
+
+
+def _vollmacht_modal(request, schl, alle_m, gelistet, k):
+    """Modal „Person bevollmächtigen“: beliebige Discord-Nutzer per Name (oder ID) suchen und bevollmächtigen."""
+    import rpleitung
+    q = (request.query.get("q") or "").strip()[:60]
+    return (rpleitung.CSS + f'<dialog class="rp-sheet" id="ts-vm"{" data-auf" if q else ""} aria-labelledby="ts-vm-t">'
+            f'<div class="rp-sheet-kopf"><b class="rp-sheet-titel" id="ts-vm-t">{amt.ic("user-plus")} Person bevollmächtigen</b>'
+            f'<button class="btn zweit" type="button" data-zu aria-label="Schließen">{amt.ic("x")}</button></div><div class="rp-sheet-inhalt">'
+            '<p class="az" style="margin-top:0">Jede Person des Discord-Servers, auch ohne Schatzamt. Danach die Bereiche festlegen.</p>'
+            f'<form method="get" action="{sa.PFAD}teilstaat/einstellungen/" id="ts-vm-f"><input type="hidden" name="ziel" value="{esc(schl)}">'
+            f'<input type="search" name="q" value="{esc(q)}" placeholder="Discord-Name suchen …" aria-label="Discord-Name suchen" autocomplete="off" style="width:100%"></form>'
+            f'<div id="ts-vm-l" aria-live="polite">{_vollmacht_treffer(request, schl, alle_m, gelistet, k)}</div></div></dialog>'
+            "<script>(function(){var d=document.getElementById('ts-vm'),f=document.getElementById('ts-vm-f'),i=f.q,l=document.getElementById('ts-vm-l'),T;"
+            "document.addEventListener('click',function(e){if(e.target.closest('[data-vm-auf]')){e.preventDefault();d.showModal();i.focus()}"
+            "if(e.target.closest('[data-zu]'))d.close();if(e.target===d){var r=d.getBoundingClientRect();if(e.clientY<r.top||e.clientY>r.bottom||e.clientX<r.left||e.clientX>r.right)d.close()}});"
+            "if(d.hasAttribute('data-auf'))d.showModal();"
+            "function such(){var u=f.action+'?ziel='+encodeURIComponent(f.ziel.value)+'&nur=treffer&q='+encodeURIComponent(i.value.trim());"
+            "fetch(u,{credentials:'same-origin'}).then(function(r){return r.text()}).then(function(h){l.innerHTML=h})}"
+            "i.addEventListener('input',function(){clearTimeout(T);T=setTimeout(such,200)});f.addEventListener('submit',function(e){e.preventDefault();such()})})()</script>")
 
 
 def befugnisse_rolle(m):
