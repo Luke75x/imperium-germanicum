@@ -322,8 +322,10 @@ async def einstellungen(request, k):
     schl = "ts-" + sid
     name = esc(kasse["name"].replace("Staatskasse ", ""))
     vorhanden = befugnisse.liste(con, sid)
-    personen = sorted((m for m in await request.app["discord"].mitglieder() if befugnisse.SCHATZAMT_ROLLE in m["rollen"] and gehoert_zu(con, m, sid, vorhanden)),
-                      key=lambda m: m["name"].lower())
+    alle_m = await request.app["discord"].mitglieder()
+    vollm = {kid for kid, w in vorhanden.items() if befugnisse.VOLLMACHT in w}
+    personen = sorted((m for m in alle_m if m["id"] in vollm or (befugnisse.SCHATZAMT_ROLLE in m["rollen"] and gehoert_zu(con, m, sid, vorhanden))),
+                      key=lambda m: (m["id"] in vollm, m["name"].lower()))
     wahl = ""
     if len(regent) > 1:
         opt = "".join(f'<option value="{sa.PFAD}teilstaat/einstellungen/?ziel=ts-{esc(s_)}"{" selected" if s_ == sid else ""}>{esc(r["name"].replace("Staatskasse ", ""))}</option>' for s_, r in regent.items())
@@ -332,7 +334,9 @@ async def einstellungen(request, k):
     bloecke = []
     for m in personen:
         roh = vorhanden.get(m["id"], set())
-        eigen = sid in verteidigung.staaten_von(con, m["rollen"])
+        bev = m["id"] in vollm
+        ist_sa = befugnisse.SCHATZAMT_ROLLE in m["rollen"]
+        eigen = ist_sa and sid in verteidigung.staaten_von(con, m["rollen"])
         mein = befugnisse.wirksam(roh, eigen)
         zeilen = []
         for b, (t, le, be) in befugnisse.BEREICHE.items():
@@ -345,22 +349,97 @@ async def einstellungen(request, k):
         stand = ("" if befugnisse.GESETZT in roh else
                  '<p class="sa-hinweis">Noch nicht festgelegt: es gilt der Grundzugang (Etat, Entwicklung, Energie und Krisen ansehen). Mit „Speichern“ gilt nur noch, was angehakt ist.</p>'
                  if eigen else "")
-        bloecke.append(f'<section class="ts-bef"><h3>{amt.ic("user")} {esc(m["name"])}</h3>{stand}'
+        if bev and not any(r in befugnisse.GUELTIG for r in roh):
+            stand += '<p class="sa-hinweis">Bevollmächtigt, aber noch ohne Befugnisse: Haken setzen und speichern, damit die Person etwas sehen oder bearbeiten kann.</p>'
+        marke = (' <span class="ts-marke">Bevollmächtigt' + ("" if ist_sa else " · nicht im Schatzamt") + "</span>") if bev else ""
+        widerruf = (f'<button class="btn zweit" type="submit" formaction="{sa.PFAD}teilstaat/einstellungen/vollmacht" name="aktion" value="widerrufen" '
+                    f'onclick="return confirm(\'Vollmacht von {esc(m["name"])} widerrufen? Alle Befugnisse in diesem Teilstaat entfallen.\')">{amt.ic("user-x")}Vollmacht widerrufen</button>') if bev else ""
+        bloecke.append(f'<section class="ts-bef" id="bef-{esc(m["id"])}"><h3>{amt.ic("user")} {esc(m["name"])}{marke}</h3>{stand}'
                        f'<form method="post" action="{sa.PFAD}teilstaat/einstellungen/speichern">{amt.csrf_feld(request)}<input type="hidden" name="ziel" value="{esc(schl)}">'
                        f'<input type="hidden" name="person" value="{esc(m["id"])}">'
                        + amt.tabelle(["Bereich", "Ansehen", "Bearbeiten"], zeilen)
                        + f'<div class="aktionen"><button class="btn" type="submit">{amt.ic("check")}Speichern</button>'
-                       f'<button class="btn zweit" type="submit" name="alle_entziehen" value="1" onclick="return confirm(\'Alle Befugnisse von {esc(m["name"])} in diesem Teilstaat entziehen?\')">{amt.ic("x")}Alles entziehen</button></div></form></section>')
+                       f'<button class="btn zweit" type="submit" name="alle_entziehen" value="1" onclick="return confirm(\'Alle Befugnisse von {esc(m["name"])} in diesem Teilstaat entziehen?\')">{amt.ic("x")}Alles entziehen</button>{widerruf}</div></form></section>')
     js = ("<script>document.querySelectorAll('.ts-bef input[data-b]').forEach(function(i){i.addEventListener('change',function(){"
           "var f=i.form,b=i.getAttribute('data-b');if(i.getAttribute('data-art')==='b'&&i.checked){var l=f.querySelector('input[data-b=\"'+b+'\"][data-art=l]');if(l)l.checked=true}"
           "if(i.getAttribute('data-art')==='l'&&!i.checked){var x=f.querySelector('input[data-b=\"'+b+'\"][data-art=b]');if(x)x.checked=false}})})</script>")
     tab = ("".join(bloecke) + js if bloecke
-           else '<p class="az">Für diesen Teilstaat ist noch niemand im Kaiserlichen Schatz- und Währungsamt eingestellt. Mit <code>/einstellen</code> in Discord stellen Sie Personen ein; hier geben Sie ihnen dann Befugnisse.</p>')
+           else '<p class="az">Für diesen Teilstaat ist noch niemand im Kaiserlichen Schatz- und Währungsamt eingestellt oder bevollmächtigt. Mit <code>/einstellen</code> in Discord stellen Sie Personen ein '
+                'oder bevollmächtigen unten eine beliebige Person; hier geben Sie ihnen dann Befugnisse.</p>')
+    tab = VOLLMACHT_CSS + '<h2>Eingestellte und bevollmächtigte Personen</h2>' + tab + _vollmacht_suche(request, schl, alle_m, {m["id"] for m in personen}, k)
     inhalt = (kopf_mit_wappen(f'<h1>{amt.ic("settings")} Einstellungen · {name}</h1>', sid, name) + amt.meldung(request) +
               '<p class="az">Hier legen Sie für jede im Schatz- und Währungsamt eingestellte Person einzeln fest, welche Bereiche Ihres Teilstaats sie ansehen und bearbeiten darf. '
               'Bearbeiten schließt Ansehen ein. Die Befugnisse gelten nur für diesen Teilstaat; Sie können sie jederzeit ändern oder entziehen. '
               'Ohne Befugnis sieht die Person den Bereich nicht. Über die Kassen selbst (Überweisungen) verfügt weiterhin nur der Regent.</p>' + wahl + tab)
     return sa.ant(request, k, "Einstellungen", "sa-ts-einst", inhalt)
+
+
+amt.ICONS.setdefault("user-plus", '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>')
+amt.ICONS.setdefault("user-x", '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" x2="22" y1="8" y2="13"/><line x1="22" x2="17" y1="8" y2="13"/>')
+VOLLMACHT_CSS = ('<style>.ts-marke{display:inline-block;margin-left:8px;padding:2px 9px;border:1px solid var(--linie);border-radius:999px;font-size:12px;font-weight:500;vertical-align:middle}'
+                 '.ts-vollmacht{margin-top:28px}</style>')
+
+
+def _vollmacht_suche(request, schl, alle_m, gelistet, k):
+    """Suchfeld „Person bevollmächtigen“: beliebige Discord-Nutzer per Name (oder ID) finden und bevollmächtigen."""
+    q = (request.query.get("q") or "").strip()[:60]
+    treffer = ""
+    if q:
+        ql = q.lower()
+        gef = [m for m in alle_m if (ql in m["name"].lower() or q == m["id"]) and m["id"] not in gelistet and m["id"] != k["id"]]
+        gef.sort(key=lambda m: (not m["name"].lower().startswith(ql), m["name"].lower()))
+        zeilen = [(f'{amt.ic("user")} {esc(m["name"])}', '<span class="az" style="margin:0">Schatzamt</span>' if befugnisse_rolle(m) else "",
+                   f'<form method="post" action="{sa.PFAD}teilstaat/einstellungen/vollmacht" style="margin:0">{amt.csrf_feld(request)}'
+                   f'<input type="hidden" name="ziel" value="{esc(schl)}"><input type="hidden" name="person" value="{esc(m["id"])}">'
+                   f'<button class="btn" type="submit" name="aktion" value="erteilen">{amt.ic("user-plus")}Bevollmächtigen</button></form>') for m in gef[:15]]
+        treffer = (amt.tabelle(["Discord-Nutzer", "", ""], zeilen, f"Niemand gefunden für „{esc(q)}“ (bereits gelistete Personen erscheinen nicht).")
+                   + (f'<p class="az">{len(gef) - 15} weitere Treffer – bitte genauer suchen.</p>' if len(gef) > 15 else ""))
+    return ('<section class="ts-bef ts-vollmacht"><h2>' + amt.ic("user-plus") + ' Person bevollmächtigen</h2>'
+            '<p class="az">Sie können jede Person unseres Discord-Servers für Ihren Teilstaat bevollmächtigen, auch ohne Einstellung im Schatz- und Währungsamt. '
+            'Nach der Vollmacht legen Sie wie oben fest, welche Bereiche sie ansehen und bearbeiten darf – ohne Haken sieht sie nichts.</p>'
+            f'<form class="sa-leiste" method="get" action="{sa.PFAD}teilstaat/einstellungen/"><input type="hidden" name="ziel" value="{esc(schl)}">'
+            f'<div><label for="vm-q">Name suchen</label><input type="search" id="vm-q" name="q" value="{esc(q)}" placeholder="Discord-Name" autocomplete="off" required minlength="2"></div>'
+            f'<button class="btn zweit" type="submit">{amt.ic("search")}Suchen</button></form>{treffer}</section>')
+
+
+def befugnisse_rolle(m):
+    import befugnisse
+    return befugnisse.SCHATZAMT_ROLLE in m["rollen"]
+
+
+@sa.seite("staat")
+async def vollmacht(request, k):
+    """Vollmacht erteilen oder widerrufen (nur der Regent des Teilstaats)."""
+    import befugnisse
+    form = await sa.formular(request)
+    ziel = str(form.get("ziel", ""))
+    con = request.app["db"]
+    regent = {r["stelle"]: r for r in geld.regierte_staatskassen(con, k)}
+    if ziel not in regent:
+        raise web.HTTPForbidden(text="Nur der Regent des Teilstaats darf Vollmachten erteilen.")
+    zurueck = f"{sa.PFAD}teilstaat/einstellungen/?ziel={ziel}"
+    sid, person = ziel[3:], str(form.get("person", ""))
+    m = next((x for x in await request.app["discord"].mitglieder() if x["id"] == person), None)
+    land = regent[ziel]["name"].replace("Staatskasse ", "")
+    if form.get("aktion") == "widerrufen":
+        if not befugnisse.bevollmaechtigt(con, sid, person):
+            sa.weiter(zurueck, "Diese Person ist nicht bevollmächtigt.", True)
+        befugnisse.widerrufen(con, sid, person)
+        name = m["name"] if m else person
+        geld.protokoll(con, k, "Vollmacht", f"{ziel}: Vollmacht von {name} widerrufen")
+        con.commit()
+        sa.dm(request, person, f"🔒 **Vollmacht widerrufen** – {k['name']} hat deine Vollmacht für **{land}** im Schatzamt widerrufen.", art="vollmacht")
+        sa.weiter(zurueck, f"Vollmacht von {name} widerrufen.")
+    if not m:
+        sa.weiter(zurueck, "Diese Person ist nicht (mehr) auf unserem Discord-Server.", True)
+    if person == k["id"]:
+        sa.weiter(zurueck, "Sie regieren diesen Teilstaat bereits selbst.", True)
+    befugnisse.bevollmaechtigen(con, sid, person, k["name"])
+    geld.protokoll(con, k, "Vollmacht", f'{ziel}: {m["name"]} bevollmächtigt')
+    con.commit()
+    sa.dm(request, person, f"🖋️ **Vollmacht erteilt** – {k['name']} hat dich für **{land}** im Schatzamt bevollmächtigt. "
+                                            f"Welche Bereiche du ansehen und bearbeiten darfst, legt der Regent fest: {amt.config.SITE_URL}{sa.PFAD}", art="vollmacht")
+    sa.weiter(zurueck + f"#bef-{person}", f'{m["name"]} ist bevollmächtigt. Jetzt die Befugnisse festlegen und speichern.')
 
 
 @sa.seite("staat")
@@ -374,11 +453,12 @@ async def einstellungen_speichern(request, k):
         raise web.HTTPForbidden(text="Nur der Regent des Teilstaats darf Befugnisse vergeben.")
     person = str(form.get("person", ""))
     m = next((x for x in await request.app["discord"].mitglieder() if x["id"] == person), None)
-    if not m or befugnisse.SCHATZAMT_ROLLE not in m["rollen"]:
-        sa.weiter(f"{sa.PFAD}teilstaat/einstellungen/?ziel={ziel}", "Diese Person ist nicht im Schatz- und Währungsamt eingestellt.", True)
+    bev = bool(m) and befugnisse.bevollmaechtigt(con, ziel[3:], person)
+    if not m or (befugnisse.SCHATZAMT_ROLLE not in m["rollen"] and not bev):
+        sa.weiter(f"{sa.PFAD}teilstaat/einstellungen/?ziel={ziel}", "Diese Person ist weder im Schatz- und Währungsamt eingestellt noch bevollmächtigt.", True)
     rechte = [] if form.get("alle_entziehen") else [r for r in form.getall("recht", []) if r in befugnisse.GUELTIG]
     rechte += [r + ":lesen" for r in rechte if ":" not in r and befugnisse.BEREICHE[r][1] and r + ":lesen" not in rechte]   # Bearbeiten schließt Ansehen ein
-    if rechte and not gehoert_zu(con, m, ziel[3:]):
+    if rechte and not bev and not gehoert_zu(con, m, ziel[3:]):
         sa.weiter(f"{sa.PFAD}teilstaat/einstellungen/?ziel={ziel}", f'{m["name"]} ist für einen anderen Teilstaat eingestellt.', True)
     befugnisse.setzen(con, ziel[3:], person, rechte, k["name"])
     geld.protokoll(con, k, "Befugnisse", f'{ziel}: {m["name"]} → ' + (", ".join(befugnisse.recht_name(r) for r in sorted(rechte)) or "keine Befugnisse"))
@@ -397,4 +477,5 @@ def registrieren(app):
     app.router.add_get(PFAD + "finanzen/", finanzen)
     app.router.add_get(PFAD + "einstellungen/", einstellungen)
     app.router.add_post(PFAD + "einstellungen/speichern", einstellungen_speichern)
+    app.router.add_post(PFAD + "einstellungen/vollmacht", vollmacht)
     app.router.add_get(PFAD + "statistiken/", statistiken_alt)

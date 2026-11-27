@@ -14,6 +14,9 @@ Bearbeiten schließt Ansehen ein. Die Rechte gelten nur für diesen Teilstaat; R
 Grundzugang: Solange der Regent für eine Person des EIGENEN Teilstaats (Fraktionsrolle) noch nichts gespeichert hat, darf sie Etat, Entwicklung, Energie
 und Krisen ansehen (STANDARD_LESEN, früherer Grundzugang). Sobald der Regent ihre Befugnisse speichert (Markierung „_gesetzt“), gilt nur noch, was er
 angehakt hat – auch das Ansehen lässt sich so entziehen.
+Bevollmächtigte (seit 27.11.2026): Der Regent kann zusätzlich JEDEN Discord-Nutzer (auch ohne Schatzamt-Rolle) für seinen Teilstaat bevollmächtigen
+(Markierung „_vollmacht“, bevollmaechtigen/widerrufen). Eine Vollmacht allein gibt noch kein Recht – die Bereiche stellt der Regent wie bei
+eingestellten Personen ein. Bevollmächtigte ohne Schatzamt-Rolle haben keinen Grundzugang und Rechte nur in Teilstaaten mit Vollmacht.
 Prüfung: befugt(con, k, sid, recht), sids(con, k, recht=None), darf_sehen(con, k, sid, bereich) (Regent/Leitung/RP immer).
 """
 import time
@@ -32,6 +35,7 @@ BEREICHE = {
 }
 STANDARD_LESEN = ("etat", "entwicklung", "energie", "krisen")   # Grundzugang im eigenen Teilstaat, solange der Regent nichts gespeichert hat
 GESETZT = "_gesetzt"
+VOLLMACHT = "_vollmacht"
 
 
 def _gueltig():
@@ -83,14 +87,18 @@ def wirksam(roh, eigen):
 
 def _alle(con, k):
     """{sid: wirksame Rechte} des Kontos (je Anfrage zwischengespeichert)."""
-    if not k or not k["mitglied"] or not ist_schatzamt(k):
+    if not k or not k["mitglied"]:
         return {}
     if "_bef" not in k:
         import verteidigung
         roh = {}
         for r in con.execute("SELECT sid, recht FROM ts_befugnisse WHERE konto_id=?", (k["id"],)):
             roh.setdefault(r["sid"], set()).add(r["recht"])
-        eigene = verteidigung.staaten_von(con, k["rollen"])
+        if ist_schatzamt(k):
+            eigene = verteidigung.staaten_von(con, k["rollen"])
+        else:   # ohne Schatzamt-Rolle zählen nur Teilstaaten mit Vollmacht des Regenten, kein Grundzugang
+            roh = {s_: w for s_, w in roh.items() if VOLLMACHT in w}
+            eigene = set()
         out = {}
         for sid in set(roh) | eigene:
             w = wirksam(roh.get(sid, set()), sid in eigene)
@@ -134,9 +142,28 @@ def liste(con, sid):
 
 
 def setzen(con, sid, konto_id, rechte, von):
-    """Ersetzt die Rechte der Person für den Teilstaat durch `rechte` (leer = alle entziehen, auch den Grundzugang)."""
+    """Ersetzt die Rechte der Person für den Teilstaat durch `rechte` (leer = alle entziehen, auch den Grundzugang). Eine Vollmacht bleibt bestehen."""
+    vm = con.execute("SELECT 1 FROM ts_befugnisse WHERE sid=? AND konto_id=? AND recht=?", (sid, konto_id, VOLLMACHT)).fetchone()
     con.execute("DELETE FROM ts_befugnisse WHERE sid=? AND konto_id=?", (sid, konto_id))
     jetzt = int(time.time())
-    for r in set(rechte) & GUELTIG | {GESETZT}:
+    for r in set(rechte) & GUELTIG | {GESETZT} | ({VOLLMACHT} if vm else set()):
         con.execute("INSERT INTO ts_befugnisse (sid, konto_id, recht, von, zeit) VALUES (?,?,?,?,?)", (sid, konto_id, r, von, jetzt))
+    con.commit()
+
+
+def bevollmaechtigt(con, sid, konto_id):
+    return bool(con.execute("SELECT 1 FROM ts_befugnisse WHERE sid=? AND konto_id=? AND recht=?", (sid, konto_id, VOLLMACHT)).fetchone())
+
+
+def bevollmaechtigen(con, sid, konto_id, von):
+    """Erteilt einer beliebigen Person die Vollmacht für den Teilstaat – noch ohne Bereiche (die stellt der Regent danach ein)."""
+    jetzt = int(time.time())
+    for r in (VOLLMACHT, GESETZT):
+        con.execute("INSERT OR IGNORE INTO ts_befugnisse (sid, konto_id, recht, von, zeit) VALUES (?,?,?,?,?)", (sid, konto_id, r, von, jetzt))
+    con.commit()
+
+
+def widerrufen(con, sid, konto_id):
+    """Widerruft die Vollmacht samt aller Befugnisse der Person in diesem Teilstaat."""
+    con.execute("DELETE FROM ts_befugnisse WHERE sid=? AND konto_id=?", (sid, konto_id))
     con.commit()

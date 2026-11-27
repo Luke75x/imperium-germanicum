@@ -34,6 +34,7 @@ ARTEN = [
     ("post", "Interne Post", "Neue Nachricht in deinem Postfach der Reichsverwaltung.", False, False, "Dienst"),
     ("krise", "Krise im Teilstaat", "Eine Krise in deinem Teilstaat verlangt eine Reaktion (nur Landesherren).", True, False, "Teilstaat"),
     ("notlage", "Haushaltsnotlage", "Eine Kasse deines Teilstaats ist im Minus oder die Notlage endet.", True, False, "Teilstaat"),
+    ("vollmacht", "Vollmachten", "Ein Regent hat dich für seinen Teilstaat bevollmächtigt oder die Vollmacht widerrufen.", True, False, "Teilstaat"),
     ("etat", "Änderungsperiode", "Erinnerung zu Beginn der Änderungsperiode, den Etat einzureichen.", True, False, "Teilstaat"),
     ("rp", "Mitteilungen der RP-Leitung", "Eingriffe der RP-Leitung in deine Konten. Lässt sich nicht abschalten.", True, True, "Pflicht"),
 ]

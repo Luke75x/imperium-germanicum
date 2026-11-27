@@ -9,6 +9,7 @@ Handel nur mit der Zentralbank: Verkauf → Zentralbank zahlt den Gegenwert in K
 Kauf → Staatskasse zahlt an die Zentralbank (Geld verlässt den Umlauf). Ankaufsabschlag/Verkaufsaufschlag je 1 % (Einstellung).
 Berechtigt: Landesherr für die eigene Staatskasse (geld.regierte_staatskassen), Leitung des Schatzamts für alle und die Reichskasse;
 Goldpreis setzt die Leitung.
+RP-Leitung: Gold zwischen Teilstaaten/Reichskasse übertragen (umbuchen, Art „umbuchung“, ohne Geld) – Stellschrauben → Gold und Die Teilstaaten → Finanzen.
 Seite /schatzamt/gold/ (staatlich – nur mit staatlichem Zugriff, sa.hat_staat: Bestände, Wert, Golddeckung der Krone).
 """
 import time
@@ -23,6 +24,7 @@ from geld import mark
 
 esc = amt.esc
 PFAD = sa.PFAD
+amt.ICONS.setdefault("arrow-right-left", '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>')
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS gr_bestand (stelle TEXT PRIMARY KEY, name TEXT NOT NULL, kg REAL NOT NULL DEFAULT 0);
@@ -101,6 +103,69 @@ def handeln(con, kasse, kg, verkaufen, k):
     return betrag
 
 
+def halter(con):
+    """{Stelle: Name} aller Goldhalter, zwischen denen die RP-Leitung umbuchen kann: Reichskasse und die Staatskassen der Teilstaaten."""
+    out = {"reichskasse": geld.sonder(con, "reichskasse")["name"]}
+    out.update({r["stelle"]: r["name"] for r in con.execute("SELECT stelle, name FROM gk_konten WHERE art='teilstaat' AND stelle LIKE 'ts-%' ORDER BY name")})
+    return out
+
+
+def umbuchen(con, von, nach, kg, grund, k):
+    """RP-Leitung: überträgt kg Gold von Stelle `von` an Stelle `nach` (ohne Geld, kein Handel mit der Zentralbank)."""
+    h = halter(con)
+    kg = round(kg, 3)
+    if von not in h or nach not in h:
+        raise geld.Fehler("Unbekannte Kasse.")
+    if von == nach:
+        raise geld.Fehler("Absender und Empfänger müssen verschieden sein.")
+    if kg <= 0:
+        raise geld.Fehler("Bitte eine Menge über 0 kg angeben.")
+    if bestand(con, von) < kg - 1e-9:
+        raise geld.Fehler(f"Nicht genug Gold: {h[von]} hält {_kg(bestand(con, von))}.")
+    grund = (grund or "").strip()[:200]
+    _bewegen(con, von, h[von], -kg, "umbuchung", 0, k, f"An {h[nach]}" + (f": {grund}" if grund else ""))
+    _bewegen(con, nach, h[nach], kg, "umbuchung", 0, k, f"Von {h[von]}" + (f": {grund}" if grund else ""))
+    geld.protokoll(con, k, "Goldtransfer", f"RP-Leitung: {kg:g} kg Gold von {h[von]} an {h[nach]}" + (f" ({grund})" if grund else ""))
+
+
+def transfer_html(request, con, von=None, zurueck=None):
+    """Formular „Gold übertragen“ (nur RP-Leitung): zwischen Teilstaaten bzw. Reichskasse; von = vorbelegte Stelle."""
+    h = halter(con)
+    def opts(sel):
+        return "".join(f'<option value="{esc(st)}"{" selected" if st == sel else ""}>{esc(n.replace("Staatskasse ", ""))} · {_kg(bestand(con, st))}</option>' for st, n in h.items())
+    leer = '<option value="" selected disabled>Bitte wählen</option>'
+    zur = f'<input type="hidden" name="zurueck" value="{esc(zurueck)}">' if zurueck else ""
+    return (f'<h2>{amt.ic("arrow-right-left")} Gold übertragen</h2>'
+            '<p class="az">RP-Eingriff: Gold zwischen Teilstaaten (oder der Reichskasse) umbuchen, z. B. nach einem Vertrag, einer Reparation oder einer Korrektur. '
+            'Es fließt kein Geld; beide Seiten sehen die Umbuchung in ihren Goldgeschäften.</p>'
+            f'<form class="sa-formular" method="post" action="{PFAD}gold/transfer">{amt.csrf_feld(request)}{zur}<div class="zeilen">'
+            f'<div><label for="gt-von">Von</label><select id="gt-von" name="von" required>{"" if von else leer}{opts(von)}</select></div>'
+            f'<div><label for="gt-nach">An</label><select id="gt-nach" name="nach" required>{leer}{opts(None)}</select></div>'
+            '<div><label for="gt-kg">Menge (kg)</label><input type="text" id="gt-kg" name="kg" required inputmode="decimal"></div>'
+            '<div><label for="gt-grund">Grund (optional)</label><input type="text" id="gt-grund" name="grund" maxlength="200"></div></div>'
+            f'<div class="aktionen"><button class="btn" type="submit" onclick="return confirm(\'Gold jetzt übertragen?\')">{amt.ic("check")}Übertragen</button></div></form>')
+
+
+async def transfer_post(request):
+    k = await anmeldung.konto(request)
+    if not sa.ist_rp(k):
+        raise web.HTTPForbidden()
+    form = await sa.formular(request)
+    con = request.app["db"]
+    z = str(form.get("zurueck", ""))
+    back = z if z.startswith(PFAD + "rp/") and "\n" not in z and "\r" not in z else sa.RP_STELL + "#gold"
+    try:
+        roh = str(form.get("kg", "")).replace(" ", "")
+        kg = float(roh.replace(".", "").replace(",", ".") if "," in roh else roh)
+        umbuchen(con, str(form.get("von", "")), str(form.get("nach", "")), kg, str(form.get("grund", "")), k)
+        con.commit()
+    except (ValueError, geld.Fehler) as e:
+        con.rollback()
+        sa.weiter(back, str(e) if isinstance(e, geld.Fehler) else "Bitte eine gültige Menge angeben.", True)
+    h = halter(con)
+    sa.weiter(back, f'{_kg(kg)} Gold von {h[form["von"]]} an {h[form["nach"]]} übertragen.')
+
+
 def _kg(x):
     return f"{x:,.1f} kg".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -116,8 +181,7 @@ def rp_html(request, con):
                  f'<div><label for="p">€ je kg</label><input type="text" id="p" name="preis" value="{preis(con):.0f}"></div>'
                  f'<div><label for="a">Ab-/Aufschlag %</label><input type="text" id="a" name="abschlag" value="{esc(str(g["abschlag"]))}"></div>'
                  f'<button class="btn zweit" type="submit">Speichern</button></form>')
-
-    return form
+    return form + transfer_html(request, con)
 
 
 @sa.seite("staat")
@@ -254,3 +318,4 @@ def registrieren(app):
     r.add_get(PFAD + "gold/", seite)
     r.add_post(PFAD + "gold/handeln", handeln_post)
     r.add_post(PFAD + "gold/preis", preis_post)
+    r.add_post(PFAD + "gold/transfer", transfer_post)

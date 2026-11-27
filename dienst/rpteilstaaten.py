@@ -181,6 +181,8 @@ async def seite(request, k):
     ueber = _links_umleiten(await teilstaat.ueberblick(request, k, con, sid, kasse, kopf=False))
     land = _links_umleiten(teilstaat._abschnitte(None, teilstaat.land_teile(request, k, con, sid, schl)))
     fin = _links_umleiten(teilstaat._abschnitte(None, teilstaat.fin_teile(request, k, con, sid, kasse)))
+    import gold
+    fin += '<section class="rs-block">' + gold.transfer_html(request, con, von=schl, zurueck=f"{PFAD}?ziel={schl}#finanzen") + '</section>'
     teile = [("ueberblick", "Überblick", ueber), ("etat", "Etat", _links_umleiten(_etat_tab(con, liste, x, sid, schl))), ("land", "Land", land), ("finanzen", "Finanzen", fin),
              ("kassen", "Kassen", _kassen_tab(con, sid)), ("konfiguration", "Konfiguration", _konfig_tab(con, sid, s["name"])),
              ("stammdaten", "Stammdaten", _stammdaten(request, con, s))]

@@ -627,7 +627,8 @@ async def formular(request):
 
 
 def weiter(pfad, text, fehler=False):
-    raise web.HTTPSeeOther(pfad + ("&" if "?" in pfad else "?") + "m=" + quote(text) + ("&f=1" if fehler else ""))
+    pfad, _, anker = pfad.partition("#")   # Meldung vor einen #Anker setzen
+    raise web.HTTPSeeOther(pfad + ("&" if "?" in pfad else "?") + "m=" + quote(text) + ("&f=1" if fehler else "") + ("#" + anker if anker else ""))
 
 
 def dm(request, konto_id, text, art=None):
